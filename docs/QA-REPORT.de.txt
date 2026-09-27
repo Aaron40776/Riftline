@@ -1,3 +1,43 @@
+RIFTLINE v2.4.1 – GEGNER UND BOSSE TRAGEN DAS BIOM
+Basis: v2.4.0 · Build r241a0927l-r1 · 27.09.2026
+
+Gewünscht: Gegner-Modelle an das Biom anpassen, z. B. Feuer- und Eis-Skins.
+
+1) Biom-Häute für alle 25 Gegner und die 4 Bosse
+   Eine Haut, die der Shader über jedes vorhandene Modell legt (gleiche Formen, gleiche
+   Typfarbe und gleiches Leuchten, damit die Typen unterscheidbar bleiben), dazu passende
+   Partikel pro Gegner:
+     Neon Yard    keine Haut (Standard)
+     Ember Works  verkohlte Hülle mit pulsierenden Lava-Adern · Glut steigt auf
+     Cryo Vault   Reif auf allen Oberseiten, Glitzern, kalter Farbstich · Frostflocken
+     Toxin Marsh  herablaufender Schleim, leuchtende Giftflecken · grüne Tropfen
+     Void Core    violetter Randschimmer, Sternenflecken · aufsteigende Lichtpunkte
+   Treffer-Aufblitzen, Elite- und Champion-Färbung wirken weiter. Die Häute sind nur Optik;
+   Werte und Verhalten der Gegner ändern sich nicht. Keine zusätzlichen Draw-Calls (gleiche
+   Meshes, nur ein anderer Shader); die Partikel sind auf ~70 pro Sekunde begrenzt.
+
+2) Tests
+   tests/biome-shots.mjs stellt jetzt in jedem Biom einen Ring aus 8 Gegnertypen um die
+   Drohne und spawnt in der Bosswelle den Boss direkt, damit die Häute auf den Bildern
+   sind. Es schlägt fehl, wenn die Konsole einen Fehler meldet (Shader-Kompilierfehler
+   erscheinen nur dort).
+   Gefunden und korrigiert beim Ansehen: Die Schleim-Haut sah zuerst wie großflächige
+   Tarnflecken aus, die Sternenflecken im Void waren eckig.
+
+Offen (hier nicht prüfbar):
+   - Bildrate auf echten Geräten: Die Häute rechnen 3D-Rauschen pro Gegner-Pixel. Das ist
+     weniger als der Boden, aber bei vielen großen Gegnern auf schwachen Handys zu prüfen.
+
+Ergebnisse 2.4.1 (headless Chromium, Software-WebGL):
+  full-qa.mjs   238 Prüfungen, 0 Fehler
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok · world-audit 0 Befunde · data-audit ok
+  run-audit     Bot-Run bis Welle 22 inkl. Endlos, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   PC, Handy hoch und quer ohne Fehler; biome-shots mit Gegnern und Bossen in
+                allen fünf Biomen auf allen drei Profilen angesehen, keine Konsolenfehler
+
+================================================================================
+
 RIFTLINE v2.4.0 – WENIGER, ABER ECHT VERSCHIEDENE BIOME UND WAFFEN
 Basis: v2.3.6 · Build r240a0927k-r1 · 27.09.2026
 
