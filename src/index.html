@@ -335,6 +335,19 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 .bi { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; font: 600 12px/1 var(--display); color: var(--text); background: rgba(255, 255, 255, 0.05); border-left: 2px solid var(--rc, var(--r1)); }
 .bi .ico { width: 14px; height: 14px; color: var(--rc, var(--r1)); }
 .bi.r2 { --rc: var(--r2); } .bi.r3 { --rc: var(--r3); } .bi.r4 { --rc: var(--r4); } .bi.r5 { --rc: #ffffff; }
+/* 2.4.2: the pause build explains each upgrade; key hints on the upgrade cards; HUD readouts;
+   settings opened from the pause menu leave out backup and reset */
+button.bi { border-top: 0; border-right: 0; border-bottom: 0; cursor: pointer; pointer-events: auto; }
+button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transparent); }
+.up-info { max-width: 460px; min-height: 44px; margin-inline: auto; padding: 8px 12px; text-align: center; background: rgba(255, 255, 255, 0.04); }
+.up-info b { font: 700 14px/1.2 var(--display); letter-spacing: 0.03em; }
+.up-info .lv { font: 600 11px/1 var(--display); letter-spacing: 0.14em; color: var(--dim); }
+.up-info p { margin: 4px 0 0; color: var(--dim); font-size: 14px; }
+.card-key { position: absolute; right: 8px; bottom: 6px; font: 700 11px/1 var(--display); color: var(--dim); padding: 3px 6px; border: 1px solid var(--line2); background: rgba(255, 255, 255, 0.04); }
+.card-key.inline { position: static; margin-left: 8px; }
+#choose .card.has-key { padding-bottom: 28px; }
+.hud-info { position: absolute; left: calc(var(--sl) + 12px); bottom: calc(var(--sb) + 10px); font: 600 12px/1 var(--display); letter-spacing: 0.08em; color: var(--dim); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); }
+#settings.in-run .menu-only { display: none; }
 
 /* ---------------------------------------------------------------- pause / over */
 .center-col { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; max-width: 400px; max-height: 100%; overflow-y: auto; touch-action: pan-y; text-align: center; }
@@ -1124,7 +1137,7 @@ label.set-row > .toggle { flex: 0 0 auto; }
    upgrade choice or the run summary is open, gameplay hints are hidden (an enemy
    intro used to sit on top of RESUME on landscape phones); during a boss fight
    they start below the boss health bar (compact phones put them on top of it). */
-#pause:not([hidden]) ~ #toasts, #choose:not([hidden]) ~ #toasts, #over:not([hidden]) ~ #toasts { visibility: hidden; }
+#pause:not([hidden]) ~ #toasts, #choose:not([hidden]) ~ #toasts, #over:not([hidden]) ~ #toasts, #settings.in-run:not([hidden]) ~ #toasts { visibility: hidden; }
 #app:has(#bossBar:not([hidden])) #toasts { top: calc(var(--st) + 100px); }
 #pause .build-list { justify-content: center; margin-inline: auto; }
 /* Upgrade cards: keep the three choices visually equal on large screens,
@@ -1335,6 +1348,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div class="boss-name"><span id="bossName">BOSS</span><span id="bossPhase"></span></div>
       <div class="bar boss"><i id="bossFill"></i><b id="bossLag"></b><span id="bossTicks" class="ticks"></span></div>
     </div>
+    <div id="hudInfo" class="hud-info num" hidden></div>
     <div id="coach" class="coach" hidden><div id="coachDots" class="coach-dots"></div><p id="coachText"></p></div>
     <div class="act">
       <button id="novaBtn" class="act-btn nova" aria-label="Nova blast"><span class="ring"></span><span class="lbl">NOVA</span></button>
@@ -1433,14 +1447,16 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
         <label class="set-row"><span><b>Screen shake</b></span><input type="checkbox" id="setShake" class="toggle"></label>
         <label class="set-row"><span><b>Damage numbers</b></span><input type="checkbox" id="setNumbers" class="toggle"></label>
         <label class="set-row"><span><b>Clear warnings</b><small>Danger zones and lasers in bright yellow with a second ring — easier to tell apart from enemies.</small></span><input type="checkbox" id="setContrast" class="toggle"></label>
+        <label class="set-row"><span><b>Run timer</b><small>Shows the run time in the corner while you play.</small></span><input type="checkbox" id="setTimer" class="toggle"></label>
+        <label class="set-row"><span><b>FPS counter</b><small>Shows the frame rate in the corner while you play.</small></span><input type="checkbox" id="setFps" class="toggle"></label>
         <label class="set-row"><span><b>Reduce flashes</b><small>Softer light bursts, no red screen pulse when hit.</small></span><input type="checkbox" id="setCalm" class="toggle"></label>
       </div>
       <h3 class="section-h">Tutorial</h3>
       <div class="set-group">
         <div class="set-row"><span><b>Replay tutorial</b><small>Shows the four-step onboarding again on your next fresh run. Your current run and progress stay untouched.</small></span><button id="replayTutBtn" class="btn small">Replay</button></div>
       </div>
-      <h3 class="section-h">Backup</h3>
-      <div class="set-group">
+      <h3 class="section-h menu-only">Backup</h3>
+      <div class="set-group menu-only">
         <div class="set-row"><span><b>Save backup</b><small>Export your Riftline progress as text, or share it directly on supported devices.</small></span><div class="btn-row compact-row"><button id="backupBtn" class="btn small">Export</button><button id="shareBtn" class="btn small">Share</button><button id="restoreBtn" class="btn small">Import</button></div></div>
       </div>
       <h3 class="section-h">Sound</h3>
@@ -1452,7 +1468,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
         <span class="note">Riftline <span id="verText" class="num"></span> · progress saves automatically<span id="storageWarn" hidden> — <b>storage is blocked in this browser</b></span></span>
         <div class="btn-row">
           <button id="logBtn" class="btn ghost small">Diagnostics <span id="logCount" class="chip"></span></button>
-          <button id="resetBtn" class="btn danger ghost small">Reset progress</button>
+          <button id="resetBtn" class="btn danger ghost small menu-only">Reset progress</button>
         </div>
       </div>
     </div>
@@ -1481,10 +1497,12 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <button id="resumeBtn" class="btn primary">RESUME</button>
       <div class="btn-row">
         <button id="restartBtn" class="btn">Restart</button>
+        <button id="pauseSetBtn" class="btn">Settings</button>
       </div>
       <button id="abandonBtn" class="btn danger ghost">Abandon run</button>
       <div class="section-h">Build</div>
       <div id="pauseBuild" class="build-list"></div>
+      <div id="pauseUpInfo" class="up-info" aria-live="polite" hidden></div>
     </div>
   </section>
 

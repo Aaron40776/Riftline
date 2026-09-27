@@ -250,6 +250,11 @@
       "restoreBtn",
       "resumeBtn",
       "retryBtn",
+      "pauseSetBtn",
+      "pauseUpInfo",
+      "hudInfo",
+      "setTimer",
+      "setFps",
       "runShards",
       "setAssist",
       "setAuto",
@@ -37112,6 +37117,9 @@ varying float vFlash;`,
       zoom: 1,
       contrast: !1,
       calm: !1,
+      // 2.4.2: optional HUD readouts
+      timer: !1,
+      fps: !1,
     };
   function zh() {
     return {
@@ -37736,7 +37744,9 @@ varying float vFlash;`,
         low = this.player.hp <= st.maxHp * 0.35;
       return baseHurt.call(
         this,
-        low && st.laststand > 0 ? Math.max(1, dmg * (1 - st.laststand)) : dmg,
+        // 2.4.2: the 1-damage floor only applies to hits that did at least 1 before. Small hazard
+        // ticks (acid with high resistance) used to be raised to 1 by Last Stand.
+        low && st.laststand > 0 ? Math.min(dmg, Math.max(1, dmg * (1 - st.laststand))) : dmg,
         x,
         y,
         src,
@@ -38151,13 +38161,24 @@ varying float vFlash;`,
     let e = ee.data.seen;
     e["tip_" + i] || ((e["tip_" + i] = !0), ee.save("tip"), Ft.toast(t, "", 5200));
   }
+  // 2.4.2: Auto quality also steps back up. Before, two slow windows (a stutter at the start of
+  // a run is enough) lowered the resolution until the next reload. It now rises again one step
+  // after 20 s at 57+ fps. A level it had to leave twice becomes the ceiling for the session, so
+  // a device at its limit does not flip between two levels.
+  let rlQUp = 0,
+    rlQCeil = 1.5;
+  const rlQLeft = {},
+    rlQParticles = (d) => (d >= 1.5 ? pa.particles : d <= 1 ? 800 : 1100);
   function c_(i, t) {
     if (t.quality !== "auto" || !oe || ((Wl += i), Vh++, Wl < 2.5)) return;
     let e = Vh / Wl;
-    ((Wl = 0),
-      (Vh = 0),
-      e < 48 ? da++ : (da = Math.max(0, da - 1)),
-      da >= 2 && js > 1 && ((js = Math.max(1, js - 0.25)), (da = 0), oe.setQuality(js, js <= 1 ? 800 : 1100)));
+    ((Wl = 0), (Vh = 0), e < 48 ? da++ : (da = Math.max(0, da - 1)), (rlQUp = e >= 57 ? rlQUp + 1 : 0));
+    if (da >= 2 && js > 1) {
+      (rlQLeft[js] && (rlQCeil = Math.min(rlQCeil, js - 0.25)), (rlQLeft[js] = !0));
+      ((js = Math.max(1, js - 0.25)), (da = 0), (rlQUp = 0), oe.setQuality(js, rlQParticles(js)));
+    } else if (rlQUp >= 8 && js + 0.25 <= rlQCeil) {
+      ((js += 0.25), (rlQUp = 0), (da = 0), oe.setQuality(js, rlQParticles(js)));
+    }
   }
   function h_() {
     let i = getComputedStyle(document.documentElement),
@@ -38291,6 +38312,10 @@ varying float vFlash;`,
         return;
       ee.data = parsed.data;
       ee.save("import");
+      // 2.4.2: apply the imported settings (volume, left-handed, graphics, camera) right away;
+      // they used to wait for the next reload or settings change.
+      Xh();
+      ft.previewW = ee.data.weapon;
       ft._runExtra = null;
       ft.world = null;
       ft.mode = "menu";
@@ -39457,6 +39482,195 @@ float rlN3(vec3 x) {
       },
       !0,
     );
+  })();
+  /* ==========================================================================
+   Riftline 2.4.2: bug fixes and quality of life
+   - a run that is already lost (or won) is settled when the page is hidden, so a reload in
+     the 1.5 s before the game-over screen no longer brings the run back
+   - letters are read by their position on the keyboard (e.code), so W A S D, E, Q and F sit in
+     the same place on every layout (on AZERTY, Q moved left and fired the Nova as well)
+   - upgrade choice: keys 1–4 pick a card, R rerolls
+   - Esc goes back in Workshop, Records and Settings
+   - Settings can be opened from the pause menu (without backup and reset)
+   - the build in the pause menu explains each upgrade on tap or click
+   - optional run timer and FPS counter in the HUD
+   ========================================================================== */
+  (() => {
+    // ---- settle a lost or won run before the page goes away
+    const settle = () => {
+      const w = ft.world;
+      ft.mode !== "game" ||
+        !w ||
+        ft.overShown ||
+        (w.state !== "dead" && w.state !== "victory") ||
+        ft.endRun(w.state === "victory");
+    };
+    document.addEventListener("visibilitychange", () => {
+      document.visibilityState === "hidden" && settle();
+    });
+    window.addEventListener("pagehide", settle);
+
+    // ---- keys by position; upgrade choice keys
+    const baseKey = Ol.prototype.key;
+    Ol.prototype.key = function (t, down) {
+      const code = String(t.code || "");
+      let key = /^Key[A-Z]$/.test(code) ? code.slice(3).toLowerCase() : String(t.key || "");
+      this._rlKey = key.toLowerCase();
+      const tag = t.target && t.target.tagName;
+      if (down && !t.repeat && tag !== "INPUT" && tag !== "TEXTAREA" && rlChooseKey(code, this._rlKey))
+        t.preventDefault();
+      // Esc also works while a settings toggle or slider has focus (only text fields keep it)
+      if (
+        down &&
+        !t.repeat &&
+        this._rlKey === "escape" &&
+        tag === "INPUT" &&
+        /^(checkbox|range|radio)$/.test(t.target.type)
+      ) {
+        (t.target.blur(), this.onPause && this.onPause());
+        return;
+      }
+      return baseKey.call(
+        this,
+        key === t.key ? t : { key, repeat: t.repeat, target: t.target, preventDefault: () => t.preventDefault() },
+        down,
+      );
+    };
+    function rlChooseKey(code, key) {
+      if (!ft.chooseShown || ft.overShown || !k("dialog").hidden || k("choose").hidden) return !1;
+      const m = /^(?:Digit|Numpad)([1-4])$/.exec(code) || /^([1-4])$/.exec(key);
+      if (m) {
+        const card = k("cards").querySelectorAll("[data-pick]")[+m[1] - 1];
+        card && !k("cards").classList.contains("locked") && ft.choose(card.dataset.pick);
+        return !0;
+      }
+      if (key === "r") {
+        k("rerollBtn").disabled || ft.reroll();
+        return !0;
+      }
+      return !1;
+    }
+    const baseCards = Gl.prototype.renderCards;
+    Gl.prototype.renderCards = function (t) {
+      // the reroll label survives a re-render (reroll), so drop its old key hint first
+      k("rerollBtn")
+        .querySelectorAll(".card-key")
+        .forEach((e) => e.remove());
+      const r = baseCards.call(this, t);
+      if (rlKeys()) {
+        k("cards")
+          .querySelectorAll("[data-pick]")
+          .forEach(
+            (c, i) => (
+              c.classList.add("has-key"),
+              c.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`)
+            ),
+          );
+        k("rerollTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
+      }
+      return r;
+    };
+
+    // ---- Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
+    const basePause = ln.onPause;
+    ln.onPause = () => {
+      if (!k("dialog").hidden) return basePause();
+      if (Ft.rlFromPause) return Ft.back();
+      if (ft.mode === "menu") {
+        ln._rlKey === "escape" && ["workshop", "records", "settings"].includes(Ft.screen) && Ft.back();
+        return;
+      }
+      basePause();
+    };
+
+    // ---- settings from the pause menu
+    const closePauseSettings = () => {
+      ((Ft.rlFromPause = !1), (k("settings").hidden = !0), k("settings").classList.remove("in-run"));
+    };
+    Gl.prototype.openPauseSettings = function () {
+      if (!ft.paused || k("pause").hidden) return;
+      ((this.rlFromPause = !0),
+        (k("pause").hidden = !0),
+        k("settings").classList.add("in-run"),
+        this._show("settings"));
+    };
+    const baseBack = Gl.prototype.back;
+    Gl.prototype.back = function () {
+      if (!this.rlFromPause) return baseBack.call(this);
+      (closePauseSettings(), (k("pause").hidden = !1), (this.screen = "pause"));
+    };
+    const baseHidePause = Gl.prototype.hidePause;
+    Gl.prototype.hidePause = function () {
+      (closePauseSettings(), baseHidePause.call(this));
+    };
+    Ft.click(k("pauseSetBtn"), () => Ft.openPauseSettings());
+
+    // ---- what each upgrade of the build does (pause menu)
+    const info = k("pauseUpInfo"),
+      upInfo = (id, lv) => {
+        const u = ri[id];
+        if (!u) return "";
+        const tag = u.evo ? "EVOLUTION" : u.repeat ? `\xD7${lv}` : `LV ${lv}/${u.max}`;
+        return `<b>${we(u.name)}</b> <span class="lv">${tag}</span><p>${we(u.desc(Math.max(0, lv - 1)))}</p>`;
+      };
+    const baseShowPause = Gl.prototype.showPause;
+    Gl.prototype.showPause = function (t) {
+      const r = baseShowPause.call(this, t),
+        own = Zi.filter((n) => t.up[n.id] && !n.repeat);
+      own.length &&
+        (k("pauseBuild").innerHTML = own
+          .map(
+            (n) =>
+              `<button type="button" class="bi r${n.rarity}" data-up="${n.id}" aria-label="${we(n.name)}">${Ln(n.icon)}${we(n.name)}${t.up[n.id] > 1 ? " \xD7" + t.up[n.id] : ""}</button>`,
+          )
+          .join(""));
+      ((info.hidden = !own.length), (info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>'));
+      return r;
+    };
+    k("pauseBuild").addEventListener("click", (e) => {
+      const b = e.target.closest && e.target.closest("[data-up]"),
+        w = ft.world;
+      if (!b || !w) return;
+      for (const o of k("pauseBuild").querySelectorAll("[data-up]")) o.classList.toggle("sel", o === b);
+      info.innerHTML = upInfo(b.dataset.up, w.up[b.dataset.up] || 0);
+    });
+
+    // ---- run timer and FPS counter
+    for (const [id, key] of [
+      ["setTimer", "timer"],
+      ["setFps", "fps"],
+    ])
+      k(id).addEventListener("change", () => {
+        ((ee.data.settings[key] = k(id).checked), ft.settingsChanged());
+      });
+    const baseRenderSettings = Gl.prototype.renderSettings;
+    Gl.prototype.renderSettings = function () {
+      const r = baseRenderSettings.call(this),
+        s = this.save.settings;
+      ((k("setTimer").checked = !!s.timer), (k("setFps").checked = !!s.fps));
+      return r;
+    };
+    let frames = 0,
+      since = 0,
+      last = 0,
+      fps = 0,
+      shown = "";
+    const baseHud = Gl.prototype.hud;
+    Gl.prototype.hud = function (t) {
+      const r = baseHud.call(this, t),
+        s = ee.data.settings,
+        now = performance.now();
+      // a gap (pause, upgrade choice, hidden tab) starts a new measurement
+      (now - last > 1e3 && ((since = now), (frames = 0)), (last = now));
+      (frames++,
+        now - since >= 500 &&
+          ((fps = since ? Math.round((frames * 1e3) / (now - since)) : 0), (frames = 0), (since = now)));
+      const parts = [];
+      (s.timer && parts.push(va(t.time)), s.fps && fps && parts.push(fps + " FPS"));
+      const txt = parts.join(" \xB7 ");
+      txt !== shown && ((shown = txt), (k("hudInfo").textContent = txt), (k("hudInfo").hidden = !txt));
+      return r;
+    };
   })();
   Xh();
   Ft.show("home");

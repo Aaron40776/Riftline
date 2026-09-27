@@ -1,3 +1,64 @@
+RIFTLINE v2.4.2 – FEHLERSUCHE UND KOMFORT
+Basis: v2.4.1 · Build r242a0927m-r1 · 27.09.2026
+
+Gewünscht: Spiel nach Fehlern durchsuchen, Komfortfunktionen einbauen (ohne Gamepad und ohne
+Tastenbelegung). Das Speichern am Wellenanfang bleibt wie es ist (Neuladen mitten in der Welle
+startet die Welle neu).
+
+1) Fehler
+   - Tod rückgängig durch Neuladen: Nach dem Tod vergehen 1,5 s bis zum Game-over-Bildschirm,
+     erst dort wurde der Run gelöscht. Wer in dem Fenster den Tab schloss oder neu lud, bekam
+     „CONTINUE · WAVE n“ und der Tod zählte nicht (im Spiel nachgestellt). Jetzt wird ein
+     verlorener oder gewonnener Run abgeschlossen, sobald die Seite verborgen wird.
+   - Tastatur: Buchstaben werden nach ihrer Position gelesen (e.code). Auf AZERTY lag „links“
+     auf Q, und Q löste zusätzlich Nova aus. W A S D, E, Q, F sitzen jetzt auf jedem Layout an
+     derselben Stelle; Pfeiltasten, Leertaste, Shift, Esc unverändert.
+   - Import: Die Einstellungen aus einem importierten Spielstand (Lautstärke, Linkshänder,
+     Grafik, Kamera) wirkten erst nach Neuladen. Jetzt sofort.
+   - Auto-Grafik: Zwei langsame Messfenster (ein Ruckler zu Beginn reicht) senkten die
+     Auflösung bis zum Neuladen. Jetzt steigt sie nach 20 s mit 57+ fps wieder eine Stufe;
+     eine Stufe, die zweimal verlassen werden musste, ist für die Sitzung die Obergrenze.
+   - Last Stand Plating hob Treffer unter 1 Schaden (Säure bei hoher Gefahren-Resistenz) auf 1
+     an. Die Untergrenze 1 gilt nur noch für Treffer, die vorher mindestens 1 hatten.
+
+2) Komfort
+   - Upgrade-Wahl per Tastatur: 1–4 wählen eine Karte, R würfelt neu. Die Karten und der
+     Reroll-Knopf zeigen die Tasten (nur bei Tastatur/Maus). Die Klicksperre von 650 ms nach
+     dem Aufdecken gilt auch für die Tasten.
+   - Esc geht in Werkstatt, Records und Einstellungen zurück, auch wenn ein Schalter den Fokus
+     hat.
+   - Einstellungen im Pause-Menü (Knopf neben „Restart“). Ohne Backup/Import und ohne
+     „Reset progress“, damit ein laufender Run nicht überschrieben wird. Esc und Zurück führen
+     ins Pause-Menü, Hinweise (Toasts) werden dort ausgeblendet.
+   - Build im Pause-Menü: Antippen/Klicken eines Upgrades zeigt Stufe und Wirkung.
+   - Optional Run-Zeit und FPS-Anzeige unten links im HUD (Einstellungen → Display), aus
+     standardmäßig.
+
+3) Tests
+   - full-qa hat den neuen Abschnitt „qol“ (PC): Tod + verborgene Seite, AZERTY-Q, Tasten
+     1–4/R samt Sperre und Tastenhinweisen, Upgrade-Info in der Pause, Einstellungen aus der
+     Pause (ohne Backup/Reset, Esc/Zurück), Timer/FPS im HUD, Last Stand, Esc in den Menüs,
+     Import übernimmt die Einstellungen.
+   - Die Auto-Grafik-Stufen lassen sich headless nicht sinnvoll messen (Software-WebGL liefert
+     dauerhaft < 48 fps); nur per Code-Durchsicht geprüft.
+
+Offen (hier nicht prüfbar):
+   - Auto-Grafik auf echten Geräten beobachten (steigt die Auflösung nach einem Ruckler wieder?).
+   - Safari/Firefox und echte iPhones weiterhin nur von Hand.
+
+Ergebnisse 2.4.2 (headless Chromium, Software-WebGL):
+  full-qa.mjs   251 Prüfungen, 0 Fehler (davon 13 im neuen Abschnitt qol)
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok · world-audit 0 Befunde · data-audit ok
+  run-audit     Bot-Run bis Welle 22 inkl. Endlos, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   PC, Handy hoch und quer ohne Fehler; Upgrade-Wahl, Pause mit Upgrade-Info,
+                Einstellungen aus der Pause und HUD mit Timer/FPS angesehen.
+                Gefunden und korrigiert beim Ansehen: Die Tastenziffer überdeckte auf PC-Karten
+                mit Evolutionshinweis die letzte Zeile (Karten mit Taste haben jetzt unten
+                Platz); Hinweise (Toasts) lagen über den Einstellungen aus der Pause.
+
+================================================================================
+
 RIFTLINE v2.4.1 – GEGNER UND BOSSE TRAGEN DAS BIOM
 Basis: v2.4.0 · Build r241a0927l-r1 · 27.09.2026
 

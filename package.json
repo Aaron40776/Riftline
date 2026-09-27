@@ -1,11 +1,11 @@
 {
   "name": "riftline",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "private": true,
   "type": "module",
   "description": "Riftline – a 3D arena roguelite shooter with twin-stick touch controls.",
   "riftline": {
-    "build": "r241a0927l-r1"
+    "build": "r242a0927m-r1"
   },
   "scripts": {
     "build": "node build.js",
