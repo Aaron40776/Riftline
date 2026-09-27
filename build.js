@@ -1,6 +1,6 @@
 // Build: turns the readable sources into the deployable game in dist/.
-//   src/game.js       -> dist/game-v<version>-final.js  (bundled with three.js from npm and
-//                        minified by esbuild)
+//   src/main.js + the modules it imports (src/core, data, render, audio, ui) and three.js from
+//   npm             -> dist/game-v<version>-final.js  (one file, bundled and minified by esbuild)
 //   src/index.html, src/sw.js, src/build-info.json -> dist/ (placeholders filled in)
 //   public/*          -> dist/ (icons, fonts, manifest; copied as they are)
 // Version and build id live only in package.json ("version", "riftline.build"). The sources use
@@ -51,12 +51,12 @@ async function build() {
   fs.rmSync(DIST, { recursive: true, force: true });
   copyDir(r('public'), DIST);
 
-  // The game is one IIFE: src/game.js plus the parts of three.js it imports (the package from
-  // node_modules, version pinned in package.json). The version constants are plain identifiers
+  // The game is one IIFE: src/main.js, the modules it imports and the parts of three.js they use
+  // (the package from node_modules, version pinned in package.json). The version constants are plain identifiers
   // in the source; esbuild swaps them for string literals. The three.js license is in
   // public/THIRD-PARTY-NOTICES.txt, so the bundle carries no license comments.
   await esbuild.build({
-    entryPoints: [r('src/game.js')],
+    entryPoints: [r('src/main.js')],
     outfile: path.join(DIST, m.gameFile),
     bundle: true,
     format: 'iife',

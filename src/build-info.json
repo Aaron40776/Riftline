@@ -48,9 +48,11 @@
     "optional run timer and FPS counter"
   ],
   "build": "__RL_BUILD__",
-  "reviewed_from": "Riftline v2.4.2",
+  "reviewed_from": "Riftline v2.4.3",
   "generatedAt": "2026-09-27T23:00:00+02:00",
   "changes": [
+    "2.4.4: the game code is split into 21 ES modules (src/main.js, core/, data/, render/, audio/, ui/) instead of one 16 000-line file; the code itself is unchanged apart from imports/exports and five setters where one module assigns a variable of another; the game plays exactly as before",
+    "2.4.4: tests/determinism.mjs (part of npm test) compares fixed-seed simulations, stat computations, arena layouts, wave plans and data tables with a golden file, so a refactor cannot change game behaviour unnoticed",
     "2.4.3: three.js comes from npm (three 0.186.0, r186) instead of being embedded in src/game.js; the embedded copy was checked to be unmodified r186 first. src/game.js shrinks from 39 769 to 16 129 lines; the game plays exactly as before",
     "2.4.3: build.js bundles src/game.js with three.js (esbuild bundle instead of transform)",
     "2.4.2: a run that is already lost or won is settled when the page is hidden; closing or reloading in the 1.5 s before the game-over screen used to bring the run back and skip the death",
