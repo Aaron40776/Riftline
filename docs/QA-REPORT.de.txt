@@ -1,3 +1,104 @@
+RIFTLINE v2.4.0 – WENIGER, ABER ECHT VERSCHIEDENE BIOME UND WAFFEN
+Basis: v2.3.6 · Build r240a0927k-r1 · 27.09.2026
+
+Gemeldet: Die Biome unterscheiden sich weiterhin nur durch Farben. Weniger Biome und weniger
+Waffen (21 sind zu viele), dafür deutlich unterschiedlich; das Biom soll wieder nach jedem Boss
+wechseln statt nach jeder Welle. Doppeltipp-Dash kann raus. Prüfen, ob sonst alles funktioniert.
+
+Befund vorher: Alle 19 Biome nutzten denselben Neon-Gitter-Boden, dieselben Quader und Säulen und
+dieselbe Arena-Wand; anders waren nur Palette, leicht andere Hindernismaße, Gefahrentyp und Musik.
+Von den 21 Waffen waren die 14 aus den Content-Packs 2.0–2.2 Parameter-Varianten der 7
+Originale (z. B. Void Lance, Sunlance, Ember Rail = Railgun; Razor Loop, Cyclone Blades = Disc
+Launcher; Ion Repeater, Prism Cannon, Lattice Array = Arc Caster).
+
+1) Biome: 19 → 5, Wechsel nach jedem Boss
+   - Neon Yard (Wellen 1–5), danach Ember Works, Cryo Vault, Toxin Marsh und Void Core in einer
+     pro Run gewürfelten Reihenfolge, je ein Boss-Zyklus (5 Wellen, Boss am Ende im selben Biom).
+     Ein Run bis Welle 20 zeigt vier Biome, der Endlosmodus erreicht mit Welle 21 das fünfte.
+   - Das Banner beim Biomwechsel nennt Biom und Merkmal („Ember Works · Lava vents“).
+   - Entfernt: Tempest Fields, Prism Caverns und die 12 Biome der Content-Packs samt Paletten,
+     Musik, Hindernisformen und Champion-Tabellen.
+
+2) Biome sehen verschieden aus (nicht nur Farbe)
+   Boden (eigener Shader-Zweig pro Biom), Hindernisse (gleiche Kollisionsformen, andere Modelle),
+   Rand, Partikel in der Luft, Licht und Nebel:
+     Neon Yard    Neon-Gitter · Säulen und Kisten · Zaun · Neon-Staub (unverändert wie bisher)
+     Ember Works  Basaltplatten mit glühenden Lavafugen · Schornsteine mit Funkenflug und
+                  Maschinenblöcke · Stahlwand mit Warnstreifen, Öfen in den Ecken · aufsteigende
+                  Glut · warmes Licht
+     Cryo Vault   Eisfläche mit Rissen, Reif und Glitzern · Kristallgruppen und Eisblöcke mit
+                  Schneehaube · Eiswand mit Kristallzacken · Schneefall · kaltes, helles Licht
+     Toxin Marsh  Schlamm mit trüben Wasserflächen und Moos · Riesenpilze, tote Bäume,
+                  bemooste Stämme · Schlammufer mit Schilf und Steinen · Sporen, Bodendunst ·
+                  dichter Nebel
+     Void Core    Sechseck-Platten über einem Sternenfeld, außerhalb der Arena nur der Abgrund ·
+                  schwebende Obelisken und Monolithen · Energiebarriere, treibende Felsen ·
+                  aufsteigende Lichtpunkte · dunkles, violettes Licht
+   Der Nebel richtet sich nach dem Kameraabstand, damit Handy hochkant (Kamera weiter weg) nicht
+   stärker vernebelt ist. Draw-Calls je Biom 67–78 (Neon Yard 30), Dreiecke 9–20 Tausend.
+
+3) Biome spielen sich verschieden
+   - Gegner-Mix pro Biom (Gewichte beim Wellenplan): Ember Works schwere und explosive Gegner
+     (Brute, Bomber, Charger, Minebot …), Cryo Vault Schild- und Fernkampf (Bulwark, Sniper,
+     Turret, Sentinel …), Toxin Marsh Schwärme (Splitter, Hive, Swarmer, Sapper …), Void Core
+     schnelle und teleportierende (Striker, Phantom, Weaver, Leaper …). Champions ebenso.
+   - Cryo Vault: der ganze Boden ist glatt (Drohne driftet, Haftung 6,5 statt 16), Eisflächen
+     noch glatter. Der Eis-Tipp sagt das jetzt.
+   - Gefahren-Biome legen pro Welle zwei zusätzliche Gefahren (vorher eine): im Schnitt
+     3,3 Lavaschlote / Eisflächen / Säurepfützen pro Welle statt 2,3 (20 Seeds × 3 Wellen);
+     Void Core unverändert 1,4 Portalpaare.
+
+4) Waffen: 21 → 7 (Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher,
+   Ember Jet)
+   - Entfernt: die 14 Pack-Waffen, ihre 12 Evolutionen, die Meilensteine „15 Waffen“ und
+     „20 Waffen“. „Full Spectrum“ verlangt 4 statt 10 Waffen, „World Walker“ Welle 21 (alle
+     fünf Biome) statt Welle 19.
+   - Spielstände: Eine gekaufte Pack-Waffe wird zu der Original-Waffe, deren Variante sie war,
+     plus Preisdifferenz in Splittern – oder dem vollen Preis, wenn das Original schon gekauft
+     war. Ausgewählte Waffe und laufender Run wechseln mit, ein Hinweis nennt die Umstellung.
+     Runs in „Recent runs“ behalten den alten Waffennamen. Evolutionen der entfernten Waffen
+     fallen aus einem laufenden Run heraus.
+   - Folge: Alle Waffen zusammen kosten 3320 Splitter. Die Werkstatt (18 Module, bis 6800 pro
+     Stufe) bleibt das langfristige Ziel.
+
+5) Doppeltipp-Dash entfernt
+   Doppeltipp auf die Bewegungsseite löst keinen Dash mehr aus; DASH-Knopf, Leertaste und Shift
+   schon. Tutorial und Tipp erwähnen den Doppeltipp nicht mehr, README angepasst.
+
+6) Tests
+   - Deep test (neu v240): 7 Waffen / 5 Biome, keine Evolution ohne Waffe, Route (Wellen 1–5
+     Neon Yard, Wechsel genau nach Bosswellen, alle fünf bis Welle 21), jede Gefahr nur in ihrem
+     Biom, Cryo-Vault-Haftung, Gegner-Mix (> 1,3× eigene Gegner gegenüber Neon Yard),
+     Spielstand-Umstellung inkl. zweitem Durchlauf ohne Änderung.
+   - Bestehende Prüfungen angepasst: „nie zweimal dasselbe Biom“ → „Wechsel genau nach dem
+     Boss“; Route-Abdeckung 5 statt 19; die 2.2-Prüfung der Wellen-Modi wählte das Biom über
+     (seed + wave) % Anzahl und erreichte mit 4 Biomen nur 9 von 12 Modi – sie prüft jetzt jedes
+     Biom für jede Welle; Waffentests laufen über alle wählbaren Waffen statt über Pack-Waffen.
+   - full-qa: die echten 2.2.2/2.3.1-Spielstände (Ion Repeater gekauft und ausgewählt, Run mit
+     Ion) werden zu Arc Caster + 950 Splittern, der Run läuft mit Arc Caster weiter, der Hinweis
+     erscheint.
+   - tests/biome-shots.mjs: Screenshot jedes Bioms (normale Welle und Bosswelle) auf PC, Handy
+     hoch und quer; Teil von npm run screens.
+
+Offen (hier nicht prüfbar):
+   - Bildrate auf echten Geräten. Hier läuft nur Software-WebGL (SwiftShader); die neuen Böden
+     rechnen Rauschen/Voronoi im Shader, Props und Partikel kosten Draw-Calls (siehe oben).
+     Bitte auf einem schwächeren Handy einmal jedes Biom ansehen.
+   - Safari/Firefox und echte iPhones weiterhin nur von Hand.
+
+Ergebnisse 2.4.0 (headless Chromium, Software-WebGL):
+  full-qa.mjs   238 Prüfungen, 0 Fehler (erster Lauf 2 FAIL: der Import-Test erwartete die
+                Splitter des 2.2.2-Exports ohne Erstattung für Ion Repeater – Erwartung angepasst,
+                die Umstellung greift also auch beim Import)
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok (inkl. v240) · world-audit 240 Wellen, 16 619 Spawns, 48 Bosse, 0 Befunde ·
+                data-audit ok
+  run-audit     Bot-Run bis Welle 22 inkl. Endlos, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   PC, Handy hoch und quer angesehen; biome-shots alle fünf Biome (Welle und Boss)
+                auf allen drei Profilen angesehen
+
+================================================================================
+
 RIFTLINE v2.3.6 – CHECKUP STEUERUNG & DARSTELLUNG · NUR NOCH GITHUB
 Basis: v2.3.5 · Build r236a0927j-r1 · 27.09.2026
 

@@ -323,8 +323,9 @@ for (const profName of ['desktop', 'phone']) await section(`ui-${profName}`, asy
   // --- import: a real 2.2.2 export is accepted
   const imp = JSON.parse(fs.readFileSync(FIX + 'save-v222.json', 'utf8')); imp.shards = 4321;
   await P.tap('#restoreBtn'); await P.page.fill('#saveImport', JSON.stringify(imp)); await P.dlg('Restore'); await P.dlg('Restore');
-  const im = await P.ev(() => ({ shards: window.__riftTest.store.data.shards, st: JSON.parse(localStorage.getItem('riftline.save.v1')).shards, home: !document.getElementById('home').hidden, hist: Array.isArray(window.__riftTest.store.data.history) }));
-  check(L, 'import: old (2.2.2) export restores progress and returns home', im.shards === 4321 && im.st === 4321 && im.home && im.hist, JSON.stringify(im));
+  const im = await P.ev(() => ({ shards: window.__riftTest.store.data.shards, st: JSON.parse(localStorage.getItem('riftline.save.v1')).shards, home: !document.getElementById('home').hidden, hist: Array.isArray(window.__riftTest.store.data.history), weapon: window.__riftTest.store.data.weapon, refund: 1250 - window.__riftTest.ue.tesla.cost }));
+  // 2.4.0: the export owns the retired Ion Repeater -> Arc Caster plus the price difference, on import too
+  check(L, 'import: old (2.2.2) export restores progress (Ion Repeater → Arc Caster + refund) and returns home', im.shards === 4321 + im.refund && im.st === im.shards && im.weapon === 'tesla' && im.home && im.hist, JSON.stringify(im));
   // --- reset keeps settings, wipes progress (two confirmations)
   await P.nav('settings');
   const setB = await P.ev(() => JSON.stringify(window.__riftTest.store.data.settings));
