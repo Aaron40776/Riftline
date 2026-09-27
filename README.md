@@ -65,11 +65,12 @@ src/
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)
   _headers         cache headers for hosts that support them (Netlify/Cloudflare style)
-public/            icons, fonts, web manifest (copied to dist/ unchanged)
+public/            icons, fonts, web manifest, third-party licenses (copied to dist/ unchanged)
 tests/             browser test scripts (Playwright) and real old saves for migration tests
 tools/             build helpers: static server, test runner, sim summary
 docs/              QA reports of every release (German)
 build.js           src/ -> dist/
+CLAUDE.md          short working rules for Claude Code sessions in this repository
 ```
 
 ### About `src/game.js`
@@ -103,7 +104,8 @@ For a release: bump `version` and `riftline.build` in `package.json`, add the ch
 
 Every push to `main` runs `.github/workflows/pages.yml`: it installs, runs `npm test` (which builds)
 and publishes `dist/` on GitHub Pages. One-time setup: *Settings → Pages → Build and deployment →
-Source: GitHub Actions*.
+Source: GitHub Actions*. Pushes to other branches and pull requests run the same tests without
+deploying (`.github/workflows/test.yml`).
 
 `dist/` is a static site that works in any sub-path. The service worker only caches files of its own
 folder and removes old `riftline-*` caches on update. On GitHub Pages `_headers` has no effect,
@@ -113,6 +115,17 @@ the game file has the version in its name.
 Saves live in `localStorage` under `riftline.save.v1` (plus a log and backups under `riftline.*`).
 Riftdeck (<https://aaron40776.github.io/Riftdeck/>) runs on the same origin and only uses
 `riftdeck.*` keys, so the two games never touch each other's data.
+
+Browsers keep saves per web address. Progress from another address, for example the earlier
+deployment on Cloudflare Workers, does not show up here by itself: open the game there, use
+*Settings → Save backup → Export*, then *Import* the text here.
+
+## Licenses
+
+The game bundles three.js (MIT) and uses the fonts Chakra Petch and Barlow Semi Condensed
+(SIL Open Font License 1.1). Their notices and license texts are in
+[`public/THIRD-PARTY-NOTICES.txt`](public/THIRD-PARTY-NOTICES.txt), which is also published next
+to the game.
 
 ## Known limits and ideas
 

@@ -1,0 +1,33 @@
+# Runs the tests on pull requests and on pushes to branches other than main, so a change is
+# checked before it is merged. main itself is tested by pages.yml right before it deploys.
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # The tests drive the real game in headless Chromium, so the browser is installed here.
+      - name: Install
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Build and test
+        run: npm test
