@@ -38,6 +38,7 @@
     "browser-safe offline cache with mandatory core asset verification",
     "expanded deterministic QA for weapons, enemies, waves, layouts and upgrades",
     "25 enemy types with dedicated models",
+    "enemy and boss skins per biome",
     "5 biome music themes",
     "run history in Records",
     "first-encounter enemy hints",
@@ -45,9 +46,11 @@
     "tutorial and tips follow the input in use (keyboard/mouse or touch)"
   ],
   "build": "__RL_BUILD__",
-  "reviewed_from": "Riftline v2.3.6",
+  "reviewed_from": "Riftline v2.4.0",
   "generatedAt": "2026-09-27T20:00:00+02:00",
   "changes": [
+    "2.4.1: enemies and bosses wear the biome — a shader skin over every model (Ember Works: charred shell with pulsing lava veins; Cryo Vault: frost on the upper surfaces with glints; Toxin Marsh: slime and glowing toxic spots; Void Core: violet rim glow and star specks) plus matching particles (embers, frost flakes, drops, motes); type colours and glow stay, so types are still told apart; visual only",
+    "2.4.1: tests/biome-shots.mjs spawns a ring of enemies and the boss in every biome and fails on shader compile errors",
     "2.4.0: 5 biomes instead of 19, and the biome changes after every boss again (every wave since 2.1): waves 1–5 Neon Yard, then Ember Works, Cryo Vault, Toxin Marsh and Void Core in a seeded order, one per boss cycle; Endless reaches the fifth at wave 21",
     "2.4.0: each biome looks different, not just differently coloured — own floor (neon grid, basalt with lava seams, frozen sheet, mud and murky water, hex tiles over a starfield), own props on the same collision shapes (pylons/crates, chimneys/machines, crystal clusters/ice blocks, mushrooms/dead trees/logs, floating obelisks/monoliths), own border, ambient particles, sun colour and fog",
     "2.4.0: each biome plays differently — Ember Works favours heavy and explosive enemies, Cryo Vault has a slick floor (you drift) and shielded/ranged enemies, Toxin Marsh swarms, Void Core fast teleporters; hazard biomes place two extra hazards per wave (was one)",
