@@ -117,8 +117,6 @@ Riftdeck (<https://aaron40776.github.io/Riftdeck/>) runs on the same origin and 
 ## Known limits and ideas
 
 - Automated tests run only in Chromium. Firefox and Safari are checked by hand.
-- Field Supply and Route Scanner have the same effect (+1 supply cache per wave and richer caches);
-  Power Core and Arsenal Lab both give +5 % damage per level. One of each pair could get its own role.
 - A real module structure (like Riftdeck's `src/core`, `render`, `ui`) with three.js from npm would
   make larger changes much easier. The deep test, world audit and full QA are the safety net for
   such a refactor.

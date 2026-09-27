@@ -3033,11 +3033,9 @@
     // The weapon carousel follows unlock price (it jumped 2400 → 1450 → … before).
     En.sort((a, b) => ue[a].cost - ue[b].cost);
     // 2.3.2: workshop texts must say what the module really does (full QA "workshop" section).
-    // Field Supply and Route Scanner both add +1 cache per wave (from wave 2, never in boss
-    // waves) and +2 shards per cache; Drone Bay only works together with the Wingman upgrade.
+    // Drone Bay only works together with the Wingman upgrade. (Field Supply and Route Scanner
+    // had the same effect until 2.3.5; their texts now live with their data.)
     const mod = (id) => ai.find((a) => a.id === id);
-    mod("fieldSupply").desc = "+1 supply cache per wave, richer caches (from wave 2, not in boss waves)";
-    mod("routeScanner").desc = "+1 supply cache per wave, richer caches (from wave 2, not in boss waves)";
     mod("nova").desc = "Every wave starts with at least 25% Nova charge per level"; // floor, not additive
     mod("droneBay").desc = "+1 Wingman slot per level (needs the Wingman upgrade)";
     // 2.3.4: both add their charge once per level (10 / 5 per level); the text sounded like a flat bonus.
@@ -4670,7 +4668,7 @@
     s.dashCd *= Math.max(0.45, 1 - 0.12 * u("coolant"));
     s.shieldCd *= Math.max(0.45, 1 - 0.12 * u("coolant"));
     s.supply = u("supply");
-    s.maxHp += 8 * w("armorCore");
+    s.armor = 0.04 * w("armorCore"); // 2.3.5: share of enemy damage absorbed (was +8 max HP)
     s.novaStart = Math.min(100, 10 * w("riftBattery"));
     s.wingmen += s.wingman ? Math.min(2, w("droneBay")) : 0;
     const evo = u("spectrum") > 0;
@@ -4679,9 +4677,13 @@
     u("stormcore") > 0 && ((s.chain += 2), (s.arc = Math.min(0.98, s.arc + 0.25)));
     u("supernova") > 0 && ((s.novaR *= 1.28), (s.novaMul *= 1.2));
     // v2.1 meta/run stats
-    s.dmgMul *= 1 + 0.05 * w("arsenalLab");
+    s.rateMul *= 1 + 0.06 * w("arsenalLab"); // 2.3.5: fire rate (was +5% damage like Power Core)
     s.hazardResist = Math.min(0.88, 0.15 * w("hazardSeal") + 0.25 * u("hazmat"));
-    s.cacheBonus = w("fieldSupply") + u("scavengerNet");
+    // 2.3.5: the cache modules split into quantity and value. cacheBonus (run upgrades Scavenger
+    // Net and Salvager) still adds both a cache and +2 shards per cache; Field Supply only adds
+    // caches (cacheCount), Route Scanner only multiplies the shards in caches (cacheValue).
+    s.cacheBonus = u("scavengerNet");
+    s.cacheCount = w("fieldSupply");
     s.overload = u("overload");
     s.range *= 1 + 0.1 * u("focus");
     s.crit = Math.min(0.95, s.crit + 0.04 * u("focus"));
@@ -8402,7 +8404,8 @@
   ri = Object.fromEntries(Zi.map((i) => [i.id, i]));
 
   ai.push(
-    { id: "armorCore", name: "Armor Core", icon: "shield", desc: "+8 max HP per level", costs: [220, 420, 760, 1180] },
+    // 2.3.5: Armor Core reduces enemy damage (it gave +8 max HP, next to Hull Plating's +10)
+    { id: "armorCore", name: "Armor Core", icon: "shield", desc: "-4% damage from enemies per level", costs: [220, 420, 760, 1180] },
     {
       id: "riftBattery",
       name: "Rift Battery",
@@ -8860,12 +8863,13 @@
   ri = Object.fromEntries(Zi.map((i) => [i.id, i]));
 
   ai.push(
-    { id: "arsenalLab", name: "Arsenal Lab", icon: "burst", desc: "+5% damage per level", costs: [1800, 3600, 6500] },
+    // 2.3.5: Arsenal Lab raises the fire rate (it gave +5% damage, the same as Power Core)
+    { id: "arsenalLab", name: "Arsenal Lab", icon: "burst", desc: "+6% fire rate per level", costs: [1800, 3600, 6500] },
     {
       id: "fieldSupply",
       name: "Field Supply",
       icon: "shard",
-      desc: "Find extra supply caches",
+      desc: "+1 supply cache per wave per level (from wave 2, not in boss waves)",
       costs: [1400, 3000, 5200],
     },
     {
@@ -8911,6 +8915,19 @@
     },
   );
 
+  /* 2.3.5: shards in a supply cache, raised by Route Scanner (+50% per level). */
+  function rlCacheShards(w, v) {
+    return Math.round(v * Math.max(1, w.stats.cacheValue || 1));
+  }
+  /* 2.3.5: Armor Core absorbs part of the damage from enemies. Lava and acid are left to
+     Hazard Seal, so the two modules do not stack on the same damage. */
+  const RL_HAZARD_SRC = new Set(["lava", "acid"]);
+  const _rlHurtArmor = Aa.prototype.hurtPlayer;
+  Aa.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
+    const armor = Math.min(0.5, this.stats.armor || 0);
+    return _rlHurtArmor.call(this, armor > 0 && !RL_HAZARD_SRC.has(src) ? dmg * (1 - armor) : dmg, x, y, src, chip);
+  };
+
   /* Prototype hooks keep new systems additive and preserve the original class implementation. */
   const _rlStartWave = Aa.prototype.startWave;
   Aa.prototype.startWave = function (wave, nova) {
@@ -8934,7 +8951,7 @@
         if (!p) continue;
         const value = this.rng.chance(0.12) ? 25 : this.rng.chance(0.35) ? 10 : 5,
           kind = this.rng.chance(0.12) ? "heal" : "shard";
-        const q = this.mkPickup(kind, p.x, p.y, kind === "heal" ? 20 : value);
+        const q = this.mkPickup(kind, p.x, p.y, kind === "heal" ? 20 : rlCacheShards(this, value));
         q.vx = 0;
         q.vy = 0;
         q.cache = !0;
@@ -8944,6 +8961,7 @@
     if (nova != null || this.bossPending || this.boss || wave < 2) return;
     const extra =
       Math.max(0, this.stats.cacheBonus || 0) +
+      Math.max(0, this.stats.cacheCount || 0) +
       (mode === "cache-run" ? 2 : 0) +
       (mode === "salvage" ? 2 : 0) +
       (wave % 9 === 0 ? 1 : 0);
@@ -8952,7 +8970,7 @@
       const p = this.arena.freePoint(cacheRng, this.player.x, this.player.y, 6.2, 0.35);
       if (!p) continue;
       const kind = cacheRng.chance(0.18) ? "heal" : "shard",
-        value = kind === "heal" ? 20 : 5 + 2 * (this.stats.cacheBonus || 0);
+        value = kind === "heal" ? 20 : rlCacheShards(this, 5 + 2 * (this.stats.cacheBonus || 0));
       const q = this.mkPickup(kind, p.x, p.y, value);
       q.vx = 0;
       q.vy = 0;
@@ -8990,7 +9008,7 @@
     if (this.stats.leech && this.rng.chance(Math.min(0.24, 0.08 * this.stats.leech)))
       this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 2);
     if (enemy.type === "carrier" && this.state === "fight" && this.rng.chance(0.55)) {
-      const v = 5 + 3 * (this.stats.cacheBonus || 0),
+      const v = rlCacheShards(this, 5 + 3 * (this.stats.cacheBonus || 0)),
         q = this.mkPickup("shard", enemy.x, enemy.y, v);
       q.vx = 0;
       q.vy = 0;
@@ -9398,7 +9416,7 @@
       id: "routeScanner",
       name: "Route Scanner",
       icon: "map",
-      desc: "Start each wave with +1 supply cache",
+      desc: "+50% shards from supply caches per level",
       costs: [1800, 3800, 6800],
     },
     {
@@ -9475,7 +9493,8 @@
     s.range *= 1 + 0.05 * u("deadeye");
     s.speed *= 1 + 0.05 * u("thruster");
     s.regen += 0.55 * u("nanorepair");
-    s.cacheBonus += u("salvager") + w("routeScanner");
+    s.cacheBonus += u("salvager");
+    s.cacheValue = 1 + 0.5 * w("routeScanner");
     s.hazardResist = Math.min(0.92, (s.hazardResist || 0) + 0.08 * u("phasecoat"));
     s.novaMul *= 1 + 0.08 * u("flux");
     s.payloadR += 0.35 * u("payloadMatrix");

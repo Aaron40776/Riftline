@@ -1,3 +1,38 @@
+RIFTLINE v2.3.5 – WERKSTATT OHNE DOPPELUNGEN · EIGENES REPOSITORY
+Basis: v2.3.4 · Build r235a0927i-r1 · 27.09.2026
+
+Gewünscht: die doppelten Werkstatt-Module bekommen eigene Rollen (Vorschläge vorab abgestimmt);
+Riftline bekommt ein eigenes Repository ohne „Games with Claude“.
+
+1) Werkstatt (gekaufte Stufen bleiben erhalten, nur die Wirkung ändert sich)
+   - Armor Core: −4 % Schaden durch Gegner pro Stufe (max. −16 %), vorher +8 max. HP wie Hull
+     Plating (+10). Lava und Säure zählen nicht mit, die bleiben Sache von Hazard Seal.
+   - Arsenal Lab: +6 % Feuerrate pro Stufe (max. +18 %), vorher +5 % Schaden wie Power Core.
+   - Field Supply: +1 Versorgungskiste pro Welle und Stufe (ab Welle 2, nicht in Bosswellen),
+     Splitter pro Kiste unverändert.
+   - Route Scanner: +50 % Splitter aus allen Versorgungskisten pro Stufe (auch aus denen von
+     Carriern), keine zusätzlichen Kisten mehr. Vorher hatten beide Module dieselbe Wirkung
+     (+1 Kiste und +2 Splitter pro Kiste). Die Run-Upgrades Scavenger Net und Salvager wirken
+     wie bisher (mehr Kisten und reichere Kisten).
+   full-qa „workshop“ prüft die neuen Wirkungen: Treffer eines Gegners 50 → 42 mit Armor Core 4,
+   Lava bleibt 50; Feuerrate ×1,18 ohne Schadensänderung; Field Supply +1 Kiste pro Welle und
+   Stufe; Route Scanner gleiche Kistenzahl, doppelte Splitter auf Stufe 2.
+   Gegenprobe mit dem Spielcode von 2.3.4: 3 FAIL (Armor Core, Arsenal Lab, Route Scanner).
+
+2) Repository
+   - Riftline liegt jetzt in Aaron40776/Riftline, samt Historie seit 2.3.3 (Riftline im
+     Wurzelverzeichnis). GitHub Pages: https://aaron40776.github.io/Riftline/
+   - Das bisherige Repository heißt Riftdeck und enthält nur noch Riftdeck.
+
+Ergebnisse 2.3.5 (headless Chromium, Software-WebGL):
+  full-qa.mjs   200 Prüfungen, 0 Fehler
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok · world-audit 240 Wellen, 0 Befunde · data-audit ok
+  run-audit     Bot-Run bis Welle 22 inkl. Endlos, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   Werkstatt am PC angesehen (neue Texte)
+
+================================================================================
+
 RIFTLINE v2.3.4 – CHECKUP · PC-STEUERUNG ERKLÄRT · EINSTELLUNGEN · GITHUB-PROJEKT
 Basis: v2.3.3 · Build r234a0927h-r1 · 27.09.2026
 

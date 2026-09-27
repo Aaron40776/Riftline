@@ -46,8 +46,11 @@
   ],
   "build": "__RL_BUILD__",
   "reviewed_from": "Riftline v2.3.0",
-  "generatedAt": "2026-09-27T12:30:00+02:00",
+  "generatedAt": "2026-09-27T13:30:00+02:00",
   "changes": [
+    "2.3.5: workshop modules that duplicated each other got their own role — Armor Core: -4% damage from enemies per level (was +8 max HP like Hull Plating); Arsenal Lab: +6% fire rate per level (was +5% damage like Power Core)",
+    "2.3.5: Field Supply adds supply caches (+1 per wave and level), Route Scanner makes them richer (+50% shards per level); both used to add a cache and +2 shards per cache",
+    "2.3.5: Riftline has its own repository and GitHub Pages site (aaron40776.github.io/Riftline/)",
     "2.3.4: tutorial and tips explain keyboard/mouse controls on PC (W A S D, left mouse button, Space, E); they only described touch dragging, which does nothing with a mouse",
     "2.3.4: settings on desktop windows ≥ 1100 px are a 760 px column again (2.3.3 stretched them to 1240 px under a 760 px header); header lines up with the list on every device",
     "2.3.4: record tiles keep their numbers on one line when a label wraps; Rift Battery/Reactor Core texts say the charge is per level",

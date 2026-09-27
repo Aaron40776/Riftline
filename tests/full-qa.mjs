@@ -194,9 +194,13 @@ await section('workshop', async L => {
     const res = {}, near = (a, x) => Math.abs(a - x) < 1e-6;
     const L = id => max(id);
     res.hull = near(S({ hull: L('hull') }).maxHp, b.maxHp + 10 * L('hull'));
-    res.armorCore = near(S({ armorCore: L('armorCore') }).maxHp, b.maxHp + 8 * L('armorCore'));
+    // 2.3.5: Armor Core takes 4 %/level off enemy hits; lava and acid stay with Hazard Seal
+    const hit = (ws, src) => { const w = W(ws); w.state = 'fight'; w.player.iT = 0; w.player.shield = false; const hp = w.player.hp; w.hurtPlayer(50, null, null, src); return hp - w.player.hp; };
+    const ac = L('armorCore');
+    res.armorCore = near(S({ armorCore: ac }).maxHp, b.maxHp) && hit({ armorCore: ac }, 'grunt') === Math.round(50 * (1 - .04 * ac)) && hit({}, 'grunt') === 50 && hit({ armorCore: ac }, 'lava') === 50;
     res.power = near(S({ power: L('power') }).dmgMul, b.dmgMul * (1 + .05 * L('power')));
-    res.arsenalLab = near(S({ arsenalLab: L('arsenalLab') }).dmgMul, b.dmgMul * (1 + .05 * L('arsenalLab')));
+    // 2.3.5: Arsenal Lab = fire rate (Power Core = damage)
+    res.arsenalLab = near(S({ arsenalLab: L('arsenalLab') }).rateMul, b.rateMul * (1 + .06 * L('arsenalLab'))) && near(S({ arsenalLab: L('arsenalLab') }).dmgMul, b.dmgMul);
     res.thrust = near(S({ thrust: L('thrust') }).speed, b.speed * (1 + .04 * L('thrust')));
     res.dash = near(S({ dash: L('dash') }).dashCd, b.dashCd * (1 - .08 * L('dash')));
     res.magnet = near(S({ magnet: L('magnet') }).magnet, b.magnet * (1 + .2 * L('magnet')));
@@ -210,12 +214,13 @@ await section('workshop', async L => {
     res.riftBattery = nova({ riftBattery: L('riftBattery') }, 20) === 20 + 10 * L('riftBattery') && nova({ riftBattery: L('riftBattery') }, 90) === 100;
     res.reactorCore = nova({ reactorCore: L('reactorCore') }, 20) === 20 + 5 * L('reactorCore');
     res.droneBay = S({ droneBay: 1 }, { wingman: 1 }).wingmen === S({}, { wingman: 1 }).wingmen + 1 && S({ droneBay: 1 }).wingmen === 0;
-    // +1 cache per level in every non-boss wave from wave 2; boss waves stay cache-free
+    // Field Supply: +1 cache per level in every non-boss wave from wave 2 (boss waves stay
+    // cache-free), same shards per cache. Route Scanner (2.3.5): same caches, +50 % shards/level.
     let nb = 0;
-    const caches = ws => { let n = 0, boss = 0; nb = 0; for (let wave = 2; wave <= 12; wave++) { const w = W(ws); w.startWave(wave); const c = w.pickups.filter(p => p.cache).length; if (w.bossPending) boss += c; else { n += c; nb++; } } return boss ? -1 : n; };
-    const c0 = caches({});
-    res.fieldSupply = c0 >= 0 && caches({ fieldSupply: 2 }) === c0 + 2 * nb;
-    res.routeScanner = c0 >= 0 && caches({ routeScanner: 2 }) === c0 + 2 * nb;
+    const caches = ws => { let n = 0, v = 0, boss = 0; nb = 0; for (let wave = 2; wave <= 12; wave++) { const w = W(ws); w.startWave(wave); const cs = w.pickups.filter(p => p.cache); if (w.bossPending) boss += cs.length; else { n += cs.length; nb++; for (const p of cs) if (p.kind === 'shard') v += p.v; } } return boss ? { n: -1 } : { n, v }; };
+    const c0 = caches({}), cf = caches({ fieldSupply: 2 }), cr = caches({ routeScanner: 2 });
+    res.fieldSupply = c0.n >= 0 && cf.n === c0.n + 2 * nb && cf.v > c0.v;
+    res.routeScanner = c0.n >= 0 && cr.n === c0.n && cr.v === 2 * c0.v;
     const rv = W({ revive: 1 }); rv.state = 'fight'; rv.player.iT = 0; rv.player.shield = false; rv.hurtPlayer(99999, null, null, 'grunt', true);
     const dv = W({}); dv.state = 'fight'; dv.player.iT = 0; dv.player.shield = false; dv.hurtPlayer(99999, null, null, 'grunt', true);
     res.revive = rv.player.alive && rv.player.hp === Math.round(rv.stats.maxHp * .5) && !dv.player.alive;
