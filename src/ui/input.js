@@ -1,17 +1,17 @@
-// Keyboard, mouse and touch input (Ol).
+// Keyboard, mouse and touch input (Input).
 
 import { RL_RT } from "../core/diagnostics.js";
-import { Lt } from "../core/util.js";
+import { clamp } from "../core/util.js";
 
 // 2.3.4: the input the player is using right now, so hints can say "W A S D" or "drag".
 // Starts from the primary pointer (coarse = touch screen) and follows the last real input.
 var RL_INPUT = { touch: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches };
-var Ol = class {
+var Input = class {
   constructor(t, e) {
     ((this.layer = t),
       (this.r = e),
-      (this.move = jf()),
-      (this.aim = jf()),
+      (this.move = newStick()),
+      (this.aim = newStick()),
       (this.keys = new Set()),
       (this.mouse = { x: 0, y: 0, down: !1, active: !1, t: 0 }),
       (this.pending = { dash: !1, nova: !1 }),
@@ -177,7 +177,7 @@ var Ol = class {
     ((this.pending.dash = !1), (this.pending.nova = !1));
   }
   sample(t, e) {
-    let n = (this.R = Lt(Math.min(window.innerWidth, window.innerHeight) * 0.14, 44, 72)),
+    let n = (this.R = clamp(Math.min(window.innerWidth, window.innerHeight) * 0.14, 44, 72)),
       s = 0,
       r = 0;
     if (this.move.active) {
@@ -186,7 +186,7 @@ var Ol = class {
         x = Math.hypot(f, p),
         m = n * 0.12;
       if (x > m) {
-        let g = Lt((x - m) / (n - m), 0, 1);
+        let g = clamp((x - m) / (n - m), 0, 1);
         ((s = (f / x) * g), (r = (p / x) * g), (this.usedMove = !0));
       }
     }
@@ -235,8 +235,8 @@ var Ol = class {
     return ((this.pending.dash = !1), (this.pending.nova = !1), d);
   }
 };
-function jf() {
+function newStick() {
   return { active: !1, id: -1, ox: 0, oy: 0, x: 0, y: 0, t: 0 };
 }
 
-export { Ol, RL_INPUT };
+export { Input, RL_INPUT };

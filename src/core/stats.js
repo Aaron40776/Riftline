@@ -1,9 +1,9 @@
-// Player stats from weapon, run upgrades and workshop modules (nr).
+// Player stats from weapon, run upgrades and workshop modules (computeStats).
 
-import { ue } from "../data/weapons.js";
+import { weaponDefs } from "../data/weapons.js";
 
-function nrCore(i, t, e) {
-  let n = ue[i] || ue.pulse,
+function computeStatsCore(i, t, e) {
+  let n = weaponDefs[i] || weaponDefs.pulse,
     s = (u) => t[u] || 0,
     r = (u) => e[u] || 0,
     a = s("colossus") > 0,
@@ -65,11 +65,11 @@ function nrCore(i, t, e) {
     overdrive: c("overdrive"),
     lance: c("lance"),
     hellfire: c("hellfire"),
-    range: tc(n) * (1 + 0.2 * s("velocity")) * (c("dragon") ? 1.3 : 1),
+    range: weaponRange(n) * (1 + 0.2 * s("velocity")) * (c("dragon") ? 1.3 : 1),
   };
 }
-function nr(i, t, e) {
-  const s = nrCore(i, t, e),
+function computeStats(i, t, e) {
+  const s = computeStatsCore(i, t, e),
     u = (id) => t[id] || 0,
     w = (id) => e[id] || 0;
   s.dmgMul *= 1 + 0.1 * u("caliber");
@@ -104,7 +104,7 @@ function nr(i, t, e) {
   s.echo = u("echo");
   return s;
 }
-function tc(i) {
+function weaponRange(i) {
   return i.boomerang
     ? i.speed * i.life * 0.5
     : i.drag
@@ -113,9 +113,9 @@ function tc(i) {
 }
 
 /* v2.2 stat integration is additive and centralized. */
-const _rlNr22 = nr;
-nr = function (weapon, run, workshop) {
-  const s = _rlNr22(weapon, run, workshop),
+const _rlComputeStats22 = computeStats;
+computeStats = function (weapon, run, workshop) {
+  const s = _rlComputeStats22(weapon, run, workshop),
     u = (id) => run[id] || 0,
     w = (id) => workshop[id] || 0;
   s.dmgMul *= 1 + 0.08 * u("kinetic");
@@ -136,4 +136,4 @@ nr = function (weapon, run, workshop) {
   return s;
 };
 
-export { nr, tc };
+export { computeStats, weaponRange };

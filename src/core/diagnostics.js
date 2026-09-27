@@ -1,28 +1,28 @@
 // Error log, runtime counters, health checks, the deep self-test, the live run monitor and the
 // post-run audit (Settings → Diagnostics).
 
-import { Gl, RL_TOUCH_CLICK_GUARD } from "../ui/ui.js";
-import { Qf, RL_SFX_VOICES, rlShotSfx, tp, zl } from "../audio/sound.js";
-import { RL_RETIRE_NOTE, kh, rlMigrateRetired, set_RL_RETIRE_NOTE, sr } from "./save.js";
+import { GameUI, RL_TOUCH_CLICK_GUARD } from "../ui/ui.js";
+import { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices, SoundEngine } from "../audio/sound.js";
+import { RL_RETIRE_NOTE, SAVE_KEY, rlMigrateRetired, set_RL_RETIRE_NOTE, cleanRun } from "./save.js";
 import { RL_MESH_TYPES } from "../render/models.js";
-import { Ae, Kl, RL_ENEMY_TIPS, cu, en, uu } from "../data/enemies.js";
-import { Ft, ee, ft, h_, ln, oe } from "../main.js";
-import { Hh, Yi, _a, qi, va } from "./util.js";
-import { mu, xu } from "./ai.js";
-import { RL_BIOME_HAZARD, RL_BIOME_INFO, du, ii } from "../data/biomes.js";
-import { En, ue } from "../data/weapons.js";
-import { $i, _u, set_RL_BIOME_MIX_CUR } from "./waves.js";
-import { Aa } from "./world.js";
-import { Ma, ai, p_ } from "../data/progression.js";
-import { Zi, ri } from "../data/upgrades.js";
-import { Eu, Su, kp } from "./arena.js";
-import { nr } from "./stats.js";
+import { enemyDefs, bossOrder, RL_ENEMY_TIPS, biomeVariants, bossDefs, bossByWave } from "../data/enemies.js";
+import { ui, store, game, safeAreaInsets, input, renderer } from "../main.js";
+import { BUILD_ID, hashString, GAME_VERSION, makeRng, formatTime } from "./util.js";
+import { updateEnemy, findOpenSpot } from "./ai.js";
+import { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, biomeList } from "../data/biomes.js";
+import { weaponOrder, weaponDefs } from "../data/weapons.js";
+import { waveEvents, planWave, set_RL_BIOME_MIX_CUR } from "./waves.js";
+import { World } from "./world.js";
+import { threatMods, workshopModules, modulesById } from "../data/progression.js";
+import { upgradeList, upgradesById } from "../data/upgrades.js";
+import { hitsObstacle, buildLayout, isConnected } from "./arena.js";
+import { computeStats } from "./stats.js";
 
 const RL_LOG_VERSION = __RL_VERSION__,
-  nu = "riftline.log.v4";
-var Xn = [],
-  ya = new Set(),
-  Xi = {},
+  LOG_KEY = "riftline.log.v4";
+var errorLog = [],
+  logListeners = new Set(),
+  logContext = {},
   RL_RT = {
     pointerdown: 0,
     pointermove: 0,
@@ -38,18 +38,18 @@ var Xn = [],
     lastButton: null,
     uiGuardDrops: 0,
   };
-function iu() {
+function saveErrorLog() {
   try {
-    globalThis.localStorage && localStorage.setItem(nu, JSON.stringify(Xn));
+    globalThis.localStorage && localStorage.setItem(LOG_KEY, JSON.stringify(errorLog));
   } catch {}
 }
 try {
-  let i = globalThis.localStorage && localStorage.getItem(nu);
+  let i = globalThis.localStorage && localStorage.getItem(LOG_KEY);
   if (i) {
     let t = JSON.parse(i);
     Array.isArray(t) &&
       t.slice(-30).forEach((e) => {
-        e && e.v === RL_LOG_VERSION && Xn.push(e);
+        e && e.v === RL_LOG_VERSION && errorLog.push(e);
       });
   }
 } catch {}
@@ -60,10 +60,10 @@ try {
       q && (q.startsWith("riftline.log.v2.") || q === "riftline.log.v3") && localStorage.removeItem(q);
     }
 } catch {}
-function Zl(i) {
-  Xi = { ...Xi, ...i };
+function setLogContext(i) {
+  logContext = { ...logContext, ...i };
 }
-function ze(i, t) {
+function logError(i, t) {
   let e = t && typeof t === "object" ? t : null,
     n = e && e.error ? e.error : e && e.reason ? e.reason : t,
     s = String((n && n.message) || (e && e.message) || n || "unknown").slice(0, 300),
@@ -84,50 +84,50 @@ function ze(i, t) {
     h = r ? `${r}:${a}:${o}` : "";
   if (h && s.endsWith("Script error.")) s += ` @ ${h}`;
   let l = new Date().toISOString(),
-    u = Xn.find((d) => d.msg === s && d.where === i && d.file === r && d.line === a && d.col === o);
+    u = errorLog.find((d) => d.msg === s && d.where === i && d.file === r && d.line === a && d.col === o);
   if (u) (u.n++, (u.last = l));
   else {
     for (
-      Xn.push({
+      errorLog.push({
         where: i,
         msg: s,
         stack: c,
         n: 1,
         first: l,
         last: l,
-        v: Xi.version || RL_LOG_VERSION,
+        v: logContext.version || RL_LOG_VERSION,
         file: r,
         line: a,
         col: o,
       });
-      Xn.length > 30;
+      errorLog.length > 30;
     )
-      Xn.shift();
+      errorLog.shift();
     typeof console < "u" && console.error("[riftline]", i, t);
   }
-  iu();
-  for (let d of ya)
+  saveErrorLog();
+  for (let d of logListeners)
     try {
       d();
     } catch {}
 }
-function su() {
-  return Xn;
+function getErrorLog() {
+  return errorLog;
 }
-function ru(i) {
-  return (ya.add(i), () => ya.delete(i));
+function onLogChange(i) {
+  return (logListeners.add(i), () => logListeners.delete(i));
 }
-function au() {
-  ((Xn.length = 0), iu());
-  for (let i of ya) i();
+function clearErrorLog() {
+  ((errorLog.length = 0), saveErrorLog());
+  for (let i of logListeners) i();
 }
-function tr() {
+function buildReport() {
   let i = [
-    "Riftline " + (Xi.version || RL_LOG_VERSION) + " " + (Xi.build || ""),
-    "Mode: " + (Xi.mode || "?"),
+    "Riftline " + (logContext.version || RL_LOG_VERSION) + " " + (logContext.build || ""),
+    "Mode: " + (logContext.mode || "?"),
     "UA: " + (typeof navigator < "u" ? navigator.userAgent : "node"),
     "Screen: " + (typeof window < "u" ? `${window.innerWidth}x${window.innerHeight} @${window.devicePixelRatio}` : "-"),
-    "GPU: " + (Xi.gpu || "?"),
+    "GPU: " + (logContext.gpu || "?"),
     "Time: " + new Date().toISOString(),
     "",
     rlHealthSummary(),
@@ -157,8 +157,8 @@ function tr() {
       " · ui-dedupes " +
       RL_RT.uiGuardDrops,
   );
-  Xn.length || i.push("", "Errors: none recorded.");
-  for (let t of Xn) {
+  errorLog.length || i.push("", "Errors: none recorded.");
+  for (let t of errorLog) {
     let e = t.file ? ` @ ${t.file}:${t.line || 0}:${t.col || 0}` : "";
     (i.push(`[${t.where}] ${t.msg}  (x${t.n}, v${t.v}${e}, first ${t.first}, last ${t.last})`),
       t.stack &&
@@ -302,7 +302,7 @@ function rlHealthAdd(i, t, e) {
 }
 var RL_SELFTEST = null;
 function rlSelfTest() {
-  if (RL_SELFTEST && RL_SELFTEST.version === _a) return RL_SELFTEST;
+  if (RL_SELFTEST && RL_SELFTEST.version === GAME_VERSION) return RL_SELFTEST;
   const selftestStarted = performance.now?.() || 0;
   let fail = [],
     warn = [],
@@ -323,8 +323,8 @@ function rlSelfTest() {
   try {
     const seeds = [0x13579bdf, 0x2468ace0, 0x10203040, 0x55667788, 0xa5a5a5a5];
     for (const seed of seeds) {
-      const a = new Aa({ seed, weapon: "pulse", threat: 0, ws: {} }),
-        b = new Aa({ seed, weapon: "pulse", threat: 0, ws: {} });
+      const a = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
+        b = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
       for (let wave = 1; wave <= 20; wave++) {
         a.startWave(wave);
         b.startWave(wave);
@@ -338,7 +338,7 @@ function rlSelfTest() {
         // 2.4.0: one biome per boss cycle — it changes right after each boss wave (5, 10, 15 …)
         if (wave > 1 && (currentBiome === previousBiome) !== ((wave - 1) % 5 !== 0))
           bad("biome-route", `biome must change exactly after boss waves (seed ${seed}, wave ${wave - 1}/${wave})`);
-        if (a.event && (!$i[a.event] || a.event === "dark"))
+        if (a.event && (!waveEvents[a.event] || a.event === "dark"))
           bad("events", `invalid/removed event ${a.event} at seed ${seed} wave ${wave}`);
         if (a.boss && a.event) bad("events", `boss wave received event ${a.event} at seed ${seed} wave ${wave}`);
         if (!Array.isArray(a.arena.obs)) bad("arena", `missing obstacle array at seed ${seed} wave ${wave}`);
@@ -352,7 +352,7 @@ function rlSelfTest() {
         for (const [featureType, items] of Object.entries(featureSets))
           for (const q of items) {
             if (![q.x, q.y, q.r].every(finite)) bad("features", `non-finite ${featureType} seed ${seed} wave ${wave}`);
-            if (Eu(a.arena.obs, q.x, q.y, (q.r || 0) + 0.8))
+            if (hitsObstacle(a.arena.obs, q.x, q.y, (q.r || 0) + 0.8))
               bad("features", `${featureType} overlaps obstacle at seed ${seed} wave ${wave}`);
           }
         const portals = a.arena.portals || [],
@@ -369,7 +369,7 @@ function rlSelfTest() {
           if (finite(pairDist) && pairDist < 7.0)
             bad("portal", `portal pair too close (${pairDist.toFixed(2)}) at seed ${seed} wave ${wave}`);
           for (const p of pair) {
-            if (![p.x, p.y].every(finite) || Eu(a.arena.obs, p.x, p.y, 1.5))
+            if (![p.x, p.y].every(finite) || hitsObstacle(a.arena.obs, p.x, p.y, 1.5))
               bad("portal", `invalid portal endpoint at seed ${seed} wave ${wave}`);
             if (Math.abs(p.x) > a.arena.W - 3.6 || Math.abs(p.y) > a.arena.H - 3.6)
               bad("portal", `portal endpoint out of safe bounds at seed ${seed} wave ${wave}`);
@@ -381,7 +381,7 @@ function rlSelfTest() {
             portalPts.push(p);
           }
         }
-        const spawnProbeRng = qi(Yi(seed + ":spawn-probe:" + wave));
+        const spawnProbeRng = makeRng(hashString(seed + ":spawn-probe:" + wave));
         for (const [clearance, dist] of [
           [7, 1],
           [9, 1.6],
@@ -397,13 +397,13 @@ function rlSelfTest() {
           )
             bad("spawn-safe", `freePoint failed at seed ${seed} wave ${wave}`);
         }
-        const helperRng = qi(Yi(seed + ":safe-point-probe:" + wave));
+        const helperRng = makeRng(hashString(seed + ":safe-point-probe:" + wave));
         for (const [minD, maxD] of [
           [2, 6],
           [4, 10],
           [1.5, 5],
         ]) {
-          const p = xu({ rng: helperRng, arena: a.arena }, a.player.x, a.player.y, minD, maxD);
+          const p = findOpenSpot({ rng: helperRng, arena: a.arena }, a.player.x, a.player.y, minD, maxD);
           if (
             p &&
             (!finite(p.x) ||
@@ -417,13 +417,13 @@ function rlSelfTest() {
         }
       }
     }
-    for (const b of ii)
+    for (const b of biomeList)
       for (const seed of seeds) {
-        const a = new Aa({ seed, weapon: "pulse", threat: 0, ws: {} });
+        const a = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
         if (!a.route?.includes(b.id)) bad("biome-route", `seed ${seed} route is missing biome ${b.id}`);
       }
-    for (const id of Object.keys(ue)) {
-      const w = new Aa({ seed: 0x7f4a7c15, weapon: id, threat: 0, ws: {} });
+    for (const id of Object.keys(weaponDefs)) {
+      const w = new World({ seed: 0x7f4a7c15, weapon: id, threat: 0, ws: {} });
       for (let f = 0; f < 12; f++) {
         w.step(1 / 60, {
           mx: 1,
@@ -445,9 +445,9 @@ function rlSelfTest() {
       }
       weapons++;
     }
-    for (const id of Kl) {
-      const w = new Aa({ seed: 0x31415926, weapon: "pulse", threat: 0, ws: {} });
-      w.startWave(uu[5] === id ? 5 : uu[10] === id ? 10 : uu[15] === id ? 15 : 20);
+    for (const id of bossOrder) {
+      const w = new World({ seed: 0x31415926, weapon: "pulse", threat: 0, ws: {} });
+      w.startWave(bossByWave[5] === id ? 5 : bossByWave[10] === id ? 10 : bossByWave[15] === id ? 15 : 20);
       const boss = w.spawnBoss(id);
       bosses++;
       if (!boss || !finite(boss.hp) || !finite(boss.x) || !finite(boss.y)) bad("boss-runtime", `${id} failed spawn`);
@@ -457,16 +457,16 @@ function rlSelfTest() {
         if (!w.boss || !finite(w.boss.hp)) bad("boss-runtime", `${id} failed during step`);
       }
     }
-    for (const id of Object.keys(Ae)) {
-      const def = Ae[id],
-        w = new Aa({
-          seed: Yi("enemy-probe:" + id),
+    for (const id of Object.keys(enemyDefs)) {
+      const def = enemyDefs[id],
+        w = new World({
+          seed: hashString("enemy-probe:" + id),
           weapon: "pulse",
           threat: Math.min(5, Math.floor((def.from || 1) / 5)),
           ws: {},
         });
       w.startWave(Math.max(1, Math.min(50, def.from || 1)));
-      const p = w.arena.freePoint(qi(Yi("enemy-spawn:" + id)), w.player.x, w.player.y, 6, 0.45);
+      const p = w.arena.freePoint(makeRng(hashString("enemy-spawn:" + id)), w.player.x, w.player.y, 6, 0.45);
       if (!p || !finite(p.x) || !finite(p.y)) bad("enemy-spawn", `${id} has no safe spawn point`);
       else {
         const q = w.spawnEnemy(id, p.x, p.y);
@@ -483,22 +483,22 @@ function rlSelfTest() {
         }
       }
     }
-    for (const b of ii) {
+    for (const b of biomeList) {
       for (const seed of [0x10101, 0x20202, 0x30303]) {
-        const a = new Aa({ seed, weapon: "pulse", threat: 2, ws: {} }),
+        const a = new World({ seed, weapon: "pulse", threat: 2, ws: {} }),
           idx = a.route.indexOf(b.id),
           w = 1 + 5 * idx; // 2.4.0: first wave of that biome's boss cycle
         a.startWave(w);
         if (a.arena.biome?.id !== b.id)
           bad("biome-runtime", `route for seed ${seed} did not resolve ${b.id} at wave ${w}`);
-        const p = a.arena.freePoint(qi(Yi(seed + ":" + b.id)), a.player.x, a.player.y, 4, 0.45);
+        const p = a.arena.freePoint(makeRng(hashString(seed + ":" + b.id)), a.player.x, a.player.y, 4, 0.45);
         if (!p || a.arena.blocked(p.x, p.y, 0.85)) bad("biome-runtime", `unsafe spawn space in ${b.id} seed ${seed}`);
         biomeCases++;
       }
     }
     for (let threat = 0; threat <= 5; threat++)
       for (const seed of [0x4141, 0x5151]) {
-        const w = new Aa({ seed, weapon: "pulse", threat, ws: {} });
+        const w = new World({ seed, weapon: "pulse", threat, ws: {} });
         for (let wave = 1; wave <= 12; wave++) {
           w.startWave(wave);
           for (let f = 0; f < 8; f++) {
@@ -521,15 +521,15 @@ function rlSelfTest() {
         threatCases++;
       }
     {
-      const base = nr("pulse", {}, {}),
-        boost = nr("pulse", { overclock: 3 }, {});
+      const base = computeStats("pulse", {}, {}),
+        boost = computeStats("pulse", { overclock: 3 }, {});
       if (!(boost.rateMul > base.rateMul && boost.velMul > base.velMul))
         bad("upgrade-runtime", "Overclock Matrix does not alter rate and velocity");
       else upgradeChecks++;
-      for (const def of Zi) {
+      for (const def of upgradeList) {
         const testUp = {};
         testUp[def.id] = 1;
-        const stats = nr(def.weapon || "pulse", testUp, {
+        const stats = computeStats(def.weapon || "pulse", testUp, {
           hull: 1,
           power: 1,
           thrust: 1,
@@ -547,10 +547,10 @@ function rlSelfTest() {
         if (!finiteNumbers) bad("upgrade-runtime", `${def.id} produced non-finite stat`);
         else upgradeChecks++;
       }
-      const w = new Aa({ seed: 0x1ce55eed, weapon: "pulse", threat: 0, ws: {} });
+      const w = new World({ seed: 0x1ce55eed, weapon: "pulse", threat: 0, ws: {} });
       w.startWave(13);
-      w.stats = nr("pulse", { bounty: 2, capacitor: 2 }, {});
-      const p = w.arena.freePoint(qi(Yi("upgrade-kill-probe")), w.player.x, w.player.y, 6, 0.45),
+      w.stats = computeStats("pulse", { bounty: 2, capacitor: 2 }, {});
+      const p = w.arena.freePoint(makeRng(hashString("upgrade-kill-probe")), w.player.x, w.player.y, 6, 0.45),
         enemy = p && w.spawnEnemy("turret", p.x, p.y, { elite: !0 });
       if (!enemy) bad("upgrade-runtime", "could not spawn elite turret probe");
       else {
@@ -566,7 +566,7 @@ function rlSelfTest() {
       }
     }
     {
-      const director = new Aa({ seed: 0x5a17c0de, weapon: "rocket", threat: 2, ws: {} });
+      const director = new World({ seed: 0x5a17c0de, weapon: "rocket", threat: 2, ws: {} });
       let dynamic = 0,
         caches = 0;
       for (let wave = 2; wave <= 28; wave++) {
@@ -586,14 +586,14 @@ function rlSelfTest() {
       else det++;
     }
     {
-      const a = new Aa({ seed: 0xdecafbad, weapon: "pulse", threat: 3, ws: {} });
+      const a = new World({ seed: 0xdecafbad, weapon: "pulse", threat: 3, ws: {} });
       a.startWave(7);
       for (let f = 0; f < 20; f++) {
         a.step(1 / 60, { mx: 0.3, my: 0.1, aim: true, ax: 1, ay: 0, fire: true, assist: false, dash: f === 4 });
         frames++;
       }
       const snap = a.snapshot(),
-        b = new Aa({ snap, ws: {} });
+        b = new World({ snap, ws: {} });
       if (
         b.wave !== a.wave ||
         b.seed !== a.seed ||
@@ -604,16 +604,16 @@ function rlSelfTest() {
         bad("snapshot", "extended snapshot roundtrip mismatch");
       else snapshotCases++;
     }
-    const offerWorld = new Aa({ seed: 0xabcdef01, weapon: "pulse", threat: 0, ws: {} }),
+    const offerWorld = new World({ seed: 0xabcdef01, weapon: "pulse", threat: 0, ws: {} }),
       offer = offerWorld.makeOffer();
-    if (!Array.isArray(offer) || offer.length < 1 || offer.some((id) => !ri[id]))
+    if (!Array.isArray(offer) || offer.length < 1 || offer.some((id) => !upgradesById[id]))
       bad("upgrade-offer", "invalid generated offer");
     else det++;
   } catch (e) {
     bad("selftest-exception", (e && e.message) || String(e));
   }
   RL_SELFTEST = {
-    version: _a,
+    version: GAME_VERSION,
     ok: fail.length === 0,
     fail,
     warn,
@@ -663,9 +663,9 @@ function rlRunAudit(w, outcome, abandoned) {
     if (!arena || !finite(arena.W) || !finite(arena.H) || !Array.isArray(arena.obs))
       add("arena", "invalid arena geometry");
     if (arena) {
-      if (!arena.biome || !du[arena.biome.id]) add("biome", "unknown live biome");
+      if (!arena.biome || !biomesById[arena.biome.id]) add("biome", "unknown live biome");
       for (const enemy of w.enemies || [])
-        if (!enemy?.type || !(Ae[enemy.type] || (enemy.boss && en[enemy.type])))
+        if (!enemy?.type || !(enemyDefs[enemy.type] || (enemy.boss && bossDefs[enemy.type])))
           add("enemy", "unknown live enemy type");
       const checkObj = (arr, id) => {
         if (!Array.isArray(arr)) return;
@@ -697,7 +697,7 @@ function rlRunAudit(w, outcome, abandoned) {
         ]) {
           if (Math.abs(p.x) > arena.W - 3.6 || Math.abs(p.y) > arena.H - 3.6)
             add("portal", "endpoint outside safe bounds");
-          if (Eu(arena.obs, p.x, p.y, 1.5)) add("portal", "endpoint overlaps obstacle");
+          if (hitsObstacle(arena.obs, p.x, p.y, 1.5)) add("portal", "endpoint overlaps obstacle");
           for (const old of pts) {
             const dd = Math.hypot(p.x - old.x, p.y - old.y);
             if (dd < 4) add("portal", `endpoint spacing ${dd.toFixed(2)} < 4.00`);
@@ -726,7 +726,8 @@ function rlRunAudit(w, outcome, abandoned) {
     if (!p || ![p.x, p.y, p.vx, p.vy, p.hp].every(finite)) add("player", "non-finite final player state");
     if (!finite(w.time) || !finite(w.shards) || !finite(w.kills)) add("run-state", "non-finite run totals");
     if (!["dead", "victory"].includes(w.state) && !abandoned) aw("state", `run ended in state ${w.state}`);
-    if (w.event && (!$i[w.event] || w.event === "dark")) add("event", "removed/invalid event reached at runtime");
+    if (w.event && (!waveEvents[w.event] || w.event === "dark"))
+      add("event", "removed/invalid event reached at runtime");
   } catch (e) {
     add("audit-exception", (e && e.message) || String(e));
   }
@@ -851,7 +852,7 @@ function rlMonStart(w, resume) {
     startWave: w.wave,
     weapon: w.weapon,
     threat: w.threat,
-    errBase: new Map(Xn.map((e) => [rlMonErrKey(e), e.n])),
+    errBase: new Map(errorLog.map((e) => [rlMonErrKey(e), e.n])),
     inputBase: RL_RT.pointerdown + RL_RT.keydown,
     frames: 0,
     dtSum: 0,
@@ -910,12 +911,12 @@ function rlMonBeginWave(w) {
       continue;
     }
     for (const q of g.members)
-      if (!q || typeof q !== "object" || !Ae[q.type])
+      if (!q || typeof q !== "object" || !enemyDefs[q.type])
         rlMonIssue("FAIL", "spawn-plan", `wave ${w.wave}: invalid plan member ${JSON.stringify(q)}`);
   }
-  if (w.bossPending && !en[w.bossPending])
+  if (w.bossPending && !bossDefs[w.bossPending])
     rlMonIssue("FAIL", "spawn-plan", `wave ${w.wave}: unknown boss ${w.bossPending}`);
-  if (w.championPending && !Ae[w.championPending])
+  if (w.championPending && !enemyDefs[w.championPending])
     rlMonIssue("FAIL", "spawn-plan", `wave ${w.wave}: unknown champion ${w.championPending}`);
   for (const [k, v] of Object.entries(w.stats || {}))
     if (typeof v === "number" && !Number.isFinite(v))
@@ -945,14 +946,15 @@ function rlMonStep(w, n0, dash0, sh0, k0, dt) {
       rlMonIssue("FAIL", "events", `"dash" emitted although the player did not dash`);
     if (k === "spawn" || k === "boss") {
       const type = k === "boss" ? ev.id : ev.type,
-        known = k === "boss" ? !!en[type] : !!Ae[type];
+        known = k === "boss" ? !!bossDefs[type] : !!enemyDefs[type];
       if (!known) rlMonIssue("FAIL", "spawns", `unknown ${k} type ${type}`);
       else {
         m.types.add(type);
-        if (k === "spawn" && oe && !oe.enemyPools[type]) rlMonIssue("FAIL", "render", `no mesh pool for enemy ${type}`);
+        if (k === "spawn" && renderer && !renderer.enemyPools[type])
+          rlMonIssue("FAIL", "render", `no mesh pool for enemy ${type}`);
       }
     }
-    if (k === "shot" && !ue[ev.w]) rlMonIssue("FAIL", "weapons", `shot from unknown weapon ${ev.w}`);
+    if (k === "shot" && !weaponDefs[ev.w]) rlMonIssue("FAIL", "weapons", `shot from unknown weapon ${ev.w}`);
     if (k === "cleared" && m.cur) {
       m.cur.cleared = true;
       m.cur.secs = w.time - m.cur.t0;
@@ -995,7 +997,7 @@ function rlMonSample(w) {
     if (p.nova < 0 || p.nova > 100.01) rlMonIssue("FAIL", "invariants", "nova charge outside 0–100");
   }
   for (const e of w.enemies) {
-    if (!(Ae[e.type] || (e.boss && en[e.type]))) {
+    if (!(enemyDefs[e.type] || (e.boss && bossDefs[e.type]))) {
       rlMonIssue("FAIL", "invariants", `live enemy with unknown type ${e.type}`);
       continue;
     }
@@ -1033,11 +1035,11 @@ function rlMonFrame(workMs) {
   const m = RL_MON;
   if (
     !m ||
-    ft.world !== m.w ||
-    ft.mode !== "game" ||
-    ft.paused ||
-    ft.chooseShown ||
-    ft.overShown ||
+    game.world !== m.w ||
+    game.mode !== "game" ||
+    game.paused ||
+    game.chooseShown ||
+    game.overShown ||
     document.visibilityState === "hidden"
   ) {
     if (m) m.lastT = 0;
@@ -1056,24 +1058,24 @@ function rlMonFrame(workMs) {
     m.lastT = now;
   }
   // What is drawn must be the wave's own biome and layout (no mixed palettes / stale walls).
-  if (m && oe && ft.world === m.w && ft.mode === "game" && oe.biome && (m.frames & 15) === 0) {
+  if (m && renderer && game.world === m.w && game.mode === "game" && renderer.biome && (m.frames & 15) === 0) {
     const A = m.w.arena;
-    oe.biome.id !== A.biome.id &&
-      rlMonIssue("FAIL", "render", `renderer shows biome ${oe.biome.id} during a ${A.biome.id} wave`);
-    oe.arena.layKey !== A.key &&
-      rlMonIssue("FAIL", "render", `renderer walls (${oe.arena.layKey}) differ from the wave layout (${A.key})`);
-    oe.arena.biomeId !== A.biome.id &&
-      rlMonIssue("FAIL", "render", `floor palette from ${oe.arena.biomeId} during a ${A.biome.id} wave`);
+    renderer.biome.id !== A.biome.id &&
+      rlMonIssue("FAIL", "render", `renderer shows biome ${renderer.biome.id} during a ${A.biome.id} wave`);
+    renderer.arena.layKey !== A.key &&
+      rlMonIssue("FAIL", "render", `renderer walls (${renderer.arena.layKey}) differ from the wave layout (${A.key})`);
+    renderer.arena.biomeId !== A.biome.id &&
+      rlMonIssue("FAIL", "render", `floor palette from ${renderer.arena.biomeId} during a ${A.biome.id} wave`);
   }
   // 2.3.2: while the run is being played the HUD (HP, pause, touch buttons) must be
   // on screen — Endless used to leave it hidden. 1.5 s of grace for transitions.
   if (
     m &&
-    ft.world === m.w &&
-    ft.mode === "game" &&
-    !ft.paused &&
-    !ft.chooseShown &&
-    !ft.overShown &&
+    game.world === m.w &&
+    game.mode === "game" &&
+    !game.paused &&
+    !game.chooseShown &&
+    !game.overShown &&
     !["choose", "victory", "dead"].includes(m.w.state)
   ) {
     const hud = document.getElementById("hud");
@@ -1085,15 +1087,15 @@ function rlMonFrame(workMs) {
     } else m.hudOff = 0;
   }
   // Every wave start writes a resumable snapshot; verify it with the real loader
-  // (cheap sr() per wave; the full world restore runs once at the end of the run).
-  if (m && m.pendingSnap && ft.world === m.w) {
-    const run = ee.data.run;
+  // (cheap cleanRun() per wave; the full world restore runs once at the end of the run).
+  if (m && m.pendingSnap && game.world === m.w) {
+    const run = store.data.run;
     if (run && run.wave === m.pendingSnap) {
       m.snaps.checked++;
       const wave = m.pendingSnap;
       m.pendingSnap = 0;
       try {
-        const s = sr(run);
+        const s = cleanRun(run);
         s
           ? (m.snaps.ok++, (m.lastSnap = s))
           : rlMonIssue("FAIL", "save", `wave ${wave} snapshot is rejected by the loader`);
@@ -1107,7 +1109,7 @@ function rlMonFrame(workMs) {
   }
 }
 function rlMonPreEnd(w) {
-  const d = ee.data,
+  const d = store.data,
     s = d.stats;
   return {
     bank: d.shards,
@@ -1149,7 +1151,7 @@ function rlMonFinish(w, pre, win, abandoned, silent, crashed) {
   };
   if (crashed) C("FAIL", "crash", "the game loop crashed (3 consecutive frame errors)");
   // 1. runtime errors logged since the run started
-  const fresh = m ? Xn.filter((e) => (m.errBase.get(rlMonErrKey(e)) || 0) < e.n) : [];
+  const fresh = m ? errorLog.filter((e) => (m.errBase.get(rlMonErrKey(e)) || 0) < e.n) : [];
   C(
     fresh.length ? "FAIL" : "OK",
     "runtime-errors",
@@ -1188,7 +1190,7 @@ function rlMonFinish(w, pre, win, abandoned, silent, crashed) {
     if (m.lastSnap)
       try {
         const s = m.lastSnap,
-          t = new Aa({ snap: s, ws: ee.data.workshop });
+          t = new World({ snap: s, ws: store.data.workshop });
         (t.wave !== s.wave || t.weapon !== s.weapon || JSON.stringify(t.up) !== JSON.stringify(s.up)) &&
           rlMonIssue("FAIL", "save", `wave ${s.wave} snapshot restores a different run`);
       } catch (e) {
@@ -1222,10 +1224,10 @@ function rlMonFinish(w, pre, win, abandoned, silent, crashed) {
   } else C("WARN", "monitor", "run monitor was not attached (run started before diagnostics were ready)");
   if (!crashed) {
     // 3. payout, records and persistence after endRun() ran
-    const d = ee.data,
+    const d = store.data,
       c = pre.shards,
       bonus = win ? Math.round(c * 0.25) : 0,
-      expect = Math.round((c + bonus) * Ma(pre.threat).shards * (1 + 0.1 * pre.salvage)),
+      expect = Math.round((c + bonus) * threatMods(pre.threat).shards * (1 + 0.1 * pre.salvage)),
       got = d.shards - pre.bank;
     C(
       got === expect ? "OK" : "FAIL",
@@ -1246,16 +1248,16 @@ function rlMonFinish(w, pre, win, abandoned, silent, crashed) {
     const per = [];
     d.run !== null && per.push("finished run is still stored as resumable");
     try {
-      const r = ee.parse(JSON.stringify(d));
+      const r = store.parse(JSON.stringify(d));
       r.ok || per.push("save does not round-trip");
     } catch (e) {
       per.push("save round-trip threw: " + e.message);
     }
     let stored = null;
     try {
-      stored = JSON.parse(localStorage.getItem(kh) || "null");
+      stored = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
     } catch {}
-    if (!ee.storageOk) C("WARN", "persistence", "storage is blocked — progress only lives in memory");
+    if (!store.storageOk) C("WARN", "persistence", "storage is blocked — progress only lives in memory");
     else {
       (stored && stored.savedAt === d.savedAt && stored.shards === d.shards) ||
         per.push("localStorage does not match the in-memory save");
@@ -1311,15 +1313,15 @@ function rlMonFinish(w, pre, win, abandoned, silent, crashed) {
           a.checks.push({ st: "WARN", id: "end-screen", msg: e.message });
         }
         a.fail.length &&
-          Ft.toast(
+          ui.toast(
             `Diagnostics: ${a.fail.length} problem${a.fail.length === 1 ? "" : "s"} in this run — Settings › Diagnostics`,
             "warn",
             6000,
           );
-        rlRunHealth({ context: "post-run" }).catch((e) => ze("health", e));
+        rlRunHealth({ context: "post-run" }).catch((e) => logError("health", e));
       }),
     );
-  } else rlRunHealth({ context: "post-run" }).catch((e) => ze("health", e));
+  } else rlRunHealth({ context: "post-run" }).catch((e) => logError("health", e));
   return a;
 }
 function rlMonCrashed() {
@@ -1335,7 +1337,7 @@ function rlAuditReportLines(out) {
     w = a.checks.filter((q) => q.st === "WARN").length;
   out.push(
     "",
-    `Post-run audit: ${String(a.outcome).toUpperCase()} · ${a.weapon ? ue[a.weapon]?.name + " · " : ""}wave ${a.wave} · ${va(a.time || 0)} · ${a.checks.length} checks · ${f} FAIL · ${w} WARN`,
+    `Post-run audit: ${String(a.outcome).toUpperCase()} · ${a.weapon ? weaponDefs[a.weapon]?.name + " · " : ""}wave ${a.wave} · ${formatTime(a.time || 0)} · ${a.checks.length} checks · ${f} FAIL · ${w} WARN`,
   );
   for (const q of a.checks) out.push(`  [${q.st}]${" ".repeat(Math.max(1, 5 - q.st.length))}${q.id}: ${q.msg}`);
 }
@@ -1346,7 +1348,7 @@ function rlUiButtonGuardSelfTest() {
   host.setAttribute("data-rift-ui-test", "1");
   const fake = { sound: { play: () => {} }, store: { data: {} }, input: {} },
     ui = { g: fake };
-  ui.click = Gl.prototype.click;
+  ui.click = GameUI.prototype.click;
   let count = 0,
     steps = 0,
     pass = true;
@@ -1578,8 +1580,8 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   try {
     ok(
       "version-bundle",
-      _a === RL_LOG_VERSION && Xi.version === RL_LOG_VERSION,
-      `JS ${_a} · logger ${RL_LOG_VERSION} · runtime ${Xi.version || "?"}`,
+      GAME_VERSION === RL_LOG_VERSION && logContext.version === RL_LOG_VERSION,
+      `JS ${GAME_VERSION} · logger ${RL_LOG_VERSION} · runtime ${logContext.version || "?"}`,
     );
   } catch (e) {
     rlHealthAdd("version-bundle", "FAIL", e.message);
@@ -1592,8 +1594,8 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
       file = gameSrc.split("/").pop() || "";
     ok(
       "version-contract",
-      meta === _a && file === `game-v${_a}-final.js` && buildMeta === Hh,
-      `HTML ${meta} · JS ${_a} · script ${file || "?"} · build ${buildMeta}${buildMeta === Hh ? "" : " ≠ " + Hh}`,
+      meta === GAME_VERSION && file === `game-v${GAME_VERSION}-final.js` && buildMeta === BUILD_ID,
+      `HTML ${meta} · JS ${GAME_VERSION} · script ${file || "?"} · build ${buildMeta}${buildMeta === BUILD_ID ? "" : " ≠ " + BUILD_ID}`,
     );
   } catch (e) {
     rlHealthAdd("version-contract", "FAIL", e.message);
@@ -1624,7 +1626,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   try {
     let c = document.getElementById("gl"),
       g = c && c.getContext && (c.getContext("webgl2") || c.getContext("webgl"));
-    if (!!oe && !!g) rlHealthAdd("webgl", "OK", "renderer/context ready");
+    if (!!renderer && !!g) rlHealthAdd("webgl", "OK", "renderer/context ready");
     else rlHealthAdd("webgl", "WARN", "WebGL unavailable; gameplay start is disabled but the menu remains interactive");
   } catch (e) {
     rlHealthAdd("webgl", "WARN", e.message || "WebGL check unavailable");
@@ -1632,11 +1634,11 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   try {
     ok(
       "game-data",
-      Object.keys(ue).length === En.length &&
-        ii.length === 5 &&
-        Object.keys(en).length === 4 &&
-        Object.keys(Ae).length >= 25,
-      `${Object.keys(ue).length} weapons (${En.length} selectable) · ${Object.keys(Ae).length} enemies · ${ii.length} biomes · ${Object.keys(en).length} bosses · ${Zi.length} upgrades · ${ai.length} modules`,
+      Object.keys(weaponDefs).length === weaponOrder.length &&
+        biomeList.length === 5 &&
+        Object.keys(bossDefs).length === 4 &&
+        Object.keys(enemyDefs).length >= 25,
+      `${Object.keys(weaponDefs).length} weapons (${weaponOrder.length} selectable) · ${Object.keys(enemyDefs).length} enemies · ${biomeList.length} biomes · ${Object.keys(bossDefs).length} bosses · ${upgradeList.length} upgrades · ${workshopModules.length} modules`,
     );
   } catch (e) {
     rlHealthAdd("game-data", "FAIL", e.message);
@@ -1657,13 +1659,13 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
         "scavenger",
         "vector",
       ],
-      badE = Object.keys(Ae).filter((id) => !Ae[id] || (!(Ae[id].from >= 1) && id !== "mite")),
-      badEvo = Zi.filter((u) => u.evo && Object.keys(u.evo).some((k) => !ri[k])).map((u) => u.id),
-      badWpn = Zi.filter((u) => u.weapon && !ue[u.weapon]).map((u) => u.id),
+      badE = Object.keys(enemyDefs).filter((id) => !enemyDefs[id] || (!(enemyDefs[id].from >= 1) && id !== "mite")),
+      badEvo = upgradeList.filter((u) => u.evo && Object.keys(u.evo).some((k) => !upgradesById[k])).map((u) => u.id),
+      badWpn = upgradeList.filter((u) => u.weapon && !weaponDefs[u.weapon]).map((u) => u.id),
       miss = [
-        ...reqE.filter((id) => !Ae[id]),
-        ...reqB.filter((id) => !du[id]),
-        ...reqU.filter((id) => !ri[id]),
+        ...reqE.filter((id) => !enemyDefs[id]),
+        ...reqB.filter((id) => !biomesById[id]),
+        ...reqU.filter((id) => !upgradesById[id]),
         ...badE,
         ...badEvo,
         ...badWpn,
@@ -1679,11 +1681,11 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     rlHealthAdd("content-contract", "FAIL", e.message);
   }
   try {
-    const noPool = oe ? Object.keys(Ae).filter((t) => !oe.enemyPools[t]) : [],
-      noModel = Object.keys(Ae).filter((t) => !RL_MESH_TYPES.includes(t)),
-      noSfx = Object.keys(ue).filter((w) => !RL_SFX_VOICES.includes(rlShotSfx(w))),
-      noMusic = ii.filter((b) => !Qf[b.id] || !tp[b.id]).map((b) => b.id),
-      noTip = Object.keys(Ae).filter((t) => t !== "mite" && !RL_ENEMY_TIPS[t]),
+    const noPool = renderer ? Object.keys(enemyDefs).filter((t) => !renderer.enemyPools[t]) : [],
+      noModel = Object.keys(enemyDefs).filter((t) => !RL_MESH_TYPES.includes(t)),
+      noSfx = Object.keys(weaponDefs).filter((w) => !RL_SFX_VOICES.includes(rlShotSfx(w))),
+      noMusic = biomeList.filter((b) => !musicChords[b.id] || !musicVoices[b.id]).map((b) => b.id),
+      noTip = Object.keys(enemyDefs).filter((t) => t !== "mite" && !RL_ENEMY_TIPS[t]),
       miss = [
         ...noPool.map((t) => "mesh pool " + t),
         ...noModel.map((t) => "model " + t),
@@ -1696,13 +1698,13 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
       !miss.length,
       miss.length
         ? `missing: ${miss.slice(0, 8).join(", ")}`
-        : `${Object.keys(ue).length} weapons voiced · ${Object.keys(Ae).length} enemies with own model + intro · ${ii.length}/${ii.length} biomes with own music theme`,
+        : `${Object.keys(weaponDefs).length} weapons voiced · ${Object.keys(enemyDefs).length} enemies with own model + intro · ${biomeList.length}/${biomeList.length} biomes with own music theme`,
     );
   } catch (e) {
     rlHealthAdd("content-coverage", "FAIL", e.message);
   }
   try {
-    let v = [typeof ft?.startRun, typeof ft?.pause, typeof ft?.resume, typeof ft?.restart];
+    let v = [typeof game?.startRun, typeof game?.pause, typeof game?.resume, typeof game?.restart];
     ok(
       "game-state",
       v.every((e) => e === "function"),
@@ -1775,10 +1777,10 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   }
   try {
     let v =
-      typeof ln?.sample === "function" &&
-      typeof ln?.reset === "function" &&
-      typeof ln?.press === "function" &&
-      typeof ln?.onBlur === "function";
+      typeof input?.sample === "function" &&
+      typeof input?.reset === "function" &&
+      typeof input?.press === "function" &&
+      typeof input?.onBlur === "function";
     ok("input-api", v, v ? "pointer + keyboard pipeline ready" : "missing input methods");
     info(
       "input-runtime",
@@ -1788,7 +1790,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     rlHealthAdd("input-api", "FAIL", e.message);
   }
   try {
-    const rejected = sr({ v: 1, seed: "oops", weapon: "pulse", wave: 12, hp: "oops", up: {} }),
+    const rejected = cleanRun({ v: 1, seed: "oops", weapon: "pulse", wave: 12, hp: "oops", up: {} }),
       bad = {
         v: 1,
         seed: "oops",
@@ -1804,7 +1806,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
         dmgSrc: { turret: "bad" },
         offer: ["wat", "dmg", "dmg"],
       },
-      s = sr(bad);
+      s = cleanRun(bad);
     ok(
       "save-sanitize",
       !rejected &&
@@ -1825,35 +1827,37 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   try {
     ok(
       "save-envelope",
-      ee.parse(JSON.stringify({ game: "riftline" })).ok === false &&
-        ee.parse(JSON.stringify({ game: "riftline", v: 1 })).ok === true,
+      store.parse(JSON.stringify({ game: "riftline" })).ok === false &&
+        store.parse(JSON.stringify({ game: "riftline", v: 1 })).ok === true,
       "import requires the v1 save envelope",
     );
   } catch (e) {
     rlHealthAdd("save-envelope", "FAIL", e.message);
   }
   try {
-    let r = ee.parse(JSON.stringify(ee.data));
+    let r = store.parse(JSON.stringify(store.data));
     ok("save-roundtrip", !!r && r.ok, "current save serializes + parses successfully");
   } catch (e) {
     rlHealthAdd("save-roundtrip", "FAIL", e.message);
   }
   try {
-    const run = ee.data.run;
+    const run = store.data.run;
     if (run) {
-      const s = sr(run),
-        t = s && new Aa({ snap: s, ws: ee.data.workshop });
+      const s = cleanRun(run),
+        t = s && new World({ snap: s, ws: store.data.workshop });
       ok(
         "save-resume",
         !!t && t.wave === s.wave,
-        t ? `stored run (wave ${s.wave}, ${ue[s.weapon].name}) restores` : "stored run is rejected by the loader",
+        t
+          ? `stored run (wave ${s.wave}, ${weaponDefs[s.weapon].name}) restores`
+          : "stored run is rejected by the loader",
       );
     } else info("save-resume", "no unfinished run stored");
   } catch (e) {
     rlHealthAdd("save-resume", "FAIL", e.message);
   }
   try {
-    let key = "__rift_health_" + _a,
+    let key = "__rift_health_" + GAME_VERSION,
       old = localStorage.getItem(key);
     localStorage.setItem(key, "1");
     localStorage.removeItem(key);
@@ -1866,7 +1870,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     let w = window.innerWidth,
       h = window.innerHeight,
       d = window.devicePixelRatio || 0,
-      ins = h_();
+      ins = safeAreaInsets();
     ok(
       "viewport",
       w > 0 && h > 0 && d > 0 && [ins.t, ins.b, ins.l, ins.r].every(Number.isFinite),
@@ -1904,7 +1908,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
       "layout-hit-test",
       a?.ok ? "OK" : "FAIL",
       a
-        ? `${a.checked} visible controls checked on “${Ft?.screen || "?"}” · ${a.bad || 0} covered/misaligned${a.bad ? ": " + a.findings.slice(0, 3).join("; ") : ""}`
+        ? `${a.checked} visible controls checked on “${ui?.screen || "?"}” · ${a.bad || 0} covered/misaligned${a.bad ? ": " + a.findings.slice(0, 3).join("; ") : ""}`
         : `layout audit unavailable`,
     );
   } catch (e) {
@@ -1922,7 +1926,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   }
   try {
     if (typeof caches !== "undefined") {
-      const prefix = `riftline-v${_a.replace(/\./g, "-")}-`;
+      const prefix = `riftline-v${GAME_VERSION.replace(/\./g, "-")}-`;
       let keys = await caches.keys(),
         current = keys.find((e) => e.startsWith(prefix)),
         stale = keys.filter((e) => e.startsWith("riftline-") && !e.startsWith(prefix));
@@ -1931,7 +1935,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
         current ? "OK" : "WARN",
         current
           ? `current cache ${current}${stale.length ? ` · stale caches visible: ${stale.join(", ")}` : ""}`
-          : `current ${_a} cache not found yet (normal on the very first visit)${stale.length ? ` · stale: ${stale.join(", ")}` : ""}`,
+          : `current ${GAME_VERSION} cache not found yet (normal on the very first visit)${stale.length ? ` · stale: ${stale.join(", ")}` : ""}`,
       );
     } else warn("cache-version", "CacheStorage API unavailable");
   } catch (e) {
@@ -1954,12 +1958,12 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   try {
     let res = await fetch(`./build-info.json?health=${Date.now()}`, { cache: "no-store" }),
       b = res.ok ? await res.json() : null,
-      okBuild = !!b && b.version === _a && b.build_id === Hh;
+      okBuild = !!b && b.version === GAME_VERSION && b.build_id === BUILD_ID;
     rlHealthAdd(
       "build-info-network",
       okBuild ? "OK" : "WARN",
       b
-        ? `network build ${b.version} · ${b.build_id || "?"}${okBuild ? "" : ` (this page runs ${_a} · ${Hh})`}`
+        ? `network build ${b.version} · ${b.build_id || "?"}${okBuild ? "" : ` (this page runs ${GAME_VERSION} · ${BUILD_ID})`}`
         : `HTTP ${res.status}`,
     );
   } catch (e) {
@@ -1969,7 +1973,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     let a = RL_HEALTH.filter((e) => e.status === "OK").length,
       w = RL_HEALTH.filter((e) => e.status === "WARN").length,
       f = RL_HEALTH.filter((e) => e.status === "FAIL").length;
-    Xi.health = `${a} OK / ${w} WARN / ${f} FAIL`;
+    logContext.health = `${a} OK / ${w} WARN / ${f} FAIL`;
   } catch {}
   return RL_HEALTH;
 }
@@ -2010,14 +2014,14 @@ rlSelfTest = function () {
   // 1. every wave's spawn plan (incl. director bonus groups) must be valid and spawn, waves 2–60
   section("plan", () => {
     for (const threat of [0, 5]) {
-      const w = new Aa({ seed: 0x51, weapon: "pulse", threat, ws: { fieldSupply: 3 } });
+      const w = new World({ seed: 0x51, weapon: "pulse", threat, ws: { fieldSupply: 3 } });
       for (let wave = 2; wave <= 60; wave++) {
         w.startWave(wave);
         planWaves++;
         for (const g of w.plan)
           for (let gi = 0; gi < g.members.length; gi++) {
             const q = g.members[gi];
-            if (!q || typeof q !== "object" || !Ae[q.type]) {
+            if (!q || typeof q !== "object" || !enemyDefs[q.type]) {
               bad("plan-member", `wave ${wave}: ${JSON.stringify(q)}`);
               continue;
             }
@@ -2027,15 +2031,15 @@ rlSelfTest = function () {
             spawned++;
             if (!e || ![e.x, e.y, e.hp].every(f)) bad("plan-spawn", `${q.type} @ wave ${wave}`);
           }
-        if (w.bossPending && !en[w.bossPending]) bad("plan-boss", `${w.bossPending} @ wave ${wave}`);
+        if (w.bossPending && !bossDefs[w.bossPending]) bad("plan-boss", `${w.bossPending} @ wave ${wave}`);
         w.enemies.length = 0;
       }
     }
   });
   // 2. event contract: every enemy type fights for 7 s near a stationary player, no boss present
   section("events", () => {
-    for (const id of Object.keys(Ae)) {
-      const w = new Aa({ seed: Yi("ev:" + id), weapon: "pulse", threat: 0, ws: {} });
+    for (const id of Object.keys(enemyDefs)) {
+      const w = new World({ seed: hashString("ev:" + id), weapon: "pulse", threat: 0, ws: {} });
       w.startWave(41);
       w.god = !0;
       w.hold = !0;
@@ -2072,11 +2076,11 @@ rlSelfTest = function () {
   });
   // 2b. the sound engine gives every weapon a voice (exercises the real consumer)
   section("sfx", () => {
-    const s = new zl(),
+    const s = new SoundEngine(),
       heard = [];
     s.ctx = { state: "running" };
     s.play = (n) => heard.push(n);
-    for (const id of Object.keys(ue)) {
+    for (const id of Object.keys(weaponDefs)) {
       heard.length = 0;
       s.consume([{ k: "shot", w: id }]);
       RL_SFX_VOICES.includes(heard[0]) || bad("sfx-silent-weapon", id);
@@ -2084,25 +2088,26 @@ rlSelfTest = function () {
   });
   // 2e. every biome has one coherent palette and valid champion variants
   section("palette", () => {
-    for (const b of ii) {
+    for (const b of biomeList) {
       const p = rlPaletteIssues(b);
       p.length && bad("biome-palette", `${b.id}: ${p.join(", ")}`);
     }
     for (const q of rlBiomeDistinct()) bad("biome-lookalike", q);
-    for (const [id, v] of Object.entries(cu))
+    for (const [id, v] of Object.entries(biomeVariants))
       ["scorch", "frost", "phase", "toxic"].includes(v.id) || bad("variant-dead", `${id} → ${v.id}`);
-    for (const [id, v] of Object.entries(cu)) for (const t of v.types) Ae[t] || bad("variant-type", `${id}: ${t}`);
+    for (const [id, v] of Object.entries(biomeVariants))
+      for (const t of v.types) enemyDefs[t] || bad("variant-type", `${id}: ${t}`);
   });
   // 2c. music: every biome has its own theme and every step of fight/boss/menu music schedules cleanly
   section("music", () => {
     const O = typeof OfflineAudioContext !== "undefined" ? OfflineAudioContext : null;
-    for (const b of ii) {
-      if (!Qf[b.id] || !tp[b.id]) {
+    for (const b of biomeList) {
+      if (!musicChords[b.id] || !musicVoices[b.id]) {
         bad("music-missing", b.id);
         continue;
       }
       if (!O) continue;
-      const s = new zl(),
+      const s = new SoundEngine(),
         c = new O(1, 2205, 22050);
       s.ctx = c;
       s.mus = c.createGain();
@@ -2126,9 +2131,9 @@ rlSelfTest = function () {
   });
   // 2d. stragglers: a hunting enemy of every type closes in on a stationary player
   section("hunt", () => {
-    for (const id of Object.keys(Ae)) {
+    for (const id of Object.keys(enemyDefs)) {
       if (id === "mite" || id === "hive") continue;
-      const w = new Aa({ seed: Yi("hunt:" + id), weapon: "pulse", threat: 0, ws: {} });
+      const w = new World({ seed: hashString("hunt:" + id), weapon: "pulse", threat: 0, ws: {} });
       w.startWave(41);
       w.god = !0;
       w.hold = !0;
@@ -2157,15 +2162,15 @@ rlSelfTest = function () {
         bad("straggler-kites", `${id} stayed ${dmin.toFixed(1)} m away (start ${d0.toFixed(1)}) while hunting`);
     }
   });
-  // 3. save loader: live snapshots must pass sr() and restore the same run
+  // 3. save loader: live snapshots must pass cleanRun() and restore the same run
   section("snapshot", () => {
     for (const wave of [1, 7, 19, 33]) {
-      const w = new Aa({ seed: 0x77 + wave, weapon: "tesla", threat: 1, ws: { hull: 2 } });
+      const w = new World({ seed: 0x77 + wave, weapon: "tesla", threat: 1, ws: { hull: 2 } });
       w.startWave(wave);
       w.up = { dmg: 2, orbit: 1 };
-      w.stats = nr(w.weapon, w.up, w.ws);
-      const s = sr(JSON.parse(JSON.stringify(w.snapshot()))),
-        b = s && new Aa({ snap: s, ws: { hull: 2 } });
+      w.stats = computeStats(w.weapon, w.up, w.ws);
+      const s = cleanRun(JSON.parse(JSON.stringify(w.snapshot()))),
+        b = s && new World({ snap: s, ws: { hull: 2 } });
       if (!b || b.wave !== wave || b.weapon !== "tesla" || b.up.dmg !== 2)
         bad("snapshot", `wave ${wave} does not restore`);
       else snaps++;
@@ -2173,26 +2178,26 @@ rlSelfTest = function () {
   });
   // 4. upgrade texts describe the level you are about to take (no "+0 %")
   section("desc", () => {
-    for (const u of Zi) {
+    for (const u of upgradeList) {
       const t = u.desc(0);
       /(^|[^\d.])[+\-]?0(%|\s|\))/.test(t) && bad("desc-zero", `${u.id}: “${t}”`);
     }
   });
   // 5. every weapon has a firing voice; every enemy has a mesh pool
   section("coverage", () => {
-    if (oe) for (const id of Object.keys(Ae)) oe.enemyPools[id] || bad("mesh", id);
+    if (renderer) for (const id of Object.keys(enemyDefs)) renderer.enemyPools[id] || bad("mesh", id);
   });
   // 6. arena features (vents, ice, acid, portals) of every biome, waves 21–60: no overlap with obstacles, portals valid
   section("features", () => {
-    for (const b of ii)
+    for (const b of biomeList)
       for (const wave of [21, 33, 47, 58]) {
-        const lay = Su(b, 0x33 + wave, wave, !1),
+        const lay = buildLayout(b, 0x33 + wave, wave, !1),
           F = lay.features || {};
         featureLayouts++;
         for (const k of ["vents", "ice", "acid"])
           for (const q of F[k] || []) {
             features++;
-            if (![q.x, q.y, q.r].every(f) || Eu(lay.obstacles, q.x, q.y, (q.r || 0) + 0.8))
+            if (![q.x, q.y, q.r].every(f) || hitsObstacle(lay.obstacles, q.x, q.y, (q.r || 0) + 0.8))
               bad("feature-overlap", `${k} in ${b.id} wave ${wave}`);
           }
         for (const q of F.portals || []) {
@@ -2204,7 +2209,7 @@ rlSelfTest = function () {
             if (
               !f(x) ||
               !f(y) ||
-              Eu(lay.obstacles, x, y, 1.5) ||
+              hitsObstacle(lay.obstacles, x, y, 1.5) ||
               Math.abs(x) > lay.W - 3.6 ||
               Math.abs(y) > lay.H - 3.6
             )
@@ -2264,12 +2269,12 @@ function rlLab(c) {
 }
 function rlBiomeDistinct(min = 30) {
   const out = [];
-  for (let i = 0; i < ii.length; i++)
-    for (let j = i + 1; j < ii.length; j++) {
-      const a = rlLab(ii[i].grid),
-        b = rlLab(ii[j].grid),
+  for (let i = 0; i < biomeList.length; i++)
+    for (let j = i + 1; j < biomeList.length; j++) {
+      const a = rlLab(biomeList[i].grid),
+        b = rlLab(biomeList[j].grid),
         d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-      d < min && out.push(`${ii[i].id}/${ii[j].id} ΔE ${d.toFixed(0)}`);
+      d < min && out.push(`${biomeList[i].id}/${biomeList[j].id} ΔE ${d.toFixed(0)}`);
     }
   return out;
 }
@@ -2277,11 +2282,11 @@ const _rlSelfTest22 = rlSelfTest;
 rlSelfTest = function () {
   const r = _rlSelfTest22(),
     fail = [];
-  const weapons = Object.keys(ue),
-    enemies = Object.keys(Ae),
-    biomes = Object.keys(du),
-    upgrades = Object.keys(ri),
-    modules = Object.keys(p_);
+  const weapons = Object.keys(weaponDefs),
+    enemies = Object.keys(enemyDefs),
+    biomes = Object.keys(biomesById),
+    upgrades = Object.keys(upgradesById),
+    modules = Object.keys(modulesById);
   if (!["drone", "driller", "beacon", "weaver"].every((k) => enemies.includes(k))) fail.push("missing-v22-enemy");
   if (
     ![
@@ -2300,8 +2305,8 @@ rlSelfTest = function () {
     fail.push("missing-v22-upgrade");
   if (!["routeScanner", "reactorCore"].every((k) => modules.includes(k))) fail.push("missing-v22-workshop");
   // 2.4.0: every selectable weapon (the 2.2 weapons are gone)
-  for (const id of En) {
-    const w = new Aa({ seed: 0x2200 + id.length, weapon: id, threat: 0, ws: {} });
+  for (const id of weaponOrder) {
+    const w = new World({ seed: 0x2200 + id.length, weapon: id, threat: 0, ws: {} });
     w.startWave(2);
     w.fire(0);
     if (!w.pb.length) fail.push("weapon-fire:" + id);
@@ -2309,11 +2314,11 @@ rlSelfTest = function () {
       if (![q.x, q.y, q.vx, q.vy, q.r, q.dmg, q.life].every(Number.isFinite)) fail.push("weapon-finite:" + id);
   }
   for (const id of ["drone", "driller", "beacon", "weaver"]) {
-    const w = new Aa({ seed: 0x3300 + id.length, weapon: "pulse", threat: 0, ws: {} });
+    const w = new World({ seed: 0x3300 + id.length, weapon: "pulse", threat: 0, ws: {} });
     w.startWave(28);
     const e = w.spawnEnemy(id, 8, 0, {});
     for (let k = 0; k < 90; k++) {
-      mu(w, e, 0.05);
+      updateEnemy(w, e, 0.05);
       e.x += e.vx * 0.05;
       e.y += e.vy * 0.05;
       if (![e.x, e.y, e.vx, e.vy, e.hp].every(Number.isFinite)) fail.push("enemy-finite:" + id);
@@ -2324,21 +2329,21 @@ rlSelfTest = function () {
   // reached 9 of the 12 modes once there were four biomes)
   for (let seed = 1; seed <= 4; seed++)
     for (let wave = 2; wave <= 38; wave++)
-      for (const b of ii.slice(1)) {
-        const lay = Su(b, seed, wave, false);
+      for (const b of biomeList.slice(1)) {
+        const lay = buildLayout(b, seed, wave, false);
         if (!lay.director?.mode) fail.push("director-missing");
         else modes.add(lay.director.mode);
-        if (!kp(lay.obstacles, lay.W, lay.H)) fail.push("director-connectivity");
+        if (!isConnected(lay.obstacles, lay.W, lay.H)) fail.push("director-connectivity");
         for (const key of ["vents", "ice", "acid"]) {
           for (const q of lay.features?.[key] || [])
-            if (Eu(lay.obstacles, q.x, q.y, (q.r || 0) + 0.8)) fail.push("feature-overlap:" + key);
+            if (hitsObstacle(lay.obstacles, q.x, q.y, (q.r || 0) + 0.8)) fail.push("feature-overlap:" + key);
         }
         for (const q of lay.features?.portals || []) {
           for (const [x, y] of [
             [q.ax, q.ay],
             [q.bx, q.by],
           ])
-            if (Eu(lay.obstacles, x, y, 1.5) || Math.abs(x) > lay.W - 3.6 || Math.abs(y) > lay.H - 3.6)
+            if (hitsObstacle(lay.obstacles, x, y, 1.5) || Math.abs(x) > lay.W - 3.6 || Math.abs(y) > lay.H - 3.6)
               fail.push("portal-overlap");
         }
       }
@@ -2346,7 +2351,7 @@ rlSelfTest = function () {
   let minCache = Infinity,
     maxCache = 0;
   for (let wave = 2; wave <= 30; wave++) {
-    const w = new Aa({ seed: 0x4400 + wave, weapon: "pulse", threat: 0, ws: { fieldSupply: 1 } });
+    const w = new World({ seed: 0x4400 + wave, weapon: "pulse", threat: 0, ws: { fieldSupply: 1 } });
     w.startWave(wave);
     const c = w.pickups.filter((p) => p.cache).length;
     if (w.bossPending) {
@@ -2357,7 +2362,7 @@ rlSelfTest = function () {
     maxCache = Math.max(maxCache, c);
     if (c < 1) fail.push("cache-missing:" + wave);
   }
-  const haz = new Aa({ seed: 0x5500, weapon: "pulse", threat: 0, ws: { hazardSeal: 3 } });
+  const haz = new World({ seed: 0x5500, weapon: "pulse", threat: 0, ws: { hazardSeal: 3 } });
   if (!(haz.stats.hazardResist > 0.4)) fail.push("hazard-resist");
   const guard = rlUiButtonGuardSelfTest();
   if (!guard.ok || guard.count !== 9 || guard.steps !== 8) fail.push("ui-guard");
@@ -2376,10 +2381,10 @@ const _rlSelfTest21 = rlSelfTest;
 rlSelfTest = function () {
   const r = _rlSelfTest21(),
     fail = [];
-  const weapons = Object.keys(ue),
-    enemies = Object.keys(Ae),
-    biomes = Object.keys(du),
-    upgrades = Object.keys(ri);
+  const weapons = Object.keys(weaponDefs),
+    enemies = Object.keys(enemyDefs),
+    biomes = Object.keys(biomesById),
+    upgrades = Object.keys(upgradesById);
   if (!["sapper", "phantom", "sentinel", "carrier"].every((k) => enemies.includes(k))) fail.push("missing-v21-enemy");
   if (
     !["overload", "focus", "resonance", "fortify", "leech", "hazmat", "echo", "scavengerNet"].every((k) =>
@@ -2388,8 +2393,8 @@ rlSelfTest = function () {
   )
     fail.push("missing-v21-upgrade");
   // 2.4.0: every weapon with a blast (was Graviton Core, Nova Bloom and Vortex)
-  for (const k of En.filter((id) => ue[id].explode)) {
-    const w = new Aa({ seed: 0x21 + k.length, weapon: k, threat: 0, ws: {} });
+  for (const k of weaponOrder.filter((id) => weaponDefs[id].explode)) {
+    const w = new World({ seed: 0x21 + k.length, weapon: k, threat: 0, ws: {} });
     w.startWave(2);
     w.bulletBurst({ x: 0, y: 0, w: k, dmg: 10, hits: [], bomblet: false, wing: false }, null);
     if (!w.fx.some((q) => q.k === "boom")) fail.push("burst:" + k);
@@ -2397,11 +2402,11 @@ rlSelfTest = function () {
   const modes = new Set();
   for (let seed = 1; seed <= 4; seed++)
     for (let wave = 2; wave <= 28; wave++) {
-      const b = ii[1 + ((seed + wave) % (ii.length - 1))],
-        lay = Su(b, seed, wave, false);
+      const b = biomeList[1 + ((seed + wave) % (biomeList.length - 1))],
+        lay = buildLayout(b, seed, wave, false);
       if (!lay.director?.mode) fail.push("director-missing");
       else modes.add(lay.director.mode);
-      if (!kp(lay.obstacles, lay.W, lay.H)) fail.push("director-connectivity");
+      if (!isConnected(lay.obstacles, lay.W, lay.H)) fail.push("director-connectivity");
     }
   if (modes.size < 6) fail.push("director-variety");
   return {
@@ -2422,12 +2427,12 @@ const _rlSelfTest240 = rlSelfTest;
 rlSelfTest = function () {
   const r = _rlSelfTest240(),
     fail = [];
-  if (En.length !== 7 || Object.keys(ue).length !== 7) fail.push("weapon-count:" + En.length);
-  if (ii.length !== 5) fail.push("biome-count:" + ii.length);
-  for (const u of Zi) if (u.weapon && !ue[u.weapon]) fail.push("evo-weapon:" + u.id);
+  if (weaponOrder.length !== 7 || Object.keys(weaponDefs).length !== 7) fail.push("weapon-count:" + weaponOrder.length);
+  if (biomeList.length !== 5) fail.push("biome-count:" + biomeList.length);
+  for (const u of upgradeList) if (u.weapon && !weaponDefs[u.weapon]) fail.push("evo-weapon:" + u.id);
   // route: Neon Yard first, then one biome per boss cycle, all five by wave 21
   for (const seed of [11, 222, 3333, 44444]) {
-    const w = new Aa({ seed, weapon: "pulse", threat: 0, ws: {} }),
+    const w = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
       seen = new Set();
     for (let wave = 1; wave <= 30; wave++) {
       const b = w.biomeFor(wave).id;
@@ -2441,7 +2446,7 @@ rlSelfTest = function () {
   // every hazard biome has its hazard in a normal wave, and only that one
   const want = { works: "vents", vault: "ice", marsh: "acid", void: "portals" };
   for (const [id, kind] of Object.entries(want)) {
-    const w = new Aa({ seed: 0x240 + id.length, weapon: "pulse", threat: 0, ws: {} }),
+    const w = new World({ seed: 0x240 + id.length, weapon: "pulse", threat: 0, ws: {} }),
       wave = 2 + 5 * w.route.indexOf(id);
     w.startWave(wave);
     if (w.arena.biome.id !== id) fail.push("hazard-biome:" + id);
@@ -2451,7 +2456,7 @@ rlSelfTest = function () {
   }
   // Cryo Vault: the drone drifts (lower grip than anywhere else)
   const drift = (id) => {
-    const w = new Aa({ seed: 0x2401, weapon: "pulse", threat: 0, ws: {} });
+    const w = new World({ seed: 0x2401, weapon: "pulse", threat: 0, ws: {} });
     w.startWave(1 + 5 * w.route.indexOf(id));
     w.arena.ice.length = 0;
     w.enemies.length = 0;
@@ -2469,7 +2474,7 @@ rlSelfTest = function () {
         set_RL_BIOME_MIX_CUR(mix);
         try {
           for (let s = 1; s <= 12; s++)
-            for (const g of _u(qi(Yi("mix:" + s)), 30, Ma(0), !1, {}))
+            for (const g of planWave(makeRng(hashString("mix:" + s)), 30, threatMods(0), !1, {}))
               n += g.members.filter((m) => own.includes(m.type)).length;
         } finally {
           set_RL_BIOME_MIX_CUR(null);
@@ -2493,14 +2498,14 @@ rlSelfTest = function () {
     !m.weapons.tesla ||
     m.weapons.ion ||
     m.weapons.voidlance ||
-    m.shards !== 100 + (1250 - ue.tesla.cost) + 1950
+    m.shards !== 100 + (1250 - weaponDefs.tesla.cost) + 1950
   )
     fail.push("migrate:" + JSON.stringify(m));
   if (rlMigrateRetired(m) !== m) fail.push("migrate-twice");
   return { ...r, ok: r.ok && fail.length === 0, v240: { ok: fail.length === 0, fail } };
 };
-window.addEventListener("error", (i) => ze("window", i));
-window.addEventListener("unhandledrejection", (i) => ze("promise", i.reason || i));
+window.addEventListener("error", (i) => logError("window", i));
+window.addEventListener("unhandledrejection", (i) => logError("promise", i.reason || i));
 (() => {
   addEventListener(
     "orientationchange",
@@ -2528,9 +2533,9 @@ export {
   RL_LAST_RUN_AUDIT,
   RL_MON,
   RL_RT,
-  Xn,
-  Zl,
-  au,
+  errorLog,
+  setLogContext,
+  clearErrorLog,
   rlBiomeDistinct,
   rlMonBeginWave,
   rlMonCrashed,
@@ -2545,9 +2550,9 @@ export {
   rlRunHealth,
   rlSelfTest,
   rlUiButtonGuardSelfTest,
-  ru,
+  onLogChange,
   set_RL_LAST_RUN_AUDIT,
-  su,
-  tr,
-  ze,
+  getErrorLog,
+  buildReport,
+  logError,
 };

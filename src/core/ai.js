@@ -1,27 +1,27 @@
 // Enemy and boss behaviour (mu, vu) and enemy variants.
 
-import { Lt, Me, Ne } from "./util.js";
+import { clamp, TAU, turnToward } from "./util.js";
 
 /* ---- stragglers: when only a few enemies are left for 9 s the game sets
  enemy.hunt so they come to the player. The 2.1/2.2 ranged enemies ignored
  it and could kite forever (the last Beacon fleeing into a corner). ---- */
 var RL_KITERS = new Set(["turret", "minebot", "sapper", "sentinel", "carrier", "drone", "beacon", "weaver"]);
 function rlInstallHunt() {
-  const base = mu;
-  mu = function (g, e, dt) {
+  const base = updateEnemy;
+  updateEnemy = function (g, e, dt) {
     if (e.hunt && RL_KITERS.has(e.type) && !(e.spawnT > 0)) {
       g.chaseDir(e);
       const sp = Math.max(e.speed, 2.6) * 1.3;
       e.vx = g.cdx * sp;
       e.vy = g.cdy * sp;
-      e.face = Ne(e.face, Math.atan2(e.vy, e.vx), 8 * dt);
+      e.face = turnToward(e.face, Math.atan2(e.vy, e.vx), 8 * dt);
       e.st = 0;
       return;
     }
     return base(g, e, dt);
   };
 }
-function muCore(i, t, e) {
+function updateEnemyCore(i, t, e) {
   if (t.spawnT > 0) {
     ((t.vx = 0), (t.vy = 0));
     return;
@@ -43,7 +43,7 @@ function muCore(i, t, e) {
     ((t.st = 0),
       (t.vx = c * Math.max(l, 2.6) * 1.3),
       (t.vy = h * Math.max(l, 2.6) * 1.3),
-      (t.face = Ne(t.face, Math.atan2(t.vy, t.vx), 8 * e)));
+      (t.face = turnToward(t.face, Math.atan2(t.vy, t.vx), 8 * e)));
     return;
   }
   switch (t.type) {
@@ -77,7 +77,7 @@ function muCore(i, t, e) {
         for (let x = 0; x < f; x++) i.shoot(t.x, t.y, o + (x - (f - 1) / 2) * 0.2, p, t.dmg);
         (i.emit("eshot", { x: t.x, y: t.y, type: "gunner" }), (t.st = 0), (t.t = 2.2 + i.rng.next() * 0.9));
       }
-      t.face = Ne(t.face, o, 8 * e);
+      t.face = turnToward(t.face, o, 8 * e);
       return;
     }
     case "bomber": {
@@ -114,8 +114,8 @@ function muCore(i, t, e) {
       else if (t.st === 1) {
         ((t.vx = 0),
           (t.vy = 0),
-          t.t2 > 0.35 && (t.ta = Ne(t.ta, o, 2.5 * e)),
-          (t.face = Ne(t.face, t.ta, 10 * e)),
+          t.t2 > 0.35 && (t.ta = turnToward(t.ta, o, 2.5 * e)),
+          (t.face = turnToward(t.face, t.ta, 10 * e)),
           (t.t2 -= e),
           t.t2 <= 0 && ((t.st = 2), (t.t2 = 0.6)));
         return;
@@ -151,7 +151,7 @@ function muCore(i, t, e) {
       } else
         ((t.vx = 0),
           (t.vy = 0),
-          t.t2 > 0.35 && (t.ta = Ne(t.ta, o, 3 * e)),
+          t.t2 > 0.35 && (t.ta = turnToward(t.ta, o, 3 * e)),
           (t.t2 -= e),
           t.t2 <= 0 &&
             (i.shoot(t.x + Math.cos(t.ta) * 0.7, t.y + Math.sin(t.ta) * 0.7, t.ta, 22, t.dmg, {
@@ -161,14 +161,14 @@ function muCore(i, t, e) {
             i.emit("eshot", { x: t.x, y: t.y, type: "sniper" }),
             (t.st = 0),
             (t.t = 3 + i.rng.next() * 1.2)));
-      t.face = Ne(t.face, t.st === 1 ? t.ta : o, 8 * e);
+      t.face = turnToward(t.face, t.st === 1 ? t.ta : o, 8 * e);
       return;
     }
     case "hive": {
       (a > 6 || !t.los ? ((t.vx = c * l), (t.vy = h * l)) : ((t.vx *= 0.9), (t.vy *= 0.9)), (t.t -= e));
       let f = t.elite ? 7 : 5;
       if (t.t <= 0 && ((t.t = 3.2), t.kids < f && i.enemies.length < 75)) {
-        let p = i.rng.next() * Me,
+        let p = i.rng.next() * TAU,
           x = i.spawnEnemy("swarmer", t.x + Math.cos(p) * (t.r + 0.5), t.y + Math.sin(p) * (t.r + 0.5), {
             parent: t.id,
             hpF: 0.8,
@@ -186,7 +186,7 @@ function muCore(i, t, e) {
           t.guardDown <= 0 && ((t.guard = t.guardMax), i.emit("guardUp", { x: t.x, y: t.y })));
         return;
       }
-      ((t.vx = c * l), (t.vy = h * l), (t.face = Ne(t.face, o, 0.95 * e)));
+      ((t.vx = c * l), (t.vy = h * l), (t.face = turnToward(t.face, o, 0.95 * e)));
       return;
     }
     case "striker": {
@@ -233,7 +233,7 @@ function muCore(i, t, e) {
       if (t.st === 2) {
         ((t.vx = 0),
           (t.vy = 0),
-          (t.face = Ne(t.face, t.ta, 14 * e)),
+          (t.face = turnToward(t.face, t.ta, 14 * e)),
           (t.t2 -= e),
           t.t2 <= 0 && ((t.st = 3), (t.t2 = 0.24), i.emit("charge", { x: t.x, y: t.y, type: "striker" })));
         return;
@@ -254,7 +254,7 @@ function muCore(i, t, e) {
       } else if (t.st === 1) {
         ((t.vx = 0),
           (t.vy = 0),
-          (t.ta = Ne(t.ta, o, 3.8 * e)),
+          (t.ta = turnToward(t.ta, o, 3.8 * e)),
           (t.face = t.ta),
           (t.t2 -= e),
           t.t2 <= 0 &&
@@ -269,7 +269,7 @@ function muCore(i, t, e) {
           (t.vy *= 0.975),
           (t.hitWall || t.t2 <= 0) && ((t.st = 0), (t.t = 2.2 + i.rng.next() * 1.3), (t.hitWall = !1)));
       }
-      t.face = Ne(t.face, t.st === 1 ? t.ta : Math.atan2(t.vy, t.vx), 10 * e);
+      t.face = turnToward(t.face, t.st === 1 ? t.ta : Math.atan2(t.vy, t.vx), 10 * e);
       return;
     }
     case "turret": {
@@ -288,7 +288,7 @@ function muCore(i, t, e) {
       } else
         ((t.vx *= 0.8),
           (t.vy *= 0.8),
-          (t.ta = Ne(t.ta, o, 2.6 * e)),
+          (t.ta = turnToward(t.ta, o, 2.6 * e)),
           (t.face = t.ta),
           (t.t2 -= e),
           t.t2 <= 0 &&
@@ -330,7 +330,7 @@ function muCore(i, t, e) {
             ((f.hp = Math.min(f.maxHp, f.hp + f.maxHp * (t.elite ? 0.22 : 0.15))),
             i.emit("mend", { x: t.x, y: t.y, tx: f.x, ty: f.y })));
       }
-      t.face = Ne(t.face, o, 5 * e);
+      t.face = turnToward(t.face, o, 5 * e);
       return;
     }
     case "mortar": {
@@ -357,23 +357,23 @@ function muCore(i, t, e) {
           (t.t2 = 0.35),
           (t.t = (3.8 + i.rng.next() * 1.2) * (t.los ? 1 : 1.6)));
       }
-      t.face = Ne(t.face, o, 4 * e);
+      t.face = turnToward(t.face, o, 4 * e);
       return;
     }
   }
-  Math.hypot(t.vx, t.vy) > 0.2 && (t.face = Ne(t.face, Math.atan2(t.vy, t.vx), 8 * e));
+  Math.hypot(t.vx, t.vy) > 0.2 && (t.face = turnToward(t.face, Math.atan2(t.vy, t.vx), 8 * e));
 }
-var Pp = {
+var bossPatterns = {
   warden: ["charge", "ring", "stomp", "charge", "ring", "stomp"],
   queen: ["summon", "spiral", "burst", "eggs", "spiral", "burst"],
   prism: ["sweep", "teleport", "shards", "lances", "teleport", "sweep"],
   core: ["spiral", "summon", "ring", "cross", "burst", "rain"],
 };
-function yu(i, t) {
+function initBoss(i, t) {
   ((t.st = "walk"), (t.t = 2.2), (t.t2 = 0), (t.n = 0), (t.pattern = 0), (t.spin = 0), (t.phaseN = 1));
 }
-function gu(i, t) {
-  let e = Pp[t.type];
+function nextBossAttack(i, t) {
+  let e = bossPatterns[t.type];
   ((t.st = e[t.pattern % e.length]),
     t.pattern++,
     (t.t = 0),
@@ -381,10 +381,10 @@ function gu(i, t) {
     (t.n = 0),
     i.emit("bossAtk", { id: t.type, atk: t.st }));
 }
-function He(i, t) {
+function endBossAttack(i, t) {
   ((i.st = "walk"), (i.t = t), (i.n = 0), (i.t2 = 0));
 }
-function vu(i, t, e) {
+function updateBoss(i, t, e) {
   if (t.spawnT > 0) {
     ((t.vx = 0), (t.vy = 0));
     return;
@@ -405,12 +405,12 @@ function vu(i, t, e) {
     if (u !== t.phaseN) {
       ((t.phaseN = u), (t.shieldT = 1.4));
       for (let d of i.eb) d.life = 0;
-      ((i.beams.length = 0), i.emit("phase", { n: u, x: t.x, y: t.y }), He(t, 1.6));
+      ((i.beams.length = 0), i.emit("phase", { n: u, x: t.x, y: t.y }), endBossAttack(t, 1.6));
     }
     t.shieldT > 0 && ((t.shieldT -= e), (t.shielded = t.shieldT > 0));
   }
   if (t.st === "walk") {
-    ((t.t -= e), Ta(i, t, e, o, a), t.t <= 0 && gu(i, t), (t.face = Ne(t.face, o, 3 * e)));
+    ((t.t -= e), moveBoss(i, t, e, o, a), t.t <= 0 && nextBossAttack(i, t), (t.face = turnToward(t.face, o, 3 * e)));
     return;
   }
   switch (((t.t += e), t.type)) {
@@ -425,8 +425,8 @@ function vu(i, t, e) {
         )
           ((t.vx = 0),
             (t.vy = 0),
-            t.subT < 0.5 && (t.ta = Ne(t.ta, o, 3 * e)),
-            (t.face = Ne(t.face, t.ta, 8 * e)),
+            t.subT < 0.5 && (t.ta = turnToward(t.ta, o, 3 * e)),
+            (t.face = turnToward(t.face, t.ta, 8 * e)),
             t.subT > (l ? 0.65 : 0.85) && ((t.sub = 1), (t.subT = 0)));
         else if (t.sub === 1) {
           let d = l ? 18 : 15.5;
@@ -435,7 +435,7 @@ function vu(i, t, e) {
             (t.charging = !0),
             ((t.hitWall && t.subT > 0.1) || t.subT > 0.8) &&
               ((t.charging = !1),
-              t.hitWall && (i.emit("thud", { x: t.x, y: t.y, big: !0 }), l && ir(i, t, 10, 7.5, h, t.spin)),
+              t.hitWall && (i.emit("thud", { x: t.x, y: t.y, big: !0 }), l && shootRing(i, t, 10, 7.5, h, t.spin)),
               (t.sub = 2),
               (t.subT = 0)));
         } else
@@ -444,7 +444,7 @@ function vu(i, t, e) {
             t.subT > 0.45 &&
               (t.n++,
               t.n >= u
-                ? He(t, 2.2 - l * 0.6)
+                ? endBossAttack(t, 2.2 - l * 0.6)
                 : ((t.sub = 0), (t.subT = 0), (t.ta = o), i.emit("charge", { x: t.x, y: t.y, type: "warden" }))));
         return;
       }
@@ -454,10 +454,10 @@ function vu(i, t, e) {
           d = 0.55;
         (t.t >= 0.4 + t.n * d &&
           t.n < u &&
-          (ir(i, t, 16 + l * 6, 7 + l, h, (t.n % 2) * (Math.PI / (16 + l * 6))),
+          (shootRing(i, t, 16 + l * 6, 7 + l, h, (t.n % 2) * (Math.PI / (16 + l * 6))),
           t.n++,
           i.emit("eshot", { x: t.x, y: t.y, type: "boss" })),
-          t.t > 0.4 + u * d + 0.4 && He(t, 2.4 - l * 0.7));
+          t.t > 0.4 + u * d + 0.4 && endBossAttack(t, 2.4 - l * 0.7));
         return;
       }
       if (t.st === "stomp") {
@@ -467,45 +467,45 @@ function vu(i, t, e) {
           t.n === 0 && ((t.n = 1), i.hazard({ x: t.x, y: t.y, r: 4.8, delay: 1, dmg: t.dmg, kind: "stomp" }), l))
         )
           for (let u = 0; u < 3; u++) {
-            let d = i.rng.next() * Me,
+            let d = i.rng.next() * TAU,
               f = i.rng.range(0, 3);
             i.hazard({
-              x: Lt(n.x + Math.cos(d) * f, -i.arena.W + 1, i.arena.W - 1),
-              y: Lt(n.y + Math.sin(d) * f, -i.arena.H + 1, i.arena.H - 1),
+              x: clamp(n.x + Math.cos(d) * f, -i.arena.W + 1, i.arena.W - 1),
+              y: clamp(n.y + Math.sin(d) * f, -i.arena.H + 1, i.arena.H - 1),
               r: 2.4,
               delay: 1.25 + u * 0.2,
               dmg: t.dmg * 0.8,
               kind: "stomp",
             });
           }
-        (t.n === 1 && t.t > 1 && ((t.n = 2), ir(i, t, 12, 9, h, 0), i.emit("thud", { x: t.x, y: t.y, big: !0 })),
-          t.t > 1.6 && He(t, 2));
+        (t.n === 1 && t.t > 1 && ((t.n = 2), shootRing(i, t, 12, 9, h, 0), i.emit("thud", { x: t.x, y: t.y, big: !0 })),
+          t.t > 1.6 && endBossAttack(t, 2));
         return;
       }
       break;
     }
     case "queen": {
-      if ((Ta(i, t, e, o, a, 0.4), t.st === "summon")) {
+      if ((moveBoss(i, t, e, o, a, 0.4), t.st === "summon")) {
         if (t.n === 0) {
           t.n = 1;
           let u = 5 + l * 2;
           for (let d = 0; d < u; d++) {
-            let f = (d / u) * Me + t.spin,
+            let f = (d / u) * TAU + t.spin,
               p = i.spawnEnemy("swarmer", t.x + Math.cos(f) * 2.4, t.y + Math.sin(f) * 2.4, { hpF: 1 });
             ((p.spawnT = 0.3), (p.noDrop = i.rng.chance(0.6)), (p.kx = Math.cos(f) * 5), (p.ky = Math.sin(f) * 5));
           }
           i.emit("hatch", { x: t.x, y: t.y, big: !0 });
         }
-        t.t > 1 && He(t, 1.4);
+        t.t > 1 && endBossAttack(t, 1.4);
         return;
       }
       if (t.st === "spiral") {
         let u = 3 + l * 2;
         for (t.t2 += e; t.t2 > 0.1; ) {
           ((t.t2 -= 0.1), (t.ta = (t.ta || 0) + 0.24));
-          for (let d = 0; d < u; d++) i.shoot(t.x, t.y, t.ta + (d / u) * Me, 6.2, h, { r: 0.26 });
+          for (let d = 0; d < u; d++) i.shoot(t.x, t.y, t.ta + (d / u) * TAU, 6.2, h, { r: 0.26 });
         }
-        t.t > 3.2 && He(t, 1.4);
+        t.t > 3.2 && endBossAttack(t, 1.4);
         return;
       }
       if (t.st === "burst") {
@@ -513,7 +513,7 @@ function vu(i, t, e) {
           for (let u = 0; u < 5; u++) i.shoot(t.x, t.y, o + (u - 2) * 0.16, 9.5, h);
           (t.n++, i.emit("eshot", { x: t.x, y: t.y, type: "boss" }));
         }
-        t.t > 2 && He(t, 1.3);
+        t.t > 2 && endBossAttack(t, 1.3);
         return;
       }
       if (t.st === "eggs") {
@@ -526,7 +526,7 @@ function vu(i, t, e) {
           }
           i.emit("hatch", { x: t.x, y: t.y, big: !0 });
         }
-        t.t > 1.2 && He(t, 1.6);
+        t.t > 1.2 && endBossAttack(t, 1.6);
         return;
       }
       break;
@@ -554,7 +554,7 @@ function vu(i, t, e) {
               }),
             i.emit("beamWarn", { x: t.x, y: t.y }));
         }
-        t.t > 3.4 && He(t, 1.2);
+        t.t > 3.4 && endBossAttack(t, 1.2);
         return;
       }
       if (t.st === "teleport") {
@@ -565,7 +565,7 @@ function vu(i, t, e) {
           t.n === 1 && t.t > 0.45)
         ) {
           t.n = 2;
-          let u = xu(i, n.x, n.y, 8, 10.5);
+          let u = findOpenSpot(i, n.x, n.y, 8, 10.5);
           u
             ? ((t.tx = u.x),
               (t.ty = u.y),
@@ -579,17 +579,17 @@ function vu(i, t, e) {
           (t.x = t.tx),
           (t.y = t.ty),
           (t.ghost = !1),
-          ir(i, t, 12 + l * 4, 6.5, h, t.spin, "shard"),
+          shootRing(i, t, 12 + l * 4, 6.5, h, t.spin, "shard"),
           i.emit("blink", { x: t.x, y: t.y, in: !0 })),
-          t.t > 1.6 && He(t, 0.9));
+          t.t > 1.6 && endBossAttack(t, 0.9));
         return;
       }
       if (t.st === "shards") {
-        if ((Ta(i, t, e, o, a, 0.3), t.t >= 0.3 + t.n * 0.12 && t.n < 8 + l * 4)) {
+        if ((moveBoss(i, t, e, o, a, 0.3), t.t >= 0.3 + t.n * 0.12 && t.n < 8 + l * 4)) {
           let u = o + Math.PI + (t.n - 4) * 0.4;
           (i.shoot(t.x, t.y, u, 5.5, h, { kind: "shard", homing: 1.3, life: 5, r: 0.24 }), t.n++);
         }
-        t.t > 2.4 && He(t, 1.2);
+        t.t > 2.4 && endBossAttack(t, 1.2);
         return;
       }
       if (t.st === "lances") {
@@ -611,22 +611,22 @@ function vu(i, t, e) {
             t.n++,
             i.emit("beamWarn", { x: t.x, y: t.y, small: !0 }));
         }
-        t.t > 0.2 + u * 0.45 + 0.8 && He(t, 1.2);
+        t.t > 0.2 + u * 0.45 + 0.8 && endBossAttack(t, 1.2);
         return;
       }
       break;
     }
     case "core": {
       let u = t.phaseN;
-      if ((Ta(i, t, e, o, a, 0.2), t.st === "spiral")) {
+      if ((moveBoss(i, t, e, o, a, 0.2), t.st === "spiral")) {
         let d = 4 + (u - 1) * 1;
         t.t2 += e;
         let f = u === 3 ? 0.08 : 0.11;
         for (; t.t2 > f; ) {
           ((t.t2 -= f), (t.ta = (t.ta || 0) + (u === 2 ? -0.2 : 0.2)));
-          for (let p = 0; p < d; p++) i.shoot(t.x, t.y, t.ta + (p / d) * Me, 6 + u * 0.5, h, { r: 0.26 });
+          for (let p = 0; p < d; p++) i.shoot(t.x, t.y, t.ta + (p / d) * TAU, 6 + u * 0.5, h, { r: 0.26 });
         }
-        t.t > 3 && He(t, 1.2);
+        t.t > 3 && endBossAttack(t, 1.2);
         return;
       }
       if (t.st === "summon") {
@@ -644,19 +644,21 @@ function vu(i, t, e) {
           }
           i.emit("portal", { x: t.x, y: t.y, n: d.length });
         }
-        t.t > 1 && He(t, 1.2);
+        t.t > 1 && endBossAttack(t, 1.2);
         return;
       }
       if (t.st === "ring") {
         (t.t >= 0.3 + t.n * 0.5 &&
           t.n < 2 + u &&
-          (ir(i, t, 18 + u * 2, 7, h, (t.n % 2) * 0.15), t.n++, i.emit("eshot", { x: t.x, y: t.y, type: "boss" })),
-          t.t > 0.3 + (2 + u) * 0.5 + 0.3 && He(t, 1.3));
+          (shootRing(i, t, 18 + u * 2, 7, h, (t.n % 2) * 0.15),
+          t.n++,
+          i.emit("eshot", { x: t.x, y: t.y, type: "boss" })),
+          t.t > 0.3 + (2 + u) * 0.5 + 0.3 && endBossAttack(t, 1.3));
         return;
       }
       if (t.st === "cross") {
         if (u === 1) {
-          gu(i, t);
+          nextBossAttack(i, t);
           return;
         }
         if (t.n === 0) {
@@ -667,7 +669,7 @@ function vu(i, t, e) {
             i.beam({
               x: t.x,
               y: t.y,
-              a: o + 0.6 + (p / d) * Me,
+              a: o + 0.6 + (p / d) * TAU,
               rot: f,
               warn: 1.2,
               dur: 3.2,
@@ -682,7 +684,7 @@ function vu(i, t, e) {
           t.t2 = 0;
           for (let d = -1; d <= 1; d++) i.shoot(t.x, t.y, o + d * 0.2, 8.5, h);
         }
-        t.t > 4.6 && He(t, 1.4);
+        t.t > 4.6 && endBossAttack(t, 1.4);
         return;
       }
       if (t.st === "burst") {
@@ -690,7 +692,7 @@ function vu(i, t, e) {
           for (let d = 0; d < 7; d++) i.shoot(t.x, t.y, o + (d - 3) * 0.13, 9 + u * 0.5, h);
           (t.n++, i.emit("eshot", { x: t.x, y: t.y, type: "boss" }));
         }
-        t.t > 0.3 + (3 + u) * 0.35 + 0.4 && He(t, 1.2);
+        t.t > 0.3 + (3 + u) * 0.35 + 0.4 && endBossAttack(t, 1.2);
         return;
       }
       if (t.st === "rain") {
@@ -698,19 +700,19 @@ function vu(i, t, e) {
           t.n = 1;
           let d = 4 + u * 2;
           for (let f = 0; f < d; f++) {
-            let p = f === 0 ? { x: n.x, y: n.y } : xu(i, n.x, n.y, 1.5, 7);
+            let p = f === 0 ? { x: n.x, y: n.y } : findOpenSpot(i, n.x, n.y, 1.5, 7);
             p && i.hazard({ x: p.x, y: p.y, r: 2.2, delay: 1.1 + f * 0.12, dmg: t.dmg * 0.8, kind: "rain" });
           }
         }
-        t.t > 2.4 && He(t, 1.2);
+        t.t > 2.4 && endBossAttack(t, 1.2);
         return;
       }
       break;
     }
   }
-  He(t, 1);
+  endBossAttack(t, 1);
 }
-function Ta(i, t, e, n, s, r = 1) {
+function moveBoss(i, t, e, n, s, r = 1) {
   let a = t.speed * (t.enraged ? 1.3 : 1) * r;
   if (t.type === "queen" || t.type === "prism") {
     let o = t.type === "queen" ? 8 : 9,
@@ -731,12 +733,12 @@ function Ta(i, t, e, n, s, r = 1) {
   }
   (i.chaseDir(t), (t.vx = i.cdx * a), (t.vy = i.cdy * a));
 }
-function ir(i, t, e, n, s, r, a) {
-  for (let o = 0; o < e; o++) i.shoot(t.x, t.y, r + (o / e) * Me, n, s, { kind: a || "orb", r: 0.27 });
+function shootRing(i, t, e, n, s, r, a) {
+  for (let o = 0; o < e; o++) i.shoot(t.x, t.y, r + (o / e) * TAU, n, s, { kind: a || "orb", r: 0.27 });
 }
-function xu(i, t, e, n, s) {
+function findOpenSpot(i, t, e, n, s) {
   for (let r = 0; r < 20; r++) {
-    let a = i.rng.next() * Me,
+    let a = i.rng.next() * TAU,
       o = i.rng.range(n, s),
       c = t + Math.cos(a) * o,
       h = e + Math.sin(a) * o;
@@ -744,15 +746,15 @@ function xu(i, t, e, n, s) {
       return { x: c, y: h };
   }
   for (let r = 0; r < 16; r++) {
-    let a = (r / 16) * Me,
-      c = Lt(t * 0.4 + Math.cos(a) * Math.max(n, 2.5), -i.arena.W + 3, i.arena.W - 3),
-      h = Lt(e * 0.4 + Math.sin(a) * Math.max(n, 2.5), -i.arena.H + 3, i.arena.H - 3);
+    let a = (r / 16) * TAU,
+      c = clamp(t * 0.4 + Math.cos(a) * Math.max(n, 2.5), -i.arena.W + 3, i.arena.W - 3),
+      h = clamp(e * 0.4 + Math.sin(a) * Math.max(n, 2.5), -i.arena.H + 3, i.arena.H - 3);
     if (!i.arena.outside(c, h, 2) && !i.arena.blocked(c, h, 2) && !i.arena.featureBlocked(c, h, 0.6))
       return { x: c, y: h };
   }
   return null;
 }
-function mu(i, t, e) {
+function updateEnemy(i, t, e) {
   if (t.type === "charger") {
     if (t.spawnT > 0) {
       ((t.vx = 0), (t.vy = 0));
@@ -765,7 +767,7 @@ function mu(i, t, e) {
       ang = Math.atan2(dy, dx);
     i.chaseDir(t);
     if (t.st === 0) {
-      ((t.vx = i.cdx * t.speed), (t.vy = i.cdy * t.speed), (t.t -= e), (t.face = Ne(t.face, ang, 9 * e)));
+      ((t.vx = i.cdx * t.speed), (t.vy = i.cdy * t.speed), (t.t -= e), (t.face = turnToward(t.face, ang, 9 * e)));
       if (p.alive && dist < 10.5 && dist > 4 && t.t <= 0 && t.los) {
         ((t.st = 1),
           (t.t2 = 0.48),
@@ -775,7 +777,7 @@ function mu(i, t, e) {
           i.emit("charge", { x: t.x, y: t.y, type: t.type }));
       }
     } else if (t.st === 1) {
-      ((t.vx *= 0.65), (t.vy *= 0.65), (t.t2 -= e), (t.face = Ne(t.face, t.ta, 16 * e)));
+      ((t.vx *= 0.65), (t.vy *= 0.65), (t.t2 -= e), (t.face = turnToward(t.face, t.ta, 16 * e)));
       if (t.t2 <= 0) {
         ((t.st = 2),
           (t.t2 = 0.62),
@@ -804,7 +806,7 @@ function mu(i, t, e) {
       ((t.vx = (retreat ? -i.cdx : i.cdx) * t.speed * (retreat ? 1.35 : 1)),
         (t.vy = (retreat ? -i.cdy : i.cdy) * t.speed * (retreat ? 1.35 : 1)),
         (t.t -= e),
-        (t.face = Ne(t.face, Math.atan2(dy, dx), 8 * e)));
+        (t.face = turnToward(t.face, Math.atan2(dy, dx), 8 * e)));
       if (p.alive && dist < 10 && dist > 4.2 && t.t <= 0 && t.los) {
         ((t.st = 1),
           (t.t2 = 0.55),
@@ -814,7 +816,7 @@ function mu(i, t, e) {
           i.emit("mine", { x: t.x, y: t.y }));
       }
     } else {
-      ((t.t2 -= e), (t.face = Ne(t.face, Math.atan2(dy, dx), 8 * e)));
+      ((t.t2 -= e), (t.face = turnToward(t.face, Math.atan2(dy, dx), 8 * e)));
       if (t.t2 <= 0) ((t.st = 0), (t.t = 2.4 + i.rng.next() * 1.2));
     }
     return;
@@ -836,7 +838,7 @@ function mu(i, t, e) {
       t.vx = (retreat ? -i.cdx : i.cdx) * t.speed * (retreat ? 1.35 : 1);
       t.vy = (retreat ? -i.cdy : i.cdy) * t.speed * (retreat ? 1.35 : 1);
       t.t -= e;
-      t.face = Ne(t.face, ang, 8 * e);
+      t.face = turnToward(t.face, ang, 8 * e);
       if (p.alive && dist < 9.5 && dist > 4.2 && t.t <= 0 && t.los) {
         t.st = 1;
         t.t2 = 0.72;
@@ -847,7 +849,7 @@ function mu(i, t, e) {
       }
     } else {
       t.t2 -= e;
-      t.face = Ne(t.face, ang, 8 * e);
+      t.face = turnToward(t.face, ang, 8 * e);
       if (t.t2 <= 0) {
         t.st = 0;
         t.t = 2.4 + i.rng.next() * 1.3;
@@ -870,7 +872,7 @@ function mu(i, t, e) {
       i.chaseDir(t);
       t.vx = i.cdx * t.speed;
       t.vy = i.cdy * t.speed;
-      t.face = Ne(t.face, ang, 10 * e);
+      t.face = turnToward(t.face, ang, 10 * e);
       t.t -= e;
       if (p.alive && dist < 8.5 && dist > 3.8 && t.t <= 0) {
         t.st = 1;
@@ -916,7 +918,7 @@ function mu(i, t, e) {
       if (dist > 12) (i.chaseDir(t), (t.vx = i.cdx * t.speed), (t.vy = i.cdy * t.speed));
       else if (dist < 8.5) ((t.vx = (-dx / dist) * t.speed * 0.7), (t.vy = (-dy / dist) * t.speed * 0.7));
       else ((t.vx *= 0.65), (t.vy *= 0.65));
-      t.face = Ne(t.face, ang, 6 * e);
+      t.face = turnToward(t.face, ang, 6 * e);
       t.t -= e;
       if (p.alive && dist < 15 && dist > 6 && t.t <= 0 && t.los) {
         t.st = 1;
@@ -929,7 +931,7 @@ function mu(i, t, e) {
       t.t2 -= e;
       t.vx *= 0.72;
       t.vy *= 0.72;
-      t.face = Ne(t.face, t.ta, 8 * e);
+      t.face = turnToward(t.face, t.ta, 8 * e);
       if (t.t2 <= 0) {
         i.beam({
           x: t.x,
@@ -971,7 +973,7 @@ function mu(i, t, e) {
       t.vx = Math.cos(ang + Math.PI / 2) * side * t.speed;
       t.vy = Math.sin(ang + Math.PI / 2) * side * t.speed;
     }
-    t.face = Ne(t.face, ang, 7 * e);
+    t.face = turnToward(t.face, ang, 7 * e);
     t.t -= e;
     if (p.alive && dist < 14 && dist > 7 && t.t <= 0 && t.los) {
       for (const off of [-0.16, 0, 0.16])
@@ -981,12 +983,12 @@ function mu(i, t, e) {
     }
     return;
   }
-  return muCore(i, t, e);
+  return updateEnemyCore(i, t, e);
 }
 
 /* New enemy roles use the same movement/shooting primitives as the core AI. */
-const _rlMu22 = mu;
-mu = function (game, enemy, dt) {
+const _rlUpdateEnemy22 = updateEnemy;
+updateEnemy = function (game, enemy, dt) {
   if (enemy.type === "drone") {
     if (enemy.spawnT > 0) {
       enemy.vx = 0;
@@ -1006,7 +1008,7 @@ mu = function (game, enemy, dt) {
     else
       ((enemy.vx = Math.cos(ang + Math.PI / 2) * side * enemy.speed),
         (enemy.vy = Math.sin(ang + Math.PI / 2) * side * enemy.speed));
-    enemy.face = Ne(enemy.face, ang, 7 * dt);
+    enemy.face = turnToward(enemy.face, ang, 7 * dt);
     enemy.t -= dt;
     if (p.alive && dist < 16 && dist > 5 && enemy.t <= 0 && enemy.los) {
       for (const off of [-0.18, 0.18])
@@ -1031,7 +1033,7 @@ mu = function (game, enemy, dt) {
       game.chaseDir(enemy);
       enemy.vx = game.cdx * enemy.speed;
       enemy.vy = game.cdy * enemy.speed;
-      enemy.face = Ne(enemy.face, ang, 7 * dt);
+      enemy.face = turnToward(enemy.face, ang, 7 * dt);
       enemy.t -= dt;
       if (p.alive && dist < 8.7 && dist > 4.2 && enemy.t <= 0 && enemy.los) {
         enemy.st = 1;
@@ -1045,7 +1047,7 @@ mu = function (game, enemy, dt) {
       enemy.t2 -= dt;
       enemy.vx *= 0.7;
       enemy.vy *= 0.7;
-      enemy.face = Ne(enemy.face, enemy.ta, 14 * dt);
+      enemy.face = turnToward(enemy.face, enemy.ta, 14 * dt);
       if (enemy.t2 <= 0) {
         enemy.st = 2;
         enemy.t2 = 0.62;
@@ -1084,7 +1086,7 @@ mu = function (game, enemy, dt) {
       enemy.vx = Math.cos(ang + Math.PI / 2) * side * enemy.speed * 0.7;
       enemy.vy = Math.sin(ang + Math.PI / 2) * side * enemy.speed * 0.7;
     }
-    enemy.face = Ne(enemy.face, ang, 5 * dt);
+    enemy.face = turnToward(enemy.face, ang, 5 * dt);
     enemy.t -= dt;
     if (enemy.t <= 0) {
       enemy.t = 3.0 + game.rng.next() * 0.8;
@@ -1112,7 +1114,7 @@ mu = function (game, enemy, dt) {
       side = Math.sin(enemy.age * 2.8 + enemy.phase);
     ((enemy.vx = Math.cos(ang + Math.PI / 2) * side * enemy.speed),
       (enemy.vy = Math.sin(ang + Math.PI / 2) * side * enemy.speed));
-    enemy.face = Ne(enemy.face, ang, 8 * dt);
+    enemy.face = turnToward(enemy.face, ang, 8 * dt);
     enemy.t -= dt;
     if (enemy.t <= 0) {
       const spot = game.arena.freePoint(game.rng, p.x, p.y, 7.4, 1.25);
@@ -1131,7 +1133,7 @@ mu = function (game, enemy, dt) {
     }
     return;
   }
-  return _rlMu22(game, enemy, dt);
+  return _rlUpdateEnemy22(game, enemy, dt);
 };
 
-export { RL_KITERS, mu, rlInstallHunt, vu, xu, yu };
+export { RL_KITERS, updateEnemy, rlInstallHunt, updateBoss, findOpenSpot, initBoss };

@@ -1,33 +1,33 @@
 // Biome looks: floors, props, borders, ambient particles and the enemy skins (shaders).
 
 import {
-  BoxGeometry as Ct,
-  CircleGeometry as Pr,
-  Color as Ot,
-  ConeGeometry as Ir,
-  CylinderGeometry as ye,
-  DodecahedronGeometry as Lr,
-  DoubleSide as fn,
-  Group as rn,
-  InstancedMesh as Er,
-  Mesh as Gt,
-  MeshBasicMaterial as Ie,
-  MeshLambertMaterial as $e,
-  Object3D as an,
-  OctahedronGeometry as Qe,
-  PlaneGeometry as jn,
-  ShaderMaterial as un,
-  SphereGeometry as De,
-  TorusGeometry as Ve,
-  UniformsLib as yt,
-  UniformsUtils as El,
-  Vector2 as ht,
-  Vector4 as Re,
+  BoxGeometry,
+  CircleGeometry,
+  Color,
+  ConeGeometry,
+  CylinderGeometry,
+  DodecahedronGeometry,
+  DoubleSide,
+  Group,
+  InstancedMesh,
+  Mesh,
+  MeshBasicMaterial,
+  MeshLambertMaterial,
+  Object3D,
+  OctahedronGeometry,
+  PlaneGeometry,
+  ShaderMaterial,
+  SphereGeometry,
+  TorusGeometry,
+  UniformsLib,
+  UniformsUtils,
+  Vector2,
+  Vector4,
 } from "three";
-import { Lt, Me, Yi, qi } from "../core/util.js";
-import { lt, zi } from "./renderer.js";
+import { clamp, TAU, hashString, makeRng } from "../core/util.js";
+import { hexColor, additiveMaterial } from "./renderer.js";
 
-var $v = `
+var floorVertexShader = `
 #include <common>
 #include <fog_pars_vertex>
 varying vec2 vW;
@@ -38,7 +38,7 @@ void main() {
   gl_Position = projectionMatrix * mvPosition;
   #include <fog_vertex>
 }`,
-  Zv = `
+  floorFragmentShader = `
 #include <common>
 #include <fog_pars_fragment>
 uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
@@ -86,27 +86,32 @@ void main() {
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
-  Ul = class {
+  ArenaView = class {
     constructor(t) {
       ((this.scene = t),
-        (this.group = new rn()),
+        (this.group = new Group()),
         t.add(this.group),
-        (this.uniforms = El.merge([
-          yt.fog,
+        (this.uniforms = UniformsUtils.merge([
+          UniformsLib.fog,
           {
-            uBase: { value: new Ot() },
-            uGrid: { value: new Ot() },
-            uAccent: { value: new Ot() },
-            uHalf: { value: new ht(18, 18) },
-            uPlayer: { value: new ht() },
+            uBase: { value: new Color() },
+            uGrid: { value: new Color() },
+            uAccent: { value: new Color() },
+            uHalf: { value: new Vector2(18, 18) },
+            uPlayer: { value: new Vector2() },
             uTime: { value: 0 },
             uPulse: { value: 0 },
             uDeco: { value: 0 },
-            uL: { value: Array.from({ length: 6 }, () => new Re()) },
-            uLC: { value: Array.from({ length: 6 }, () => new Ot()) },
+            uL: { value: Array.from({ length: 6 }, () => new Vector4()) },
+            uLC: { value: Array.from({ length: 6 }, () => new Color()) },
           },
         ])),
-        (this.floorMat = new un({ uniforms: this.uniforms, vertexShader: $v, fragmentShader: Zv, fog: !0 })),
+        (this.floorMat = new ShaderMaterial({
+          uniforms: this.uniforms,
+          vertexShader: floorVertexShader,
+          fragmentShader: floorFragmentShader,
+          fog: !0,
+        })),
         (this.biomeId = null));
     }
     build(t, e, n = !1) {
@@ -125,11 +130,11 @@ void main() {
         r.uAccent.value.setHex(t.accent),
         r.uHalf.value.set(e.W, e.H),
         (r.uDeco.value = e.deco || 0));
-      let a = new Gt(new jn(100, 100), this.floorMat);
+      let a = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
       ((a.rotation.x = -Math.PI / 2), this.group.add(a));
-      let o = new $e({ color: t.wall }),
-        c = new Ie({ color: t.grid, toneMapped: !1 }),
-        h = new Ie({ color: t.accent, toneMapped: !1 }),
+      let o = new MeshLambertMaterial({ color: t.wall }),
+        c = new MeshBasicMaterial({ color: t.grid, toneMapped: !1 }),
+        h = new MeshBasicMaterial({ color: t.accent, toneMapped: !1 }),
         l = e.W,
         u = e.H,
         d = 0.5,
@@ -141,9 +146,9 @@ void main() {
           [l + d / 2, 0, d, u * 2],
         ];
       for (let [b, v, S, T] of p) {
-        let R = new Gt(new Ct(S, f, T), o);
+        let R = new Mesh(new BoxGeometry(S, f, T), o);
         (R.position.set(b, f / 2, v), this.group.add(R));
-        let _ = new Gt(new Ct(S === d ? 0.08 : S, 0.06, T === d ? 0.08 : T), c);
+        let _ = new Mesh(new BoxGeometry(S === d ? 0.08 : S, 0.06, T === d ? 0.08 : T), c);
         (_.position.set(
           b + (S === d ? (b < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
           f + 0.03,
@@ -153,62 +158,65 @@ void main() {
       }
       for (let b of [-1, 1])
         for (let v of [-1, 1]) {
-          let S = new Gt(new Ct(0.9, 1.4, 0.9), o);
+          let S = new Mesh(new BoxGeometry(0.9, 1.4, 0.9), o);
           S.position.set(b * (l + 0.25), 0.7, v * (u + 0.25));
-          let T = new Gt(new Ct(0.95, 0.08, 0.95), h);
+          let T = new Mesh(new BoxGeometry(0.95, 0.08, 0.95), h);
           (T.position.set(b * (l + 0.25), 1.42, v * (u + 0.25)), this.group.add(S, T));
         }
-      let x = new rn();
+      let x = new Group();
       (this.group.add(x), (this.obsGroup = x));
-      let m = new $e({ color: new Ot(t.wall).multiplyScalar(1.4) }),
-        g = new $e({
-          color: new Ot(t.grid).multiplyScalar(0.55),
-          emissive: new Ot(t.grid).multiplyScalar(0.12),
+      let m = new MeshLambertMaterial({ color: new Color(t.wall).multiplyScalar(1.4) }),
+        g = new MeshLambertMaterial({
+          color: new Color(t.grid).multiplyScalar(0.55),
+          emissive: new Color(t.grid).multiplyScalar(0.12),
           flatShading: !0,
         }),
         M = t.id;
       for (let b of e.obs)
         if (b.t === "c") {
           if (M === "vault") {
-            let E = new Gt(new ye(b.r * 0.35, b.r * 1.05, 1.8, 6), g);
+            let E = new Mesh(new CylinderGeometry(b.r * 0.35, b.r * 1.05, 1.8, 6), g);
             (E.position.set(b.x, 0.9, b.y), (E.rotation.y = (b.x * 7 + b.y * 3) % 6));
-            let C = new Gt(new Qe(b.r * 0.4), c);
+            let C = new Mesh(new OctahedronGeometry(b.r * 0.4), c);
             C.position.set(b.x, 1.95, b.y);
-            let L = new Gt(new Ve(b.r * 1.1, 0.04, 4, 24), h);
+            let L = new Mesh(new TorusGeometry(b.r * 1.1, 0.04, 4, 24), h);
             ((L.rotation.x = Math.PI / 2), L.position.set(b.x, 0.05, b.y), x.add(E, C, L));
             continue;
           }
           let v = M === "works" ? 1.5 : 1.8,
-            S = new Gt(new ye(b.r, b.r * 1.08, v, 20), m);
+            S = new Mesh(new CylinderGeometry(b.r, b.r * 1.08, v, 20), m);
           S.position.set(b.x, v / 2, b.y);
-          let T = new Gt(new ye(b.r * 1.02, b.r * 1.02, 0.08, 20, 1, !0), c);
+          let T = new Mesh(new CylinderGeometry(b.r * 1.02, b.r * 1.02, 0.08, 20, 1, !0), c);
           T.position.set(b.x, v * 0.75, b.y);
-          let R = new Gt(new Ve(b.r * 1.1, 0.04, 4, 32), h);
+          let R = new Mesh(new TorusGeometry(b.r * 1.1, 0.04, 4, 32), h);
           ((R.rotation.x = Math.PI / 2), R.position.set(b.x, 0.05, b.y));
-          let _ = new Gt(new ye(b.r * 0.6, b.r * 0.6, 0.06, 16), c);
+          let _ = new Mesh(new CylinderGeometry(b.r * 0.6, b.r * 0.6, 0.06, 16), c);
           if ((_.position.set(b.x, v + 0.03, b.y), x.add(S, T, R, _), M === "works")) {
             let E = T.clone();
             ((E.position.y = v * 0.35), x.add(E));
           }
         } else {
           let v = M === "void" ? 1.75 : M === "vault" ? 1 : M === "yard" && b.w < 1.3 && b.h < 1.3 ? 1.1 : 1.3,
-            S = new Gt(new Ct(b.w * 2, v, b.h * 2), M === "vault" ? g : m);
+            S = new Mesh(new BoxGeometry(b.w * 2, v, b.h * 2), M === "vault" ? g : m);
           (S.position.set(b.x, v / 2, b.y), x.add(S));
-          let T = new Gt(new Ct(b.w * 2 + 0.04, 0.07, 0.07), c);
+          let T = new Mesh(new BoxGeometry(b.w * 2 + 0.04, 0.07, 0.07), c);
           for (let E of [-b.h, b.h]) {
             let C = T.clone();
             (C.position.set(b.x, v, b.y + E), x.add(C));
           }
-          let R = new Gt(new Ct(0.07, 0.07, b.h * 2 + 0.04), c);
+          let R = new Mesh(new BoxGeometry(0.07, 0.07, b.h * 2 + 0.04), c);
           for (let E of [-b.w, b.w]) {
             let C = R.clone();
             (C.position.set(b.x + E, v, b.y), x.add(C));
           }
           if (M === "void") {
-            let E = new Gt(new Ct(b.w > b.h ? b.w * 2 + 0.02 : 0.06, v * 0.7, b.w > b.h ? 0.06 : b.h * 2 + 0.02), h);
+            let E = new Mesh(
+              new BoxGeometry(b.w > b.h ? b.w * 2 + 0.02 : 0.06, v * 0.7, b.w > b.h ? 0.06 : b.h * 2 + 0.02),
+              h,
+            );
             (E.position.set(b.x, v * 0.5, b.y), x.add(E));
           }
-          let _ = new Gt(new Ct(b.w * 2 + 0.3, 0.05, b.h * 2 + 0.3), h);
+          let _ = new Mesh(new BoxGeometry(b.w * 2 + 0.3, 0.05, b.h * 2 + 0.3), h);
           (_.position.set(b.x, 0.03, b.y), x.add(_));
         }
       ((this.rise = n && !s ? 0 : 1), (x.position.y = this.rise < 1 ? -2.6 : 0));
@@ -383,15 +391,15 @@ void main() {
 // Instanced props (reeds, crystals, stripes, rocks): one draw call per kind.
 function rlInst(group, geo, mat, list) {
   if (!list.length) return null;
-  const m = new Er(geo, mat, list.length),
-    o = new an();
+  const m = new InstancedMesh(geo, mat, list.length),
+    o = new Object3D();
   list.forEach((q, k) => {
     o.position.set(q.x, q.y, q.z);
     o.rotation.set(q.rx || 0, q.ry || 0, q.rz || 0);
     o.scale.set(q.sx ?? 1, q.sy ?? 1, q.sz ?? 1);
     o.updateMatrix();
     m.setMatrixAt(k, o.matrix);
-    q.c != null && m.setColorAt(k, lt(q.c));
+    q.c != null && m.setColorAt(k, hexColor(q.c));
   });
   m.frustumCulled = !1;
   group.add(m);
@@ -415,29 +423,31 @@ function rlAlongBorder(W, H, off, step, fn) {
   }
 }
 const rlMesh = (group, geo, mat, x, y, z, ry = 0) => {
-  const m = new Gt(geo, mat);
+  const m = new Mesh(geo, mat);
   m.position.set(x, y, z);
   m.rotation.y = ry;
   group.add(m);
   return m;
 };
-const rlGlow = (c, opacity = 1) => new Ie({ color: c, toneMapped: !1, transparent: opacity < 1, opacity });
+const rlGlow = (c, opacity = 1) =>
+  new MeshBasicMaterial({ color: c, toneMapped: !1, transparent: opacity < 1, opacity });
 // A thin ring on the floor at the collision radius, so the footprint reads in every biome.
 const rlFootRing = (g, x, z, r, mat) => {
-  const q = rlMesh(g, new Ve(r, 0.04, 4, 32), mat, x, 0.05, z);
+  const q = rlMesh(g, new TorusGeometry(r, 0.04, 4, 32), mat, x, 0.05, z);
   q.rotation.x = Math.PI / 2;
   return q;
 };
 // Outline slab under a box obstacle.
-const rlFootSlab = (g, b, mat, pad = 0.3) => rlMesh(g, new Ct(b.w * 2 + pad, 0.05, b.h * 2 + pad), mat, b.x, 0.03, b.y);
+const rlFootSlab = (g, b, mat, pad = 0.3) =>
+  rlMesh(g, new BoxGeometry(b.w * 2 + pad, 0.05, b.h * 2 + pad), mat, b.x, 0.03, b.y);
 var RL_BIOME_BUILD = {
   // Neon Yard: the original arena (fence with neon trim, pylons and crates)
   yard(A, t, W, H, obs) {
     const g = A.group,
       x = A.obsGroup,
-      o = new $e({ color: t.wall }),
-      c = new Ie({ color: t.grid, toneMapped: !1 }),
-      h = new Ie({ color: t.accent, toneMapped: !1 }),
+      o = new MeshLambertMaterial({ color: t.wall }),
+      c = new MeshBasicMaterial({ color: t.grid, toneMapped: !1 }),
+      h = new MeshBasicMaterial({ color: t.accent, toneMapped: !1 }),
       d = 0.5,
       f = 0.7;
     for (const [bx, bz, sx, sz] of [
@@ -446,10 +456,10 @@ var RL_BIOME_BUILD = {
       [-W - d / 2, 0, d, H * 2],
       [W + d / 2, 0, d, H * 2],
     ]) {
-      rlMesh(g, new Ct(sx, f, sz), o, bx, f / 2, bz);
+      rlMesh(g, new BoxGeometry(sx, f, sz), o, bx, f / 2, bz);
       rlMesh(
         g,
-        new Ct(sx === d ? 0.08 : sx, 0.06, sz === d ? 0.08 : sz),
+        new BoxGeometry(sx === d ? 0.08 : sx, 0.06, sz === d ? 0.08 : sz),
         c,
         bx + (sx === d ? (bx < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
         f + 0.03,
@@ -458,22 +468,22 @@ var RL_BIOME_BUILD = {
     }
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        rlMesh(g, new Ct(0.9, 1.4, 0.9), o, sx * (W + 0.25), 0.7, sz * (H + 0.25));
-        rlMesh(g, new Ct(0.95, 0.08, 0.95), h, sx * (W + 0.25), 1.42, sz * (H + 0.25));
+        rlMesh(g, new BoxGeometry(0.9, 1.4, 0.9), o, sx * (W + 0.25), 0.7, sz * (H + 0.25));
+        rlMesh(g, new BoxGeometry(0.95, 0.08, 0.95), h, sx * (W + 0.25), 1.42, sz * (H + 0.25));
       }
-    const m = new $e({ color: new Ot(t.wall).multiplyScalar(1.4) });
+    const m = new MeshLambertMaterial({ color: new Color(t.wall).multiplyScalar(1.4) });
     for (const b of obs)
       if (b.t === "c") {
         const v = 1.8;
-        rlMesh(x, new ye(b.r, b.r * 1.08, v, 20), m, b.x, v / 2, b.y);
-        rlMesh(x, new ye(b.r * 1.02, b.r * 1.02, 0.08, 20, 1, !0), c, b.x, v * 0.75, b.y);
+        rlMesh(x, new CylinderGeometry(b.r, b.r * 1.08, v, 20), m, b.x, v / 2, b.y);
+        rlMesh(x, new CylinderGeometry(b.r * 1.02, b.r * 1.02, 0.08, 20, 1, !0), c, b.x, v * 0.75, b.y);
         rlFootRing(x, b.x, b.y, b.r * 1.1, h);
-        rlMesh(x, new ye(b.r * 0.6, b.r * 0.6, 0.06, 16), c, b.x, v + 0.03, b.y);
+        rlMesh(x, new CylinderGeometry(b.r * 0.6, b.r * 0.6, 0.06, 16), c, b.x, v + 0.03, b.y);
       } else {
         const v = b.w < 1.3 && b.h < 1.3 ? 1.1 : 1.3;
-        rlMesh(x, new Ct(b.w * 2, v, b.h * 2), m, b.x, v / 2, b.y);
-        for (const e of [-b.h, b.h]) rlMesh(x, new Ct(b.w * 2 + 0.04, 0.07, 0.07), c, b.x, v, b.y + e);
-        for (const e of [-b.w, b.w]) rlMesh(x, new Ct(0.07, 0.07, b.h * 2 + 0.04), c, b.x + e, v, b.y);
+        rlMesh(x, new BoxGeometry(b.w * 2, v, b.h * 2), m, b.x, v / 2, b.y);
+        for (const e of [-b.h, b.h]) rlMesh(x, new BoxGeometry(b.w * 2 + 0.04, 0.07, 0.07), c, b.x, v, b.y + e);
+        for (const e of [-b.w, b.w]) rlMesh(x, new BoxGeometry(0.07, 0.07, b.h * 2 + 0.04), c, b.x + e, v, b.y);
         rlFootSlab(x, b, h);
       }
   },
@@ -481,9 +491,9 @@ var RL_BIOME_BUILD = {
   works(A, t, W, H, obs, R) {
     const g = A.group,
       x = A.obsGroup,
-      steel = new $e({ color: 0x2b2420, flatShading: !0 }),
-      dark = new $e({ color: t.wall, flatShading: !0 }),
-      pipe = new $e({ color: 0x3d3129, flatShading: !0 }),
+      steel = new MeshLambertMaterial({ color: 0x2b2420, flatShading: !0 }),
+      dark = new MeshLambertMaterial({ color: t.wall, flatShading: !0 }),
+      pipe = new MeshLambertMaterial({ color: 0x3d3129, flatShading: !0 }),
       glow = rlGlow(t.grid),
       hot = rlGlow(t.accent),
       d = 0.6,
@@ -494,12 +504,12 @@ var RL_BIOME_BUILD = {
       [-W - d / 2, 0, d, H * 2],
       [W + d / 2, 0, d, H * 2],
     ]) {
-      rlMesh(g, new Ct(sx, f, sz), steel, bx, f / 2, bz);
+      rlMesh(g, new BoxGeometry(sx, f, sz), steel, bx, f / 2, bz);
       // a pipe along the inner face of every wall
       const along = sx > sz,
         p = rlMesh(
           g,
-          new ye(0.12, 0.12, along ? sx : sz, 8),
+          new CylinderGeometry(0.12, 0.12, along ? sx : sz, 8),
           pipe,
           bx + (along ? 0 : -Math.sign(bx) * 0.38),
           0.45,
@@ -522,24 +532,24 @@ var RL_BIOME_BUILD = {
         c: k++ % 2 ? 0x141210 : t.grid,
       }),
     );
-    rlInst(g, new Ct(1, 1, 1), new Ie({ toneMapped: !1 }), stripes);
+    rlInst(g, new BoxGeometry(1, 1, 1), new MeshBasicMaterial({ toneMapped: !1 }), stripes);
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
         const cx = sx * (W + 0.55),
           cz = sz * (H + 0.55);
-        rlMesh(g, new Ct(1.6, 1.9, 1.6), dark, cx, 0.95, cz);
-        rlMesh(g, new Ct(1.64, 0.14, 0.5), hot, cx, 1.2, cz);
+        rlMesh(g, new BoxGeometry(1.6, 1.9, 1.6), dark, cx, 0.95, cz);
+        rlMesh(g, new BoxGeometry(1.64, 0.14, 0.5), hot, cx, 1.2, cz);
         A.rlEmit.push({ x: cx, z: cz, y: 2.0, k: "spark" });
       }
     for (const b of obs)
       if (b.t === "c") {
         // chimney: steel stack, glowing band, fire in the mouth, sparks rising
         const v = 2.4;
-        rlMesh(x, new ye(b.r * 0.78, b.r, v, 14), steel, b.x, v / 2, b.y);
-        rlMesh(x, new ye(b.r * 0.84, b.r * 0.86, 0.18, 14), glow, b.x, v * 0.68, b.y);
-        const rim = rlMesh(x, new Ve(b.r * 0.72, 0.09, 6, 20), dark, b.x, v, b.y);
+        rlMesh(x, new CylinderGeometry(b.r * 0.78, b.r, v, 14), steel, b.x, v / 2, b.y);
+        rlMesh(x, new CylinderGeometry(b.r * 0.84, b.r * 0.86, 0.18, 14), glow, b.x, v * 0.68, b.y);
+        const rim = rlMesh(x, new TorusGeometry(b.r * 0.72, 0.09, 6, 20), dark, b.x, v, b.y);
         rim.rotation.x = Math.PI / 2;
-        const mouth = rlMesh(x, new Pr(b.r * 0.66, 18), hot, b.x, v - 0.02, b.y);
+        const mouth = rlMesh(x, new CircleGeometry(b.r * 0.66, 18), hot, b.x, v - 0.02, b.y);
         mouth.rotation.x = -Math.PI / 2;
         rlFootRing(x, b.x, b.y, b.r * 1.08, glow);
         A.rlEmit.push({ x: b.x, z: b.y, y: v + 0.1, k: "spark" });
@@ -547,18 +557,25 @@ var RL_BIOME_BUILD = {
         // machine block: dark top plate, glowing seams, hot vents
         const v = 1.1,
           longX = b.w >= b.h;
-        rlMesh(x, new Ct(b.w * 2, v, b.h * 2), steel, b.x, v / 2, b.y);
-        rlMesh(x, new Ct(Math.max(0.1, b.w * 2 - 0.2), 0.08, Math.max(0.1, b.h * 2 - 0.2)), dark, b.x, v + 0.04, b.y);
+        rlMesh(x, new BoxGeometry(b.w * 2, v, b.h * 2), steel, b.x, v / 2, b.y);
+        rlMesh(
+          x,
+          new BoxGeometry(Math.max(0.1, b.w * 2 - 0.2), 0.08, Math.max(0.1, b.h * 2 - 0.2)),
+          dark,
+          b.x,
+          v + 0.04,
+          b.y,
+        );
         for (const s of [-1, 1])
           longX
-            ? rlMesh(x, new Ct(b.w * 2 + 0.02, 0.08, 0.04), glow, b.x, v * 0.55, b.y + s * b.h)
-            : rlMesh(x, new Ct(0.04, 0.08, b.h * 2 + 0.02), glow, b.x + s * b.w, v * 0.55, b.y);
+            ? rlMesh(x, new BoxGeometry(b.w * 2 + 0.02, 0.08, 0.04), glow, b.x, v * 0.55, b.y + s * b.h)
+            : rlMesh(x, new BoxGeometry(0.04, 0.08, b.h * 2 + 0.02), glow, b.x + s * b.w, v * 0.55, b.y);
         const n = Math.max(1, Math.min(4, Math.floor(Math.max(b.w, b.h) / 0.6)));
         for (let j = 0; j < n; j++) {
           const f2 = (j + 0.5) / n - 0.5;
           rlMesh(
             x,
-            new Ct(0.28, 0.06, 0.28),
+            new BoxGeometry(0.28, 0.06, 0.28),
             hot,
             b.x + (longX ? f2 * b.w * 1.6 : 0),
             v + 0.1,
@@ -572,9 +589,15 @@ var RL_BIOME_BUILD = {
   vault(A, t, W, H, obs, R) {
     const g = A.group,
       x = A.obsGroup,
-      ice = new $e({ color: 0x9fd8f0, emissive: 0x0c2a44, transparent: !0, opacity: 0.84, flatShading: !0 }),
-      core = new $e({ color: 0x2a5a78, emissive: 0x061624, flatShading: !0 }),
-      snow = new $e({ color: 0xe8f4ff, emissive: 0x1a2a38, flatShading: !0 }),
+      ice = new MeshLambertMaterial({
+        color: 0x9fd8f0,
+        emissive: 0x0c2a44,
+        transparent: !0,
+        opacity: 0.84,
+        flatShading: !0,
+      }),
+      core = new MeshLambertMaterial({ color: 0x2a5a78, emissive: 0x061624, flatShading: !0 }),
+      snow = new MeshLambertMaterial({ color: 0xe8f4ff, emissive: 0x1a2a38, flatShading: !0 }),
       glow = rlGlow(t.grid, 0.8),
       d = 0.6,
       f = 0.45;
@@ -584,7 +607,7 @@ var RL_BIOME_BUILD = {
       [-W - d / 2, 0, d, H * 2],
       [W + d / 2, 0, d, H * 2],
     ])
-      rlMesh(g, new Ct(sx, f, sz), core, bx, f / 2, bz);
+      rlMesh(g, new BoxGeometry(sx, f, sz), core, bx, f / 2, bz);
     const spikes = [],
       tint = [0xbfe8ff, 0x9fd8f0, 0xdff4ff, 0x86c4e8];
     for (const off of [0.25, 0.85])
@@ -606,21 +629,21 @@ var RL_BIOME_BUILD = {
       });
     rlInst(
       g,
-      new Ir(0.28, 1, 6),
-      new $e({ emissive: 0x0c2a44, transparent: !0, opacity: 0.88, flatShading: !0 }),
+      new ConeGeometry(0.28, 1, 6),
+      new MeshLambertMaterial({ emissive: 0x0c2a44, transparent: !0, opacity: 0.88, flatShading: !0 }),
       spikes,
     );
     for (const b of obs)
       if (b.t === "c") {
         // crystal cluster: a tall hexagonal prism and four smaller ones leaning outwards
-        const main = rlMesh(x, new ye(b.r * 0.3, b.r * 0.5, 2.1, 6), ice, b.x, 1.05, b.y, R.range(0, 6));
+        const main = rlMesh(x, new CylinderGeometry(b.r * 0.3, b.r * 0.5, 2.1, 6), ice, b.x, 1.05, b.y, R.range(0, 6));
         main.rotation.z = R.range(-0.08, 0.08);
         for (let j = 0; j < 4; j++) {
           const a = (j / 4) * Math.PI * 2 + R.range(-0.4, 0.4),
             h = R.range(0.8, 1.4),
             q = rlMesh(
               x,
-              new ye(b.r * 0.14, b.r * 0.24, h, 6),
+              new CylinderGeometry(b.r * 0.14, b.r * 0.24, h, 6),
               ice,
               b.x + Math.cos(a) * b.r * 0.55,
               h / 2 - 0.05,
@@ -628,16 +651,16 @@ var RL_BIOME_BUILD = {
             );
           q.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
         }
-        const frost = rlMesh(x, new Pr(b.r, 20), snow, b.x, 0.02, b.y);
+        const frost = rlMesh(x, new CircleGeometry(b.r, 20), snow, b.x, 0.02, b.y);
         frost.rotation.x = -Math.PI / 2;
         rlFootRing(x, b.x, b.y, b.r * 1.08, glow);
         A.rlEmit.push({ x: b.x, z: b.y, y: 2.0, k: "glint" });
       } else {
         // ice block: clear shell, dark core, snow cap
         const v = 1.05;
-        rlMesh(x, new Ct(b.w * 2 * 0.72, v * 0.8, b.h * 2 * 0.72), core, b.x, v * 0.42, b.y);
-        rlMesh(x, new Ct(b.w * 2, v, b.h * 2), ice, b.x, v / 2, b.y);
-        rlMesh(x, new Ct(b.w * 2 + 0.1, 0.14, b.h * 2 + 0.1), snow, b.x, v + 0.05, b.y);
+        rlMesh(x, new BoxGeometry(b.w * 2 * 0.72, v * 0.8, b.h * 2 * 0.72), core, b.x, v * 0.42, b.y);
+        rlMesh(x, new BoxGeometry(b.w * 2, v, b.h * 2), ice, b.x, v / 2, b.y);
+        rlMesh(x, new BoxGeometry(b.w * 2 + 0.1, 0.14, b.h * 2 + 0.1), snow, b.x, v + 0.05, b.y);
         rlFootSlab(x, b, glow, 0.25);
       }
   },
@@ -645,14 +668,14 @@ var RL_BIOME_BUILD = {
   marsh(A, t, W, H, obs, R) {
     const g = A.group,
       x = A.obsGroup,
-      bark = new $e({ color: 0x2e2a1c, flatShading: !0 }),
-      moss = new $e({ color: 0x2f5a22, emissive: 0x0a1a06, flatShading: !0 }),
-      stem = new $e({ color: 0xcfc8a8, flatShading: !0 }),
-      cap = new $e({ color: 0x6a3a8a, emissive: 0x1a0826, flatShading: !0 }),
-      gill = new $e({ color: 0x1c1024 }),
+      bark = new MeshLambertMaterial({ color: 0x2e2a1c, flatShading: !0 }),
+      moss = new MeshLambertMaterial({ color: 0x2f5a22, emissive: 0x0a1a06, flatShading: !0 }),
+      stem = new MeshLambertMaterial({ color: 0xcfc8a8, flatShading: !0 }),
+      cap = new MeshLambertMaterial({ color: 0x6a3a8a, emissive: 0x1a0826, flatShading: !0 }),
+      gill = new MeshLambertMaterial({ color: 0x1c1024 }),
       spot = rlGlow(t.accent),
       ring = rlGlow(t.grid, 0.55),
-      wood = new $e({ color: 0x6a5a3a, flatShading: !0 }),
+      wood = new MeshLambertMaterial({ color: 0x6a5a3a, flatShading: !0 }),
       d = 1.2;
     for (const [bx, bz, sx, sz] of [
       [0, -H - d / 2, W * 2 + d * 2, d],
@@ -660,7 +683,14 @@ var RL_BIOME_BUILD = {
       [-W - d / 2, 0, d, H * 2],
       [W + d / 2, 0, d, H * 2],
     ])
-      rlMesh(g, new Ct(sx, 0.22, sz), new $e({ color: 0x1a2414, flatShading: !0 }), bx, 0.11, bz);
+      rlMesh(
+        g,
+        new BoxGeometry(sx, 0.22, sz),
+        new MeshLambertMaterial({ color: 0x1a2414, flatShading: !0 }),
+        bx,
+        0.11,
+        bz,
+      );
     const reeds = [],
       rocks = [],
       green = [0x5a7a2a, 0x4a6a24, 0x6f8a34, 0x3e5a20];
@@ -693,23 +723,30 @@ var RL_BIOME_BUILD = {
         c: R.pick([0x2a3328, 0x333a2c, 0x262e24]),
       });
     });
-    rlInst(g, new ye(0.03, 0.05, 1, 4), new $e({ flatShading: !0 }), reeds);
-    rlInst(g, new Lr(0.6), new $e({ flatShading: !0 }), rocks);
+    rlInst(g, new CylinderGeometry(0.03, 0.05, 1, 4), new MeshLambertMaterial({ flatShading: !0 }), reeds);
+    rlInst(g, new DodecahedronGeometry(0.6), new MeshLambertMaterial({ flatShading: !0 }), rocks);
     for (const b of obs)
       if (b.t === "c") {
         if (R.chance(0.55)) {
           // giant mushroom: pale stem, purple cap with glowing spots, spores drifting up
-          rlMesh(x, new ye(b.r * 0.22, b.r * 0.32, 1.25, 8), stem, b.x, 0.62, b.y);
-          const c2 = rlMesh(x, new De(b.r * 1.02, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), cap, b.x, 1.18, b.y);
+          rlMesh(x, new CylinderGeometry(b.r * 0.22, b.r * 0.32, 1.25, 8), stem, b.x, 0.62, b.y);
+          const c2 = rlMesh(
+            x,
+            new SphereGeometry(b.r * 1.02, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+            cap,
+            b.x,
+            1.18,
+            b.y,
+          );
           c2.scale.y = 0.6;
-          const under = rlMesh(x, new Pr(b.r * 1.0, 18), gill, b.x, 1.18, b.y);
+          const under = rlMesh(x, new CircleGeometry(b.r * 1.0, 18), gill, b.x, 1.18, b.y);
           under.rotation.x = Math.PI / 2;
           for (let j = 0; j < 6; j++) {
             const a = R.range(0, Math.PI * 2),
               el = R.range(0.25, 1.2);
             rlMesh(
               x,
-              new De(R.range(0.06, 0.12), 6, 4),
+              new SphereGeometry(R.range(0.06, 0.12), 6, 4),
               spot,
               b.x + Math.cos(a) * Math.sin(el) * b.r,
               1.18 + Math.cos(el) * b.r * 0.6,
@@ -719,12 +756,12 @@ var RL_BIOME_BUILD = {
           A.rlEmit.push({ x: b.x, z: b.y, y: 1.2 + b.r * 0.6, k: "spore" });
         } else {
           // dead tree: bare trunk, crooked branches, roots and a collar of moss
-          rlMesh(x, new ye(b.r * 0.26, b.r * 0.55, 2.2, 7), bark, b.x, 1.1, b.y, R.range(0, 6));
+          rlMesh(x, new CylinderGeometry(b.r * 0.26, b.r * 0.55, 2.2, 7), bark, b.x, 1.1, b.y, R.range(0, 6));
           for (let j = 0; j < 3; j++) {
             const a = R.range(0, Math.PI * 2),
               q = rlMesh(
                 x,
-                new ye(0.04, 0.1, 1.0, 5),
+                new CylinderGeometry(0.04, 0.1, 1.0, 5),
                 bark,
                 b.x + Math.cos(a) * 0.3,
                 R.range(1.5, 2.1),
@@ -736,7 +773,7 @@ var RL_BIOME_BUILD = {
             const a = (j / 4) * Math.PI * 2 + R.range(-0.3, 0.3),
               q = rlMesh(
                 x,
-                new ye(0.05, b.r * 0.18, b.r * 0.9, 5),
+                new CylinderGeometry(0.05, b.r * 0.18, b.r * 0.9, 5),
                 bark,
                 b.x + Math.cos(a) * b.r * 0.55,
                 0.16,
@@ -744,7 +781,7 @@ var RL_BIOME_BUILD = {
               );
             q.rotation.set(Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2);
           }
-          const col = rlMesh(x, new Ve(b.r * 0.5, 0.14, 5, 14), moss, b.x, 0.14, b.y);
+          const col = rlMesh(x, new TorusGeometry(b.r * 0.5, 0.14, 5, 14), moss, b.x, 0.14, b.y);
           col.rotation.x = Math.PI / 2;
         }
         rlFootRing(x, b.x, b.y, b.r * 1.08, ring);
@@ -753,13 +790,20 @@ var RL_BIOME_BUILD = {
         const longX = b.w >= b.h,
           L = Math.max(b.w, b.h) * 2,
           rad = Math.max(0.3, Math.min(b.w, b.h) * 0.9),
-          log = rlMesh(x, new ye(rad, rad * 1.05, L, 10), bark, b.x, rad, b.y);
+          log = rlMesh(x, new CylinderGeometry(rad, rad * 1.05, L, 10), bark, b.x, rad, b.y);
         longX ? (log.rotation.z = Math.PI / 2) : (log.rotation.x = Math.PI / 2);
-        rlMesh(x, new Ct(longX ? L * 0.8 : rad * 1.1, 0.1, longX ? rad * 1.1 : L * 0.8), moss, b.x, rad * 1.95, b.y);
+        rlMesh(
+          x,
+          new BoxGeometry(longX ? L * 0.8 : rad * 1.1, 0.1, longX ? rad * 1.1 : L * 0.8),
+          moss,
+          b.x,
+          rad * 1.95,
+          b.y,
+        );
         for (const s of [-1, 1]) {
           const e = rlMesh(
             x,
-            new Pr(rad * 0.92, 12),
+            new CircleGeometry(rad * 0.92, 12),
             wood,
             b.x + (longX ? (s * L) / 2 + s * 0.02 : 0),
             rad,
@@ -771,8 +815,8 @@ var RL_BIOME_BUILD = {
           const f2 = R.range(-0.3, 0.3) * L,
             mx = b.x + (longX ? f2 : 0),
             mz = b.y + (longX ? 0 : f2);
-          rlMesh(x, new ye(0.04, 0.05, 0.25, 5), stem, mx, rad * 2 + 0.12, mz);
-          rlMesh(x, new De(0.13, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), spot, mx, rad * 2 + 0.24, mz);
+          rlMesh(x, new CylinderGeometry(0.04, 0.05, 0.25, 5), stem, mx, rad * 2 + 0.12, mz);
+          rlMesh(x, new SphereGeometry(0.13, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), spot, mx, rad * 2 + 0.24, mz);
         }
         rlFootSlab(x, b, ring, 0.2);
       }
@@ -781,10 +825,10 @@ var RL_BIOME_BUILD = {
   void(A, t, W, H, obs, R) {
     const g = A.group,
       x = A.obsGroup,
-      obsid = new $e({ color: 0x2a1a4a, emissive: 0x12072a, flatShading: !0 }),
+      obsid = new MeshLambertMaterial({ color: 0x2a1a4a, emissive: 0x12072a, flatShading: !0 }),
       rim = rlGlow(t.grid),
       hot = rlGlow(t.accent),
-      wall = zi(null, { color: t.grid, opacity: 0.13, side: fn }),
+      wall = additiveMaterial(null, { color: t.grid, opacity: 0.13, side: DoubleSide }),
       f = 1.8;
     for (const [bx, bz, len, rot] of [
       [0, -H, W * 2, 0],
@@ -792,13 +836,13 @@ var RL_BIOME_BUILD = {
       [-W, 0, H * 2, Math.PI / 2],
       [W, 0, H * 2, Math.PI / 2],
     ]) {
-      rlMesh(g, new jn(len, f), wall, bx, f / 2, bz, rot);
-      rlMesh(g, new Ct(rot ? 0.06 : len, 0.05, rot ? len : 0.06), rim, bx, 0.03, bz);
-      rlMesh(g, new Ct(rot ? 0.04 : len, 0.03, rot ? len : 0.04), rim, bx, f, bz);
+      rlMesh(g, new PlaneGeometry(len, f), wall, bx, f / 2, bz, rot);
+      rlMesh(g, new BoxGeometry(rot ? 0.06 : len, 0.05, rot ? len : 0.06), rim, bx, 0.03, bz);
+      rlMesh(g, new BoxGeometry(rot ? 0.04 : len, 0.03, rot ? len : 0.04), rim, bx, f, bz);
     }
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        const q = rlMesh(g, new Qe(0.45), hot, sx * W, 1.3, sz * H);
+        const q = rlMesh(g, new OctahedronGeometry(0.45), hot, sx * W, 1.3, sz * H);
         q.scale.y = 1.8;
         A.rlAnim.push({ o: q, k: "spin", s: 1.2, b: 1.3, ph: sx + sz * 2 });
       }
@@ -823,36 +867,48 @@ var RL_BIOME_BUILD = {
         c: R.pick([0x2a1c44, 0x1e1434, 0x352654]),
       });
     }
-    const drift = new rn();
+    const drift = new Group();
     g.add(drift);
-    rlInst(drift, new Lr(0.8), new $e({ emissive: 0x0a0418, flatShading: !0 }), rocks);
+    rlInst(
+      drift,
+      new DodecahedronGeometry(0.8),
+      new MeshLambertMaterial({ emissive: 0x0a0418, flatShading: !0 }),
+      rocks,
+    );
     A.rlAnim.push({ o: drift, k: "bob", b: 0, ph: 0, a: 0.25, s: 0.35 });
     for (const b of obs)
       if (b.t === "c") {
         // floating obelisk with an orbiting ring over a rune circle
-        const ob = rlMesh(x, new Qe(b.r * 0.72), obsid, b.x, 1.6, b.y);
+        const ob = rlMesh(x, new OctahedronGeometry(b.r * 0.72), obsid, b.x, 1.6, b.y);
         ob.scale.y = 2.3;
         A.rlAnim.push({ o: ob, k: "spinbob", s: 0.6, b: 1.6, ph: b.x * 1.7 + b.y, a: 0.12 });
-        const orb = rlMesh(x, new Ve(b.r * 0.95, 0.04, 4, 32), hot, b.x, 1.6, b.y);
+        const orb = rlMesh(x, new TorusGeometry(b.r * 0.95, 0.04, 4, 32), hot, b.x, 1.6, b.y);
         orb.rotation.x = 1.2;
         A.rlAnim.push({ o: orb, k: "spin", s: 1.4, b: 1.6, ph: b.y });
         rlFootRing(x, b.x, b.y, b.r * 1.08, rim);
-        const pad = rlMesh(x, new Pr(b.r * 0.95, 24), zi(null, { color: t.accent, opacity: 0.16 }), b.x, 0.04, b.y);
+        const pad = rlMesh(
+          x,
+          new CircleGeometry(b.r * 0.95, 24),
+          additiveMaterial(null, { color: t.accent, opacity: 0.16 }),
+          b.x,
+          0.04,
+          b.y,
+        );
         pad.rotation.x = -Math.PI / 2;
         A.rlEmit.push({ x: b.x, z: b.y, y: 0.6, k: "mote" });
       } else {
         // monolith hovering above its outline, glowing seams on the edges
         const v = 2.0,
-          mono = new rn();
+          mono = new Group();
         mono.position.set(b.x, 0.3 + v / 2, b.y);
         x.add(mono);
-        rlMesh(mono, new Ct(b.w * 2 * 0.92, v, b.h * 2 * 0.92), obsid, 0, 0, 0);
+        rlMesh(mono, new BoxGeometry(b.w * 2 * 0.92, v, b.h * 2 * 0.92), obsid, 0, 0, 0);
         for (const sx of [-1, 1])
           for (const sz of [-1, 1])
-            rlMesh(mono, new Ct(0.05, v + 0.02, 0.05), rim, sx * b.w * 0.92, 0, sz * b.h * 0.92);
+            rlMesh(mono, new BoxGeometry(0.05, v + 0.02, 0.05), rim, sx * b.w * 0.92, 0, sz * b.h * 0.92);
         for (const s of [-1, 1]) {
-          rlMesh(mono, new Ct(b.w * 2 * 0.92 + 0.04, 0.05, 0.05), hot, 0, v / 2, s * b.h * 0.92);
-          rlMesh(mono, new Ct(0.05, 0.05, b.h * 2 * 0.92 + 0.04), hot, s * b.w * 0.92, v / 2, 0);
+          rlMesh(mono, new BoxGeometry(b.w * 2 * 0.92 + 0.04, 0.05, 0.05), hot, 0, v / 2, s * b.h * 0.92);
+          rlMesh(mono, new BoxGeometry(0.05, 0.05, b.h * 2 * 0.92 + 0.04), hot, s * b.w * 0.92, v / 2, 0);
         }
         A.rlAnim.push({ o: mono, k: "bob", b: 0.3 + v / 2, ph: b.x + b.y * 0.7, a: 0.1, s: 1.1 });
         rlFootSlab(x, b, rim, 0.2);
@@ -862,14 +918,19 @@ var RL_BIOME_BUILD = {
 
 /* The arena is rebuilt from scratch for every layout (as before); build() now asks the biome
  for its border and props and switches the floor shader's style. */
-Ul.prototype.build = function (t, e, n = !1) {
+ArenaView.prototype.build = function (t, e, n = !1) {
   if (((e = e || { key: t.id + ":classic", W: t.W, H: t.H, obs: t.obstacles, deco: 0 }), this.layKey === e.key)) return;
   const first = this.layKey == null;
   if (!this.rlFloor) {
     // same uniforms, new fragment shader with one branch per biome style
     this.uniforms.uStyle = { value: 0 };
     this.floorMat.dispose();
-    this.floorMat = new un({ uniforms: this.uniforms, vertexShader: $v, fragmentShader: RL_FLOOR_FRAG, fog: !0 });
+    this.floorMat = new ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: floorVertexShader,
+      fragmentShader: RL_FLOOR_FRAG,
+      fog: !0,
+    });
     this.rlFloor = !0;
   }
   ((this.layKey = e.key), (this.biomeId = t.id));
@@ -885,17 +946,17 @@ Ul.prototype.build = function (t, e, n = !1) {
     r.uHalf.value.set(e.W, e.H),
     (r.uDeco.value = look.style === 0 ? e.deco || 0 : 0),
     (r.uStyle.value = look.style));
-  const floor = new Gt(new jn(100, 100), this.floorMat);
+  const floor = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
   ((floor.rotation.x = -Math.PI / 2), this.group.add(floor));
-  const x = new rn();
+  const x = new Group();
   (this.group.add(x), (this.obsGroup = x));
   this.rlAnim = [];
   this.rlEmit = [];
-  (RL_BIOME_BUILD[t.id] || RL_BIOME_BUILD.yard)(this, t, e.W, e.H, e.obs, qi(Yi(e.key + ":look")));
+  (RL_BIOME_BUILD[t.id] || RL_BIOME_BUILD.yard)(this, t, e.W, e.H, e.obs, makeRng(hashString(e.key + ":look")));
   ((this.rise = n && !first ? 0 : 1), (x.position.y = this.rise < 1 ? -2.6 : 0));
 };
-const _rlArenaUpdate240 = Ul.prototype.update;
-Ul.prototype.update = function (t, e, n, s) {
+const _rlArenaUpdate240 = ArenaView.prototype.update;
+ArenaView.prototype.update = function (t, e, n, s) {
   _rlArenaUpdate240.call(this, t, e, n, s);
   const T = this.uniforms.uTime.value;
   for (const a of this.rlAnim || []) {
@@ -907,10 +968,10 @@ Ul.prototype.update = function (t, e, n, s) {
 
 // Ambient particles: the air of the biome, around the camera, plus sparks/spores/glints from props.
 const RL_C = {
-  ember: new Ot(0xffa040),
-  ember2: new Ot(0xffd070),
-  snow: new Ot(0xdceeff),
-  white: new Ot(0xffffff),
+  ember: new Color(0xffa040),
+  ember2: new Color(0xffd070),
+  snow: new Color(0xdceeff),
+  white: new Color(0xffffff),
 };
 function rlAmbient(R, dt, w, opt) {
   const b = R.biome,
@@ -926,10 +987,10 @@ function rlAmbient(R, dt, w, opt) {
         m = Math.floor(c);
       return m + (Math.random() < c - m ? 1 : 0);
     },
-    rx = (s = 15) => Lt(cx + (Math.random() * 2 - 1) * s, -W, W),
-    rz = (s = 12) => Lt(cz + (Math.random() * 2 - 1) * s - 2, -H, H),
-    grid = lt(b.grid),
-    acc = lt(b.accent);
+    rx = (s = 15) => clamp(cx + (Math.random() * 2 - 1) * s, -W, W),
+    rz = (s = 12) => clamp(cz + (Math.random() * 2 - 1) * s - 2, -H, H),
+    grid = hexColor(b.grid),
+    acc = hexColor(b.accent);
   switch (b.id) {
     case "works":
       for (let j = count(24); j--; )
@@ -976,10 +1037,21 @@ function rlAmbient(R, dt, w, opt) {
           { drag: 0.2 },
         );
       for (let j = count(4); j--; )
-        R.emit(rx(), 0.25, rz(), (Math.random() - 0.5) * 0.3, 0.02, (Math.random() - 0.5) * 0.3, 5, 2.6, lt(0x0a1a08), {
-          drag: 0,
-          grow: 0.6,
-        });
+        R.emit(
+          rx(),
+          0.25,
+          rz(),
+          (Math.random() - 0.5) * 0.3,
+          0.02,
+          (Math.random() - 0.5) * 0.3,
+          5,
+          2.6,
+          hexColor(0x0a1a08),
+          {
+            drag: 0,
+            grow: 0.6,
+          },
+        );
       break;
     case "void":
       for (let j = count(20); j--; )
@@ -1047,7 +1119,7 @@ function rlAmbient(R, dt, w, opt) {
         );
     else if (q.k === "mote") {
       if (count(3)) {
-        const a = Math.random() * Me;
+        const a = Math.random() * TAU;
         R.emit(
           q.x + Math.cos(a) * 1.1,
           q.y,
@@ -1154,10 +1226,10 @@ function rlSkinMaterial(mat, flash) {
   mat.rlSkin = !0;
 }
 const RL_SKIN_FX = {
-  1: { c: new Ot(0xff8a30), vy: 1.4, grav: 0, life: 0.7, size: 0.15, spark: !1 },
-  2: { c: new Ot(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: !0 },
-  3: { c: new Ot(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: !1 },
-  4: { c: new Ot(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: !1 },
+  1: { c: new Color(0xff8a30), vy: 1.4, grav: 0, life: 0.7, size: 0.15, spark: !1 },
+  2: { c: new Color(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: !0 },
+  3: { c: new Color(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: !1 },
+  4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: !1 },
 };
 function rlSkinParticles(R, dt, w) {
   const fx = RL_SKIN_FX[RL_SKIN.uSkin.value];
@@ -1169,7 +1241,7 @@ function rlSkinParticles(R, dt, w) {
     if (e.dead || e.ghost || e.spawnT > 0) continue;
     const big = e.boss ? 6 : 1;
     if (Math.random() >= rate * big * dt) continue;
-    const a = Math.random() * Me,
+    const a = Math.random() * TAU,
       d = Math.random() * e.r * 0.8;
     R.emit(
       e.x + Math.cos(a) * d,
@@ -1186,4 +1258,4 @@ function rlSkinParticles(R, dt, w) {
   }
 }
 
-export { RL_BIOME_LOOK, RL_SKIN, Ul, rlAmbient, rlSkinMaterial, rlSkinParticles };
+export { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles };

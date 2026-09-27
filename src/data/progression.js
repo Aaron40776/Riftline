@@ -1,9 +1,9 @@
 // Workshop modules, milestones, threat levels and the retired-weapon table.
 
-import { ii } from "./biomes.js";
-import { En } from "./weapons.js";
+import { biomeList } from "./biomes.js";
+import { weaponOrder } from "./weapons.js";
 
-var si = [
+var threatLevels = [
   { lvl: 0, name: "Standard", desc: "The rift as it is." },
   { lvl: 1, name: "Threat I", desc: "Enemies +25% health, +12% damage." },
   { lvl: 2, name: "Threat II", desc: "More elites, denser waves." },
@@ -11,7 +11,7 @@ var si = [
   { lvl: 4, name: "Threat IV", desc: "Only for tuned builds." },
   { lvl: 5, name: "Threat V", desc: "The breach at full strength." },
 ];
-var Ma = (i) => ({
+var threatMods = (i) => ({
   hp: 1 + 0.25 * i,
   dmg: 1 + 0.12 * i,
   budget: 1 + 0.1 * i,
@@ -19,7 +19,7 @@ var Ma = (i) => ({
   shards: 1 + 0.25 * i,
   boss: 1 + 0.3 * i,
 });
-var ai = [
+var workshopModules = [
   {
     id: "hull",
     name: "Hull Plating",
@@ -55,8 +55,8 @@ var ai = [
   },
   { id: "revive", name: "Second Life", icon: "heart", desc: "Revive once per run at 50% HP", costs: [900] },
 ];
-var p_ = Object.fromEntries(ai.map((i) => [i.id, i]));
-var _i = [
+var modulesById = Object.fromEntries(workshopModules.map((i) => [i.id, i]));
+var milestones = [
   {
     id: "kills100",
     name: "First Contact",
@@ -113,14 +113,14 @@ var _i = [
     name: "Full Arsenal",
     desc: "Unlock every weapon",
     reward: 200,
-    test: (i) => En.every((t) => i.weapons[t]),
+    test: (i) => weaponOrder.every((t) => i.weapons[t]),
   },
   {
     id: "maxed",
     name: "Fine Tuned",
     desc: "Max out one workshop module",
     reward: 100,
-    test: (i) => ai.some((t) => (i.workshop[t.id] || 0) >= t.costs.length),
+    test: (i) => workshopModules.some((t) => (i.workshop[t.id] || 0) >= t.costs.length),
   },
   {
     id: "threat2",
@@ -135,7 +135,7 @@ var _i = [
     name: "Master of Arms",
     desc: "Clear a run with every weapon",
     reward: 800,
-    test: (i) => En.every((t) => (i.stats.clearsBy[t] || 0) > 0),
+    test: (i) => weaponOrder.every((t) => (i.stats.clearsBy[t] || 0) > 0),
   },
   {
     id: "threat5",
@@ -218,7 +218,7 @@ var _i = [
     test: (i) => Object.values(i.stats.bosses).reduce((a, b) => a + b, 0) >= 25,
   },
 ];
-ai.push(
+workshopModules.push(
   // 2.3.5: Armor Core reduces enemy damage (it gave +8 max HP, next to Hull Plating's +10)
   {
     id: "armorCore",
@@ -236,8 +236,8 @@ ai.push(
   },
   { id: "droneBay", name: "Drone Bay", icon: "drone", desc: "+1 Wingman slot per level", costs: [950, 1800] },
 );
-p_ = Object.fromEntries(ai.map((i) => [i.id, i]));
-_i.push(
+modulesById = Object.fromEntries(workshopModules.map((i) => [i.id, i]));
+milestones.push(
   {
     id: "wave100",
     name: "Endless Horizon",
@@ -265,7 +265,7 @@ _i.push(
     // 2.4.0: the biome changes after every boss, so wave 21 is the first wave of the fifth biome
     desc: "Reach wave 21 \u2014 every biome of the rift in one run",
     reward: 1100,
-    test: (i) => i.stats.bestWave >= 5 * (ii.length - 1) + 1,
+    test: (i) => i.stats.bestWave >= 5 * (biomeList.length - 1) + 1,
   },
   {
     id: "weaponClear10",
@@ -283,7 +283,7 @@ _i.push(
     test: (i) => i.stats.bestCombo >= 750,
   },
 );
-ai.push(
+workshopModules.push(
   // 2.3.5: Arsenal Lab raises the fire rate (it gave +5% damage, the same as Power Core)
   { id: "arsenalLab", name: "Arsenal Lab", icon: "burst", desc: "+6% fire rate per level", costs: [1800, 3600, 6500] },
   {
@@ -301,8 +301,8 @@ ai.push(
     costs: [1200, 2500, 4500],
   },
 );
-p_ = Object.fromEntries(ai.map((i) => [i.id, i]));
-_i.push(
+modulesById = Object.fromEntries(workshopModules.map((i) => [i.id, i]));
+milestones.push(
   { id: "wave125", name: "Deep Horizon", desc: "Reach wave 125", reward: 1200, test: (i) => i.stats.bestWave >= 125 },
   { id: "wave150", name: "Far Breach", desc: "Reach wave 150", reward: 1600, test: (i) => i.stats.bestWave >= 150 },
   {
@@ -327,7 +327,7 @@ _i.push(
     test: (i) => i.stats.evolved >= 10,
   },
 );
-ai.push(
+workshopModules.push(
   {
     id: "routeScanner",
     name: "Route Scanner",
@@ -343,8 +343,8 @@ ai.push(
     costs: [1600, 3400, 6200],
   },
 );
-p_ = Object.fromEntries(ai.map((i) => [i.id, i]));
-_i.push(
+modulesById = Object.fromEntries(workshopModules.map((i) => [i.id, i]));
+milestones.push(
   { id: "wave175", name: "Deep End", desc: "Reach wave 175", reward: 2200, test: (i) => i.stats.bestWave >= 175 },
   {
     id: "wave200",
@@ -418,4 +418,4 @@ const rlRetired = (id) =>
     ? RL_RETIRED_WEAPONS[id]
     : null;
 
-export { Ma, RL_RETIRED_WEAPONS, _i, ai, p_, rlRetired, si };
+export { threatMods, RL_RETIRED_WEAPONS, milestones, workshopModules, modulesById, rlRetired, threatLevels };

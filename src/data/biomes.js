@@ -21,7 +21,7 @@ var RL_PALETTES = {
   },
 };
 function rlApplyBiomeFixes() {
-  for (const [id, p] of Object.entries(RL_PALETTES)) du[id] && Object.assign(du[id], p);
+  for (const [id, p] of Object.entries(RL_PALETTES)) biomesById[id] && Object.assign(biomesById[id], p);
 }
 
 /* ---- one hazard theme per biome (2.3.1). The wave director used to drop a
@@ -34,7 +34,7 @@ var RL_BIOME_HAZARD = {
   void: "portals",
   marsh: "acid",
 };
-var ii = [
+var biomeList = [
   {
     id: "yard",
     name: "Neon Yard",
@@ -131,9 +131,9 @@ var ii = [
     ],
   },
 ];
-var du = Object.fromEntries(ii.map((i) => [i.id, i]));
-function fu(i) {
-  let t = ii.slice(1).map((e) => e.id);
+var biomesById = Object.fromEntries(biomeList.map((i) => [i.id, i]));
+function planBiomeRoute(i) {
+  let t = biomeList.slice(1).map((e) => e.id);
   for (let e = t.length - 1; e > 0; e--) {
     let n = Math.floor(i.next() * (e + 1));
     [t[e], t[n]] = [t[n], t[e]];
@@ -174,6 +174,6 @@ var RL_BIOME_INFO = {
   },
 };
 for (const [id, info] of Object.entries(RL_BIOME_INFO))
-  du[id] && ((du[id].tag = info.tag), info.grip && (du[id].grip = info.grip));
+  biomesById[id] && ((biomesById[id].tag = info.tag), info.grip && (biomesById[id].grip = info.grip));
 
-export { RL_BIOME_HAZARD, RL_BIOME_INFO, du, fu, ii, rlApplyBiomeFixes };
+export { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList, rlApplyBiomeFixes };

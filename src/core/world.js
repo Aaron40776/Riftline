@@ -1,18 +1,18 @@
-// The simulation world (Aa): player, enemies, bullets, pickups, waves and states. Runs without
+// The simulation world (World): player, enemies, bullets, pickups, waves and states. Runs without
 // rendering.
 
-import { Ae, Kl, cu, en, uu } from "../data/enemies.js";
-import { Lt, Me, Ne, Yi, er, qi, vn } from "./util.js";
-import { mu, vu, yu } from "./ai.js";
-import { RL_BIOME_INFO, du, fu, ii } from "../data/biomes.js";
-import { ue } from "../data/weapons.js";
-import { $i, Jl, _u, pu, set_RL_BIOME_MIX_CUR } from "./waves.js";
-import { Ma } from "../data/progression.js";
-import { ri } from "../data/upgrades.js";
-import { Sa, Su, wa } from "./arena.js";
-import { nr } from "./stats.js";
+import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByWave } from "../data/enemies.js";
+import { clamp, TAU, turnToward, hashString, angleDiff, makeRng, dampFactor } from "./util.js";
+import { updateEnemy, updateBoss, initBoss } from "./ai.js";
+import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/biomes.js";
+import { weaponDefs } from "../data/weapons.js";
+import { waveEvents, EVENT_CHANCE, planWave, rollUpgradeOffer, set_RL_BIOME_MIX_CUR } from "./waves.js";
+import { threatMods } from "../data/progression.js";
+import { upgradesById } from "../data/upgrades.js";
+import { Arena, buildLayout, SpatialHash } from "./arena.js";
+import { computeStats } from "./stats.js";
 
-var hu = [
+var comboRewards = [
   [10, 3],
   [25, 8],
   [50, 20],
@@ -21,18 +21,18 @@ var hu = [
   [250, 150],
 ];
 var rlStep = 1 / 60,
-  zp = 0.55,
-  ic = 420,
-  Hp = 360,
-  Gp = { nova: "nova", inferno: "inferno", pop: "pop", bomber: "pop", payload: "payload", rocket: "weapon" },
-  Aa = class {
+  PLAYER_RADIUS = 0.55,
+  MAX_PLAYER_BULLETS = 420,
+  MAX_ENEMY_BULLETS = 360,
+  blastSources = { nova: "nova", inferno: "inferno", pop: "pop", bomber: "pop", payload: "payload", rocket: "weapon" },
+  World = class {
     constructor(t) {
       let e = t.snap || null;
       if (
         ((this.seed = (e ? e.seed : t.seed) >>> 0),
-        (this.weapon = ue[e ? e.weapon : t.weapon] ? (e ? e.weapon : t.weapon) : "pulse"),
-        (this.threat = Lt((e ? e.threat : t.threat) | 0, 0, 5)),
-        (this.tm = Ma(this.threat)),
+        (this.weapon = weaponDefs[e ? e.weapon : t.weapon] ? (e ? e.weapon : t.weapon) : "pulse"),
+        (this.threat = clamp((e ? e.threat : t.threat) | 0, 0, 5)),
+        (this.tm = threatMods(this.threat)),
         (this.ws = { ...(t.ws || {}) }),
         (this.up = e ? { ...e.up } : {}),
         (this.wave = e ? e.wave : 1),
@@ -58,20 +58,20 @@ var rlStep = 1 / 60,
       )
         for (let n in e.dmgSrc) Number.isFinite(e.dmgSrc[n]) && (this.dmgSrc[n] = e.dmgSrc[n]);
       if (
-        ((this.route = fu(qi(Yi(this.seed + ":route")))),
+        ((this.route = planBiomeRoute(makeRng(hashString(this.seed + ":route")))),
         (this.combo = 0),
         (this.comboT = 0),
         (this.trails = []),
         (this.hold = !1),
         (this.nextId = 1),
         (this.fx = []),
-        (this.stats = nr(this.weapon, this.up, this.ws)),
+        (this.stats = computeStats(this.weapon, this.up, this.ws)),
         (this.player = {
           x: 0,
           y: 2,
           vx: 0,
           vy: 0,
-          r: zp,
+          r: PLAYER_RADIUS,
           hp: this.stats.maxHp,
           face: -Math.PI / 2,
           aim: -Math.PI / 2,
@@ -102,7 +102,7 @@ var rlStep = 1 / 60,
           acidT: 0,
           inAcid: !1,
         }),
-        e && (this.player.hp = Lt(e.hp, 1, this.stats.maxHp)),
+        e && (this.player.hp = clamp(e.hp, 1, this.stats.maxHp)),
         (this.chronoT = 0),
         (this.offer = null),
         (this.offerBoss = !1),
@@ -111,7 +111,7 @@ var rlStep = 1 / 60,
         this.startWave(this.wave, e ? e.nova : null),
         e && Array.isArray(e.offer))
       ) {
-        let n = e.offer.filter((s) => ri[s]);
+        let n = e.offer.filter((s) => upgradesById[s]);
         ((this.fx.length = 0),
           (this.plan = []),
           (this.planIdx = 0),
@@ -125,10 +125,11 @@ var rlStep = 1 / 60,
       return ((e = e || {}), (e.k = t), this.fx.push(e), e);
     }
     startWave(t, e) {
-      ((this.wave = t), (this.rng = qi(Yi(this.seed + ":" + t))));
+      ((this.wave = t), (this.rng = makeRng(hashString(this.seed + ":" + t))));
       let n = this.biomeFor(t),
-        s = Su(n, this.seed, t, t === 1 || !!this.bossFor(t));
-      ((!this.arena || this.arena.key !== s.key) && ((this.arena = new Sa(n, s)), (this.hash = new wa(s.W, s.H, 2.5))),
+        s = buildLayout(n, this.seed, t, t === 1 || !!this.bossFor(t));
+      ((!this.arena || this.arena.key !== s.key) &&
+        ((this.arena = new Arena(n, s)), (this.hash = new SpatialHash(s.W, s.H, 2.5))),
         (this.enemies = []),
         (this.pb = []),
         (this.eb = []),
@@ -159,10 +160,10 @@ var rlStep = 1 / 60,
         (this.stragglerT = 0));
       let o = this.bossFor(t);
       ((this.event = this.eventFor(t)), (this.rainT = 1.5), (this.champion = null));
-      let c = qi(Yi(this.seed + ":champ:" + t));
+      let c = makeRng(hashString(this.seed + ":champ:" + t));
       ((this.championPending =
         !o && !this.event && t >= 3 && (t - 1) % 5 >= 2 && c.chance(0.4) ? this.championType(n.id, t, c) : null),
-        (this.plan = _u(this.rng, t, this.tm, !!o, this.event ? $i[this.event].plan : {})),
+        (this.plan = planWave(this.rng, t, this.tm, !!o, this.event ? waveEvents[this.event].plan : {})),
         (this.planIdx = 0),
         (this.planTotal = this.plan.reduce((h, l) => h + l.members.length, 0)),
         (this.groupT = 1.1),
@@ -180,13 +181,13 @@ var rlStep = 1 / 60,
           void: ["striker", "brute"],
           marsh: ["splitter", "brute"],
         }[t] || ["grunt"]
-      ).filter((a) => Ae[a].from <= e);
+      ).filter((a) => enemyDefs[a].from <= e);
       return r.length ? n.pick(r) : "grunt";
     }
     eventFor(t) {
       let e = (r) => r >= 3 && !this.bossFor(r) && (r - 1) % 5 !== 0,
-        n = (r) => qi(Yi(this.seed + ":event:" + r));
-      if (!e(t) || n(t).next() >= Jl || (e(t - 1) && n(t - 1).next() < Jl)) return null;
+        n = (r) => makeRng(hashString(this.seed + ":event:" + r));
+      if (!e(t) || n(t).next() >= EVENT_CHANCE || (e(t - 1) && n(t - 1).next() < EVENT_CHANCE)) return null;
       let s = n(t);
       return (s.next(), ["elite", "rain"][Math.floor(s.next() * 2)]);
     }
@@ -194,10 +195,10 @@ var rlStep = 1 / 60,
       let e = Math.max(1, t) - 1,
         n = Math.floor(e / this.route.length),
         s = (e + n) % this.route.length;
-      return du[this.route[s]] || ii[0];
+      return biomesById[this.route[s]] || biomeList[0];
     }
     bossFor(t) {
-      return t % 5 !== 0 ? null : uu[t] || Kl[(t / 5 - 1) % Kl.length];
+      return t % 5 !== 0 ? null : bossByWave[t] || bossOrder[(t / 5 - 1) % bossOrder.length];
     }
     isFinalWave() {
       return !this.endless && this.wave >= 20;
@@ -238,14 +239,14 @@ var rlStep = 1 / 60,
     }
     choose(t) {
       if (this.state !== "choose" || !this.offer || !this.offer.includes(t)) return !1;
-      let e = ri[t],
+      let e = upgradesById[t],
         n = this.player,
         s = this.stats.maxHp;
       return (
         (this.up[t] = (this.up[t] || 0) + 1),
         e.rarity === 4 && this.legendaries++,
         e.rarity === 5 && this.evolved++,
-        (this.stats = nr(this.weapon, this.up, this.ws)),
+        (this.stats = computeStats(this.weapon, this.up, this.ws)),
         t === "hp" && (n.hp = Math.min(this.stats.maxHp, n.hp + 20 + (this.stats.maxHp - s - 20))),
         t === "heal" && (n.hp = Math.min(this.stats.maxHp, n.hp + this.stats.maxHp * 0.45)),
         (n.hp = Math.min(n.hp, this.stats.maxHp)),
@@ -262,7 +263,16 @@ var rlStep = 1 / 60,
     }
     makeOffer(t = []) {
       let e = 3 + ((this.ws.insight || 0) > 0 ? 1 : 0);
-      return pu(this.rng, this.up, this.wave, this.player.hp / this.stats.maxHp, e, this.offerBoss, t, this.weapon);
+      return rollUpgradeOffer(
+        this.rng,
+        this.up,
+        this.wave,
+        this.player.hp / this.stats.maxHp,
+        e,
+        this.offerBoss,
+        t,
+        this.weapon,
+      );
     }
     continueEndless() {
       this.state === "victory" &&
@@ -291,7 +301,7 @@ var rlStep = 1 / 60,
           !a.dead &&
             ((this._src = a.type),
             (this._var = a.variant || null),
-            a.boss ? vu(this, a, s) : mu(this, a, s),
+            a.boss ? updateBoss(this, a, s) : updateEnemy(this, a, s),
             (a.variant || a.champion) && this.variantTick(a, s),
             this.moveEnemy(a, s)));
       }
@@ -472,14 +482,14 @@ var rlStep = 1 / 60,
         let d = this.arena.ice.length && this.arena.onIce(n.x, n.y);
         ((n.onIce = !!d), n.slowT > 0 && (n.slowT -= t));
         // 2.4.0: a biome can set its own floor grip (Cryo Vault: the whole floor is slick)
-        let f = vn(d ? 2.4 : this.arena.biome.grip || 16, t),
+        let f = dampFactor(d ? 2.4 : this.arena.biome.grip || 16, t),
           p = s.speed * (d ? 1.12 : 1) * (n.slowT > 0 ? 0.65 : 1);
         ((n.vx += (r * p - n.vx) * f), (n.vy += (a * p - n.vy) * f));
       }
       ((n.x += n.vx * t),
         (n.y += n.vy * t),
         this.arena.resolve(n, n.r),
-        n.moving && n.dashT <= 0 && (n.face = Ne(n.face, Math.atan2(a, r), 14 * t)));
+        n.moving && n.dashT <= 0 && (n.face = turnToward(n.face, Math.atan2(a, r), 14 * t)));
       let c = !!e.aim && Math.hypot(+e.ax || 0, +e.ay || 0) > 0.2,
         h = null;
       if (c) ((h = Math.atan2(e.ay, e.ax)), e.assist !== !1 && (h = this.assistAim(h)), (n.target = null));
@@ -488,7 +498,7 @@ var rlStep = 1 / 60,
         ((n.target = d), d && (h = Math.atan2(d.y - n.y, d.x - n.x)));
       }
       let l = c || (!!e.fire && h != null) || (!!e.auto && h != null && n.target != null);
-      (h != null ? (n.aim = Ne(n.aim, h, 30 * t)) : n.moving && (n.aim = Ne(n.aim, n.face, 8 * t)),
+      (h != null ? (n.aim = turnToward(n.aim, h, 30 * t)) : n.moving && (n.aim = turnToward(n.aim, n.face, 8 * t)),
         (n.firing = l),
         (n.manual = c));
       let u = s.weapon.rate * s.rateMul * (1 + (s.bloodrush ? 0.04 * n.rushN : 0));
@@ -510,7 +520,7 @@ var rlStep = 1 / 60,
           c = a.y - e.y,
           h = Math.hypot(o, c);
         if (h > r) continue;
-        let l = Math.abs(er(t, Math.atan2(c, o))),
+        let l = Math.abs(angleDiff(t, Math.atan2(c, o))),
           u = Math.min(0.35, 0.12 + Math.atan2(a.r, h));
         l < u && l < s + (0.05 * h) / r && ((n = a), (s = l));
       }
@@ -541,7 +551,7 @@ var rlStep = 1 / 60,
       e.shotN = (e.shotN || 0) + 1;
       let h = n.overdrive && e.shotN % 4 === 0,
         l = (u, d) => {
-          if (this.pb.length >= ic) return;
+          if (this.pb.length >= MAX_PLAYER_BULLETS) return;
           let f = (this.rng.next() - 0.5) * 2 * s.spread,
             p = u + f,
             x = s.speed * n.velMul * (s.cone ? 0.85 + this.rng.next() * 0.3 : 1),
@@ -642,7 +652,7 @@ var rlStep = 1 / 60,
       );
     }
     spawnEnemy(t, e, n, s = {}) {
-      let r = Ae[t],
+      let r = enemyDefs[t],
         a = !!s.elite,
         o = r.hp * this.hpMul * (a ? 3.2 : 1) * (s.hpF || 1),
         c = {
@@ -682,7 +692,7 @@ var rlStep = 1 / 60,
           losT: this.rng.next() * 0.25,
           parent: s.parent || 0,
           kids: 0,
-          phase: this.rng.next() * Me,
+          phase: this.rng.next() * TAU,
           noDrop: !!s.noDrop,
           affix: null,
           shield: 0,
@@ -695,7 +705,7 @@ var rlStep = 1 / 60,
         (c.speed *= 0.9),
         (c.dmg *= 1.2),
         (c.spawnT = 0.8));
-      let h = cu[this.arena.biome.id];
+      let h = biomeVariants[this.arena.biome.id];
       return (
         h &&
           h.types.includes(t) &&
@@ -717,7 +727,7 @@ var rlStep = 1 / 60,
       );
     }
     spawnBoss(t) {
-      let e = en[t],
+      let e = bossDefs[t],
         n = this.endless ? 1 + Math.floor((this.wave - 20) / 5) * 0.55 : 1,
         s = e.hp * this.tm.boss * 0.9 * n * (1 + (this.wave > 20 ? (this.wave - 20) * 0.08 : 0)),
         r = this.arena,
@@ -765,7 +775,7 @@ var rlStep = 1 / 60,
         };
       return (
         this.player.y < 0 && (a.y = r.H - 5),
-        yu(this, a),
+        initBoss(this, a),
         this.enemies.push(a),
         (this.boss = a),
         this.emit("boss", { id: t, name: e.name, title: e.title }),
@@ -820,14 +830,14 @@ var rlStep = 1 / 60,
         s = t.vx,
         r = t.vy;
       if (this.arena.ice.length && !t.boss && this.arena.onIce(t.x, t.y)) {
-        let o = vn(2.2, e);
+        let o = dampFactor(2.2, e);
         ((t.svx = (t.svx ?? s) + (s - (t.svx ?? s)) * o),
           (t.svy = (t.svy ?? r) + (r - (t.svy ?? r)) * o),
           (s = t.svx),
           (r = t.svy));
       } else ((t.svx = s), (t.svy = r));
       ((t.x += (s * n + t.kx) * e), (t.y += (r * n + t.ky) * e));
-      let a = vn(7, e);
+      let a = dampFactor(7, e);
       ((t.kx -= t.kx * a), (t.ky -= t.ky * a), (t.hitWall = this.arena.resolve(t, t.r)));
     }
     separate() {
@@ -952,7 +962,8 @@ var rlStep = 1 / 60,
         }
       }
       if (!t.noDrop) {
-        let n = (t.boss ? e.shards : e.shards * (t.elite ? 4 : 1) * 0.4) * (this.event ? $i[this.event].shardMul : 1);
+        let n =
+          (t.boss ? e.shards : e.shards * (t.elite ? 4 : 1) * 0.4) * (this.event ? waveEvents[this.event].shardMul : 1);
         this.dropShards(t.x, t.y, n);
         let s = this.player.hp / this.stats.maxHp,
           r = t.boss ? 1 : t.elite ? 0.5 : s < 0.5 ? 0.045 : 0.02;
@@ -963,7 +974,7 @@ var rlStep = 1 / 60,
         t.type === "splitter")
       )
         for (let n = 0; n < 3; n++) {
-          let s = (n / 3) * Me + this.rng.next(),
+          let s = (n / 3) * TAU + this.rng.next(),
             r = this.spawnEnemy("mite", t.x + Math.cos(s) * 0.6, t.y + Math.sin(s) * 0.6, {
               elite: t.elite,
               noDrop: !1,
@@ -1019,7 +1030,7 @@ var rlStep = 1 / 60,
     }
     addCombo() {
       (this.combo++, (this.comboT = 2.2), this.combo > this.bestCombo && (this.bestCombo = this.combo));
-      for (let [t, e] of hu) this.combo === t && ((this.shards += e), this.emit("combo", { n: t, bonus: e }));
+      for (let [t, e] of comboRewards) this.combo === t && ((this.shards += e), this.emit("combo", { n: t, bonus: e }));
     }
     dropShards(t, e, n) {
       for (
@@ -1036,7 +1047,7 @@ var rlStep = 1 / 60,
       }
     }
     mkPickup(t, e, n, s) {
-      let r = this.rng.next() * Me,
+      let r = this.rng.next() * TAU,
         a = 2 + this.rng.next() * 4;
       return {
         kind: t,
@@ -1057,7 +1068,7 @@ var rlStep = 1 / 60,
           this.hash.query(t, e, n, (a) => {
             if (
               !(a.dead || Math.hypot(a.x - t, a.y - e) > n + a.r) &&
-              (this.hurtEnemy(a, s, a.x - t, a.y - e, r.knock || 3, !1, Gp[r.kind] || "weapon"),
+              (this.hurtEnemy(a, s, a.x - t, a.y - e, r.knock || 3, !1, blastSources[r.kind] || "weapon"),
               r.burn && !a.dead && !a.shielded && !a.ghost)
             ) {
               let c = a.burnT > 0 ? a.burnDps : 0;
@@ -1109,7 +1120,7 @@ var rlStep = 1 / 60,
               r.life = 0;
               continue;
             }
-            let M = vn(9, t),
+            let M = dampFactor(9, t),
               b = r.sp * 1.15;
             ((r.vx += ((x / g) * b - r.vx) * M), (r.vy += ((m / g) * b - r.vy) * M));
           } else r.homing > 0 && r.age > 0.05 && this.home(r, t);
@@ -1144,13 +1155,14 @@ var rlStep = 1 / 60,
             continue;
           }
           ((r.life = 0),
-            (r.bomblet || r.w === "rocket" || ue[r.w]?.explode || (e.payloadR && !r.drag)) && this.bulletBurst(r, null),
+            (r.bomblet || r.w === "rocket" || weaponDefs[r.w]?.explode || (e.payloadR && !r.drag)) &&
+              this.bulletBurst(r, null),
             r.drag || this.emit("spark", { x: r.x, y: r.y, w: r.w }));
           continue;
         }
         let d = Math.hypot(r.vx, r.vy) * t,
           f = d > 0.5 ? Math.ceil(d / 0.5) : 1,
-          p = !!ue[r.w].rail;
+          p = !!weaponDefs[r.w].rail;
         for (let x = 0; x < f && r.life > 0; x++) {
           let m = f > 1 ? (x + 1) / f - 1 : 0,
             g = r.x + r.vx * t * m,
@@ -1163,7 +1175,7 @@ var rlStep = 1 / 60,
             if (b.type === "bulwark" && !p && b.guardDown <= 0 && !r.hits.includes(b.id)) {
               let R = Math.hypot(v, S),
                 _ = b.r + 0.75 + r.r;
-              if (R < _ && Math.abs(er(b.face, Math.atan2(-S, -v))) < 1.15) {
+              if (R < _ && Math.abs(angleDiff(b.face, Math.atan2(-S, -v))) < 1.15) {
                 let E = b.x + Math.cos(b.face) * (b.r + 0.45),
                   C = b.y + Math.sin(b.face) * (b.r + 0.45);
                 return (
@@ -1172,7 +1184,7 @@ var rlStep = 1 / 60,
                     : r.drag
                       ? (r.hits.push(b.id), r.pierce-- <= 0 && (r.life = 0))
                       : ((r.life = 0),
-                        (r.w === "rocket" || r.bomblet || ue[r.w]?.explode || e.payloadR) &&
+                        (r.w === "rocket" || r.bomblet || weaponDefs[r.w]?.explode || e.payloadR) &&
                           ((r.x = E), (r.y = C), this.bulletBurst(r, null))),
                   (b.guard -= r.dmg),
                   (b.guardFlash = 1),
@@ -1199,18 +1211,18 @@ var rlStep = 1 / 60,
           let h = c.x - t.x,
             l = c.y - t.y,
             u = Math.hypot(h, l);
-          u > s || Math.abs(er(r, Math.atan2(l, h))) > 1.3 || ((s = u), (n = c));
+          u > s || Math.abs(angleDiff(r, Math.atan2(l, h))) > 1.3 || ((s = u), (n = c));
         }),
         !n)
       )
         return;
-      let a = Ne(r, Math.atan2(n.y - t.y, n.x - t.x), t.homing * e),
+      let a = turnToward(r, Math.atan2(n.y - t.y, n.x - t.x), t.homing * e),
         o = Math.hypot(t.vx, t.vy);
       ((t.vx = Math.cos(a) * o), (t.vy = Math.sin(a) * o), (t.a = a));
     }
     bulletHit(t, e) {
       let n = this.stats,
-        s = ue[t.w],
+        s = weaponDefs[t.w],
         r = this.rng.chance(n.crit),
         a = t.dmg * (r ? n.critMul : 1);
       (t.hits.push(e.id),
@@ -1232,7 +1244,10 @@ var rlStep = 1 / 60,
       if (
         (n.chain && this.chainFrom(e, n.chain, a * n.chainF, t.hits),
         n.arc && this.rng.chance(n.arc * (t.drag ? 0.25 : 1)) && this.chainFrom(e, n.arcJumps, a * 0.6, t.hits, "arc"),
-        (t.bomblet || t.w === "rocket" || ue[t.w]?.explode || (n.payloadR && (!t.drag || this.rng.chance(0.2)))) &&
+        (t.bomblet ||
+          t.w === "rocket" ||
+          weaponDefs[t.w]?.explode ||
+          (n.payloadR && (!t.drag || this.rng.chance(0.2)))) &&
           this.bulletBurst(t, e),
         t.bounce > 0)
       ) {
@@ -1267,7 +1282,7 @@ var rlStep = 1 / 60,
     }
     bulletBurst(t, e) {
       let n = this.stats,
-        s = ue[t.w],
+        s = weaponDefs[t.w],
         r = e ? e.x : t.x,
         a = e ? e.y : t.y;
       if (t.bomblet) {
@@ -1294,8 +1309,8 @@ var rlStep = 1 / 60,
     }
     bomblets(t, e, n) {
       for (let s = 0; s < 3; s++) {
-        if (this.pb.length >= ic) return;
-        let r = this.rng.next() * Me;
+        if (this.pb.length >= MAX_PLAYER_BULLETS) return;
+        let r = this.rng.next() * TAU;
         this.pb.push({
           id: this.nextId++,
           x: t,
@@ -1324,7 +1339,7 @@ var rlStep = 1 / 60,
           if (((s.life -= t), (s.age += t), s.homing && s.age > 0.3 && s.age < 2.4 && e.alive)) {
             let r = Math.atan2(s.vy, s.vx),
               a = Math.hypot(s.vx, s.vy),
-              o = Ne(r, Math.atan2(e.y - s.y, e.x - s.x), s.homing * t);
+              o = turnToward(r, Math.atan2(e.y - s.y, e.x - s.x), s.homing * t);
             ((s.vx = Math.cos(o) * a), (s.vy = Math.sin(o) * a));
           }
           if (
@@ -1351,7 +1366,7 @@ var rlStep = 1 / 60,
         }
     }
     shoot(t, e, n, s, r, a = {}) {
-      if (this.eb.length >= Hp) return null;
+      if (this.eb.length >= MAX_ENEMY_BULLETS) return null;
       let o = {
         x: t,
         y: e,
@@ -1378,7 +1393,7 @@ var rlStep = 1 / 60,
         r = this.stats.orbitDmg * this.stats.dmgMul,
         a = 0.6 * this.stats.bladeScale;
       for (let o = 0; o < e; o++) {
-        let c = this.time * 3.3 + (o * Me) / e,
+        let c = this.time * 3.3 + (o * TAU) / e,
           h = n.x + Math.cos(c) * s,
           l = n.y + Math.sin(c) * s;
         this.hash.query(h, l, a, (u) => {
@@ -1400,7 +1415,7 @@ var rlStep = 1 / 60,
       if (!e) return;
       let n = this.player;
       for (; n.wings.length < e; ) n.wings.push({ x: n.x, y: n.y, t: n.wings.length * 0.2 });
-      let s = vn(6, t);
+      let s = dampFactor(6, t);
       for (let r = 0; r < e; r++) {
         let a = n.wings[r],
           o = [2.3, -2.3, 1.3, -1.3][r] ?? 2.3,
@@ -1418,7 +1433,7 @@ var rlStep = 1 / 60,
         a.t = this.stats.wingman > 1 ? 0.3 : 0.5;
         let d = Math.atan2(l.y - a.y, l.x - a.x),
           f = this.stats.wingSpread;
-        for (let p = 0; p < f && !(this.pb.length >= ic); p++) {
+        for (let p = 0; p < f && !(this.pb.length >= MAX_PLAYER_BULLETS); p++) {
           let x = d + (p - (f - 1) / 2) * 0.16;
           this.pb.push({
             id: this.nextId++,
@@ -1472,7 +1487,7 @@ var rlStep = 1 / 60,
             o = r - n.y,
             c = a * a + o * o,
             h = ((e.x - n.x) * a + (e.y - n.y) * o) / c;
-          h = Lt(h, 0, 1);
+          h = clamp(h, 0, 1);
           let l = n.x + a * h,
             u = n.y + o * h,
             d = n.w * 0.5 + e.r * 0.7;
@@ -1545,8 +1560,8 @@ var rlStep = 1 / 60,
           a.pull && (e.alive || this.state !== "dead"))
         ) {
           let u = 9 + a.t * 10 + (s ? 14 : 0);
-          ((a.vx += ((o / h) * u - a.vx) * vn(9, t)), (a.vy += ((c / h) * u - a.vy) * vn(9, t)));
-        } else ((a.vx *= 1 - vn(4, t)), (a.vy *= 1 - vn(4, t)));
+          ((a.vx += ((o / h) * u - a.vx) * dampFactor(9, t)), (a.vy += ((c / h) * u - a.vy) * dampFactor(9, t)));
+        } else ((a.vx *= 1 - dampFactor(4, t)), (a.vy *= 1 - dampFactor(4, t)));
         if (
           ((a.x += a.vx * t), (a.y += a.vy * t), a.pull || this.arena.resolve(a, 0.2), h < e.r + 0.35 && e.alive && !l)
         ) {
@@ -1605,7 +1620,7 @@ var rlStep = 1 / 60,
       for (let c = 0; c < s.members.length; c++) {
         let h = a.x,
           l = a.y,
-          u = this.rng.next() * Me + c * 2.399963;
+          u = this.rng.next() * TAU + c * 2.399963;
         for (let d = 0; d < 12; d++) {
           let f =
               0.55 + Math.min(1.7, 1 + s.members.length * 0.12) * Math.sqrt((c + 0.6) / Math.max(1, s.members.length)),
@@ -1678,15 +1693,15 @@ function rlCacheShards(w, v) {
 /* 2.3.5: Armor Core absorbs part of the damage from enemies. Lava and acid are left to
    Hazard Seal, so the two modules do not stack on the same damage. */
 const RL_HAZARD_SRC = new Set(["lava", "acid"]);
-const _rlHurtArmor = Aa.prototype.hurtPlayer;
-Aa.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
+const _rlHurtArmor = World.prototype.hurtPlayer;
+World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
   const armor = Math.min(0.5, this.stats.armor || 0);
   return _rlHurtArmor.call(this, armor > 0 && !RL_HAZARD_SRC.has(src) ? dmg * (1 - armor) : dmg, x, y, src, chip);
 };
 
 /* Prototype hooks keep new systems additive and preserve the original class implementation. */
-const _rlStartWave = Aa.prototype.startWave;
-Aa.prototype.startWave = function (wave, nova) {
+const _rlStartWave = World.prototype.startWave;
+World.prototype.startWave = function (wave, nova) {
   _rlStartWave.call(this, wave, nova);
   if (nova == null && this.stats.novaStart > 0)
     this.player.nova = Math.min(100, this.player.nova + this.stats.novaStart);
@@ -1698,7 +1713,7 @@ Aa.prototype.startWave = function (wave, nova) {
     const count = wave % 6 === 0 ? 2 : 1;
     for (let i = 0; i < count; i++) {
       const p = this.arena.freePoint(
-        qi(Yi(this.seed + ":cache:" + wave + ":" + i)),
+        makeRng(hashString(this.seed + ":cache:" + wave + ":" + i)),
         this.player.x,
         this.player.y,
         6.2,
@@ -1721,7 +1736,7 @@ Aa.prototype.startWave = function (wave, nova) {
     (mode === "cache-run" ? 2 : 0) +
     (mode === "salvage" ? 2 : 0) +
     (wave % 9 === 0 ? 1 : 0);
-  const cacheRng = qi(Yi(this.seed + ":cache22:" + wave));
+  const cacheRng = makeRng(hashString(this.seed + ":cache22:" + wave));
   for (let i = 0; i < extra; i++) {
     const p = this.arena.freePoint(cacheRng, this.player.x, this.player.y, 6.2, 0.35);
     if (!p) continue;
@@ -1748,7 +1763,7 @@ Aa.prototype.startWave = function (wave, nova) {
       turbulence: ["sentinel", "drone", "weaver"],
       fortress: ["driller", "bulwark", "beacon"],
     }[mode] || [];
-  const avail = bonusPool.filter((id) => Ae[id] && wave >= Ae[id].from);
+  const avail = bonusPool.filter((id) => enemyDefs[id] && wave >= enemyDefs[id].from);
   if (wave >= 18 && avail.length) {
     const members = [{ type: cacheRng.pick(avail), elite: !1 }];
     if (wave >= 30 && cacheRng.chance(0.45)) members.push({ type: cacheRng.pick(avail), elite: !1 });
@@ -1756,8 +1771,8 @@ Aa.prototype.startWave = function (wave, nova) {
     this.planTotal += members.length;
   }
 };
-const _rlKillEnemy = Aa.prototype.killEnemy;
-Aa.prototype.killEnemy = function (enemy) {
+const _rlKillEnemy = World.prototype.killEnemy;
+World.prototype.killEnemy = function (enemy) {
   const before = this.kills;
   _rlKillEnemy.call(this, enemy);
   if (enemy?.boss || this.kills <= before || !this.player.alive) return;
@@ -1777,13 +1792,13 @@ Aa.prototype.killEnemy = function (enemy) {
     this.emit("supplyDrop", { x: enemy.x, y: enemy.y, amount });
   }
 };
-const _rlHurtEnemy = Aa.prototype.hurtEnemy;
-Aa.prototype.hurtEnemy = function (enemy, dmg, dx, dy, knock, crit, src) {
+const _rlHurtEnemy = World.prototype.hurtEnemy;
+World.prototype.hurtEnemy = function (enemy, dmg, dx, dy, knock, crit, src) {
   const mul = enemy && (enemy.elite || enemy.boss) ? this.stats.eliteMul || 1 : 1;
   return _rlHurtEnemy.call(this, enemy, dmg * mul, dx, dy, knock, crit, src);
 };
-const _rlChampionType = Aa.prototype.championType;
-Aa.prototype.championType = function (biome, wave, rng) {
+const _rlChampionType = World.prototype.championType;
+World.prototype.championType = function (biome, wave, rng) {
   // 2.4.0: the pack biomes are gone; the five biomes also draw champions from the later enemies
   const special = {
     works: ["brute", "grunt", "charger", "minebot", "driller"],
@@ -1792,13 +1807,13 @@ Aa.prototype.championType = function (biome, wave, rng) {
     marsh: ["splitter", "brute", "sapper", "carrier"],
   }[biome];
   if (special) {
-    const valid = special.filter((id) => Ae[id] && Ae[id].from <= wave);
+    const valid = special.filter((id) => enemyDefs[id] && enemyDefs[id].from <= wave);
     if (valid.length) return rng.pick(valid);
   }
   return _rlChampionType.call(this, biome, wave, rng);
 };
-const _rlFire21 = Aa.prototype.fire;
-Aa.prototype.fire = function (angle) {
+const _rlFire21 = World.prototype.fire;
+World.prototype.fire = function (angle) {
   const echoing = !!this._rl21Echoing;
   _rlFire21.call(this, angle);
   if (echoing || this.state !== "fight" || !this.player.alive) return;
@@ -1821,12 +1836,12 @@ Aa.prototype.fire = function (angle) {
     }
   }
 };
-Aa.prototype.biomeFor = function (wave) {
+World.prototype.biomeFor = function (wave) {
   const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
-  return du[this.route[cycle % this.route.length]] || ii[0];
+  return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
 };
-const _rlStartWave240 = Aa.prototype.startWave;
-Aa.prototype.startWave = function (wave, nova) {
+const _rlStartWave240 = World.prototype.startWave;
+World.prototype.startWave = function (wave, nova) {
   set_RL_BIOME_MIX_CUR(RL_BIOME_INFO[this.biomeFor(wave).id]?.mix || null);
   try {
     return _rlStartWave240.call(this, wave, nova);
@@ -1835,10 +1850,10 @@ Aa.prototype.startWave = function (wave, nova) {
   }
 };
 (() => {
-  const baseStep = Aa.prototype.step,
-    baseHurt = Aa.prototype.hurtPlayer,
-    baseKill = Aa.prototype.killEnemy;
-  Aa.prototype.step = function (dt, input) {
+  const baseStep = World.prototype.step,
+    baseHurt = World.prototype.hurtPlayer,
+    baseKill = World.prototype.killEnemy;
+  World.prototype.step = function (dt, input) {
     const st = this.stats,
       base = st.rateMul || 1;
     st.rateMul =
@@ -1849,7 +1864,7 @@ Aa.prototype.startWave = function (wave, nova) {
       st.rateMul = base;
     }
   };
-  Aa.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
+  World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
     const st = this.stats,
       low = this.player.hp <= st.maxHp * 0.35;
     return baseHurt.call(
@@ -1863,7 +1878,7 @@ Aa.prototype.startWave = function (wave, nova) {
       chip,
     );
   };
-  Aa.prototype.killEnemy = function (enemy) {
+  World.prototype.killEnemy = function (enemy) {
     const before = this.kills;
     const out = baseKill.call(this, enemy);
     const lv = this.stats.scavenger || 0,
@@ -1877,4 +1892,4 @@ Aa.prototype.startWave = function (wave, nova) {
   };
 })();
 
-export { Aa, rlStep };
+export { World, rlStep };
