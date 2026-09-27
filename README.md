@@ -64,7 +64,7 @@ of the full QA. Before a release run
 
 ```
 src/
-  game.js          the whole game: game code + three.js r186 in one file
+  game.js          the game code (one file); imports three.js from npm
   index.html       page shell, all CSS, device detection, layout audit
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)
@@ -80,7 +80,8 @@ CLAUDE.md          short working rules for Claude Code sessions in this reposito
 
 Riftline was released as one minified bundle (game code and three.js, built with esbuild) and then
 patched by hand for several releases. The module sources the bundle was built from are not part of
-the release. `src/game.js` is that bundle, formatted with Prettier, and `build.js` minifies it again:
+the release. `src/game.js` is the game code of that bundle, formatted with Prettier. `build.js`
+bundles it with three.js from `node_modules` and minifies the result:
 
 - Names from the original build are still minified (`ft` is the game, `Ft` the UI, `ee` the save
   store, `oe` the renderer, `Aa` the simulation world, `ue` the weapons, `Ae` the enemies, `ri` the
@@ -89,7 +90,12 @@ the release. `src/game.js` is that bundle, formatted with Prettier, and `build.j
 - The content packs 2.0–2.2 and every later fix hook into the original classes by wrapping
   prototype methods (`const base = Aa.prototype.startWave; Aa.prototype.startWave = function …`).
   New fixes should follow that pattern and say which version added them.
-- three.js r186 sits in the middle of the file (roughly lines 9 800–34 100). Do not edit it.
+- three.js is the npm package `three`, pinned to 0.186.0 (r186) in `package.json`. Until 2.4.2 it
+  was embedded in `src/game.js`; 2.4.3 replaced it with the package. The `import` at the top of
+  `src/game.js` maps the short names the game code uses (`Ct`, `De`, `I` …) to the three.js
+  classes (`BoxGeometry`, `SphereGeometry`, `Vector3` …). A three.js class the game did not use
+  before needs a new entry there. Updating three.js means changing the version in `package.json`,
+  running `npm install` and the full release checks.
 - `window.__riftTest` exposes the game, UI, store, renderer and data tables for the tests.
 
 ### Versions
@@ -129,6 +135,7 @@ to the game.
 ## Known limits and ideas
 
 - Automated tests run only in Chromium. Firefox and Safari are checked by hand.
-- A real module structure (like Riftdeck's `src/core`, `render`, `ui`) with three.js from npm would
-  make larger changes much easier. The deep test, world audit and full QA are the safety net for
-  such a refactor.
+- A real module structure (like Riftdeck's `src/core`, `render`, `ui`) would make larger changes
+  much easier. The first step is done (three.js from npm since 2.4.3). Next: move the readable
+  2.x additions into their own modules, then split and rename the original classes. The deep
+  test, world audit and full QA are the safety net for this refactor.

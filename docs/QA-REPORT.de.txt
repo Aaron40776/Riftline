@@ -1,3 +1,59 @@
+RIFTLINE v2.4.3 – THREE.JS AUS NPM (UMBAU, SCHRITT 1)
+Basis: v2.4.2 · Build r243a0927n-r1 · 27.09.2026
+
+Gewünscht: Umbau hin zu einer Modulstruktur beginnen, damit spätere Änderungen leichter werden.
+Schritt 1: three.js als npm-Paket statt eingebettet in src/game.js. Für Spieler ändert sich
+nichts.
+
+1) Prüfung vor dem Umbau: Ist der eingebettete three.js-Code unverändert?
+   - Der eingebettete Block liegt in den Zeilen 8926–32616 (nicht 9 800–34 100 wie bisher in
+     README und CLAUDE.md; davor und dahinter steht Spielcode).
+   - Abgleich mit three@0.186.0 aus npm (mit esbuild gebündelt): Jede der 874 Deklarationen im
+     Block stimmt strukturell mit einer Deklaration aus three.js überein (Bezeichner
+     normalisiert, sonst identisch). Die Zuordnung der Kurznamen ist vollständig, eindeutig und
+     an jeder Verwendungsstelle widerspruchsfrei. Der Block ist also unverändertes three.js
+     r186 (nur ungenutzte Teile fehlten, wie beim Bündeln üblich).
+   - Der Spielcode nutzt 46 three.js-Namen, alle öffentlich exportiert (z. B. Ct = BoxGeometry,
+     De = SphereGeometry, I = Vector3, Il = WebGLRenderer). Er überschreibt keinen davon, und
+     three.js verweist nie auf Spielcode.
+
+2) Umbau
+   - src/game.js: Block entfernt, oben ein import aus "three", der die 46 Kurznamen den
+     three.js-Klassen zuordnet. 39 769 → 16 129 Zeilen. Der Spielcode selbst ist unverändert.
+   - package.json: three 0.186.0 (exakt) als Abhängigkeit, package-lock.json mitgezogen.
+   - build.js: esbuild bündelt src/game.js mit three.js (build statt transform), weiterhin eine
+     IIFE-Datei game-v<Version>-final.js, gleiche Platzhalter und gleicher Versionsvertrag.
+   - Spieldatei 906 KB statt 903 KB: dieselben three.js-Klassen wie vorher (gleiche is…- und
+     type-Kennungen), die aktuelle esbuild-Version übersetzt nur einige Klassen etwas anders.
+   - README und CLAUDE.md beschreiben die neue Lage; die Zeilenangabe „nicht anfassen“ entfällt.
+
+Offen:
+   - Schritt 2 (die lesbaren 2.x-Ergänzungen in eigene Module) und Schritt 3 (die Originalklassen
+     aufteilen und umbenennen) folgen in eigenen Versionen.
+   - Bildrate auf echten Geräten: sollte gleich sein (gleicher three.js-Code), hier nicht messbar.
+
+3) Nachweis „spielt sich genau wie vorher“
+   - Simulation: alter Build (2.4.2) und neuer Build mit festen Seeds verglichen, 5 Waffen je
+     bis Welle 12 mit einem Bot (rund 108 000 Simulationsschritte): Welle, Schritte, Kills,
+     Splitter, Schaden, HP und gewählte Upgrades sind in beiden Builds identisch.
+   - Darstellung: derselbe three.js-Code (siehe 1); Böden, Biom-Häute (eigene Shader über
+     onBeforeCompile), Menü und alle Bildschirme auf den Screenshots wie vorher, keine
+     Shader-Fehler in der Konsole.
+   - Beim Bot-Run (run-audit) dauerten die Wellen diesmal im Schnitt 51 s statt 20 s. Ursache ist
+     der zufällige Seed pro Run (anderer Wellenplan, andere Upgrades), nicht der Umbau: Die
+     JS-Zeit pro Bild sank sogar (13 statt 25 ms), und der Vergleich mit festen Seeds ist
+     identisch.
+
+Ergebnisse 2.4.3 (headless Chromium, Software-WebGL):
+  full-qa.mjs   251 Prüfungen, 0 Fehler
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok · world-audit 0 Befunde · data-audit ok
+  run-audit     Bot-Run bis Welle 22 inkl. Endlos, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   PC, Handy hoch und quer ohne Fehler; biome-shots alle fünf Biome (Welle und
+                Boss) auf allen drei Profilen, keine Konsolenfehler; angesehen
+
+================================================================================
+
 RIFTLINE v2.4.2 – FEHLERSUCHE UND KOMFORT
 Basis: v2.4.1 · Build r242a0927m-r1 · 27.09.2026
 

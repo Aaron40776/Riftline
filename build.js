@@ -1,5 +1,6 @@
 // Build: turns the readable sources into the deployable game in dist/.
-//   src/game.js       -> dist/game-v<version>-final.js  (minified with esbuild)
+//   src/game.js       -> dist/game-v<version>-final.js  (bundled with three.js from npm and
+//                        minified by esbuild)
 //   src/index.html, src/sw.js, src/build-info.json -> dist/ (placeholders filled in)
 //   public/*          -> dist/ (icons, fonts, manifest; copied as they are)
 // Version and build id live only in package.json ("version", "riftline.build"). The sources use
@@ -50,19 +51,22 @@ async function build() {
   fs.rmSync(DIST, { recursive: true, force: true });
   copyDir(r('public'), DIST);
 
-  // The game is one IIFE (game code + three.js r186). The version constants are plain
-  // identifiers in the source; esbuild swaps them for string literals.
-  const src = fs.readFileSync(r('src/game.js'), 'utf8');
-  const js = await esbuild.transform(src, {
-    loader: 'js',
+  // The game is one IIFE: src/game.js plus the parts of three.js it imports (the package from
+  // node_modules, version pinned in package.json). The version constants are plain identifiers
+  // in the source; esbuild swaps them for string literals. The three.js license is in
+  // public/THIRD-PARTY-NOTICES.txt, so the bundle carries no license comments.
+  await esbuild.build({
+    entryPoints: [r('src/game.js')],
+    outfile: path.join(DIST, m.gameFile),
+    bundle: true,
+    format: 'iife',
     minify: !watch,
     target: 'es2020',
     legalComments: 'none',
     charset: 'utf8',
+    logLevel: 'warning',
     define: { __RL_VERSION__: JSON.stringify(m.version), __RL_BUILD__: JSON.stringify(m.build) },
-    sourcefile: 'game.js',
   });
-  fs.writeFileSync(path.join(DIST, m.gameFile), js.code);
 
   for (const f of ['index.html', 'sw.js', 'build-info.json']) {
     fs.writeFileSync(path.join(DIST, f), fill(fs.readFileSync(r('src', f), 'utf8'), m, f));

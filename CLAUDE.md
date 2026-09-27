@@ -6,9 +6,10 @@ deckbuilder set in the same universe, is a different game in its own repository
 
 README.md explains build, commands, project structure and hosting. Read it first. In short:
 
-- `src/game.js` is the release bundle formatted with Prettier (game code and three.js r186 in one
-  file). Leave three.js alone (roughly lines 9 800–34 100). New fixes wrap prototype methods like
-  the existing ones and say in a comment which version added them.
+- `src/game.js` is the game code of the original release bundle, formatted with Prettier. three.js
+  comes from npm (`three`, pinned to 0.186.0); the `import` at the top of `src/game.js` maps the
+  short names the game uses to three.js classes, and `build.js` bundles both. New fixes wrap
+  prototype methods like the existing ones and say in a comment which version added them.
 - The version and build id exist only in `package.json` (`version`, `riftline.build`). After a
   bump run `npm install` so `package-lock.json` follows.
 - A release also adds its changes at the top of `changes` in `src/build-info.json` and a new

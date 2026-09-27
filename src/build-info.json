@@ -48,9 +48,11 @@
     "optional run timer and FPS counter"
   ],
   "build": "__RL_BUILD__",
-  "reviewed_from": "Riftline v2.4.1",
+  "reviewed_from": "Riftline v2.4.2",
   "generatedAt": "2026-09-27T23:00:00+02:00",
   "changes": [
+    "2.4.3: three.js comes from npm (three 0.186.0, r186) instead of being embedded in src/game.js; the embedded copy was checked to be unmodified r186 first. src/game.js shrinks from 39 769 to 16 129 lines; the game plays exactly as before",
+    "2.4.3: build.js bundles src/game.js with three.js (esbuild bundle instead of transform)",
     "2.4.2: a run that is already lost or won is settled when the page is hidden; closing or reloading in the 1.5 s before the game-over screen used to bring the run back and skip the death",
     "2.4.2: letters are read by their position on the keyboard, so W A S D, E, Q and F sit in the same place on every layout (on AZERTY, Q moved left and fired the Nova as well)",
     "2.4.2: upgrade choice by keyboard — 1–4 pick a card, R rerolls; the cards and the reroll button show the keys",
