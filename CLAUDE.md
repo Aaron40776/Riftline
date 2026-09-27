@@ -15,6 +15,8 @@ README.md explains build, commands, project structure and hosting. Read it first
   section at the top of `docs/QA-REPORT.de.txt` (German, same layout as the earlier ones).
 - Run `npm test` before every commit. Before a release also run `npm run qa`, `npm run e2e`,
   `npm run audit` and `npm run screens`, and look at the screenshots.
+- All changes go through pull requests: work on a branch, open a PR against `main`, and let the
+  owner merge it. Never push to `main` directly.
 - A push to `main` deploys the game to GitHub Pages. Other branches and pull requests only run
   the tests (`.github/workflows/test.yml`).
 - Saves use the `localStorage` keys `riftline.*`. Riftdeck shares the GitHub Pages origin and uses
