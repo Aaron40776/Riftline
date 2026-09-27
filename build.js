@@ -1,6 +1,6 @@
 // Build: turns the readable sources into the deployable game in dist/.
 //   src/game.js       -> dist/game-v<version>-final.js  (minified with esbuild)
-//   src/index.html, src/sw.js, src/build-info.json, src/_headers -> dist/ (placeholders filled in)
+//   src/index.html, src/sw.js, src/build-info.json -> dist/ (placeholders filled in)
 //   public/*          -> dist/ (icons, fonts, manifest; copied as they are)
 // Version and build id live only in package.json ("version", "riftline.build"). The sources use
 // the placeholders __RL_VERSION__, __RL_BUILD__, __RL_VERSION_DASHED__ and __RL_GAME_FILE__.
@@ -64,7 +64,7 @@ async function build() {
   });
   fs.writeFileSync(path.join(DIST, m.gameFile), js.code);
 
-  for (const f of ['index.html', 'sw.js', 'build-info.json', '_headers']) {
+  for (const f of ['index.html', 'sw.js', 'build-info.json']) {
     fs.writeFileSync(path.join(DIST, f), fill(fs.readFileSync(r('src', f), 'utf8'), m, f));
   }
   JSON.parse(fs.readFileSync(path.join(DIST, 'build-info.json'), 'utf8')); // must stay valid JSON

@@ -64,7 +64,6 @@ src/
   index.html       page shell, all CSS, device detection, layout audit
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)
-  _headers         cache headers for hosts that support them (Netlify/Cloudflare style)
 public/            icons, fonts, web manifest, third-party licenses (copied to dist/ unchanged)
 tests/             browser test scripts (Playwright) and real old saves for migration tests
 tools/             build helpers: static server, test runner, sim summary
@@ -108,17 +107,13 @@ Source: GitHub Actions*. Pushes to other branches and pull requests run the same
 deploying (`.github/workflows/test.yml`).
 
 `dist/` is a static site that works in any sub-path. The service worker only caches files of its own
-folder and removes old `riftline-*` caches on update. On GitHub Pages `_headers` has no effect,
-which is fine: the service worker fetches `index.html` and `build-info.json` with `no-store`, and
-the game file has the version in its name.
+folder and removes old `riftline-*` caches on update. GitHub Pages sends `max-age=600` for every
+file and allows no custom cache headers. None are needed: the service worker fetches `index.html`
+and `build-info.json` with `no-store`, and the game file has the version in its name.
 
 Saves live in `localStorage` under `riftline.save.v1` (plus a log and backups under `riftline.*`).
 Riftdeck (<https://aaron40776.github.io/Riftdeck/>) runs on the same origin and only uses
 `riftdeck.*` keys, so the two games never touch each other's data.
-
-Browsers keep saves per web address. Progress from another address, for example the earlier
-deployment on Cloudflare Workers, does not show up here by itself: open the game there, use
-*Settings → Save backup → Export*, then *Import* the text here.
 
 ## Licenses
 
