@@ -20,8 +20,11 @@ built with three.js and plain JavaScript. There is no framework.
 | Dash | `Space` or `Shift` | `DASH` button |
 | Nova | `E` (also `Q`, `F`) | `NOVA` button |
 | Pause | `Esc` or `P` | pause button |
+| Pick an upgrade | `1`–`4`, `R` rerolls | tap a card |
+| Back in menus | `Esc` | back button |
 
-*Left-handed* in Settings swaps the two touch halves.
+*Left-handed* in Settings swaps the two touch halves. Keys are read by their position, so on
+AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY) move the drone.
 
 ## Content
 

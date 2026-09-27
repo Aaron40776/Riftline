@@ -549,6 +549,75 @@ for (const [name, vp, touch] of [['pc', { width: 1920, height: 955 }, false], ['
   await P.close();
 });
 
+/* ======================= 4b. 2.4.2 fixes and quality of life (PC) ======================= */
+await section('qol', async L => {
+  const P = await open('desktop', { save: JSON.stringify({ v: 1, game: 'riftline', shards: 0, seen: { tutorial: true } }) }); await P.boot();
+  const hidden = (id) => P.ev(i => document.getElementById(i).hidden, id);
+  const hide = () => P.ev(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); delete document.visibilityState; document.dispatchEvent(new Event('visibilitychange')); });
+  // a lost run is settled when the page is hidden in the 1.5 s before the game-over screen
+  await P.tap('#playBtn'); await P.page.waitForTimeout(600);
+  await P.ev(() => { const w = window.__riftTest.game.world; w.player.iT = 0; w.player.dashT = 0; w.player.shield = false; w.hurtPlayer(99999, null, null, 'grunt', true); });
+  await P.page.waitForTimeout(150); await hide();
+  const dead = await P.stored();
+  check(L, 'death, then page hidden before game over: run is gone and the death counts', !dead.run && dead.stats.deaths === 1 && !(await hidden('over')), `run ${!!dead.run}, deaths ${dead.stats.deaths}`);
+  // letters by position: AZERTY "q" (KeyA) moves left and does not fire the Nova
+  await P.ev(() => window.__riftTest.game.startRun({})); await P.page.waitForTimeout(600);
+  const az = await P.ev(() => { const g = window.__riftTest.game; window.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', code: 'KeyA' })); const r = { left: g.input.keys.has('a'), nova: g.input.pending.nova }; window.dispatchEvent(new KeyboardEvent('keyup', { key: 'q', code: 'KeyA' })); r.released = !g.input.keys.size; return r; });
+  check(L, 'AZERTY: Q (the A position) moves left without firing the Nova', az.left && !az.nova && az.released, JSON.stringify(az));
+  // upgrade choice by keys: locked for 650 ms, then 1–4 pick and R rerolls
+  await P.ev(CLEAR);
+  await P.page.waitForFunction(() => !document.getElementById('choose').hidden, null, { timeout: 30000 });
+  await P.page.keyboard.press('1');
+  const early = await P.ev(() => window.__riftTest.game.world.state);
+  await P.page.waitForTimeout(800);
+  const hints = await P.ev(() => ({ cards: document.querySelectorAll('#cards .card-key').length, offer: window.__riftTest.game.world.offer.length }));
+  check(L, 'upgrade cards show their number key', hints.cards === hints.offer, JSON.stringify(hints));
+  await P.ev(() => { window.__riftTest.game.world.rerolls = 2; });
+  await P.page.keyboard.press('r');
+  const rr = await P.ev(() => ({ n: window.__riftTest.game.world.rerolls, hints: document.querySelectorAll('#rerollBtn .card-key').length }));
+  check(L, 'R rerolls (one key hint on the button)', rr.n === 1 && rr.hints === 1, JSON.stringify(rr));
+  await P.page.waitForFunction(() => !document.getElementById('cards').classList.contains('locked'), null, { timeout: 5000 });
+  const want = await P.ev(() => document.querySelectorAll('#cards [data-pick]')[1].dataset.pick);
+  await P.page.keyboard.press('2'); await P.page.waitForTimeout(300);
+  const got = await P.ev(p => ({ lv: window.__riftTest.game.world.up[p] || 0, wave: window.__riftTest.game.world.wave }), want);
+  check(L, 'key 2 picks the second card (not while the cards are locked)', early === 'choose' && got.lv === 1 && got.wave === 2, `${early}; ${want} ${JSON.stringify(got)}`);
+  // pause: the build explains each upgrade
+  await P.page.keyboard.press('Escape'); await P.page.waitForTimeout(300);
+  await P.tap('#pauseBuild [data-up]');
+  const info = await P.ev(() => document.getElementById('pauseUpInfo').textContent);
+  check(L, 'pause build: an upgrade shows its level and effect', /LV 1\/\d/.test(info) && info.length > 20, info);
+  // settings from the pause menu: no backup/reset, Esc and Back return to the pause menu
+  await P.tap('#pauseSetBtn');
+  const ps = await P.ev(() => ({ set: !document.getElementById('settings').hidden, pause: !document.getElementById('pause').hidden, reset: !!document.getElementById('resetBtn').offsetParent, backup: !!document.getElementById('backupBtn').offsetParent }));
+  check(L, 'pause → settings opens without backup and reset', ps.set && !ps.pause && !ps.reset && !ps.backup, JSON.stringify(ps));
+  await P.tap('#setTimer'); await P.tap('#setFps');
+  await P.page.keyboard.press('Escape'); await P.page.waitForTimeout(250);
+  const e1 = await P.ev(() => ({ set: !document.getElementById('settings').hidden, pause: !document.getElementById('pause').hidden, paused: window.__riftTest.game.paused }));
+  await P.tap('#pauseSetBtn'); await P.back('settings');
+  const e2 = await P.ev(() => ({ set: !document.getElementById('settings').hidden, pause: !document.getElementById('pause').hidden }));
+  check(L, 'Esc and Back in those settings return to the pause menu', !e1.set && e1.pause && e1.paused && !e2.set && e2.pause, JSON.stringify([e1, e2]));
+  await P.tap('#resumeBtn'); await P.page.waitForTimeout(1300);
+  const hud = await P.ev(() => ({ t: document.getElementById('hudInfo').textContent, shown: !document.getElementById('hudInfo').hidden }));
+  check(L, 'run timer and FPS counter show in the HUD', hud.shown && /^\d+:\d\d · \d+ FPS$/.test(hud.t), hud.t);
+  // Last Stand never raises a hit (a 0.4 acid tick stays below 1)
+  const ls = await P.ev(() => { const T = window.__riftTest, w = new T.Aa({ weapon: 'pulse', threat: 0, ws: {}, seed: 5 }); w.up.laststand = 2; w.stats = T.nr('pulse', w.up, {}); w.state = 'fight'; w.player.hp = 20; const a = w.player.hp; w.hurtPlayer(0.4, null, null, 'acid', true); const b = w.player.hp; w.hurtPlayer(10, null, null, 'grunt', true); return [a - b, b - w.player.hp]; });
+  check(L, 'Last Stand lowers hits and never raises small ones', ls[0] === 0 && ls[1] === Math.round(10 * (1 - 0.36)), JSON.stringify(ls));
+  // menu pages: Esc goes back
+  await P.ev(() => { const g = window.__riftTest.game; g.abandon(); g.goHome(); }); await P.page.waitForTimeout(300);
+  const back = [];
+  for (const s of ['workshop', 'records', 'settings']) { await P.nav(s); await P.page.keyboard.press('Escape'); await P.page.waitForTimeout(250); back.push(await P.ev(() => window.__riftTest.ui.screen)); }
+  check(L, 'Esc goes back from Workshop, Records and Settings', back.every(x => x === 'home'), back.join(', '));
+  // import applies the imported settings at once
+  await P.nav('settings');
+  const exp = await P.ev(() => { const d = JSON.parse(JSON.stringify(window.__riftTest.store.data)); d.settings.swap = true; d.settings.music = 0.1; return JSON.stringify(d); });
+  await P.tap('#restoreBtn');
+  await P.page.fill('#saveImport', exp); await P.dlg('Restore'); await P.dlg('Restore'); await P.page.waitForTimeout(300);
+  const imp = await P.ev(() => ({ swap: window.__riftTest.game.input.swap, hud: document.getElementById('hud').classList.contains('swap') }));
+  check(L, 'import applies the imported settings without a reload', imp.swap && imp.hud, JSON.stringify(imp));
+  check(L, 'no page errors', !P.errors.length, P.errors.join(' | '));
+  await P.close();
+});
+
 /* ======================= 5. controls: every button is wired and named ======================= */
 await section('buttons', async L => {
   const P = await open('desktop'); await P.boot();
