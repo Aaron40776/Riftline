@@ -12,7 +12,7 @@ const errs = []; p.on('pageerror', e => errs.push(e.message));
 await p.goto(URL); await p.waitForFunction(() => window.__riftTest && window.__riftTest.ui, null, { timeout: 90000 });
 const shot = async n => { await p.waitForTimeout(900); await p.screenshot({ path: `${OUT}/${n}.png` }); };
 const ev = (f, a) => p.evaluate(f, a);
-await ev(() => { const T = window.__riftTest, d = T.store.data; d.shards = 2345; d.stats.runs = 12; d.stats.kills = 3400; d.stats.bestWave = 17; d.workshop = { hull: 3, power: 2, magnet: 3, insight: 1 }; d.weapons.ion = true; d.seen.tutorial = false; T.store.save('qa'); T.ui.homeInit = false; T.ui.show('home'); });
+await ev(() => { const T = window.__riftTest, d = T.store.data; d.shards = 2345; d.stats.runs = 12; d.stats.kills = 3400; d.stats.bestWave = 17; d.workshop = { hull: 3, power: 2, magnet: 3, insight: 1 }; d.weapons.rail = true; d.seen.tutorial = false; T.store.save('qa'); T.ui.homeInit = false; T.ui.show('home'); });
 await shot('01-home');
 for (const s of ['workshop', 'records', 'settings']) { await ev(s => { window.__riftTest.ui.show(s); }, s); await shot('02-' + s); await ev(s => { const e = document.querySelector('#' + s + ' .scroll') || document.getElementById(s); e.scrollTop = 1e6; for (const x of document.querySelectorAll('#' + s + ' *')) if (x.scrollHeight > x.clientHeight + 20) x.scrollTop = 1e6; }, s); await shot('03-' + s + '-bottom'); }
 await ev(() => window.__riftTest.ui.show('home'));

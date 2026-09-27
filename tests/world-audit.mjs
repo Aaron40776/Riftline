@@ -14,8 +14,10 @@ const r = await page.evaluate(() => {
       if (wave > 1) w.startWave(wave);
       stats.waves++;
       const A = w.arena, b = A.biome;
-      if (wave <= 19) seen.add(b.id);
-      if (wave > 1 && w.biomeFor(wave - 1).id === b.id) add('route-repeat', `seed ${seed} wave ${wave} ${b.id}`);
+      if (wave <= 21) seen.add(b.id);
+      // 2.4.0: one biome per boss cycle — the biome changes right after each boss wave and only then
+      if (wave > 1 && (w.biomeFor(wave - 1).id === b.id) !== ((wave - 1) % 5 !== 0)) add('route-cycle', `seed ${seed} wave ${wave} ${b.id}`);
+      if (wave <= 5 && b.id !== 'yard') add('route-start', `seed ${seed} wave ${wave} ${b.id}`);
       if (b.id !== w.biomeFor(wave).id) add('route-mismatch', `wave ${wave}`);
       if (!A.key.startsWith(b.id + ':')) add('layout-key', `${A.key} vs ${b.id}`);
       // walls
@@ -28,7 +30,7 @@ const r = await page.evaluate(() => {
       if (!T.kp(A.obs, A.W, A.H)) add('wall-connectivity', `${b.id} w${wave}`);
       // features vs walls
       for (const k of ['vents', 'ice', 'acid']) for (const q of A[k]) if (Eu(A.obs, q.x, q.y, q.r * 0.5)) add('feature-in-wall', `${k} ${b.id} w${wave}`);
-      const theme = { yard:'',works:'vents',vault:'ice',void:'portals',marsh:'acid',tempest:'ice',crystal:'ice',ash:'vents',grove:'acid',starfall:'ice',fracture:'vents',canopy:'acid',catacomb:'portals',aurora:'ice',drowned:'acid',horizon:'vents',foundry:'vents',bloomrift:'acid',requiem:'portals' }[b.id];
+      const theme = { yard: '', works: 'vents', vault: 'ice', void: 'portals', marsh: 'acid' }[b.id];
       for (const k of ['vents','ice','acid','portals']) if (A[k].length && k !== theme) add('hazard-off-theme', `${k} in ${b.id} w${wave}`);
       for (const p of A.portals) for (const [x, y] of [[p.ax, p.ay], [p.bx, p.by]]) if (Eu(A.obs, x, y, 1) || A.outside(x, y, 1)) add('portal-bad', `${b.id} w${wave}`);
       // pickups / caches
@@ -55,7 +57,7 @@ const r = await page.evaluate(() => {
       if (boss && !w.boss && !w.bossKills.length && wave % 5 === 0) {}
       w.enemies = []; w.markers = []; w.planIdx = w.plan.length; w.bossPending = null; w.boss = null; w.championPending = null;
     }
-    if (seen.size !== 19) add('route-coverage', `seed ${seed}: ${seen.size}/19 biomes in waves 1–19`);
+    if (seen.size !== 5) add('route-coverage', `seed ${seed}: ${seen.size}/5 biomes in waves 1–21`);
   }
   return { stats, issues, cnt };
 });

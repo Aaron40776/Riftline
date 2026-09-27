@@ -330,8 +330,9 @@
           else det++;
           const currentBiome = a.biomeFor(wave)?.id,
             previousBiome = wave > 1 ? a.biomeFor(wave - 1)?.id : null;
-          if (wave > 1 && currentBiome === previousBiome)
-            bad("biome-route", `same biome on adjacent waves at seed ${seed}: wave ${wave - 1}/${wave}`);
+          // 2.4.0: one biome per boss cycle — it changes right after each boss wave (5, 10, 15 …)
+          if (wave > 1 && (currentBiome === previousBiome) !== ((wave - 1) % 5 !== 0))
+            bad("biome-route", `biome must change exactly after boss waves (seed ${seed}, wave ${wave - 1}/${wave})`);
           if (a.event && (!$i[a.event] || a.event === "dark"))
             bad("events", `invalid/removed event ${a.event} at seed ${seed} wave ${wave}`);
           if (a.boss && a.event) bad("events", `boss wave received event ${a.event} at seed ${seed} wave ${wave}`);
@@ -482,7 +483,7 @@
         for (const seed of [0x10101, 0x20202, 0x30303]) {
           const a = new Aa({ seed, weapon: "pulse", threat: 2, ws: {} }),
             idx = a.route.indexOf(b.id),
-            w = 1 + idx;
+            w = 1 + 5 * idx; // 2.4.0: first wave of that biome's boss cycle
           a.startWave(w);
           if (a.arena.biome?.id !== b.id)
             bad("biome-runtime", `route for seed ${seed} did not resolve ${b.id} at wave ${w}`);
@@ -561,7 +562,7 @@
         }
       }
       {
-        const director = new Aa({ seed: 0x5a17c0de, weapon: "gravity", threat: 2, ws: {} });
+        const director = new Aa({ seed: 0x5a17c0de, weapon: "rocket", threat: 2, ws: {} });
         let dynamic = 0,
           caches = 0;
         for (let wave = 2; wave <= 28; wave++) {
@@ -1646,7 +1647,7 @@
       ok(
         "game-data",
         Object.keys(ue).length === En.length &&
-          ii.length >= 19 &&
+          ii.length === 5 &&
           Object.keys(en).length === 4 &&
           Object.keys(Ae).length >= 25,
         `${Object.keys(ue).length} weapons (${En.length} selectable) · ${Object.keys(Ae).length} enemies · ${ii.length} biomes · ${Object.keys(en).length} bosses · ${Zi.length} upgrades · ${ai.length} modules`,
@@ -1656,18 +1657,7 @@
     }
     try {
       const reqE = ["leaper", "turret", "charger", "minebot", "drone", "driller", "beacon", "weaver"],
-        reqB = [
-          "tempest",
-          "crystal",
-          "ash",
-          "grove",
-          "starfall",
-          "fracture",
-          "horizon",
-          "foundry",
-          "bloomrift",
-          "requiem",
-        ],
+        reqB = ["works", "vault", "void", "marsh"],
         reqU = [
           "overclock",
           "bounty",
@@ -2184,13 +2174,13 @@
     // 3. save loader: live snapshots must pass sr() and restore the same run
     section("snapshot", () => {
       for (const wave of [1, 7, 19, 33]) {
-        const w = new Aa({ seed: 0x77 + wave, weapon: "ion", threat: 1, ws: { hull: 2 } });
+        const w = new Aa({ seed: 0x77 + wave, weapon: "tesla", threat: 1, ws: { hull: 2 } });
         w.startWave(wave);
         w.up = { dmg: 2, orbit: 1 };
         w.stats = nr(w.weapon, w.up, w.ws);
         const s = sr(JSON.parse(JSON.stringify(w.snapshot()))),
           b = s && new Aa({ snap: s, ws: { hull: 2 } });
-        if (!b || b.wave !== wave || b.weapon !== "ion" || b.up.dmg !== 2)
+        if (!b || b.wave !== wave || b.weapon !== "tesla" || b.up.dmg !== 2)
           bad("snapshot", `wave ${wave} does not restore`);
         else snaps++;
       }
@@ -2530,96 +2520,6 @@
     return null;
   }
 
-  /* ---- music: chord roots (MIDI, m/M) and voices for the 12 biomes that used to
-   borrow Neon Yard's theme. Merged into the sound engine's tables at boot. ---- */
-  var RL_MUSIC_ROOTS = {
-    ash: [
-      [45, "m"],
-      [53, "M"],
-      [55, "M"],
-      [52, "m"],
-    ], // Am F G Em — furnace minor
-    grove: [
-      [55, "M"],
-      [52, "m"],
-      [48, "M"],
-      [50, "M"],
-    ], // G Em C D — open, green
-    starfall: [
-      [60, "M"],
-      [64, "m"],
-      [57, "m"],
-      [65, "M"],
-    ], // C Em Am F — high and airy
-    fracture: [
-      [49, "m"],
-      [45, "M"],
-      [52, "M"],
-      [47, "M"],
-    ], // C#m A E B — restless
-    canopy: [
-      [53, "M"],
-      [50, "m"],
-      [46, "M"],
-      [48, "M"],
-    ], // F Dm Bb C — warm
-    catacomb: [
-      [50, "m"],
-      [51, "M"],
-      [46, "M"],
-      [45, "M"],
-    ], // Dm Eb Bb A — phrygian dread
-    aurora: [
-      [62, "M"],
-      [59, "m"],
-      [67, "M"],
-      [64, "m"],
-    ], // D Bm G Em — icy shimmer
-    drowned: [
-      [51, "m"],
-      [47, "M"],
-      [54, "M"],
-      [49, "M"],
-    ], // D#m B F# C# — submerged
-    horizon: [
-      [57, "M"],
-      [62, "M"],
-      [54, "m"],
-      [52, "M"],
-    ], // A D F#m E — bright drive
-    foundry: [
-      [55, "m"],
-      [58, "M"],
-      [53, "M"],
-      [48, "m"],
-    ], // Gm Bb F Cm — heavy metal work
-    bloomrift: [
-      [58, "M"],
-      [55, "m"],
-      [51, "M"],
-      [53, "M"],
-    ], // Bb Gm Eb F — lush
-    requiem: [
-      [47, "m"],
-      [55, "M"],
-      [57, "M"],
-      [54, "m"],
-    ], // Bm G A F#m — solemn
-  };
-  var RL_MUSIC_VOICES = {
-    ash: { arp: "sawtooth", bass: "square", lp: 1500, lead: "sawtooth" },
-    grove: { arp: "triangle", bass: "triangle", lp: 2800, lead: "sine" },
-    starfall: { arp: "sine", bass: "triangle", lp: 4800, lead: "triangle" },
-    fracture: { arp: "square", bass: "sawtooth", lp: 2000, lead: "square" },
-    canopy: { arp: "triangle", bass: "triangle", lp: 2000, lead: "triangle" },
-    catacomb: { arp: "sawtooth", bass: "sawtooth", lp: 1000, lead: "triangle" },
-    aurora: { arp: "sine", bass: "triangle", lp: 5000, lead: "sine" },
-    drowned: { arp: "triangle", bass: "sawtooth", lp: 1300, lead: "sine" },
-    horizon: { arp: "square", bass: "square", lp: 3200, lead: "sawtooth" },
-    foundry: { arp: "sawtooth", bass: "square", lp: 1400, lead: "square" },
-    bloomrift: { arp: "triangle", bass: "triangle", lp: 3000, lead: "triangle" },
-    requiem: { arp: "sine", bass: "sawtooth", lp: 1800, lead: "sawtooth" },
-  };
   /* enemy types with a dedicated model (original 13 + the 12 above) */
   var RL_MESH_TYPES = [
     "swarmer",
@@ -2706,7 +2606,8 @@
     const out = [],
       ni2 = (v, lo, hi, d = 0) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
     for (const q of h.slice(0, 12)) {
-      if (!q || typeof q !== "object" || !ue[q.weapon]) continue;
+      // 2.4.0: runs with a retired weapon stay in the list (shown with the weapon's old name)
+      if (!q || typeof q !== "object" || !(ue[q.weapon] || rlRetired(q.weapon))) continue;
       out.push({
         t: ni2(q.t, 0, 9e15),
         weapon: q.weapon,
@@ -2779,7 +2680,7 @@
           .filter(Boolean)
           .join(" · ");
         const build = q.build.map((id) => ri[id].name).join(" · ");
-        return `<div class="row panel hist ${q.outcome}"><div class="rico">${Ln(icon)}</div><div><b>${q.outcome === "win" ? "Rift sealed" : "Wave " + q.wave}${q.endless ? " · Endless" : ""} · ${we(ue[q.weapon].name)}</b><small>${we(meta)}</small>${build ? `<small class="hist-build">${we(build)}</small>` : ""}</div><span class="chip">${rlAgo(q.t)}</span></div>`;
+        return `<div class="row panel hist ${q.outcome}"><div class="rico">${Ln(icon)}</div><div><b>${q.outcome === "win" ? "Rift sealed" : "Wave " + q.wave}${q.endless ? " · Endless" : ""} · ${we((ue[q.weapon] || rlRetired(q.weapon)).name)}</b><small>${we(meta)}</small>${build ? `<small class="hist-build">${we(build)}</small>` : ""}</div><span class="chip">${rlAgo(q.t)}</span></div>`;
       })
       .join("");
   }
@@ -2814,24 +2715,6 @@
    Minimum grid distance between any two of the 19 biomes is now ΔE ≥ 30 (checked by
    rlBiomeDistinct in the deep test). Floor/fog/walls/light take the grid's hue. */
   var RL_PALETTES = {
-    tempest: {
-      floor: 0x0a111d,
-      grid: 0x297eff,
-      accent: 0x5cd9ff,
-      fog: 0x060a11,
-      sky: 0x375481,
-      ground: 0x070d15,
-      wall: 0x152132,
-    },
-    fracture: {
-      floor: 0x1d0a11,
-      grid: 0xff5297,
-      accent: 0xff9b65,
-      fog: 0x11060a,
-      sky: 0x813754,
-      ground: 0x15070d,
-      wall: 0x321521,
-    },
     vault: {
       floor: 0x0e1718,
       grid: 0xbfdfe3,
@@ -2840,114 +2723,6 @@
       sky: 0x476c70,
       ground: 0x0a1112,
       wall: 0x1c2a2c,
-    },
-    horizon: {
-      floor: 0x1d180a,
-      grid: 0xffc629,
-      accent: 0xff7ab6,
-      fog: 0x110e06,
-      sky: 0x816d37,
-      ground: 0x151107,
-      wall: 0x322a15,
-    },
-    ash: {
-      floor: 0x1d0b0a,
-      grid: 0xf58c84,
-      accent: 0xffb36b,
-      fog: 0x110706,
-      sky: 0x813c37,
-      ground: 0x150807,
-      wall: 0x321715,
-    },
-    drowned: {
-      floor: 0x0a1d1d,
-      grid: 0x39efef,
-      accent: 0xff8a5c,
-      fog: 0x061111,
-      sky: 0x378181,
-      ground: 0x071515,
-      wall: 0x153232,
-    },
-    starfall: {
-      floor: 0x18180e,
-      grid: 0xbfbf69,
-      accent: 0xebe4ff,
-      fog: 0x0f0f08,
-      sky: 0x707047,
-      ground: 0x12120a,
-      wall: 0x2c2c1c,
-    },
-    canopy: {
-      floor: 0x121508,
-      grid: 0xd7ef39,
-      accent: 0x6cea88,
-      fog: 0x101106,
-      sky: 0x778137,
-      ground: 0x131507,
-      wall: 0x2e3215,
-    },
-    aurora: {
-      floor: 0x0a1d15,
-      grid: 0x29ffa9,
-      accent: 0xff5fb0,
-      fog: 0x06110d,
-      sky: 0x378163,
-      ground: 0x07150f,
-      wall: 0x153227,
-    },
-    foundry: {
-      floor: 0x0e1118,
-      grid: 0x798baf,
-      accent: 0xffa500,
-      fog: 0x080a0f,
-      sky: 0x475570,
-      ground: 0x0a0d12,
-      wall: 0x1c212c,
-    },
-    bloomrift: {
-      floor: 0x1d0a16,
-      grid: 0xffa3e0,
-      accent: 0x9bfecc,
-      fog: 0x11060d,
-      sky: 0x813768,
-      ground: 0x150710,
-      wall: 0x321528,
-    },
-    catacomb: {
-      floor: 0x18130e,
-      grid: 0xaf9279,
-      accent: 0xc085e1,
-      fog: 0x0f0b08,
-      sky: 0x705a47,
-      ground: 0x120e0a,
-      wall: 0x2c231c,
-    },
-    grove: {
-      floor: 0x0a1d10,
-      grid: 0xaaf8c4,
-      accent: 0xb6ff3d,
-      fog: 0x06110a,
-      sky: 0x378150,
-      ground: 0x07150c,
-      wall: 0x15321f,
-    },
-    requiem: {
-      floor: 0x130e18,
-      grid: 0x9169bf,
-      accent: 0xd567ff,
-      fog: 0x0b080f,
-      sky: 0x5a4770,
-      ground: 0x0e0a12,
-      wall: 0x231c2c,
-    },
-    crystal: {
-      floor: 0x1d0a1d,
-      grid: 0xff7aff,
-      accent: 0xe1d1ff,
-      fog: 0x110611,
-      sky: 0x813781,
-      ground: 0x150715,
-      wall: 0x321532,
     },
   };
   function rlLum(c) {
@@ -2992,10 +2767,6 @@
   }
   function rlApplyBiomeFixes() {
     for (const [id, p] of Object.entries(RL_PALETTES)) du[id] && Object.assign(du[id], p);
-    // Champion variants: only scorch/frost/phase/toxic have behaviour and a tint.
-    // The four 2.2 biomes referenced ids with neither, so map them onto real ones.
-    const alias = { horizon: "scorch", foundry: "frost", bloomrift: "toxic", requiem: "phase" };
-    for (const [biome, v] of Object.entries(alias)) cu[biome] && (cu[biome].id = v);
   }
 
   /* ---- one hazard theme per biome (2.3.1). The wave director used to drop a
@@ -3007,20 +2778,6 @@
     vault: "ice",
     void: "portals",
     marsh: "acid",
-    tempest: "ice",
-    crystal: "ice",
-    ash: "vents",
-    grove: "acid",
-    starfall: "ice",
-    fracture: "vents",
-    canopy: "acid",
-    catacomb: "portals",
-    aurora: "ice",
-    drowned: "acid",
-    horizon: "vents",
-    foundry: "vents",
-    bloomrift: "acid",
-    requiem: "portals",
   };
 
   /* ---- content data fixes found by the data audit (2.3.2). Runs once, after all
@@ -3041,40 +2798,6 @@
     // 2.3.4: both add their charge once per level (10 / 5 per level); the text sounded like a flat bonus.
     mod("riftBattery").desc = "Start each wave with +10% Nova charge per level";
     mod("reactorCore").desc = "Start each wave with +5% Nova charge per level";
-    // Four 2.1 biomes had no procedural obstacle shapes/templates and always used
-    // their classic layout; give them their own shape language.
-    const bar = (i, a, b, c, d) =>
-      i.chance(0.5) ? { t: "b", w: i.range(a, b), h: i.range(c, d) } : { t: "b", w: i.range(c, d), h: i.range(a, b) };
-    Object.assign(Mu, {
-      ash: [
-        [4, (i) => ({ t: "c", r: i.range(0.9, 1.4) })],
-        [3, (i) => bar(i, 2.2, 3.8, 0.6, 0.85)],
-      ],
-      grove: [
-        [4, (i) => ({ t: "c", r: i.range(0.8, 1.3) })],
-        [
-          3,
-          (i) => {
-            const s = i.range(0.8, 1.2);
-            return { t: "b", w: s, h: s };
-          },
-        ],
-      ],
-      starfall: [
-        [4, (i) => ({ t: "b", w: i.range(0.55, 0.8), h: i.range(1.6, 3) })],
-        [3, (i) => ({ t: "c", r: i.range(0.8, 1.2) })],
-      ],
-      fracture: [
-        [4, (i) => bar(i, 1.4, 2.6, 0.6, 0.9)],
-        [2, (i) => ({ t: "c", r: i.range(1, 1.5) })],
-      ],
-    });
-    Object.assign(Dp, {
-      ash: ["scatter", "lanes", "rot2", "mirror2"],
-      grove: ["scatter", "ring", "mirror4", "rot4"],
-      starfall: ["scatter", "ring", "rot4", "mirror2"],
-      fracture: ["scatter", "rot2", "lanes", "mirror4"],
-    });
     // Route Scanner referenced a "map" icon that did not exist (fell back to "info").
     sp.map = '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>';
     rlApplyBiomeFixes();
@@ -3650,44 +3373,6 @@
           { t: "c", x: 8, y: 6, r: 1.4 },
           { t: "b", x: 8, y: -7, w: 1.6, h: 0.8 },
           { t: "b", x: -8, y: 7, w: 1.6, h: 0.8 },
-        ],
-      },
-      {
-        id: "tempest",
-        name: "Tempest Fields",
-        W: 20,
-        H: 18,
-        floor: 1053757,
-        grid: 3596287,
-        accent: 6085119,
-        fog: 725799,
-        sky: 463903,
-        ground: 1458251,
-        wall: 994112,
-        obstacles: [
-          { t: "b", x: 0, y: -6, w: 4.2, h: 0.7 },
-          { t: "b", x: 0, y: 6, w: 4.2, h: 0.7 },
-          { t: "c", x: -8, y: 0, r: 1.5 },
-          { t: "c", x: 8, y: 0, r: 1.5 },
-        ],
-      },
-      {
-        id: "crystal",
-        name: "Prism Caverns",
-        W: 18,
-        H: 19,
-        floor: 2302528,
-        grid: 11767039,
-        accent: 14799359,
-        fog: 1241892,
-        sky: 722710,
-        ground: 2958677,
-        wall: 4536946,
-        obstacles: [
-          { t: "b", x: -6, y: 0, w: 0.7, h: 3.8 },
-          { t: "b", x: 6, y: 0, w: 0.7, h: 3.8 },
-          { t: "c", x: 0, y: -7, r: 1.5 },
-          { t: "c", x: 0, y: 7, r: 1.5 },
         ],
       },
     ],
@@ -4671,11 +4356,6 @@
     s.armor = 0.04 * w("armorCore"); // 2.3.5: share of enemy damage absorbed (was +8 max HP)
     s.novaStart = Math.min(100, 10 * w("riftBattery"));
     s.wingmen += s.wingman ? Math.min(2, w("droneBay")) : 0;
-    const evo = u("spectrum") > 0;
-    evo && ((s.dmgMul *= 1.18), (s.chain += 1), (s.extra += 1));
-    u("singularity") > 0 && ((s.payloadR += 0.65), (s.payloadF += 0.25), (s.homing += 1.5));
-    u("stormcore") > 0 && ((s.chain += 2), (s.arc = Math.min(0.98, s.arc + 0.25)));
-    u("supernova") > 0 && ((s.novaR *= 1.28), (s.novaMul *= 1.2));
     // v2.1 meta/run stats
     s.rateMul *= 1 + 0.06 * w("arsenalLab"); // 2.3.5: fire rate (was +5% damage like Power Core)
     s.hazardResist = Math.min(0.88, 0.15 * w("hazardSeal") + 0.25 * u("hazmat"));
@@ -4692,15 +4372,6 @@
     s.maxHp += 15 * u("fortify");
     s.leech = u("leech");
     s.echo = u("echo");
-    u("prismDrive") > 0 &&
-      ((s.chain += 2 * u("prismDrive")), (s.extra += u("prismDrive")), (s.dmgMul *= 1 + 0.15 * u("prismDrive")));
-    u("vortexCollapse") > 0 &&
-      ((s.payloadR += u("vortexCollapse")),
-      (s.payloadF += 0.3 * u("vortexCollapse")),
-      (s.homing += 2 * u("vortexCollapse")));
-    u("sunbreaker") > 0 && ((s.pierce += 4 * u("sunbreaker")), (s.dmgMul *= 1 + 0.15 * u("sunbreaker")));
-    u("razorTempest") > 0 &&
-      ((s.bounce += u("razorTempest")), (s.extra += u("razorTempest")), (s.sizeMul *= 1 + 0.08 * u("razorTempest")));
     return s;
   }
   function tc(i) {
@@ -5619,26 +5290,6 @@
               : { t: "b", w: i.range(0.7, 1), h: i.range(1.4, 2.4) },
         ],
       ],
-      tempest: [
-        [4, (i) => ({ t: "c", r: i.range(0.9, 1.5) })],
-        [
-          3,
-          (i) =>
-            i.chance(0.5)
-              ? { t: "b", w: i.range(2.8, 4.5), h: i.range(0.55, 0.9) }
-              : { t: "b", w: i.range(0.55, 0.9), h: i.range(2.8, 4.5) },
-        ],
-      ],
-      crystal: [
-        [4, (i) => ({ t: "c", r: i.range(1, 1.5) })],
-        [
-          3,
-          (i) =>
-            i.chance(0.5)
-              ? { t: "b", w: i.range(0.65, 1), h: i.range(2.2, 3.6) }
-              : { t: "b", w: i.range(2.2, 3.6), h: i.range(0.65, 1) },
-        ],
-      ],
       void: [
         [
           4,
@@ -5656,8 +5307,6 @@
       vault: ["scatter", "rot2", "ring", "rot4"],
       void: ["scatter", "ring", "rot2", "mirror4"],
       marsh: ["scatter", "mirror2", "ring", "rot2"],
-      tempest: ["scatter", "lanes", "rot4", "mirror2"],
-      crystal: ["scatter", "ring", "rot2", "mirror4"],
     };
   function bu(i) {
     return {
@@ -6006,7 +5655,7 @@
       }
     };
     if (!boss) {
-      add(own, 1);
+      add(own, 2); // 2.4.0: two per wave (was one) — the hazard is what the biome plays around
       if (theme === "portals" && !features.portals.length) {
         for (let k = 0; k < 6 && !features.portals.length; k++) {
           const a = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 0.1),
@@ -6619,8 +6268,6 @@
             vault: ["bulwark", "gunner"],
             void: ["striker", "brute"],
             marsh: ["splitter", "brute"],
-            tempest: ["leaper", "turret"],
-            crystal: ["turret", "mender"],
           }[t] || ["grunt"]
         ).filter((a) => Ae[a].from <= e);
         return r.length ? n.pick(r) : "grunt";
@@ -6913,7 +6560,8 @@
         else {
           let d = this.arena.ice.length && this.arena.onIce(n.x, n.y);
           ((n.onIce = !!d), n.slowT > 0 && (n.slowT -= t));
-          let f = vn(d ? 2.4 : 16, t),
+          // 2.4.0: a biome can set its own floor grip (Cryo Vault: the whole floor is slick)
+          let f = vn(d ? 2.4 : this.arena.biome.grip || 16, t),
             p = s.speed * (d ? 1.12 : 1) * (n.slowT > 0 ? 0.65 : 1);
           ((n.vx += (r * p - n.vx) * f), (n.vy += (a * p - n.vy) * f));
         }
@@ -8123,89 +7771,6 @@
       }
     };
   /* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
-  Object.assign(ue, {
-    ion: {
-      id: "ion",
-      name: "Ion Repeater",
-      cost: 1250,
-      color: 6451967,
-      blurb: "Twin ion bolts with a reliable arc jump. Excellent sustained pressure.",
-      dmg: 9.5,
-      rate: 8.5,
-      speed: 38,
-      life: 0.58,
-      count: 2,
-      spread: 0.045,
-      fan: 0.12,
-      r: 0.14,
-      knock: 0.55,
-      pierce: 0,
-      chain: 2,
-      shake: 0.025,
-    },
-    gravity: {
-      id: "gravity",
-      name: "Graviton Core",
-      cost: 1550,
-      color: 10186390,
-      blurb: "Slow singularity rounds pull toward targets before collapsing.",
-      dmg: 31,
-      rate: 1.7,
-      speed: 17,
-      life: 1.5,
-      count: 1,
-      spread: 0.035,
-      fan: 0.16,
-      r: 0.3,
-      knock: 4.2,
-      pierce: 0,
-      explode: 2.4,
-      explodeDmg: 32,
-      homing: 6.5,
-      shake: 0.08,
-    },
-    voidlance: {
-      id: "voidlance",
-      name: "Void Lance",
-      cost: 1950,
-      color: 8834663,
-      blurb: "A razor-thin lance that tears through long enemy lines.",
-      dmg: 78,
-      rate: 0.9,
-      speed: 115,
-      life: 0.34,
-      count: 1,
-      spread: 0,
-      fan: 0.07,
-      r: 0.19,
-      knock: 5.8,
-      pierce: 7,
-      shake: 0.2,
-      rail: !0,
-    },
-    bloom: {
-      id: "bloom",
-      name: "Nova Bloom",
-      cost: 2400,
-      color: 15128703,
-      blurb: "Homing star-seeds detonate into a wide bloom on impact.",
-      dmg: 20,
-      rate: 1.15,
-      speed: 20,
-      life: 1.35,
-      count: 1,
-      spread: 0.06,
-      fan: 0.22,
-      r: 0.24,
-      knock: 2.8,
-      pierce: 1,
-      explode: 3.5,
-      explodeDmg: 38,
-      homing: 4.8,
-      shake: 0.11,
-    },
-  });
-  En.push("ion", "gravity", "voidlance", "bloom");
   Object.assign(Ae, {
     charger: {
       id: "charger",
@@ -8235,87 +7800,6 @@
   lu.push("charger", "minebot");
   Object.assign(Ip, { charger: 1.45, minebot: 0.8 });
   Object.assign(ec, { charger: 2, minebot: 3 });
-
-  /* Four biomes use the same arena/rendering contracts as the original seven. */
-  ii.push(
-    {
-      id: "ash",
-      name: "Ashen Relay",
-      W: 19,
-      H: 18,
-      floor: 2829107,
-      grid: 12434688,
-      accent: 16724787,
-      fog: 1052970,
-      sky: 4731474,
-      ground: 2304814,
-      wall: 3874048,
-      obstacles: [
-        { t: "b", x: 0, y: -6.5, w: 3.5, h: 0.75 },
-        { t: "b", x: 0, y: 6.5, w: 3.5, h: 0.75 },
-        { t: "c", x: -8.5, y: 0, r: 1.35 },
-        { t: "c", x: 8.5, y: 0, r: 1.35 },
-      ],
-    },
-    {
-      id: "grove",
-      name: "Verdant Reactor",
-      W: 20,
-      H: 18,
-      floor: 1418411,
-      grid: 4350561,
-      accent: 7238656,
-      fog: 756131,
-      sky: 1874258,
-      ground: 1314588,
-      wall: 2502976,
-      obstacles: [
-        { t: "c", x: -7, y: -5.5, r: 1.5 },
-        { t: "c", x: 7, y: 5.5, r: 1.5 },
-        { t: "b", x: -7, y: 6.5, w: 1.1, h: 2.1 },
-        { t: "b", x: 7, y: -6.5, w: 1.1, h: 2.1 },
-      ],
-    },
-    {
-      id: "starfall",
-      name: "Starfall Array",
-      W: 21,
-      H: 18,
-      floor: 1389004,
-      grid: 10075871,
-      accent: 15459583,
-      fog: 5592405,
-      sky: 4144959,
-      ground: 1110532,
-      wall: 3282199,
-      obstacles: [
-        { t: "b", x: -6, y: 0, w: 0.7, h: 4 },
-        { t: "b", x: 6, y: 0, w: 0.7, h: 4 },
-        { t: "b", x: 0, y: -7, w: 4, h: 0.7 },
-        { t: "c", x: 0, y: 7.5, r: 1.3 },
-      ],
-    },
-    {
-      id: "fracture",
-      name: "Fracture Basin",
-      W: 18,
-      H: 20,
-      floor: 1710615,
-      grid: 10399231,
-      accent: 16751461,
-      fog: 493474,
-      sky: 3450919,
-      ground: 1441802,
-      wall: 2301987,
-      obstacles: [
-        { t: "c", x: -7, y: -7, r: 1.3 },
-        { t: "c", x: 7, y: 7, r: 1.3 },
-        { t: "b", x: -7, y: 7, w: 2.2, h: 0.7 },
-        { t: "b", x: 7, y: -7, w: 2.2, h: 0.7 },
-      ],
-    },
-  );
-  du = Object.fromEntries(ii.map((i) => [i.id, i]));
 
   Zi.push(
     { id: "caliber", name: "Overbore Caliber", rarity: 1, max: 5, icon: "burst", desc: () => "+10% damage" },
@@ -8360,46 +7844,6 @@
       icon: "snow",
       desc: () => "-12% dash and shield cooldowns",
     },
-    {
-      id: "spectrum",
-      name: "Prismatic Overdrive",
-      rarity: 5,
-      max: 1,
-      icon: "star",
-      desc: () => "Evolve Ion Repeater into a multi-arc prism array",
-      evo: { caliber: 2, multishot: 1 },
-      weapon: "ion",
-    },
-    {
-      id: "singularity",
-      name: "Perfect Singularity",
-      rarity: 5,
-      max: 1,
-      icon: "star",
-      desc: () => "Evolve Graviton Core into a larger, deadlier collapse",
-      evo: { payload: 1, aether: 2 },
-      weapon: "gravity",
-    },
-    {
-      id: "stormcore",
-      name: "Stormcore",
-      rarity: 5,
-      max: 1,
-      icon: "bolt",
-      desc: () => "Evolve Ion Repeater into a high-chain storm weapon",
-      evo: { hunter: 2, arc: 2 },
-      weapon: "ion",
-    },
-    {
-      id: "supernova",
-      name: "Supernova",
-      rarity: 5,
-      max: 1,
-      icon: "star",
-      desc: () => "Evolve Nova Bloom into a massive finisher",
-      evo: { payload: 2, overcharge: 2 },
-      weapon: "bloom",
-    },
   );
   ri = Object.fromEntries(Zi.map((i) => [i.id, i]));
 
@@ -8442,16 +7886,18 @@
     {
       id: "allbiomes",
       name: "World Walker",
-      desc: "Clear a run with every biome in the current route pool",
+      // 2.4.0: the biome changes after every boss, so wave 21 is the first wave of the fifth biome
+      desc: "Reach wave 21 \u2014 every biome of the rift in one run",
       reward: 1100,
-      test: (i) => i.stats.bestWave >= ii.length,
+      test: (i) => i.stats.bestWave >= 5 * (ii.length - 1) + 1,
     },
     {
       id: "weaponClear10",
       name: "Full Spectrum",
-      desc: "Clear runs with at least 10 different weapons",
-      reward: 1200,
-      test: (i) => Object.values(i.stats.clearsBy).filter((v) => v > 0).length >= 10,
+      // 2.4.0: 7 weapons left (was 10 of 21)
+      desc: "Clear runs with at least 4 different weapons",
+      reward: 600,
+      test: (i) => Object.values(i.stats.clearsBy).filter((v) => v > 0).length >= 4,
     },
     {
       id: "combo750",
@@ -8463,118 +7909,6 @@
   );
 
   /* RIFTLINE 2.1 dynamic expansion: new content uses the existing data contracts. */
-  Object.assign(ue, {
-    volley: {
-      id: "volley",
-      name: "Volley",
-      cost: 1450,
-      color: 16047749,
-      blurb: "Five-shot fan of high-velocity bolts. Reliable against clustered waves.",
-      dmg: 14,
-      rate: 2.8,
-      speed: 30,
-      life: 0.65,
-      count: 5,
-      fan: 0.22,
-      spread: 0.035,
-      r: 0.16,
-      knock: 1.2,
-      pierce: 1,
-    },
-    prismcannon: {
-      id: "prismcannon",
-      name: "Prism Cannon",
-      cost: 1750,
-      color: 6809343,
-      blurb: "Three seeking prism bolts that can chain through a pack.",
-      dmg: 20,
-      rate: 3.6,
-      speed: 42,
-      life: 0.8,
-      count: 3,
-      fan: 0.18,
-      spread: 0.025,
-      r: 0.15,
-      knock: 1.2,
-      pierce: 1,
-      homing: 2,
-      chain: 1,
-    },
-    sunlance: {
-      id: "sunlance",
-      name: "Sunlance",
-      cost: 2200,
-      color: 16699619,
-      blurb: "A thin piercing beam with extreme range and heavy impact.",
-      dmg: 92,
-      rate: 0.65,
-      speed: 125,
-      life: 0.27,
-      count: 1,
-      fan: 0.07,
-      spread: 0,
-      r: 0.11,
-      knock: 5.5,
-      pierce: 6,
-      rail: !0,
-    },
-    vortex: {
-      id: "vortex",
-      name: "Vortex",
-      cost: 2450,
-      color: 12617185,
-      blurb: "Piercing vortex rounds curve into packs, then collapse in a wide blast.",
-      dmg: 26,
-      rate: 1.25,
-      speed: 25,
-      life: 1.05,
-      count: 1,
-      fan: 0.16,
-      spread: 0.035,
-      r: 0.17,
-      knock: 3.2,
-      pierce: 2,
-      homing: 6,
-      explode: 3.1,
-      explodeDmg: 42,
-    },
-    razorloop: {
-      id: "razorloop",
-      name: "Razor Loop",
-      cost: 2050,
-      color: 16467445,
-      blurb: "A returning blade that can cut through entire lines.",
-      dmg: 34,
-      rate: 1.5,
-      speed: 28,
-      life: 1.4,
-      count: 1,
-      fan: 0.28,
-      spread: 0.02,
-      r: 0.18,
-      knock: 1.8,
-      pierce: 999,
-      boomerang: !0,
-    },
-    needle: {
-      id: "needle",
-      name: "Needle Array",
-      cost: 1200,
-      color: 15066597,
-      blurb: "Twin needle shots with high speed and extra pierce.",
-      dmg: 18,
-      rate: 5,
-      speed: 75,
-      life: 0.45,
-      count: 2,
-      fan: 0.08,
-      spread: 0.025,
-      r: 0.09,
-      knock: 0.5,
-      pierce: 3,
-    },
-  });
-  En.push("volley", "prismcannon", "sunlance", "vortex", "razorloop", "needle");
 
   Object.assign(Ae, {
     sapper: {
@@ -8629,135 +7963,6 @@
   lu.push("sapper", "phantom", "sentinel", "carrier");
   Object.assign(Ip, { sapper: 1.05, phantom: 0.9, sentinel: 0.72, carrier: 0.66 });
   Object.assign(ec, { sapper: 1, phantom: 1, sentinel: 1, carrier: 1 });
-
-  ii.push(
-    {
-      id: "canopy",
-      name: "Overgrowth Relay",
-      W: 20,
-      H: 19,
-      floor: 4674770,
-      grid: 13221691,
-      accent: 7137928,
-      fog: 463886,
-      sky: 457229,
-      ground: 589589,
-      wall: 2145060,
-      obstacles: [
-        { t: "c", x: -7, y: -5.5, r: 1.45 },
-        { t: "c", x: 7, y: 5.5, r: 1.45 },
-        { t: "b", x: -6.8, y: 7, w: 1.1, h: 1.9 },
-        { t: "b", x: 6.8, y: -7, w: 1.1, h: 1.9 },
-      ],
-    },
-    {
-      id: "catacomb",
-      name: "Null Catacombs",
-      W: 18,
-      H: 20,
-      floor: 848404,
-      grid: 2568256,
-      accent: 12617185,
-      fog: 525592,
-      sky: 1707286,
-      ground: 709630,
-      wall: 2555936,
-      obstacles: [
-        { t: "c", x: -6.8, y: 0, r: 1.35 },
-        { t: "c", x: 6.8, y: 0, r: 1.35 },
-        { t: "b", x: 0, y: -7.1, w: 3.8, h: 0.65 },
-        { t: "b", x: 0, y: 7.1, w: 3.8, h: 0.65 },
-      ],
-    },
-    {
-      id: "aurora",
-      name: "Aurora Spire",
-      W: 21,
-      H: 19,
-      floor: 398159,
-      grid: 11275091,
-      accent: 6809343,
-      fog: 330952,
-      sky: 1049907,
-      ground: 331029,
-      wall: 1131084,
-      obstacles: [
-        { t: "b", x: -7, y: 0, w: 0.7, h: 3.8 },
-        { t: "b", x: 7, y: 0, w: 0.7, h: 3.8 },
-        { t: "c", x: 0, y: -7.5, r: 1.3 },
-        { t: "c", x: 0, y: 7.5, r: 1.3 },
-      ],
-    },
-    {
-      id: "drowned",
-      name: "Drowned Array",
-      W: 19,
-      H: 18,
-      floor: 3991362,
-      grid: 9352850,
-      accent: 2284812,
-      fog: 196402,
-      sky: 461555,
-      ground: 266774,
-      wall: 1007686,
-      obstacles: [
-        { t: "b", x: 0, y: -6.5, w: 3.2, h: 0.75 },
-        { t: "b", x: 0, y: 6.5, w: 3.2, h: 0.75 },
-        { t: "c", x: -7.2, y: 0, r: 1.5 },
-        { t: "c", x: 7.2, y: 0, r: 1.5 },
-      ],
-    },
-  );
-  du = Object.fromEntries(ii.map((i) => [i.id, i]));
-  Object.assign(Mu, {
-    canopy: [
-      [4, (i) => ({ t: "c", r: i.range(0.8, 1.35) })],
-      [
-        3,
-        (i) =>
-          i.chance(0.5)
-            ? { t: "b", w: i.range(0.7, 1.1), h: i.range(1.9, 3.2) }
-            : { t: "b", w: i.range(1.9, 3.2), h: i.range(0.7, 1.1) },
-      ],
-    ],
-    catacomb: [
-      [4, (i) => ({ t: "c", r: i.range(0.7, 1.2) })],
-      [3, (i) => ({ t: "b", w: i.range(1.3, 2.4), h: i.range(0.55, 0.95) })],
-      [2, (i) => ({ t: "b", w: i.range(0.55, 0.95), h: i.range(1.3, 2.4) })],
-    ],
-    aurora: [
-      [4, (i) => ({ t: "c", r: i.range(0.8, 1.25) })],
-      [
-        3,
-        (i) =>
-          i.chance(0.5)
-            ? { t: "b", w: i.range(0.55, 0.85), h: i.range(2.2, 3.7) }
-            : { t: "b", w: i.range(2.2, 3.7), h: i.range(0.55, 0.85) },
-      ],
-    ],
-    drowned: [
-      [4, (i) => ({ t: "c", r: i.range(0.9, 1.45) })],
-      [
-        3,
-        (i) =>
-          i.chance(0.5)
-            ? { t: "b", w: i.range(2.2, 3.6), h: i.range(0.6, 0.9) }
-            : { t: "b", w: i.range(0.6, 0.9), h: i.range(2.2, 3.6) },
-      ],
-    ],
-  });
-  Object.assign(Dp, {
-    canopy: ["scatter", "ring", "mirror2", "rot2"],
-    catacomb: ["scatter", "ring", "rot4", "mirror4"],
-    aurora: ["scatter", "lanes", "rot2", "mirror2"],
-    drowned: ["scatter", "lanes", "ring", "rot2"],
-  });
-  Object.assign(cu, {
-    canopy: { id: "toxic", name: "Toxic", types: ["sapper", "carrier", "splitter", "mender"], color: 11861821 },
-    catacomb: { id: "phase", name: "Phase", types: ["phantom", "striker", "gunner", "sniper"], color: 16732120 },
-    aurora: { id: "frost", name: "Frost", types: ["sentinel", "turret", "gunner", "charger"], color: 11462911 },
-    drowned: { id: "toxic", name: "Toxic", types: ["sapper", "carrier", "mortar", "splitter"], color: 11861821 },
-  });
 
   Zi.push(
     {
@@ -8818,48 +8023,6 @@
       desc: (l, i = l + 1) => `Supply caches gain +${i} bonus value tier`,
     },
   );
-  Zi.push(
-    {
-      id: "prismDrive",
-      name: "Prism Drive",
-      rarity: 5,
-      max: 1,
-      icon: "star",
-      weapon: "prismcannon",
-      evo: { focus: 2, resonance: 1 },
-      desc: () => "Prism Cannon gains additional chain power and projectiles.",
-    },
-    {
-      id: "vortexCollapse",
-      name: "Vortex Collapse",
-      rarity: 5,
-      max: 1,
-      icon: "burst",
-      weapon: "vortex",
-      evo: { payload: 2, seeker: 1 },
-      desc: () => "Vortex collapse fields become larger and stronger.",
-    },
-    {
-      id: "sunbreaker",
-      name: "Sunbreaker",
-      rarity: 5,
-      max: 1,
-      icon: "pierce",
-      weapon: "sunlance",
-      evo: { caliber: 2, velocity: 2 },
-      desc: () => "Sunlance becomes an extreme piercing beam.",
-    },
-    {
-      id: "razorTempest",
-      name: "Razor Tempest",
-      rarity: 5,
-      max: 1,
-      icon: "orbit",
-      weapon: "razorloop",
-      evo: { velocity: 2, multishot: 1 },
-      desc: () => "Razor Loop returns faster and hits wider.",
-    },
-  );
   ri = Object.fromEntries(Zi.map((i) => [i.id, i]));
 
   ai.push(
@@ -8891,13 +8054,6 @@
       desc: "Defeat 100 bosses total",
       reward: 2200,
       test: (i) => Object.values(i.stats.bosses).reduce((a, b) => a + b, 0) >= 100,
-    },
-    {
-      id: "arsenal15",
-      name: "Expanded Arsenal",
-      desc: "Clear runs with at least 15 different weapons",
-      reward: 1800,
-      test: (i) => Object.values(i.stats.clearsBy).filter((v) => v > 0).length >= 15,
     },
     {
       id: "shards100k",
@@ -9028,15 +8184,12 @@
   };
   const _rlChampionType = Aa.prototype.championType;
   Aa.prototype.championType = function (biome, wave, rng) {
+    // 2.4.0: the pack biomes are gone; the five biomes also draw champions from the later enemies
     const special = {
-      ash: ["charger", "brute"],
-      grove: ["mender", "minebot"],
-      starfall: ["sniper", "turret"],
-      fracture: ["leaper", "bulwark"],
-      canopy: ["carrier", "sapper"],
-      catacomb: ["phantom", "striker"],
-      aurora: ["sentinel", "turret"],
-      drowned: ["carrier", "sapper"],
+      works: ["brute", "grunt", "charger", "minebot", "driller"],
+      vault: ["bulwark", "gunner", "sentinel", "turret"],
+      void: ["striker", "brute", "phantom", "weaver"],
+      marsh: ["splitter", "brute", "sapper", "carrier"],
     }[biome];
     if (special) {
       const valid = special.filter((id) => Ae[id] && Ae[id].from <= wave);
@@ -9070,87 +8223,6 @@
   };
 
   /* RIFTLINE 2.2 content pack: more build diversity, enemy roles, biomes and set-piece waves. */
-  Object.assign(ue, {
-    lattice: {
-      id: "lattice",
-      name: "Lattice Array",
-      cost: 2850,
-      color: 10496000,
-      blurb: "Four linked bolts form a tight pressure net with reliable pierce.",
-      dmg: 17,
-      rate: 3.5,
-      speed: 48,
-      life: 0.7,
-      count: 4,
-      fan: 0.28,
-      spread: 0.025,
-      r: 0.13,
-      knock: 0.85,
-      pierce: 1,
-      chain: 1,
-      shake: 0.04,
-    },
-    quasar: {
-      id: "quasar",
-      name: "Quasar Driver",
-      cost: 3300,
-      color: 16763955,
-      blurb: "Dense homing cores collapse into violent point-blank bursts.",
-      dmg: 32,
-      rate: 1.0,
-      speed: 19,
-      life: 1.2,
-      count: 1,
-      fan: 0.16,
-      spread: 0.035,
-      r: 0.28,
-      knock: 3.4,
-      pierce: 1,
-      explode: 3.6,
-      explodeDmg: 50,
-      homing: 5.2,
-      shake: 0.12,
-    },
-    cyclone: {
-      id: "cyclone",
-      name: "Cyclone Blades",
-      cost: 3050,
-      color: 11799551,
-      blurb: "Twin returning blades carve lanes and remain lethal on the return path.",
-      dmg: 28,
-      rate: 2.0,
-      speed: 30,
-      life: 1.3,
-      count: 2,
-      fan: 0.26,
-      spread: 0.02,
-      r: 0.22,
-      knock: 1.5,
-      pierce: 999,
-      boomerang: !0,
-      shake: 0.06,
-    },
-    emberrail: {
-      id: "emberrail",
-      name: "Ember Rail",
-      cost: 3900,
-      color: 16743168,
-      blurb: "A superheated rail slug with extreme penetration and reach.",
-      dmg: 110,
-      rate: 0.55,
-      speed: 130,
-      life: 0.24,
-      count: 1,
-      fan: 0.06,
-      spread: 0,
-      r: 0.12,
-      knock: 6.2,
-      pierce: 8,
-      rail: !0,
-      shake: 0.22,
-    },
-  });
-  En.push("lattice", "quasar", "cyclone", "emberrail");
 
   Object.assign(Ae, {
     drone: {
@@ -9206,122 +8278,6 @@
   Object.assign(Ip, { drone: 0.95, driller: 0.62, beacon: 0.5, weaver: 0.72 });
   Object.assign(ec, { drone: 1, driller: 2, beacon: 3, weaver: 1 });
 
-  Object.assign(Mu, {
-    horizon: [
-      [4, (i) => ({ t: "c", r: i.range(0.7, 1.25) })],
-      [3, (i) => ({ t: "b", w: i.range(0.65, 1.1), h: i.range(1.8, 3.2) })],
-    ],
-    foundry: [
-      [4, (i) => ({ t: "c", r: i.range(0.8, 1.3) })],
-      [
-        3,
-        (i) =>
-          i.chance(0.5)
-            ? { t: "b", w: i.range(1.8, 3.2), h: i.range(0.6, 0.9) }
-            : { t: "b", w: i.range(0.6, 0.9), h: i.range(1.8, 3.2) },
-      ],
-    ],
-    bloomrift: [
-      [4, (i) => ({ t: "c", r: i.range(0.75, 1.35) })],
-      [3, (i) => ({ t: "b", w: i.range(1.0, 2.1), h: i.range(0.55, 0.95) })],
-    ],
-    requiem: [
-      [4, (i) => ({ t: "c", r: i.range(0.85, 1.35) })],
-      [3, (i) => ({ t: "b", w: i.range(0.65, 1.0), h: i.range(2.0, 3.4) })],
-      [2, (i) => ({ t: "b", w: i.range(2.0, 3.4), h: i.range(0.65, 1.0) })],
-    ],
-  });
-  Dp.horizon = ["scatter", "ring", "lanes", "mirror2"];
-  Dp.foundry = ["scatter", "rot2", "rot4", "ring"];
-  Dp.bloomrift = ["scatter", "mirror4", "ring", "rot2"];
-  Dp.requiem = ["scatter", "lanes", "rot4", "mirror4"];
-
-  ii.push(
-    {
-      id: "horizon",
-      name: "Solar Verge",
-      W: 21,
-      H: 18,
-      floor: 1776411,
-      grid: 15127295,
-      accent: 16699903,
-      fog: 736717,
-      sky: 4674128,
-      ground: 1572848,
-      wall: 946880,
-      obstacles: [
-        { t: "b", x: 0, y: -6.8, w: 4.2, h: 0.7 },
-        { t: "b", x: 0, y: 6.8, w: 4.2, h: 0.7 },
-        { t: "c", x: -8.5, y: 0, r: 1.35 },
-        { t: "c", x: 8.5, y: 0, r: 1.35 },
-      ],
-    },
-    {
-      id: "foundry",
-      name: "Gravity Foundry",
-      W: 20,
-      H: 20,
-      floor: 1381656,
-      grid: 6908265,
-      accent: 16753920,
-      fog: 2691570,
-      sky: 3618615,
-      ground: 1908771,
-      wall: 5197644,
-      obstacles: [
-        { t: "b", x: -6.5, y: 0, w: 1.1, h: 2.8 },
-        { t: "b", x: 6.5, y: 0, w: 1.1, h: 2.8 },
-        { t: "c", x: 0, y: -7, r: 1.45 },
-        { t: "c", x: 0, y: 7, r: 1.45 },
-      ],
-    },
-    {
-      id: "bloomrift",
-      name: "Bloom Rift",
-      W: 19,
-      H: 21,
-      floor: 1784320,
-      grid: 5672809,
-      accent: 10223308,
-      fog: 789010,
-      sky: 2163712,
-      ground: 1374475,
-      wall: 4537071,
-      obstacles: [
-        { t: "c", x: -7, y: -7, r: 1.5 },
-        { t: "c", x: 7, y: 7, r: 1.5 },
-        { t: "b", x: -7, y: 7, w: 1.2, h: 2.1 },
-        { t: "b", x: 7, y: -7, w: 1.2, h: 2.1 },
-      ],
-    },
-    {
-      id: "requiem",
-      name: "Requiem Deck",
-      W: 18,
-      H: 20,
-      floor: 394764,
-      grid: 2763301,
-      accent: 13985791,
-      fog: 722952,
-      sky: 1605658,
-      ground: 328965,
-      wall: 2047812,
-      obstacles: [
-        { t: "b", x: 0, y: -7, w: 3.6, h: 0.7 },
-        { t: "b", x: 0, y: 7, w: 3.6, h: 0.7 },
-        { t: "b", x: -7, y: 0, w: 0.7, h: 3.2 },
-        { t: "b", x: 7, y: 0, w: 0.7, h: 3.2 },
-      ],
-    },
-  );
-  du = Object.fromEntries(ii.map((i) => [i.id, i]));
-  Object.assign(cu, {
-    horizon: { id: "solar", name: "Solar", types: ["drone", "sniper", "driller"], color: 16753920 },
-    foundry: { id: "gravity", name: "Gravity", types: ["driller", "bulwark", "beacon"], color: 11758591 },
-    bloomrift: { id: "bloom", name: "Bloom", types: ["weaver", "splitter", "beacon"], color: 10223308 },
-    requiem: { id: "requiem", name: "Requiem", types: ["phantom", "sentinel", "weaver"], color: 13985791 },
-  });
-
   Zi.push(
     { id: "kinetic", name: "Kinetic Matrix", rarity: 1, max: 4, icon: "burst", desc: () => "+8% damage" },
     {
@@ -9368,46 +8324,6 @@
       icon: "wing",
       desc: () => "-6% dash and shield cooldowns",
     },
-    {
-      id: "latticePrime",
-      name: "Lattice Prime",
-      rarity: 5,
-      max: 1,
-      icon: "star",
-      weapon: "lattice",
-      evo: { kinetic: 2, chainlink: 1 },
-      desc: () => "Evolve Lattice Array into a chain storm",
-    },
-    {
-      id: "quasarDrive",
-      name: "Quasar Drive",
-      rarity: 5,
-      max: 1,
-      icon: "star",
-      weapon: "quasar",
-      evo: { payloadMatrix: 2, flux: 1 },
-      desc: () => "Evolve Quasar Driver into a collapse engine",
-    },
-    {
-      id: "cycloneReign",
-      name: "Cyclone Reign",
-      rarity: 5,
-      max: 1,
-      icon: "orbit",
-      weapon: "cyclone",
-      evo: { thruster: 2, multishot: 1 },
-      desc: () => "Evolve Cyclone Blades into a faster returning storm",
-    },
-    {
-      id: "emberCrown",
-      name: "Ember Crown",
-      rarity: 5,
-      max: 1,
-      icon: "burst",
-      weapon: "emberrail",
-      evo: { kinetic: 3, pierce: 2 },
-      desc: () => "Evolve Ember Rail into a colossal piercing strike",
-    },
   );
   ri = Object.fromEntries(Zi.map((i) => [i.id, i]));
 
@@ -9444,13 +8360,6 @@
       desc: "Destroy 50,000 enemies",
       reward: 2600,
       test: (i) => i.stats.kills >= 50000,
-    },
-    {
-      id: "arsenal20",
-      name: "Total Loadout",
-      desc: "Clear runs with at least 20 different weapons",
-      reward: 2600,
-      test: (i) => Object.values(i.stats.clearsBy).filter((v) => v > 0).length >= 20,
     },
     {
       id: "bosses150",
@@ -9503,10 +8412,6 @@
     s.dashCd *= Math.max(0.45, 1 - 0.06 * u("afterburner"));
     s.shieldCd *= Math.max(0.45, 1 - 0.06 * u("afterburner"));
     s.novaStart = Math.min(100, (s.novaStart || 0) + 5 * w("reactorCore"));
-    u("latticePrime") > 0 && ((s.chain += 2), (s.extra += 1), (s.dmgMul *= 1.16));
-    u("quasarDrive") > 0 && ((s.payloadR += 0.85), (s.payloadF += 0.3), (s.homing += 2.5), (s.dmgMul *= 1.14));
-    u("cycloneReign") > 0 && ((s.extra += 1), (s.bounce += 1), (s.sizeMul *= 1.15), (s.dmgMul *= 1.12));
-    u("emberCrown") > 0 && ((s.pierce += 7), (s.dmgMul *= 1.2), (s.sizeMul *= 1.12));
     return s;
   };
 
@@ -9660,22 +8565,6 @@
     return _rlMu22(game, enemy, dt);
   };
 
-  /* Biome-aware champions for the added route pool. */
-  const _rlChampionType22 = Aa.prototype.championType;
-  Aa.prototype.championType = function (biome, wave, rng) {
-    const special = {
-      horizon: ["drone", "driller"],
-      foundry: ["driller", "beacon"],
-      bloomrift: ["weaver", "beacon"],
-      requiem: ["weaver", "sentinel"],
-    }[biome];
-    if (special) {
-      const valid = special.filter((id) => Ae[id] && Ae[id].from <= wave);
-      if (valid.length) return rng.pick(valid);
-    }
-    return _rlChampionType22.call(this, biome, wave, rng);
-  };
-
   const _rlSelfTest22 = rlSelfTest;
   rlSelfTest = function () {
     const r = _rlSelfTest22(),
@@ -9685,11 +8574,7 @@
       biomes = Object.keys(du),
       upgrades = Object.keys(ri),
       modules = Object.keys(p_);
-    if (!["lattice", "quasar", "cyclone", "emberrail"].every((k) => weapons.includes(k)))
-      fail.push("missing-v22-weapon");
     if (!["drone", "driller", "beacon", "weaver"].every((k) => enemies.includes(k))) fail.push("missing-v22-enemy");
-    if (!["horizon", "foundry", "bloomrift", "requiem"].every((k) => biomes.includes(k)))
-      fail.push("missing-v22-biome");
     if (
       ![
         "kinetic",
@@ -9702,15 +8587,12 @@
         "payloadMatrix",
         "chainlink",
         "afterburner",
-        "latticePrime",
-        "quasarDrive",
-        "cycloneReign",
-        "emberCrown",
       ].every((k) => upgrades.includes(k))
     )
       fail.push("missing-v22-upgrade");
     if (!["routeScanner", "reactorCore"].every((k) => modules.includes(k))) fail.push("missing-v22-workshop");
-    for (const id of ["lattice", "quasar", "cyclone", "emberrail"]) {
+    // 2.4.0: every selectable weapon (the 2.2 weapons are gone)
+    for (const id of En) {
       const w = new Aa({ seed: 0x2200 + id.length, weapon: id, threat: 0, ws: {} });
       w.startWave(2);
       w.fire(0);
@@ -9730,26 +8612,28 @@
       }
     }
     const modes = new Set();
-    for (let seed = 1; seed <= 8; seed++)
-      for (let wave = 2; wave <= 38; wave++) {
-        const b = ii[1 + ((seed + wave) % (ii.length - 1))],
-          lay = Su(b, seed, wave, false);
-        if (!lay.director?.mode) fail.push("director-missing");
-        else modes.add(lay.director.mode);
-        if (!kp(lay.obstacles, lay.W, lay.H)) fail.push("director-connectivity");
-        for (const key of ["vents", "ice", "acid"]) {
-          for (const q of lay.features?.[key] || [])
-            if (Eu(lay.obstacles, q.x, q.y, (q.r || 0) + 0.8)) fail.push("feature-overlap:" + key);
+    // 2.4.0: every hazard biome for every wave (picking one biome by (seed + wave) % count only
+    // reached 9 of the 12 modes once there were four biomes)
+    for (let seed = 1; seed <= 4; seed++)
+      for (let wave = 2; wave <= 38; wave++)
+        for (const b of ii.slice(1)) {
+          const lay = Su(b, seed, wave, false);
+          if (!lay.director?.mode) fail.push("director-missing");
+          else modes.add(lay.director.mode);
+          if (!kp(lay.obstacles, lay.W, lay.H)) fail.push("director-connectivity");
+          for (const key of ["vents", "ice", "acid"]) {
+            for (const q of lay.features?.[key] || [])
+              if (Eu(lay.obstacles, q.x, q.y, (q.r || 0) + 0.8)) fail.push("feature-overlap:" + key);
+          }
+          for (const q of lay.features?.portals || []) {
+            for (const [x, y] of [
+              [q.ax, q.ay],
+              [q.bx, q.by],
+            ])
+              if (Eu(lay.obstacles, x, y, 1.5) || Math.abs(x) > lay.W - 3.6 || Math.abs(y) > lay.H - 3.6)
+                fail.push("portal-overlap");
+          }
         }
-        for (const q of lay.features?.portals || []) {
-          for (const [x, y] of [
-            [q.ax, q.ay],
-            [q.bx, q.by],
-          ])
-            if (Eu(lay.obstacles, x, y, 1.5) || Math.abs(x) > lay.W - 3.6 || Math.abs(y) > lay.H - 3.6)
-              fail.push("portal-overlap");
-        }
-      }
     if (modes.size < 10) fail.push("director-variety");
     let minCache = Infinity,
       maxCache = 0;
@@ -9789,29 +8673,15 @@
       enemies = Object.keys(Ae),
       biomes = Object.keys(du),
       upgrades = Object.keys(ri);
-    if (!["volley", "prismcannon", "sunlance", "vortex", "razorloop", "needle"].every((k) => weapons.includes(k)))
-      fail.push("missing-v21-weapon");
     if (!["sapper", "phantom", "sentinel", "carrier"].every((k) => enemies.includes(k))) fail.push("missing-v21-enemy");
-    if (!["canopy", "catacomb", "aurora", "drowned"].every((k) => biomes.includes(k))) fail.push("missing-v21-biome");
     if (
-      ![
-        "overload",
-        "focus",
-        "resonance",
-        "fortify",
-        "leech",
-        "hazmat",
-        "echo",
-        "scavengerNet",
-        "prismDrive",
-        "vortexCollapse",
-        "sunbreaker",
-        "razorTempest",
-      ].every((k) => upgrades.includes(k))
+      !["overload", "focus", "resonance", "fortify", "leech", "hazmat", "echo", "scavengerNet"].every((k) =>
+        upgrades.includes(k),
+      )
     )
       fail.push("missing-v21-upgrade");
-    if (!(du.canopy && du.catacomb && du.aurora && du.drowned)) fail.push("biome-map");
-    for (const k of ["gravity", "bloom", "vortex"]) {
+    // 2.4.0: every weapon with a blast (was Graviton Core, Nova Bloom and Vortex)
+    for (const k of En.filter((id) => ue[id].explode)) {
       const w = new Aa({ seed: 0x21 + k.length, weapon: k, threat: 0, ws: {} });
       w.startWave(2);
       w.bulletBurst({ x: 0, y: 0, w: k, dmg: 10, hits: [], bomblet: false, wing: false }, null);
@@ -9840,6 +8710,212 @@
         directorModes: [...modes],
       },
     };
+  };
+
+  /* ==========================================================================
+     RIFTLINE 2.4.0 — fewer biomes and weapons, each clearly different
+     ========================================================================== */
+  /* 2.4.0: 21 weapons → the 7 originals. The 14 weapons of the 2.0–2.2 packs were parameter
+   variants of those (Void Lance, Sunlance and Ember Rail were Railguns, Razor Loop and Cyclone
+   Blades Disc Launchers …). A save that owned one gets the weapon it was a variant of, plus the
+   price difference in shards — or the full price when it owns that weapon already. */
+  var RL_RETIRED_WEAPONS = {
+    ion: { name: "Ion Repeater", cost: 1250, to: "tesla" },
+    gravity: { name: "Graviton Core", cost: 1550, to: "rocket" },
+    voidlance: { name: "Void Lance", cost: 1950, to: "rail" },
+    bloom: { name: "Nova Bloom", cost: 2400, to: "rocket" },
+    volley: { name: "Volley", cost: 1450, to: "scatter" },
+    prismcannon: { name: "Prism Cannon", cost: 1750, to: "tesla" },
+    sunlance: { name: "Sunlance", cost: 2200, to: "rail" },
+    vortex: { name: "Vortex", cost: 2450, to: "rocket" },
+    razorloop: { name: "Razor Loop", cost: 2050, to: "disc" },
+    needle: { name: "Needle Array", cost: 1200, to: "pulse" },
+    lattice: { name: "Lattice Array", cost: 2850, to: "tesla" },
+    quasar: { name: "Quasar Driver", cost: 3300, to: "rocket" },
+    cyclone: { name: "Cyclone Blades", cost: 3050, to: "disc" },
+    emberrail: { name: "Ember Rail", cost: 3900, to: "rail" },
+  };
+  const rlRetired = (id) =>
+    typeof id === "string" && Object.prototype.hasOwnProperty.call(RL_RETIRED_WEAPONS, id)
+      ? RL_RETIRED_WEAPONS[id]
+      : null;
+  // What the last load converted (shown once as a toast after start-up).
+  var RL_RETIRE_NOTE = null;
+  /* Runs on the raw save before it is sanitised (ap), so it covers loading and importing. Returns
+   the input untouched when there is nothing to convert; never mutates it (rlLoadSave may still
+   back up the raw object). Running it again on its own output changes nothing. */
+  function rlMigrateRetired(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+    const obj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : null),
+      own = obj(raw.weapons),
+      run = obj(raw.run),
+      owned = own ? Object.keys(RL_RETIRED_WEAPONS).filter((id) => own[id] === true) : [],
+      sel = rlRetired(raw.weapon),
+      runW = run && rlRetired(run.weapon);
+    if (!owned.length && !sel && !runW) return raw;
+    const out = { ...raw },
+      weapons = { ...(own || {}) };
+    let refund = 0;
+    for (const id of owned) {
+      const r = RL_RETIRED_WEAPONS[id];
+      delete weapons[id];
+      if (weapons[r.to] === true) refund += r.cost;
+      else ((weapons[r.to] = true), (refund += Math.max(0, r.cost - ue[r.to].cost)));
+    }
+    out.weapons = weapons;
+    if (sel) out.weapon = sel.to;
+    if (runW) out.run = { ...run, weapon: runW.to };
+    if (refund > 0) out.shards = (Number.isFinite(raw.shards) ? Math.max(0, raw.shards) : 0) + refund;
+    RL_RETIRE_NOTE = { refund, names: owned.map((id) => RL_RETIRED_WEAPONS[id].name) };
+    return out;
+  }
+  const _rlApBase = ap;
+  ap = function (raw) {
+    return _rlApBase(rlMigrateRetired(raw));
+  };
+
+  /* 2.4.0: 19 biomes → 5, and the biome changes after every boss again (it changed every wave
+   since 2.1). Waves 1–5 are always Neon Yard; the other four follow in a seeded order, one per
+   boss cycle, so a 20-wave run shows four biomes and Endless reaches the fifth at wave 21.
+   Each biome plays differently, not only in colour:
+     Neon Yard    open ground, no hazard, the standard enemy mix
+     Ember Works  lava vents; heavy and explosive enemies (brute, bomber, charger, minebot …)
+     Cryo Vault   the whole floor is slick (you drift), ice sheets are slicker; shielded and
+                  ranged enemies (bulwark, sniper, turret, sentinel …)
+     Toxin Marsh  acid pools, thick fog; swarms (splitter, hive, swarmer, sapper …)
+     Void Core    portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
+   The look of each biome (floor, props, border, particles, light) is in the renderer part of
+   2.4.0 further down. */
+  var RL_BIOME_INFO = {
+    yard: { tag: "Open ground" },
+    works: {
+      tag: "Lava vents",
+      mix: { brute: 2.2, bomber: 2.2, charger: 2, mortar: 1.6, minebot: 1.8, driller: 1.6, swarmer: 0.6 },
+    },
+    vault: {
+      tag: "Slick floor",
+      grip: 6.5,
+      mix: { bulwark: 2.2, sniper: 2, gunner: 1.8, turret: 2, sentinel: 1.8, swarmer: 0.6, splitter: 0.6 },
+    },
+    marsh: {
+      tag: "Acid pools",
+      mix: { swarmer: 1.6, splitter: 2.4, hive: 2.2, mender: 1.8, sapper: 1.8, carrier: 1.5, gunner: 0.6 },
+    },
+    void: {
+      tag: "Portals",
+      mix: { striker: 2.2, phantom: 2.4, weaver: 2.2, leaper: 1.8, drone: 1.8, sniper: 0.6 },
+    },
+  };
+  for (const [id, info] of Object.entries(RL_BIOME_INFO))
+    du[id] && ((du[id].tag = info.tag), info.grip && (du[id].grip = info.grip));
+  function rlBiomeTitle(b) {
+    return b.tag ? `${b.name} \xB7 ${b.tag}` : b.name;
+  }
+  Aa.prototype.biomeFor = function (wave) {
+    const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
+    return du[this.route[cycle % this.route.length]] || ii[0];
+  };
+  // Enemy mix: startWave builds the wave plan with _u; the biome's weights multiply the spawn
+  // weights of the plan (events keep theirs on top).
+  var RL_BIOME_MIX_CUR = null;
+  const _rlPlan240 = _u;
+  _u = function (rng, wave, tm, boss, plan = {}) {
+    const mix = RL_BIOME_MIX_CUR;
+    if (!mix) return _rlPlan240(rng, wave, tm, boss, plan);
+    const weights = { ...(plan.weights || {}) };
+    for (const [id, m] of Object.entries(mix)) weights[id] = (weights[id] || 1) * m;
+    return _rlPlan240(rng, wave, tm, boss, { ...plan, weights });
+  };
+  const _rlStartWave240 = Aa.prototype.startWave;
+  Aa.prototype.startWave = function (wave, nova) {
+    RL_BIOME_MIX_CUR = RL_BIOME_INFO[this.biomeFor(wave).id]?.mix || null;
+    try {
+      return _rlStartWave240.call(this, wave, nova);
+    } finally {
+      RL_BIOME_MIX_CUR = null;
+    }
+  };
+
+  const _rlSelfTest240 = rlSelfTest;
+  rlSelfTest = function () {
+    const r = _rlSelfTest240(),
+      fail = [];
+    if (En.length !== 7 || Object.keys(ue).length !== 7) fail.push("weapon-count:" + En.length);
+    if (ii.length !== 5) fail.push("biome-count:" + ii.length);
+    for (const u of Zi) if (u.weapon && !ue[u.weapon]) fail.push("evo-weapon:" + u.id);
+    // route: Neon Yard first, then one biome per boss cycle, all five by wave 21
+    for (const seed of [11, 222, 3333, 44444]) {
+      const w = new Aa({ seed, weapon: "pulse", threat: 0, ws: {} }),
+        seen = new Set();
+      for (let wave = 1; wave <= 30; wave++) {
+        const b = w.biomeFor(wave).id;
+        wave <= 21 && seen.add(b);
+        wave <= 5 && b !== "yard" && fail.push(`route-start:${seed}:${wave}`);
+        if (wave > 1 && (b === w.biomeFor(wave - 1).id) !== ((wave - 1) % 5 !== 0))
+          fail.push(`route-cycle:${seed}:${wave}`);
+      }
+      seen.size !== 5 && fail.push(`route-coverage:${seed}:${seen.size}`);
+    }
+    // every hazard biome has its hazard in a normal wave, and only that one
+    const want = { works: "vents", vault: "ice", marsh: "acid", void: "portals" };
+    for (const [id, kind] of Object.entries(want)) {
+      const w = new Aa({ seed: 0x240 + id.length, weapon: "pulse", threat: 0, ws: {} }),
+        wave = 2 + 5 * w.route.indexOf(id);
+      w.startWave(wave);
+      if (w.arena.biome.id !== id) fail.push("hazard-biome:" + id);
+      if (!w.arena[kind].length) fail.push("hazard-missing:" + id);
+      for (const k of ["vents", "ice", "acid", "portals"])
+        k !== kind && w.arena[k].length && fail.push(`hazard-foreign:${id}:${k}`);
+    }
+    // Cryo Vault: the drone drifts (lower grip than anywhere else)
+    const drift = (id) => {
+      const w = new Aa({ seed: 0x2401, weapon: "pulse", threat: 0, ws: {} });
+      w.startWave(1 + 5 * w.route.indexOf(id));
+      w.arena.ice.length = 0;
+      w.enemies.length = 0;
+      w.plan = [];
+      w.step(1 / 60, { mx: 1, my: 0 });
+      return w.player.vx;
+    };
+    if (!(drift("vault") < drift("yard") * 0.6)) fail.push("vault-grip");
+    // enemy mix: each biome spawns more of its own enemies than Neon Yard does
+    for (const [id, info] of Object.entries(RL_BIOME_INFO)) {
+      if (!info.mix) continue;
+      const own = Object.keys(info.mix).filter((k) => info.mix[k] > 1),
+        count = (mix) => {
+          let n = 0;
+          RL_BIOME_MIX_CUR = mix;
+          try {
+            for (let s = 1; s <= 12; s++)
+              for (const g of _u(qi(Yi("mix:" + s)), 30, Ma(0), !1, {}))
+                n += g.members.filter((m) => own.includes(m.type)).length;
+          } finally {
+            RL_BIOME_MIX_CUR = null;
+          }
+          return n;
+        };
+      if (!(count(info.mix) > count(null) * 1.3)) fail.push("enemy-mix:" + id);
+    }
+    // old saves: retired weapons become their original + refund, run and selection follow
+    const note = RL_RETIRE_NOTE,
+      m = rlMigrateRetired({
+        shards: 100,
+        weapon: "ion",
+        weapons: { pulse: true, ion: true, voidlance: true, rail: true },
+        run: { weapon: "cyclone", wave: 4 },
+      });
+    RL_RETIRE_NOTE = note;
+    if (
+      m.weapon !== "tesla" ||
+      m.run.weapon !== "disc" ||
+      !m.weapons.tesla ||
+      m.weapons.ion ||
+      m.weapons.voidlance ||
+      m.shards !== 100 + (1250 - ue.tesla.cost) + 1950
+    )
+      fail.push("migrate:" + JSON.stringify(m));
+    if (rlMigrateRetired(m) !== m) fail.push("migrate-twice");
+    return { ...r, ok: r.ok && fail.length === 0, v240: { ok: fail.length === 0, fail } };
   };
 
   var sd = 0,
@@ -36232,9 +35308,10 @@ varying float vFlash;`,
           this.layer.releasePointerCapture(n.id);
         } catch {}
       }
+      // 2.4.0: a double tap on the move side no longer dashes; the DASH button (and Space or
+      // Shift on a keyboard) does.
       let s = performance.now();
-      (e && this.lastTap && s - this.lastTap < 280 && ((this.pending.dash = !0), (this.lastTap = 0)),
-        (n.active = !0),
+      ((n.active = !0),
         (n.id = t.pointerId),
         (n.moved = 0),
         (n.lastEv = s),
@@ -36279,12 +35356,7 @@ varying float vFlash;`,
         this.mouse.down = !1;
         return;
       }
-      for (let e of [this.move, this.aim])
-        !e.active ||
-          e.id !== t.pointerId ||
-          ((e.active = !1),
-          e === this.move &&
-            (this.lastTap = performance.now() - e.t < 220 && (e.moved || 0) < 14 ? performance.now() : 0));
+      for (let e of [this.move, this.aim]) !e.active || e.id !== t.pointerId || (e.active = !1);
     }
     cancel(t) {
       RL_RT.pointercancel++;
@@ -36292,8 +35364,7 @@ varying float vFlash;`,
         ((this.mouse.down = !1), (this.mouse.active = !1));
         return;
       }
-      for (let e of [this.move, this.aim])
-        !e.active || e.id !== t.pointerId || ((e.active = !1), e === this.move && (this.lastTap = 0));
+      for (let e of [this.move, this.aim]) !e.active || e.id !== t.pointerId || (e.active = !1);
     }
     key(t, e) {
       e ? RL_RT.keydown++ : RL_RT.keyup++;
@@ -36331,7 +35402,6 @@ varying float vFlash;`,
           } catch {}
       ((this.move.active = !1),
         (this.aim.active = !1),
-        (this.lastTap = 0),
         all && this.keys.clear(),
         (this.mouse.down = !1),
         (this.mouse.active = !1),
@@ -36340,9 +35410,9 @@ varying float vFlash;`,
     }
     // 2.3.6: for the camera pan to a new boss. It dropped every input, so a finger held on the
     // move side did nothing after the pan until it was lifted, and held keys stopped. Now only
-    // one-shot presses made during the pan (dash, nova, a half double-tap) are dropped.
+    // one-shot presses made during the pan (dash, nova) are dropped.
     settle() {
-      ((this.pending.dash = !1), (this.pending.nova = !1), (this.lastTap = 0));
+      ((this.pending.dash = !1), (this.pending.nova = !1));
     }
     sample(t, e) {
       let n = (this.R = Lt(Math.min(window.innerWidth, window.innerHeight) * 0.14, 44, 72)),
@@ -36437,18 +35507,6 @@ varying float vFlash;`,
         [51, "M"],
         [48, "m"],
       ],
-      tempest: [
-        [59, "m"],
-        [62, "M"],
-        [55, "M"],
-        [57, "m"],
-      ],
-      crystal: [
-        [64, "M"],
-        [60, "m"],
-        [67, "M"],
-        [62, "M"],
-      ],
     },
     tp = {
       yard: { arp: "square", bass: "sawtooth", lp: 2200, lead: "triangle" },
@@ -36456,8 +35514,6 @@ varying float vFlash;`,
       vault: { arp: "sine", bass: "triangle", lp: 4200, lead: "sine" },
       void: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
       marsh: { arp: "triangle", bass: "sawtooth", lp: 1200, lead: "triangle" },
-      tempest: { arp: "square", bass: "triangle", lp: 2500, lead: "sawtooth" },
-      crystal: { arp: "sine", bass: "square", lp: 3600, lead: "triangle" },
     },
     yn = (i) => 440 * Math.pow(2, (i - 69) / 12),
     ep = [
@@ -38916,14 +37972,14 @@ varying float vFlash;`,
           } else
             Ft.banner(
               t.boss ? "WARNING" : `WAVE ${t.n}`,
-              t.boss ? "Boss signature detected" : n ? e.name : i.endless ? "Endless" : "",
+              t.boss ? "Boss signature detected" : n ? rlBiomeTitle(e) : i.endless ? "Endless" : "",
               t.boss ? "boss" : "",
               2e3,
             );
           (!t.boss &&
             i.arena.vents.length &&
             Gn("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too."),
-            !t.boss && i.arena.ice.length && Gn("ice", "Ice! You slide on it \u2014 and so do enemies."),
+            !t.boss && i.arena.ice.length && Gn("ice", "Cryo Vault: the whole floor is slick, the ice sheets even more \u2014 enemies slide on them too."),
             !t.boss &&
               i.arena.acid.length &&
               Gn("acid", "Acid pools eat at your hull \u2014 but enemies standing in them take 25% more damage."),
@@ -38936,7 +37992,7 @@ varying float vFlash;`,
                 "dash",
                 rlKeys()
                   ? "Tip: SPACE dashes \u2014 it makes you untouchable for a moment."
-                  : "Tip: DASH \u2014 or double-tap the move side \u2014 makes you untouchable for a moment.",
+                  : "Tip: DASH makes you untouchable for a moment.",
               ),
             t.n === 3 &&
               Gn(
@@ -39065,10 +38121,7 @@ varying float vFlash;`,
         rlKeys()
           ? "Enemies! Your drone fires on its own \u2014 hold the left mouse button to aim yourself."
           : `Enemies! Your drone fires on its own \u2014 drag the ${ql().aim} side to aim yourself.`,
-      () =>
-        rlKeys()
-          ? "Press SPACE to dash through danger."
-          : `Tap DASH (or double-tap the ${ql().move} side) to dodge through danger.`,
+      () => (rlKeys() ? "Press SPACE to dash through danger." : "Tap DASH to dodge through danger."),
       () => "Grab the shards \u2014 they buy permanent upgrades in the Workshop.",
     ];
   function l_(i, t) {
@@ -39283,12 +38336,901 @@ varying float vFlash;`,
       });
   })();
 
+  /* ---- 2.4.0: every biome gets its own look, not just its own colours. Before, all 19 biomes
+   shared one neon grid floor, the same boxes and pillars and the same wall; only the palette
+   changed. Now each of the five has its own
+     floor    Neon Yard: neon grid · Ember Works: basalt plates split by glowing lava seams ·
+              Cryo Vault: frozen sheet with cracks, frost and glints · Toxin Marsh: mud, murky
+              water with ripples and moss · Void Core: hex tiles floating over a starfield
+     props    (same collision shapes) pylons and crates · chimneys and machines · crystal
+              clusters and ice blocks · mushrooms, dead trees and logs · floating obelisks and
+              hovering monoliths
+     border   fence · steel wall with hazard stripes · ice wall with crystals · reeds and rocks
+              on a mud bank · energy barrier over the abyss
+     air      neon dust · rising embers and chimney sparks · snowfall · spores and marsh haze ·
+              rising void motes
+     light    sun colour, sky and fog density (the marsh is foggy, the void dark)
+   ---- */
+  var RL_BIOME_LOOK = {
+    yard: { style: 0, hemi: 1.9, sun: 0xffffff, sunI: 1.5, fog: null },
+    works: { style: 1, hemi: 1.6, sun: 0xffb27a, sunI: 1.75, fog: [1.35, 3.3] },
+    vault: { style: 2, hemi: 2.2, sun: 0xd6ecff, sunI: 1.8, fog: [1.3, 3.2] },
+    marsh: { style: 3, hemi: 1.6, sun: 0xdcffb8, sunI: 1.15, fog: [0.95, 2.5] },
+    void: { style: 4, hemi: 1.35, sun: 0xd8c4ff, sunI: 1.05, fog: [1.7, 4.4] },
+  };
+  var RL_FLOOR_FRAG = `
+  #include <common>
+  #include <fog_pars_fragment>
+  uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
+  uniform vec2 uHalf; uniform vec2 uPlayer; uniform float uTime; uniform float uPulse; uniform float uDeco;
+  uniform float uStyle;
+  uniform vec4 uL[6]; uniform vec3 uLC[6];
+  varying vec2 vW;
+  float gridLine(vec2 p, float w) {
+    vec2 g = abs(fract(p - 0.5) - 0.5) / (fwidth(p) * w);
+    return 1.0 - min(min(g.x, g.y), 1.0);
+  }
+  float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+  vec2 h22(vec2 p) { float n = h21(p); return vec2(n, h21(p + n)); }
+  float vnoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), u.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
+  float fbm(vec2 p) {
+    float s = 0.0, a = 0.5;
+    for (int i = 0; i < 3; i++) { s += a * vnoise(p); p = p * 2.03 + 17.1; a *= 0.5; }
+    return s / 0.875;
+  }
+  // x: distance to the nearest cell centre, y: distance to the cell border (F2 - F1), z: cell id
+  vec3 voro(vec2 p) {
+    vec2 n = floor(p), f = fract(p);
+    float d1 = 8.0, d2 = 8.0, id = 0.0;
+    for (int j = -1; j <= 1; j++)
+      for (int i = -1; i <= 1; i++) {
+        vec2 g = vec2(float(i), float(j)), r = g + h22(n + g) - f;
+        float d = dot(r, r);
+        if (d < d1) { d2 = d1; d1 = d; id = h21(n + g); } else if (d < d2) { d2 = d; }
+      }
+    d1 = sqrt(d1);
+    return vec3(d1, sqrt(d2) - d1, id);
+  }
+  vec3 starfield(vec2 p) {
+    vec2 s = p * 1.4 + vec2(uTime * 0.04, 0.0), c = floor(s);
+    float tw = 0.55 + 0.45 * sin(uTime * 2.0 + h21(c + 3.0) * 40.0);
+    float star = step(0.965, h21(c)) * smoothstep(0.22, 0.0, length(fract(s) - 0.5)) * tw;
+    float neb = fbm(p * 0.09 + vec2(uTime * 0.008, 0.0));
+    return uAccent * neb * neb * 0.32 + uGrid * 0.07 * fbm(p * 0.25 - uTime * 0.015) + vec3(star * 0.9);
+  }
+  void main() {
+    vec2 p = vW;
+    float minor = gridLine(p, 1.2);
+    float major = gridLine(p / 4.0, 1.6);
+    vec2 d = uHalf - abs(p);
+    float edge = min(d.x, d.y);
+    float inside = step(0.0, edge);
+    float edgeGlow = exp(-max(edge, 0.0) * 1.1);
+    vec2 dp = p - uPlayer;
+    float pl = exp(-dot(dp, dp) * 0.018);
+    int st = int(uStyle + 0.5);
+    vec3 col;
+    float lit = 0.35 + minor * 0.5 + major * 0.9; // how strongly muzzle flashes / blasts light it
+    float outside = 0.3; // brightness of the floor beyond the border
+    if (st == 1) {
+      // Ember Works: basalt plates, lava in the seams, each plate breathing heat at its own pace
+      vec3 v = voro(p * 0.42);
+      float heat = 0.55 + 0.45 * sin(uTime * 1.3 + v.z * 6.283);
+      float seam = smoothstep(0.06, 0.0, v.y);
+      col = uBase * (0.55 + 1.0 * fbm(p * 1.3)) * (0.8 + 0.5 * pl);
+      col += uGrid * seam * (0.14 + 0.26 * heat) * inside;
+      col += uAccent * smoothstep(0.02, 0.0, v.y) * heat * 0.2 * inside;
+      col += uGrid * 0.04 * smoothstep(0.6, 0.95, v.z) * (1.0 - v.x) * heat * inside;
+      lit = 0.45 + seam;
+    } else if (st == 2) {
+      // Cryo Vault: a lighter frozen sheet, cracks, frost drifts and glints
+      float fr = fbm(p * 0.35 + 3.0);
+      col = mix(uBase * 1.7, uGrid * 0.2, fr * 0.8) * (0.8 + 0.6 * pl) + uAccent * 0.035;
+      vec3 v = voro(p * 0.3 + 11.0);
+      col += uGrid * smoothstep(0.03, 0.0, v.y) * 0.2 * inside;
+      float frost = smoothstep(0.55, 0.8, fbm(p * 1.1));
+      col = mix(col, uGrid * 0.32, frost * 0.45);
+      vec2 gc = floor(p * 2.0), gf = fract(p * 2.0) - 0.5 - (h22(gc) - 0.5) * 0.6;
+      float glint = step(0.97, h21(gc)) * smoothstep(0.1, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 3.0 + h21(gc + 7.0) * 30.0));
+      col += vec3(0.9) * glint * 0.45 * inside;
+      col += uAccent * pl * 0.06;
+      lit = 0.6 + 0.4 * frost;
+    } else if (st == 3) {
+      // Toxin Marsh: mud with murky pools that ripple, moss clumps and glowing specks
+      float m = fbm(p * 0.28 + vec2(0.0, uTime * 0.01));
+      float water = smoothstep(0.5, 0.58, m);
+      vec3 mud = uBase * (0.7 + 1.0 * fbm(p * 1.7)) + vec3(0.012, 0.008, 0.0);
+      vec3 pool = uBase * 0.55 + vec3(0.0, 0.012, 0.018);
+      float sh = sin(dot(p, vec2(1.3, 0.7)) * 2.0 + fbm(p * 0.7 + uTime * 0.12) * 9.0 + uTime * 1.1);
+      pool += uGrid * 0.025 * max(sh, 0.0);
+      col = mix(mud, pool, water) * (0.8 + 0.5 * pl);
+      float moss = smoothstep(0.6, 0.74, fbm(p * 0.9 + 5.0)) * (1.0 - water);
+      col = mix(col, uBase * 1.5 + uGrid * 0.04, moss * 0.7);
+      vec2 sc = floor(p * 1.5), sf = fract(p * 1.5) - 0.5;
+      col += uAccent * step(0.985, h21(sc)) * smoothstep(0.14, 0.0, length(sf)) * (1.0 - water) * 0.3 * inside;
+      lit = 0.4 + 0.6 * water;
+    } else if (st == 4) {
+      // Void Core: hex tiles with glowing rims floating over a starfield; beyond the border only the abyss
+      vec2 q = p / 2.3, r = vec2(1.0, 1.7320508), hh = r * 0.5;
+      vec2 a = mod(q, r) - hh, b = mod(q - hh, r) - hh;
+      vec2 g = dot(a, a) < dot(b, b) ? a : b, cid = floor((q - g) * 2.0 + 0.5);
+      vec2 ag = abs(g);
+      float hd = max(dot(ag, normalize(r)), ag.x);
+      float gap = smoothstep(0.465, 0.48, hd), rim = smoothstep(0.4, 0.46, hd) * (1.0 - gap);
+      float pulse = step(0.94, h21(cid)) * (0.5 + 0.5 * sin(uTime * 2.2 + h21(cid + 1.0) * 20.0));
+      vec3 tile = uBase * (0.75 + 0.35 * h21(cid + 5.0)) * (0.8 + 0.6 * pl) + uGrid * rim * 0.2 + uAccent * pulse * 0.06;
+      col = mix(tile, starfield(p), max(gap, 1.0 - inside));
+      lit = (0.3 + rim) * (1.0 - gap);
+      outside = 1.0;
+    } else {
+      // Neon Yard: the neon grid with a slow scan wave and layout markings (unchanged)
+      float scan = smoothstep(0.0, 1.0, 1.0 - abs(fract(length(p) * 0.05 - uTime * 0.08) - 0.5) * 2.0);
+      col = uBase * (0.75 + 0.7 * pl);
+      col += uGrid * (minor * 0.07 + major * (0.22 + 0.12 * scan)) * (0.6 + 0.6 * pl) * inside;
+      if (uDeco > 0.5) {
+        float mk = 0.0;
+        if (uDeco < 1.5) { float rr = length(p); mk = smoothstep(0.455, 0.49, abs(fract(rr / 5.5) - 0.5)) * step(4.0, rr); }
+        else if (uDeco < 2.5) { float band = step(edge, 2.2) * step(0.5, edge); mk = band * step(0.5, fract((p.x + p.y) * 0.35)); }
+        else if (uDeco < 3.5) { vec2 aa = abs(p); mk = (smoothstep(1.7, 1.5, aa.x) + smoothstep(1.7, 1.5, aa.y)) * 0.45 * step(4.5, length(p)); }
+        else { vec2 gg = vec2(p.x * 0.5774 + p.y, p.x * 1.1547) / 3.0; vec2 ff = fract(gg) - 0.5; mk = smoothstep(0.1, 0.06, length(ff)) * 0.8; }
+        col += uGrid * mk * 0.05 * inside;
+      }
+    }
+    col += uAccent * edgeGlow * 0.28 * inside;
+    col += uGrid * uPulse * 0.12 * inside;
+    for (int i = 0; i < 6; i++) {
+      if (uL[i].w <= 0.0) continue;
+      vec2 d2 = p - uL[i].xy;
+      float fall = exp(-dot(d2, d2) / max(0.01, uL[i].z * uL[i].z));
+      col += uLC[i] * uL[i].w * fall * lit;
+    }
+    col *= mix(outside, 1.0, inside);
+    gl_FragColor = vec4(col, 1.0);
+    #include <fog_fragment>
+    #include <colorspace_fragment>
+  }`;
+
+  // Instanced props (reeds, crystals, stripes, rocks): one draw call per kind.
+  function rlInst(group, geo, mat, list) {
+    if (!list.length) return null;
+    const m = new Er(geo, mat, list.length),
+      o = new an();
+    list.forEach((q, k) => {
+      o.position.set(q.x, q.y, q.z);
+      o.rotation.set(q.rx || 0, q.ry || 0, q.rz || 0);
+      o.scale.set(q.sx ?? 1, q.sy ?? 1, q.sz ?? 1);
+      o.updateMatrix();
+      m.setMatrixAt(k, o.matrix);
+      q.c != null && m.setColorAt(k, lt(q.c));
+    });
+    m.frustumCulled = !1;
+    group.add(m);
+    return m;
+  }
+  // Points along the border, `off` outside it, every `step` metres: fn(x, z, nx, nz)
+  function rlAlongBorder(W, H, off, step, fn) {
+    const a = W + off,
+      b = H + off;
+    for (const [x0, z0, x1, z1, nx, nz] of [
+      [-a, -b, a, -b, 0, -1],
+      [a, -b, a, b, 1, 0],
+      [a, b, -a, b, 0, 1],
+      [-a, b, -a, -b, -1, 0],
+    ]) {
+      const n = Math.max(1, Math.round(Math.hypot(x1 - x0, z1 - z0) / step));
+      for (let k = 0; k < n; k++) {
+        const f = (k + 0.5) / n;
+        fn(x0 + (x1 - x0) * f, z0 + (z1 - z0) * f, nx, nz);
+      }
+    }
+  }
+  const rlMesh = (group, geo, mat, x, y, z, ry = 0) => {
+    const m = new Gt(geo, mat);
+    m.position.set(x, y, z);
+    m.rotation.y = ry;
+    group.add(m);
+    return m;
+  };
+  const rlGlow = (c, opacity = 1) => new Ie({ color: c, toneMapped: !1, transparent: opacity < 1, opacity });
+  // A thin ring on the floor at the collision radius, so the footprint reads in every biome.
+  const rlFootRing = (g, x, z, r, mat) => {
+    const q = rlMesh(g, new Ve(r, 0.04, 4, 32), mat, x, 0.05, z);
+    q.rotation.x = Math.PI / 2;
+    return q;
+  };
+  // Outline slab under a box obstacle.
+  const rlFootSlab = (g, b, mat, pad = 0.3) =>
+    rlMesh(g, new Ct(b.w * 2 + pad, 0.05, b.h * 2 + pad), mat, b.x, 0.03, b.y);
+
+  var RL_BIOME_BUILD = {
+    // Neon Yard: the original arena (fence with neon trim, pylons and crates)
+    yard(A, t, W, H, obs) {
+      const g = A.group,
+        x = A.obsGroup,
+        o = new $e({ color: t.wall }),
+        c = new Ie({ color: t.grid, toneMapped: !1 }),
+        h = new Ie({ color: t.accent, toneMapped: !1 }),
+        d = 0.5,
+        f = 0.7;
+      for (const [bx, bz, sx, sz] of [
+        [0, -H - d / 2, W * 2 + d * 2, d],
+        [0, H + d / 2, W * 2 + d * 2, d],
+        [-W - d / 2, 0, d, H * 2],
+        [W + d / 2, 0, d, H * 2],
+      ]) {
+        rlMesh(g, new Ct(sx, f, sz), o, bx, f / 2, bz);
+        rlMesh(
+          g,
+          new Ct(sx === d ? 0.08 : sx, 0.06, sz === d ? 0.08 : sz),
+          c,
+          bx + (sx === d ? (bx < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
+          f + 0.03,
+          bz + (sz === d ? (bz < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
+        );
+      }
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1]) {
+          rlMesh(g, new Ct(0.9, 1.4, 0.9), o, sx * (W + 0.25), 0.7, sz * (H + 0.25));
+          rlMesh(g, new Ct(0.95, 0.08, 0.95), h, sx * (W + 0.25), 1.42, sz * (H + 0.25));
+        }
+      const m = new $e({ color: new Ot(t.wall).multiplyScalar(1.4) });
+      for (const b of obs)
+        if (b.t === "c") {
+          const v = 1.8;
+          rlMesh(x, new ye(b.r, b.r * 1.08, v, 20), m, b.x, v / 2, b.y);
+          rlMesh(x, new ye(b.r * 1.02, b.r * 1.02, 0.08, 20, 1, !0), c, b.x, v * 0.75, b.y);
+          rlFootRing(x, b.x, b.y, b.r * 1.1, h);
+          rlMesh(x, new ye(b.r * 0.6, b.r * 0.6, 0.06, 16), c, b.x, v + 0.03, b.y);
+        } else {
+          const v = b.w < 1.3 && b.h < 1.3 ? 1.1 : 1.3;
+          rlMesh(x, new Ct(b.w * 2, v, b.h * 2), m, b.x, v / 2, b.y);
+          for (const e of [-b.h, b.h]) rlMesh(x, new Ct(b.w * 2 + 0.04, 0.07, 0.07), c, b.x, v, b.y + e);
+          for (const e of [-b.w, b.w]) rlMesh(x, new Ct(0.07, 0.07, b.h * 2 + 0.04), c, b.x + e, v, b.y);
+          rlFootSlab(x, b, h);
+        }
+    },
+    // Ember Works: steel wall with hazard stripes, furnaces in the corners, chimneys and machines
+    works(A, t, W, H, obs, R) {
+      const g = A.group,
+        x = A.obsGroup,
+        steel = new $e({ color: 0x2b2420, flatShading: !0 }),
+        dark = new $e({ color: t.wall, flatShading: !0 }),
+        pipe = new $e({ color: 0x3d3129, flatShading: !0 }),
+        glow = rlGlow(t.grid),
+        hot = rlGlow(t.accent),
+        d = 0.6,
+        f = 1.25;
+      for (const [bx, bz, sx, sz] of [
+        [0, -H - d / 2, W * 2 + d * 2, d],
+        [0, H + d / 2, W * 2 + d * 2, d],
+        [-W - d / 2, 0, d, H * 2],
+        [W + d / 2, 0, d, H * 2],
+      ]) {
+        rlMesh(g, new Ct(sx, f, sz), steel, bx, f / 2, bz);
+        // a pipe along the inner face of every wall
+        const along = sx > sz,
+          p = rlMesh(
+            g,
+            new ye(0.12, 0.12, along ? sx : sz, 8),
+            pipe,
+            bx + (along ? 0 : -Math.sign(bx) * 0.38),
+            0.45,
+            bz + (along ? -Math.sign(bz) * 0.38 : 0),
+          );
+        along ? (p.rotation.z = Math.PI / 2) : (p.rotation.x = Math.PI / 2);
+      }
+      // hazard stripes on top of the wall: one instanced mesh, orange and black
+      const stripes = [];
+      let k = 0;
+      rlAlongBorder(W, H, d / 2, 0.55, (px, pz, nx) =>
+        stripes.push({
+          x: px,
+          y: f + 0.05,
+          z: pz,
+          ry: nx ? Math.PI / 2 : 0,
+          sx: 0.5,
+          sy: 0.1,
+          sz: d + 0.02,
+          c: k++ % 2 ? 0x141210 : t.grid,
+        }),
+      );
+      rlInst(g, new Ct(1, 1, 1), new Ie({ toneMapped: !1 }), stripes);
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1]) {
+          const cx = sx * (W + 0.55),
+            cz = sz * (H + 0.55);
+          rlMesh(g, new Ct(1.6, 1.9, 1.6), dark, cx, 0.95, cz);
+          rlMesh(g, new Ct(1.64, 0.14, 0.5), hot, cx, 1.2, cz);
+          A.rlEmit.push({ x: cx, z: cz, y: 2.0, k: "spark" });
+        }
+      for (const b of obs)
+        if (b.t === "c") {
+          // chimney: steel stack, glowing band, fire in the mouth, sparks rising
+          const v = 2.4;
+          rlMesh(x, new ye(b.r * 0.78, b.r, v, 14), steel, b.x, v / 2, b.y);
+          rlMesh(x, new ye(b.r * 0.84, b.r * 0.86, 0.18, 14), glow, b.x, v * 0.68, b.y);
+          const rim = rlMesh(x, new Ve(b.r * 0.72, 0.09, 6, 20), dark, b.x, v, b.y);
+          rim.rotation.x = Math.PI / 2;
+          const mouth = rlMesh(x, new Pr(b.r * 0.66, 18), hot, b.x, v - 0.02, b.y);
+          mouth.rotation.x = -Math.PI / 2;
+          rlFootRing(x, b.x, b.y, b.r * 1.08, glow);
+          A.rlEmit.push({ x: b.x, z: b.y, y: v + 0.1, k: "spark" });
+        } else {
+          // machine block: dark top plate, glowing seams, hot vents
+          const v = 1.1,
+            longX = b.w >= b.h;
+          rlMesh(x, new Ct(b.w * 2, v, b.h * 2), steel, b.x, v / 2, b.y);
+          rlMesh(x, new Ct(Math.max(0.1, b.w * 2 - 0.2), 0.08, Math.max(0.1, b.h * 2 - 0.2)), dark, b.x, v + 0.04, b.y);
+          for (const s of [-1, 1])
+            longX
+              ? rlMesh(x, new Ct(b.w * 2 + 0.02, 0.08, 0.04), glow, b.x, v * 0.55, b.y + s * b.h)
+              : rlMesh(x, new Ct(0.04, 0.08, b.h * 2 + 0.02), glow, b.x + s * b.w, v * 0.55, b.y);
+          const n = Math.max(1, Math.min(4, Math.floor(Math.max(b.w, b.h) / 0.6)));
+          for (let j = 0; j < n; j++) {
+            const f2 = (j + 0.5) / n - 0.5;
+            rlMesh(
+              x,
+              new Ct(0.28, 0.06, 0.28),
+              hot,
+              b.x + (longX ? f2 * b.w * 1.6 : 0),
+              v + 0.1,
+              b.y + (longX ? 0 : f2 * b.h * 1.6),
+            );
+          }
+          rlFootSlab(x, b, glow, 0.25);
+        }
+    },
+    // Cryo Vault: ice wall crowned with crystals, crystal clusters and ice blocks with snow caps
+    vault(A, t, W, H, obs, R) {
+      const g = A.group,
+        x = A.obsGroup,
+        ice = new $e({ color: 0x9fd8f0, emissive: 0x0c2a44, transparent: !0, opacity: 0.84, flatShading: !0 }),
+        core = new $e({ color: 0x2a5a78, emissive: 0x061624, flatShading: !0 }),
+        snow = new $e({ color: 0xe8f4ff, emissive: 0x1a2a38, flatShading: !0 }),
+        glow = rlGlow(t.grid, 0.8),
+        d = 0.6,
+        f = 0.45;
+      for (const [bx, bz, sx, sz] of [
+        [0, -H - d / 2, W * 2 + d * 2, d],
+        [0, H + d / 2, W * 2 + d * 2, d],
+        [-W - d / 2, 0, d, H * 2],
+        [W + d / 2, 0, d, H * 2],
+      ])
+        rlMesh(g, new Ct(sx, f, sz), core, bx, f / 2, bz);
+      const spikes = [],
+        tint = [0xbfe8ff, 0x9fd8f0, 0xdff4ff, 0x86c4e8];
+      for (const off of [0.25, 0.85])
+        rlAlongBorder(W, H, off, 0.75, (px, pz, nx, nz) => {
+          const h = R.range(0.7, off < 0.5 ? 1.5 : 2.4),
+            tilt = R.range(0.1, 0.35);
+          spikes.push({
+            x: px + R.range(-0.2, 0.2) * (nz ? 1 : 0),
+            y: f + h / 2 - 0.1,
+            z: pz + R.range(-0.2, 0.2) * (nx ? 1 : 0),
+            rx: nz * tilt,
+            rz: -nx * tilt,
+            ry: R.range(0, 6),
+            sx: R.range(0.7, 1.2),
+            sy: h,
+            sz: R.range(0.7, 1.2),
+            c: R.pick(tint),
+          });
+        });
+      rlInst(
+        g,
+        new Ir(0.28, 1, 6),
+        new $e({ emissive: 0x0c2a44, transparent: !0, opacity: 0.88, flatShading: !0 }),
+        spikes,
+      );
+      for (const b of obs)
+        if (b.t === "c") {
+          // crystal cluster: a tall hexagonal prism and four smaller ones leaning outwards
+          const main = rlMesh(x, new ye(b.r * 0.3, b.r * 0.5, 2.1, 6), ice, b.x, 1.05, b.y, R.range(0, 6));
+          main.rotation.z = R.range(-0.08, 0.08);
+          for (let j = 0; j < 4; j++) {
+            const a = (j / 4) * Math.PI * 2 + R.range(-0.4, 0.4),
+              h = R.range(0.8, 1.4),
+              q = rlMesh(
+                x,
+                new ye(b.r * 0.14, b.r * 0.24, h, 6),
+                ice,
+                b.x + Math.cos(a) * b.r * 0.55,
+                h / 2 - 0.05,
+                b.y + Math.sin(a) * b.r * 0.55,
+              );
+            q.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
+          }
+          const frost = rlMesh(x, new Pr(b.r, 20), snow, b.x, 0.02, b.y);
+          frost.rotation.x = -Math.PI / 2;
+          rlFootRing(x, b.x, b.y, b.r * 1.08, glow);
+          A.rlEmit.push({ x: b.x, z: b.y, y: 2.0, k: "glint" });
+        } else {
+          // ice block: clear shell, dark core, snow cap
+          const v = 1.05;
+          rlMesh(x, new Ct(b.w * 2 * 0.72, v * 0.8, b.h * 2 * 0.72), core, b.x, v * 0.42, b.y);
+          rlMesh(x, new Ct(b.w * 2, v, b.h * 2), ice, b.x, v / 2, b.y);
+          rlMesh(x, new Ct(b.w * 2 + 0.1, 0.14, b.h * 2 + 0.1), snow, b.x, v + 0.05, b.y);
+          rlFootSlab(x, b, glow, 0.25);
+        }
+    },
+    // Toxin Marsh: a mud bank with reeds and rocks, mushrooms, dead trees and mossy logs
+    marsh(A, t, W, H, obs, R) {
+      const g = A.group,
+        x = A.obsGroup,
+        bark = new $e({ color: 0x2e2a1c, flatShading: !0 }),
+        moss = new $e({ color: 0x2f5a22, emissive: 0x0a1a06, flatShading: !0 }),
+        stem = new $e({ color: 0xcfc8a8, flatShading: !0 }),
+        cap = new $e({ color: 0x6a3a8a, emissive: 0x1a0826, flatShading: !0 }),
+        gill = new $e({ color: 0x1c1024 }),
+        spot = rlGlow(t.accent),
+        ring = rlGlow(t.grid, 0.55),
+        wood = new $e({ color: 0x6a5a3a, flatShading: !0 }),
+        d = 1.2;
+      for (const [bx, bz, sx, sz] of [
+        [0, -H - d / 2, W * 2 + d * 2, d],
+        [0, H + d / 2, W * 2 + d * 2, d],
+        [-W - d / 2, 0, d, H * 2],
+        [W + d / 2, 0, d, H * 2],
+      ])
+        rlMesh(g, new Ct(sx, 0.22, sz), new $e({ color: 0x1a2414, flatShading: !0 }), bx, 0.11, bz);
+      const reeds = [],
+        rocks = [],
+        green = [0x5a7a2a, 0x4a6a24, 0x6f8a34, 0x3e5a20];
+      rlAlongBorder(W, H, 0.55, 0.4, (px, pz, nx, nz) => {
+        for (let j = 0; j < 2; j++) {
+          const h = R.range(0.9, 2.3),
+            o = R.range(-0.45, 0.6);
+          reeds.push({
+            x: px + nx * o + R.range(-0.2, 0.2) * (nz ? 1 : 0),
+            y: h / 2,
+            z: pz + nz * o + R.range(-0.2, 0.2) * (nx ? 1 : 0),
+            rx: R.range(-0.15, 0.15),
+            rz: R.range(-0.15, 0.15),
+            sy: h,
+            c: R.pick(green),
+          });
+        }
+      });
+      rlAlongBorder(W, H, 1.3, 2.6, (px, pz) => {
+        const s = R.range(0.5, 1.2);
+        rocks.push({
+          x: px + R.range(-0.4, 0.4),
+          y: s * 0.25,
+          z: pz + R.range(-0.4, 0.4),
+          ry: R.range(0, 6),
+          rx: R.range(0, 1),
+          sx: s,
+          sy: s * 0.6,
+          sz: s * R.range(0.8, 1.2),
+          c: R.pick([0x2a3328, 0x333a2c, 0x262e24]),
+        });
+      });
+      rlInst(g, new ye(0.03, 0.05, 1, 4), new $e({ flatShading: !0 }), reeds);
+      rlInst(g, new Lr(0.6), new $e({ flatShading: !0 }), rocks);
+      for (const b of obs)
+        if (b.t === "c") {
+          if (R.chance(0.55)) {
+            // giant mushroom: pale stem, purple cap with glowing spots, spores drifting up
+            rlMesh(x, new ye(b.r * 0.22, b.r * 0.32, 1.25, 8), stem, b.x, 0.62, b.y);
+            const c2 = rlMesh(x, new De(b.r * 1.02, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), cap, b.x, 1.18, b.y);
+            c2.scale.y = 0.6;
+            const under = rlMesh(x, new Pr(b.r * 1.0, 18), gill, b.x, 1.18, b.y);
+            under.rotation.x = Math.PI / 2;
+            for (let j = 0; j < 6; j++) {
+              const a = R.range(0, Math.PI * 2),
+                el = R.range(0.25, 1.2);
+              rlMesh(
+                x,
+                new De(R.range(0.06, 0.12), 6, 4),
+                spot,
+                b.x + Math.cos(a) * Math.sin(el) * b.r,
+                1.18 + Math.cos(el) * b.r * 0.6,
+                b.y + Math.sin(a) * Math.sin(el) * b.r,
+              );
+            }
+            A.rlEmit.push({ x: b.x, z: b.y, y: 1.2 + b.r * 0.6, k: "spore" });
+          } else {
+            // dead tree: bare trunk, crooked branches, roots and a collar of moss
+            rlMesh(x, new ye(b.r * 0.26, b.r * 0.55, 2.2, 7), bark, b.x, 1.1, b.y, R.range(0, 6));
+            for (let j = 0; j < 3; j++) {
+              const a = R.range(0, Math.PI * 2),
+                q = rlMesh(
+                  x,
+                  new ye(0.04, 0.1, 1.0, 5),
+                  bark,
+                  b.x + Math.cos(a) * 0.3,
+                  R.range(1.5, 2.1),
+                  b.y + Math.sin(a) * 0.3,
+                );
+              q.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
+            }
+            for (let j = 0; j < 4; j++) {
+              const a = (j / 4) * Math.PI * 2 + R.range(-0.3, 0.3),
+                q = rlMesh(
+                  x,
+                  new ye(0.05, b.r * 0.18, b.r * 0.9, 5),
+                  bark,
+                  b.x + Math.cos(a) * b.r * 0.55,
+                  0.16,
+                  b.y + Math.sin(a) * b.r * 0.55,
+                );
+              q.rotation.set(Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2);
+            }
+            const col = rlMesh(x, new Ve(b.r * 0.5, 0.14, 5, 14), moss, b.x, 0.14, b.y);
+            col.rotation.x = Math.PI / 2;
+          }
+          rlFootRing(x, b.x, b.y, b.r * 1.08, ring);
+        } else {
+          // fallen log along the long side, moss on top, two small glowing mushrooms
+          const longX = b.w >= b.h,
+            L = Math.max(b.w, b.h) * 2,
+            rad = Math.max(0.3, Math.min(b.w, b.h) * 0.9),
+            log = rlMesh(x, new ye(rad, rad * 1.05, L, 10), bark, b.x, rad, b.y);
+          longX ? (log.rotation.z = Math.PI / 2) : (log.rotation.x = Math.PI / 2);
+          rlMesh(x, new Ct(longX ? L * 0.8 : rad * 1.1, 0.1, longX ? rad * 1.1 : L * 0.8), moss, b.x, rad * 1.95, b.y);
+          for (const s of [-1, 1]) {
+            const e = rlMesh(
+              x,
+              new Pr(rad * 0.92, 12),
+              wood,
+              b.x + (longX ? (s * L) / 2 + s * 0.02 : 0),
+              rad,
+              b.y + (longX ? 0 : (s * L) / 2 + s * 0.02),
+            );
+            longX ? (e.rotation.y = (s * Math.PI) / 2) : (e.rotation.y = s > 0 ? 0 : Math.PI);
+          }
+          for (let j = 0; j < 2; j++) {
+            const f2 = R.range(-0.3, 0.3) * L,
+              mx = b.x + (longX ? f2 : 0),
+              mz = b.y + (longX ? 0 : f2);
+            rlMesh(x, new ye(0.04, 0.05, 0.25, 5), stem, mx, rad * 2 + 0.12, mz);
+            rlMesh(x, new De(0.13, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), spot, mx, rad * 2 + 0.24, mz);
+          }
+          rlFootSlab(x, b, ring, 0.2);
+        }
+    },
+    // Void Core: an energy barrier over the abyss, floating obelisks and hovering monoliths
+    void(A, t, W, H, obs, R) {
+      const g = A.group,
+        x = A.obsGroup,
+        obsid = new $e({ color: 0x2a1a4a, emissive: 0x12072a, flatShading: !0 }),
+        rim = rlGlow(t.grid),
+        hot = rlGlow(t.accent),
+        wall = zi(null, { color: t.grid, opacity: 0.13, side: fn }),
+        f = 1.8;
+      for (const [bx, bz, len, rot] of [
+        [0, -H, W * 2, 0],
+        [0, H, W * 2, 0],
+        [-W, 0, H * 2, Math.PI / 2],
+        [W, 0, H * 2, Math.PI / 2],
+      ]) {
+        rlMesh(g, new jn(len, f), wall, bx, f / 2, bz, rot);
+        rlMesh(g, new Ct(rot ? 0.06 : len, 0.05, rot ? len : 0.06), rim, bx, 0.03, bz);
+        rlMesh(g, new Ct(rot ? 0.04 : len, 0.03, rot ? len : 0.04), rim, bx, f, bz);
+      }
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1]) {
+          const q = rlMesh(g, new Qe(0.45), hot, sx * W, 1.3, sz * H);
+          q.scale.y = 1.8;
+          A.rlAnim.push({ o: q, k: "spin", s: 1.2, b: 1.3, ph: sx + sz * 2 });
+        }
+      // rocks drifting in the abyss around the arena
+      const rocks = [];
+      for (let j = 0; j < 46; j++) {
+        const side = R.int(0, 3),
+          along = R.range(-1, 1),
+          out = R.range(1.6, 9),
+          px = side < 2 ? along * (W + 6) : (side === 2 ? -1 : 1) * (W + out),
+          pz = side < 2 ? (side === 0 ? -1 : 1) * (H + out) : along * (H + 6),
+          s = R.range(0.3, 1.3);
+        rocks.push({
+          x: px,
+          y: R.range(-3, 0.4),
+          z: pz,
+          rx: R.range(0, 6),
+          ry: R.range(0, 6),
+          sx: s,
+          sy: s * R.range(0.6, 1.2),
+          sz: s,
+          c: R.pick([0x2a1c44, 0x1e1434, 0x352654]),
+        });
+      }
+      const drift = new rn();
+      g.add(drift);
+      rlInst(drift, new Lr(0.8), new $e({ emissive: 0x0a0418, flatShading: !0 }), rocks);
+      A.rlAnim.push({ o: drift, k: "bob", b: 0, ph: 0, a: 0.25, s: 0.35 });
+      for (const b of obs)
+        if (b.t === "c") {
+          // floating obelisk with an orbiting ring over a rune circle
+          const ob = rlMesh(x, new Qe(b.r * 0.72), obsid, b.x, 1.6, b.y);
+          ob.scale.y = 2.3;
+          A.rlAnim.push({ o: ob, k: "spinbob", s: 0.6, b: 1.6, ph: b.x * 1.7 + b.y, a: 0.12 });
+          const orb = rlMesh(x, new Ve(b.r * 0.95, 0.04, 4, 32), hot, b.x, 1.6, b.y);
+          orb.rotation.x = 1.2;
+          A.rlAnim.push({ o: orb, k: "spin", s: 1.4, b: 1.6, ph: b.y });
+          rlFootRing(x, b.x, b.y, b.r * 1.08, rim);
+          const pad = rlMesh(x, new Pr(b.r * 0.95, 24), zi(null, { color: t.accent, opacity: 0.16 }), b.x, 0.04, b.y);
+          pad.rotation.x = -Math.PI / 2;
+          A.rlEmit.push({ x: b.x, z: b.y, y: 0.6, k: "mote" });
+        } else {
+          // monolith hovering above its outline, glowing seams on the edges
+          const v = 2.0,
+            mono = new rn();
+          mono.position.set(b.x, 0.3 + v / 2, b.y);
+          x.add(mono);
+          rlMesh(mono, new Ct(b.w * 2 * 0.92, v, b.h * 2 * 0.92), obsid, 0, 0, 0);
+          for (const sx of [-1, 1])
+            for (const sz of [-1, 1])
+              rlMesh(mono, new Ct(0.05, v + 0.02, 0.05), rim, sx * b.w * 0.92, 0, sz * b.h * 0.92);
+          for (const s of [-1, 1]) {
+            rlMesh(mono, new Ct(b.w * 2 * 0.92 + 0.04, 0.05, 0.05), hot, 0, v / 2, s * b.h * 0.92);
+            rlMesh(mono, new Ct(0.05, 0.05, b.h * 2 * 0.92 + 0.04), hot, s * b.w * 0.92, v / 2, 0);
+          }
+          A.rlAnim.push({ o: mono, k: "bob", b: 0.3 + v / 2, ph: b.x + b.y * 0.7, a: 0.1, s: 1.1 });
+          rlFootSlab(x, b, rim, 0.2);
+        }
+    },
+  };
+
+  /* The arena is rebuilt from scratch for every layout (as before); build() now asks the biome
+   for its border and props and switches the floor shader's style. */
+  Ul.prototype.build = function (t, e, n = !1) {
+    if (((e = e || { key: t.id + ":classic", W: t.W, H: t.H, obs: t.obstacles, deco: 0 }), this.layKey === e.key))
+      return;
+    const first = this.layKey == null;
+    if (!this.rlFloor) {
+      // same uniforms, new fragment shader with one branch per biome style
+      this.uniforms.uStyle = { value: 0 };
+      this.floorMat.dispose();
+      this.floorMat = new un({ uniforms: this.uniforms, vertexShader: $v, fragmentShader: RL_FLOOR_FRAG, fog: !0 });
+      this.rlFloor = !0;
+    }
+    ((this.layKey = e.key), (this.biomeId = t.id));
+    this.group.traverse((b) => {
+      (b.geometry && b.geometry.dispose(), b.material && b.material !== this.floorMat && b.material.dispose());
+    });
+    this.group.clear();
+    const look = RL_BIOME_LOOK[t.id] || RL_BIOME_LOOK.yard,
+      r = this.uniforms;
+    (r.uBase.value.setHex(t.floor),
+      r.uGrid.value.setHex(t.grid),
+      r.uAccent.value.setHex(t.accent),
+      r.uHalf.value.set(e.W, e.H),
+      (r.uDeco.value = look.style === 0 ? e.deco || 0 : 0),
+      (r.uStyle.value = look.style));
+    const floor = new Gt(new jn(100, 100), this.floorMat);
+    ((floor.rotation.x = -Math.PI / 2), this.group.add(floor));
+    const x = new rn();
+    (this.group.add(x), (this.obsGroup = x));
+    this.rlAnim = [];
+    this.rlEmit = [];
+    (RL_BIOME_BUILD[t.id] || RL_BIOME_BUILD.yard)(this, t, e.W, e.H, e.obs, qi(Yi(e.key + ":look")));
+    ((this.rise = n && !first ? 0 : 1), (x.position.y = this.rise < 1 ? -2.6 : 0));
+  };
+  const _rlArenaUpdate240 = Ul.prototype.update;
+  Ul.prototype.update = function (t, e, n, s) {
+    _rlArenaUpdate240.call(this, t, e, n, s);
+    const T = this.uniforms.uTime.value;
+    for (const a of this.rlAnim || []) {
+      const o = a.o;
+      if (a.k === "spin" || a.k === "spinbob") o.rotation.y += t * a.s;
+      if (a.k === "bob" || a.k === "spinbob") o.position.y = a.b + Math.sin(T * (a.s || 1) + a.ph) * (a.a || 0.1);
+    }
+  };
+
+  // Ambient particles: the air of the biome, around the camera, plus sparks/spores/glints from props.
+  const RL_C = {
+    ember: new Ot(0xffa040),
+    ember2: new Ot(0xffd070),
+    snow: new Ot(0xdceeff),
+    white: new Ot(0xffffff),
+  };
+  function rlAmbient(R, dt, w, opt) {
+    const b = R.biome,
+      A = R.arena;
+    if (!b || !(dt > 0) || dt > 0.25) return;
+    const k = Math.min(1, R.maxParticles / 1400) * (opt.menu || !w ? 0.6 : 1),
+      W = A.uniforms.uHalf.value.x,
+      H = A.uniforms.uHalf.value.y,
+      cx = opt.menu || !w ? 0 : R.camX,
+      cz = opt.menu || !w ? 0 : R.camZ,
+      count = (rate) => {
+        const c = rate * dt * k,
+          m = Math.floor(c);
+        return m + (Math.random() < c - m ? 1 : 0);
+      },
+      rx = (s = 15) => Lt(cx + (Math.random() * 2 - 1) * s, -W, W),
+      rz = (s = 12) => Lt(cz + (Math.random() * 2 - 1) * s - 2, -H, H),
+      grid = lt(b.grid),
+      acc = lt(b.accent);
+    switch (b.id) {
+      case "works":
+        for (let j = count(24); j--; )
+          R.emit(
+            rx(),
+            0.1,
+            rz(),
+            (Math.random() - 0.5) * 0.8,
+            1 + Math.random() * 1.6,
+            (Math.random() - 0.5) * 0.8,
+            1.6 + Math.random(),
+            0.1 + Math.random() * 0.1,
+            Math.random() < 0.5 ? RL_C.ember : RL_C.ember2,
+            { drag: 0.3 },
+          );
+        break;
+      case "vault":
+        for (let j = count(42); j--; )
+          R.emit(
+            rx(17),
+            2.5 + Math.random() * 6,
+            rz(14),
+            0.5 + Math.random() * 0.3,
+            -1.3 - Math.random() * 0.6,
+            0.15,
+            4,
+            0.13,
+            RL_C.snow,
+            { drag: 0 },
+          );
+        break;
+      case "marsh":
+        for (let j = count(14); j--; )
+          R.emit(
+            rx(),
+            0.3 + Math.random() * 1.3,
+            rz(),
+            (Math.random() - 0.5) * 0.4,
+            0.15 + Math.random() * 0.2,
+            (Math.random() - 0.5) * 0.4,
+            3.5,
+            0.15,
+            Math.random() < 0.6 ? acc : grid,
+            { drag: 0.2 },
+          );
+        for (let j = count(4); j--; )
+          R.emit(
+            rx(),
+            0.25,
+            rz(),
+            (Math.random() - 0.5) * 0.3,
+            0.02,
+            (Math.random() - 0.5) * 0.3,
+            5,
+            2.6,
+            lt(0x0a1a08),
+            { drag: 0, grow: 0.6 },
+          );
+        break;
+      case "void":
+        for (let j = count(20); j--; )
+          R.emit(
+            rx(18),
+            0.05,
+            rz(15),
+            0,
+            0.6 + Math.random() * 0.8,
+            0,
+            3.5,
+            0.1,
+            Math.random() < 0.5 ? acc : Math.random() < 0.5 ? grid : RL_C.white,
+            { drag: 0 },
+          );
+        break;
+      default:
+        for (let j = count(6); j--; )
+          R.emit(rx(), 0.2 + Math.random() * 0.8, rz(), 0, 0.3, 0, 3, 0.12, grid, { drag: 0 });
+    }
+    if (!(A.rise >= 1) || !A.rlEmit) return;
+    for (const q of A.rlEmit) {
+      if (Math.abs(q.x - cx) > 22 || Math.abs(q.z - cz) > 18) continue;
+      if (q.k === "spark")
+        count(5) &&
+          R.emit(
+            q.x + (Math.random() - 0.5) * 0.4,
+            q.y,
+            q.z + (Math.random() - 0.5) * 0.4,
+            (Math.random() - 0.5) * 0.6,
+            1.6 + Math.random() * 1.4,
+            (Math.random() - 0.5) * 0.6,
+            1.3,
+            0.22,
+            RL_C.ember,
+            { drag: 0.6, grow: 1.2 },
+          );
+      else if (q.k === "glint")
+        count(1.5) &&
+          R.emit(
+            q.x + (Math.random() - 0.5),
+            q.y * Math.random(),
+            q.z + (Math.random() - 0.5),
+            0,
+            0.2,
+            0,
+            0.6,
+            0.2,
+            RL_C.white,
+            { spark: !0, drag: 0 },
+          );
+      else if (q.k === "spore")
+        count(2.5) &&
+          R.emit(
+            q.x + (Math.random() - 0.5),
+            q.y,
+            q.z + (Math.random() - 0.5),
+            (Math.random() - 0.5) * 0.3,
+            0.4 + Math.random() * 0.3,
+            (Math.random() - 0.5) * 0.3,
+            3,
+            0.14,
+            acc,
+            { drag: 0.1 },
+          );
+      else if (q.k === "mote") {
+        if (count(3)) {
+          const a = Math.random() * Me;
+          R.emit(
+            q.x + Math.cos(a) * 1.1,
+            q.y,
+            q.z + Math.sin(a) * 1.1,
+            -Math.cos(a) * 0.5,
+            0.9,
+            -Math.sin(a) * 0.5,
+            1.4,
+            0.12,
+            grid,
+            { drag: 0 },
+          );
+        }
+      }
+    }
+  }
+  const _rlFrame240 = Bl.prototype.frame;
+  Bl.prototype.frame = function (t, e, n = {}) {
+    try {
+      rlAmbient(this, t, e, n);
+    } catch (err) {
+      this.rlAmbErr || (ze("ambient", err), (this.rlAmbErr = !0));
+    }
+    return _rlFrame240.call(this, t, e, n);
+  };
+  const _rlSetBiome240 = Bl.prototype.setBiome;
+  Bl.prototype.setBiome = function (t, e) {
+    _rlSetBiome240.call(this, t, e);
+    const L = RL_BIOME_LOOK[t.id] || RL_BIOME_LOOK.yard,
+      f = this.scene.fog;
+    this.sun.color.setHex(L.sun);
+    if (L.fog) {
+      // fog relative to the camera distance, so portrait phones (camera further out) look the same
+      const a = this.camDistance();
+      ((f.near = a * L.fog[0]), (f.far = a * L.fog[1]));
+    } else ((f.near = 30), (f.far = 75));
+  };
+  const _rlLights240 = Bl.prototype.updateLights;
+  Bl.prototype.updateLights = function (t, e) {
+    _rlLights240.call(this, t, e);
+    const L = this.biome && RL_BIOME_LOOK[this.biome.id];
+    L && ((this.hemi.intensity = L.hemi), (this.sun.intensity = L.sunI));
+  };
+  // 2.4.0: say once that the retired weapons of an old save were converted.
+  function rlRetireToast() {
+    const q = RL_RETIRE_NOTE;
+    if (!q || !q.names.length) return;
+    RL_RETIRE_NOTE = null;
+    Ft.toast(
+      `The arsenal is down to 7 weapons: ${q.names.join(", ")} became the weapon ${q.names.length > 1 ? "they were variants" : "it was a variant"} of${q.refund ? `, +${qn(q.refund)} shards refunded` : ""}.`,
+      "good",
+      9000,
+    );
+    ee.save("retire");
+  }
+
   /* ---- 2.2.3: run monitor hooks (only the live run's world is observed;
    self-test and snapshot-check worlds are ignored by identity) ---- */
   (() => {
-    // 2.3.0: every biome gets its own music theme
-    Object.assign(Qf, RL_MUSIC_ROOTS);
-    Object.assign(tp, RL_MUSIC_VOICES);
     rlInstallHunt();
     const baseStep = Aa.prototype.step;
     Aa.prototype.step = function (dt, input) {
@@ -39395,6 +39337,7 @@ varying float vFlash;`,
   })();
   Xh();
   Ft.show("home");
+  setTimeout(rlRetireToast, 700);
   setTimeout(() => rlRunHealth({ context: "startup" }).catch((e) => ze("health", e)), 900);
   oe
     ? xp()

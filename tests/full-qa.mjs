@@ -142,14 +142,18 @@ await section('saves', async L => {
   for (const [label, raw] of [['2.2.2 save', v222], ['2.3.1 save', v231]]) {
     const P = await open('desktop', { save: raw }); await P.boot();
     const src = JSON.parse(raw);
-    const d = await P.ev(() => { const g = window.__riftTest.game, s = window.__riftTest.store.data; return { shards: s.shards, hull: s.workshop.hull, ion: s.weapons.ion, weapon: s.weapon, set: s.settings, runs: s.stats.runs, best: s.stats.bestWave, run: !!s.run, hist: s.history, vol: g.sound.sfxVol, zoom: window.__riftTest.renderer.zoom, contrast: window.__riftTest.renderer.contrast }; });
-    check(L, `${label}: progress kept (shards, workshop, weapons, stats)`, d.shards === src.shards && d.hull === 2 && d.ion === true && d.weapon === 'ion' && d.runs === src.stats.runs && d.best === src.stats.bestWave, JSON.stringify({ shards: d.shards, hull: d.hull, weapon: d.weapon, runs: d.runs }));
+    const told = await P.page.waitForFunction(() => document.body.innerText.includes('The arsenal is down to 7 weapons'), null, { timeout: 6000 }).then(() => true, () => false);
+    check(L, `${label}: a toast says which retired weapon was converted`, told);
+    const d = await P.ev(() => { const g = window.__riftTest.game, s = window.__riftTest.store.data; return { shards: s.shards, hull: s.workshop.hull, ion: s.weapons.ion, tesla: s.weapons.tesla, teslaCost: window.__riftTest.ue.tesla.cost, weapon: s.weapon, set: s.settings, runs: s.stats.runs, best: s.stats.bestWave, run: !!s.run, hist: s.history, vol: g.sound.sfxVol, zoom: window.__riftTest.renderer.zoom, contrast: window.__riftTest.renderer.contrast }; });
+    check(L, `${label}: progress kept (shards, workshop, stats)`, d.hull === 2 && d.runs === src.stats.runs && d.best === src.stats.bestWave, JSON.stringify({ hull: d.hull, runs: d.runs }));
+    // 2.4.0: Ion Repeater was retired; it becomes Arc Caster (its original) plus the price difference
+    check(L, `${label}: retired Ion Repeater → Arc Caster selected, +${1250 - d.teslaCost} shards`, d.ion === undefined && d.tesla === true && d.weapon === 'tesla' && d.shards === src.shards + 1250 - d.teslaCost, JSON.stringify({ shards: d.shards, weapon: d.weapon, ion: d.ion, tesla: d.tesla }));
     check(L, `${label}: settings kept and applied`, eq(d.set, { ...d.set, ...src.settings }) && Math.abs(d.vol - src.settings.sfx) < 1e-6 && Math.abs(d.zoom - src.settings.zoom) < 1e-6 && d.contrast === src.settings.contrast, `sfxVol ${d.vol} zoom ${d.zoom} contrast ${d.contrast}`);
     check(L, `${label}: run history present`, Array.isArray(d.hist) && d.hist.length === (src.history || []).length, `${d.hist && d.hist.length} entries`);
     check(L, `${label}: unfinished run offered`, d.run && await P.vis('continueBtn'));
     await P.tap('#continueBtn'); await P.page.waitForTimeout(1200);
     const r = await P.ev(() => { const w = window.__riftTest.game.world; return w && { wave: w.wave, weapon: w.weapon, state: w.state, cards: document.querySelectorAll('#cards .card').length, choose: !document.getElementById('choose').hidden }; });
-    check(L, `${label}: continue restores the pending upgrade choice`, r && r.wave === src.run.wave && r.weapon === src.run.weapon && r.choose && r.cards >= 3, JSON.stringify(r));
+    check(L, `${label}: continue restores the pending upgrade choice (run weapon Ion → Arc Caster)`, r && r.wave === src.run.wave && r.weapon === 'tesla' && r.choose && r.cards >= 3, JSON.stringify(r));
     if (r && r.choose) { await P.tap('#cards .card'); await P.page.waitForTimeout(800); }
     const w2 = await P.ev(() => window.__riftTest.game.world?.wave);
     check(L, `${label}: picking the upgrade starts the next wave`, w2 === src.run.wave + 1, 'wave ' + w2);

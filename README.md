@@ -1,7 +1,8 @@
 # Riftline
 
-A 3D arena roguelite shooter. You pilot a small combat drone through 20 waves of the rift, each
-in a different biome, pick one upgrade after every wave and fight a boss every fifth wave. After
+A 3D arena roguelite shooter. You pilot a small combat drone through 20 waves of the rift, pick
+one upgrade after every wave and fight a boss every fifth wave. After each boss the rift moves on
+to the next biome. After
 the Rift Core at wave 20 you can keep going in Endless mode. Shards from every run, won or lost,
 buy permanent modules in the Workshop.
 
@@ -16,7 +17,7 @@ built with three.js and plain JavaScript. There is no framework.
 |---|---|---|
 | Move | `W` `A` `S` `D` or arrow keys | drag on the left half |
 | Aim and fire | hold the left mouse button (auto-fire shoots the nearest enemy otherwise) | drag on the right half |
-| Dash | `Space` or `Shift` | `DASH` button or double-tap the left half |
+| Dash | `Space` or `Shift` | `DASH` button |
 | Nova | `E` (also `Q`, `F`) | `NOVA` button |
 | Pause | `Esc` or `P` | pause button |
 
@@ -26,13 +27,13 @@ built with three.js and plain JavaScript. There is no framework.
 
 | | |
 |---|---|
-| Weapons | 21, unlocked with shards (Pulse Blaster to Ember Rail) |
+| Weapons | 7, unlocked with shards: Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher, Ember Jet |
 | Enemies | 25 types with their own models, plus biome champions |
 | Bosses | 4: The Warden (wave 5), Hive Queen (10), Prism (15), Rift Core (20), then repeating in Endless |
-| Biomes | 19, each with its own palette, obstacle shapes and music; all but Neon Yard have a hazard (lava, ice, acid or portals) |
-| Upgrades | 84, 25 of them evolutions |
+| Biomes | 5, one per boss cycle (waves 1–5 Neon Yard, then the other four in a seeded order). Each has its own floor, props, border, particles, light, music, hazard and enemy mix: Neon Yard (open ground), Ember Works (lava vents, heavy enemies), Cryo Vault (slick floor and ice, shielded/ranged enemies), Toxin Marsh (acid pools and fog, swarms), Void Core (portals over the abyss, teleporters) |
+| Upgrades | 72, 13 of them evolutions |
 | Workshop | 18 permanent modules |
-| Milestones | 48 with shard rewards |
+| Milestones | 46 with shard rewards |
 | Threat | Standard and Threat I–V |
 
 ## Commands
@@ -48,7 +49,7 @@ npm run qa           # full QA: saves, settings, workshop, runs on PC and phone,
 npm run e2e          # end-to-end with real pointer/touch input on 5 device sizes
 npm run audit        # world audit (routes, walls, spawns), data audit, bot run to wave 22 + post-run audit
 npm run sim -- pulse,ion 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
-npm run screens      # screenshot of every screen on PC, phone and landscape phone -> tests/shots/
+npm run screens      # screenshot of every screen and every biome on PC, phone and landscape phone -> tests/shots/
 ```
 
 Single test scripts run with `node tools/qa.js <script> [args]`. It serves `dist/` on a free port and
