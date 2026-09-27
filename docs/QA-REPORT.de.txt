@@ -1,3 +1,64 @@
+RIFTLINE v2.4.4 – SPIELCODE IN MODULE AUFGETEILT (UMBAU, SCHRITT 2)
+Basis: v2.4.3 · Build r244a0927o-r1 · 27.09.2026
+
+Gewünscht: Umbau fortsetzen, Aufgaben auf mehrere Agents verteilt. Für Spieler ändert sich
+nichts.
+
+1) Vorgehen
+   - Drei Agents haben die 435 Deklarationen von src/game.js (je ein Zeilenbereich) einem
+     Zielmodul zugeordnet; ein vierter hat den Determinismus-Test geschrieben (siehe 3).
+   - Ein Analyse-Werkzeug (Gültigkeitsbereiche mit eslint-scope) hat für jede Deklaration
+     ermittelt, welche Namen sie beim Laden braucht und welche erst später, und daraus die
+     Module mit import/export erzeugt. Es simuliert die Ladereihenfolge der ES-Module und meldet
+     jeden Namen, der beim Laden noch fehlen würde, sowie Zuweisungen über Modulgrenzen.
+   - Gefunden und gelöst: Speicher (ee) und Sound (Be) wurden beim Laden erzeugt und riefen dabei
+     den Fehler-Logger auf, bevor dessen Modul geladen war → nach main.js (Start). Die
+     Run-Monitor-Hooks umhüllen beim Laden Methoden von ft → nach main.js. Fünf Zuweisungen an
+     Variablen anderer Module (z. B. setzt der Selbsttest RL_BIOME_MIX_CUR um) laufen über
+     Setter (set_RL_…), weil importierte Namen nicht zugewiesen werden können.
+
+2) Ergebnis
+   - src/game.js (16 129 Zeilen) → 21 Module: main.js (Start, Spielsteuerung, Hauptschleife),
+     core/ (world, arena, waves, ai, stats, save, diagnostics, util), data/ (weapons, enemies,
+     upgrades, progression, biomes), render/ (renderer, models, biome-visuals, overlay),
+     audio/sound.js, ui/ (ui, input). Größtes Modul core/diagnostics.js mit ~2 500 Zeilen.
+   - Jede Datei beginnt mit einem Kommentar zu ihrem Inhalt; jeder Name ist oben importiert,
+     man sieht also, woher er kommt. three.js importiert jedes Modul direkt
+     (import { BoxGeometry as Ct } from "three").
+   - Der Code selbst ist unverändert, bis auf import/export und die fünf Setter. Die Kurznamen
+     (Aa, Ft, ee …) bleiben; Umbenennen ist Schritt 3.
+   - build.js bündelt ab src/main.js. Spieldatei 902 KB (vorher 906 KB).
+
+3) Neuer Test: tests/determinism.mjs (Teil von npm test)
+   15 Fälle mit festen Seeds, verglichen mit tests/fixtures/determinism.json:
+   - alle 7 Waffen bis Welle 12 auf Threat 0, 2 und 5 mit verschiedenen Werkstatt-Ständen
+   - ein Run bis Welle 22 durch den Sieg in Welle 20 in den Endlosmodus
+   - Speichern bei der Upgrade-Wahl, Laden über den Save-Sanitizer, Weiterspielen
+   - ein Run ohne Gott-Modus bis zum Tod (Wiederbelebung, Rüstung)
+   - Wiederholung des ersten Falls am Ende (keine Zustände, die zwischen Welten durchsickern)
+   - Datentabellen, 1 596 Stat-Berechnungen, 260 Arenen, Wellenplaner für Welle 1–40
+   Jeder Fall hasht den kompletten Weltzustand an jedem Wellenende. Gegenprobe: eine einzige
+   geänderte Konstante (HP-Skalierung 0.0058 → 0.00581) lässt 12 von 15 Fällen fehlschlagen.
+   Die Referenzwerte stammen vom Build vor der Aufteilung (2.4.3).
+   Gefunden: Die Simulation ruft an einer Stelle Math.random auf (Portal-Effekt von Schüssen im
+   Void Core; nur ob ein kosmetisches Ereignis gemeldet wird, nicht der Zustand). Der Test ersetzt
+   Math.random während eines Falls durch einen festen Generator.
+
+Offen:
+   - Schritt 3: Kurznamen umbenennen und die Patches in die Klassen einarbeiten, Modul für Modul.
+   - git blame der alten Zeilen endet bei diesem Commit (Datei neu angelegt statt verschoben).
+
+Ergebnisse 2.4.4 (headless Chromium, Software-WebGL):
+  determinism   15 Fälle identisch mit dem Build vor der Aufteilung (~30 s)
+  full-qa.mjs   251 Prüfungen, 0 Fehler (auch vorab gegen einen Testbuild außerhalb des Repos)
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok · world-audit 0 Befunde · data-audit ok
+  run-audit     Bot-Run bis Welle 22 inkl. Endlos, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   PC, Handy hoch und quer ohne Fehler; biome-shots alle fünf Biome (Welle und
+                Boss) auf allen drei Profilen, keine Konsolenfehler; angesehen
+
+================================================================================
+
 RIFTLINE v2.4.3 – THREE.JS AUS NPM (UMBAU, SCHRITT 1)
 Basis: v2.4.2 · Build r243a0927n-r1 · 27.09.2026
 

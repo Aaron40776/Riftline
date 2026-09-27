@@ -47,7 +47,7 @@ npm install          # esbuild + playwright (browsers are preinstalled in the cl
 npm run build        # -> dist/ (the deployable site)
 npm run dev          # build unminified, rebuild on change, serve http://localhost:8124
 npm run serve        # serve dist/ on http://localhost:8124
-npm test             # build + deep self-test + file/PWA contract + data audit (~1 min, also runs in CI)
+npm test             # build + deep self-test + file/PWA contract + data audit + determinism (~1.5 min, also in CI)
 npm run qa           # full QA: saves, settings, workshop, runs on PC and phone, layout, buttons (~10 min)
 npm run e2e          # end-to-end with real pointer/touch input on 5 device sizes
 npm run audit        # world audit (routes, walls, spawns), data audit, bot run to wave 22 + post-run audit
@@ -64,7 +64,12 @@ of the full QA. Before a release run
 
 ```
 src/
-  game.js          the game code (one file); imports three.js from npm
+  main.js          entry point: boot, game controller, main loop, wiring
+  core/            simulation and services: world, arena, waves, AI, stats, save, diagnostics, util
+  data/            tables: weapons, enemies, upgrades, progression (workshop, milestones, threat), biomes
+  render/          three.js renderer, models, biome visuals and skins, 2D overlay
+  audio/           sound effects and music
+  ui/              DOM UI (screens, HUD, dialogs) and input
   index.html       page shell, all CSS, device detection, layout audit
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)
@@ -76,27 +81,37 @@ build.js           src/ -> dist/
 CLAUDE.md          short working rules for Claude Code sessions in this repository
 ```
 
-### About `src/game.js`
+### About the game code
 
 Riftline was released as one minified bundle (game code and three.js, built with esbuild) and then
 patched by hand for several releases. The module sources the bundle was built from are not part of
-the release. `src/game.js` is the game code of that bundle, formatted with Prettier. `build.js`
-bundles it with three.js from `node_modules` and minifies the result:
+the release. Since 2.4.3 three.js comes from npm; since 2.4.4 the game code of that bundle is split
+into ES modules under `src/` (formatted with Prettier). `build.js` bundles `src/main.js`, everything
+it imports and three.js into one minified file.
 
+- Every file starts with a comment that says what it contains. `main.js` imports every module;
+  their code runs in the order the original file had, which matters because later releases patch
+  earlier code when their module is loaded.
 - Names from the original build are still minified (`ft` is the game, `Ft` the UI, `ee` the save
   store, `oe` the renderer, `Aa` the simulation world, `ue` the weapons, `Ae` the enemies, `ri` the
-  upgrades, `ai` the workshop modules). Most code added in later releases has readable names
-  (`rl…`) and comments.
+  upgrades, `ai` the workshop modules). The imports at the top of each file say where a name comes
+  from. Most code added in later releases has readable names (`rl…`) and comments.
 - The content packs 2.0–2.2 and every later fix hook into the original classes by wrapping
   prototype methods (`const base = Aa.prototype.startWave; Aa.prototype.startWave = function …`).
-  New fixes should follow that pattern and say which version added them.
-- three.js is the npm package `three`, pinned to 0.186.0 (r186) in `package.json`. Until 2.4.2 it
-  was embedded in `src/game.js`; 2.4.3 replaced it with the package. The `import` at the top of
-  `src/game.js` maps the short names the game code uses (`Ct`, `De`, `I` …) to the three.js
-  classes (`BoxGeometry`, `SphereGeometry`, `Vector3` …). A three.js class the game did not use
-  before needs a new entry there. Updating three.js means changing the version in `package.json`,
-  running `npm install` and the full release checks.
-- `window.__riftTest` exposes the game, UI, store, renderer and data tables for the tests.
+  New fixes should follow that pattern, go into the module of the class they change, and say which
+  version added them.
+- An imported binding cannot be assigned. Where one module sets a variable of another, the
+  owning module exports a setter (`set_RL_RETIRE_NOTE(v)`).
+- three.js is the npm package `three`, pinned to 0.186.0 (r186). Each module imports the classes it
+  needs under the short names the code uses (`import { BoxGeometry as Ct } from "three"`).
+  Updating three.js means changing the version in `package.json`, running `npm install` and the
+  full release checks.
+- `tests/determinism.mjs` runs fixed-seed simulations, stat computations, arena layouts and wave
+  plans and compares them with `tests/fixtures/determinism.json`. A refactor must pass it
+  unchanged. Only a change that is meant to alter game behaviour updates the file
+  (`node tools/qa.js determinism --update`), in the same commit.
+- `window.__riftTest` (end of `main.js`) exposes the game, UI, store, renderer and data tables for
+  the tests.
 
 ### Versions
 
@@ -135,7 +150,7 @@ to the game.
 ## Known limits and ideas
 
 - Automated tests run only in Chromium. Firefox and Safari are checked by hand.
-- A real module structure (like Riftdeck's `src/core`, `render`, `ui`) would make larger changes
-  much easier. The first step is done (three.js from npm since 2.4.3). Next: move the readable
-  2.x additions into their own modules, then split and rename the original classes. The deep
-  test, world audit and full QA are the safety net for this refactor.
+- The module structure (since 2.4.4) still carries the minified names of the original bundle, and
+  later releases still patch classes from outside instead of changing them. Next step: rename the
+  short names and fold the patches into the classes, module by module. The determinism test, deep
+  test, world audit and full QA are the safety net.
