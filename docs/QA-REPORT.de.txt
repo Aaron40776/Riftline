@@ -1,3 +1,51 @@
+RIFTLINE v2.4.5 – LESBARE NAMEN (UMBAU, SCHRITT 3a)
+Basis: v2.4.4 · Build r245a0927p-r1 · 27.09.2026
+
+Gewünscht: Umbau fortsetzen (per Agents). Für Spieler ändert sich nichts.
+
+1) Vorgehen
+   - Drei Agents haben für die 216 Kurznamen auf oberster Ebene Namen vorgeschlagen (je eine
+     Modulgruppe: core, data/render/audio, main/ui), nach festen Regeln (Klassen PascalCase,
+     Instanzen und Funktionen camelCase, projektweit eindeutig, keine Browser-Globals).
+   - Ein Werkzeug benennt mit Scope-Analyse um: Deklaration, jede Referenz, Import- und
+     Export-Angaben in allen Modulen. Es bricht ab, wenn ein neuer Name an einer Stelle von einer
+     lokalen Variablen gleichen Namens verdeckt würde oder ein genutztes Global verdecken würde.
+     Gefunden: weapons, biomes und enemyTypes gab es schon als lokale Variablen (10 Stellen) →
+     weaponDefs, biomeList, enemyDefs (und bossDefs).
+   - Die 46 three.js-Klassen heißen jetzt wie in three.js (Ct → BoxGeometry, I → Vector3 …).
+   - Sieben lesbare Namen, die alte Kurznamen enthielten, angepasst (nrCore → computeStatsCore,
+     muCore → updateEnemyCore …).
+   - Kommentare: alte Namen nur in eindeutigem Code-Kontext ersetzt (`Name`, (Name), Name.x);
+     beim Durchsehen eine falsche Ersetzung gefunden und verworfen (fn in einem Kommentar war
+     ein Parameter, nicht three.js DoubleSide).
+   - window.__riftTest behält die alten Schlüssel (Aa: World, nr: computeStats …), damit die
+     Testskripte unverändert bleiben.
+
+2) Beispiele
+   Aa → World · ft → game · Ft → ui · Gl → GameUI · ee → store · Vl → SaveStore ·
+   oe → renderer · Bl → Renderer · ln → input · Ol → Input · Be → sound · zl → SoundEngine ·
+   nr → computeStats · _u → planWave · mu/vu → updateEnemy/updateBoss · Su → buildLayout ·
+   ze → logError · Lt → clamp · ue → weaponDefs · Ae → enemyDefs · Zi/ri → upgradeList/upgradesById
+
+3) Nachweis
+   Der minifizierte Build ist gleich groß wie vorher (nur Namen anders), der Determinismus-Test
+   ist in allen 15 Fällen identisch mit den Referenzwerten von 2.4.3.
+
+Offen:
+   - Schritt 3b: lokale Kurznamen in Funktionen (t, e, n …) und die Patches in die Klassen
+     einarbeiten.
+
+Ergebnisse 2.4.5 (headless Chromium, Software-WebGL):
+  determinism   15 Fälle identisch (~30 s)
+  full-qa.mjs   251 Prüfungen, 0 Fehler
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok · world-audit 0 Befunde · data-audit ok
+  run-audit     Bot-Run bis Welle 22 inkl. Endlos, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   PC, Handy hoch und quer ohne Fehler; biome-shots alle fünf Biome, keine
+                Konsolenfehler; angesehen
+
+================================================================================
+
 RIFTLINE v2.4.4 – SPIELCODE IN MODULE AUFGETEILT (UMBAU, SCHRITT 2)
 Basis: v2.4.3 · Build r244a0927o-r1 · 27.09.2026
 

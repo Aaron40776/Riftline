@@ -92,18 +92,21 @@ it imports and three.js into one minified file.
 - Every file starts with a comment that says what it contains. `main.js` imports every module;
   their code runs in the order the original file had, which matters because later releases patch
   earlier code when their module is loaded.
-- Names from the original build are still minified (`ft` is the game, `Ft` the UI, `ee` the save
-  store, `oe` the renderer, `Aa` the simulation world, `ue` the weapons, `Ae` the enemies, `ri` the
-  upgrades, `ai` the workshop modules). The imports at the top of each file say where a name comes
-  from. Most code added in later releases has readable names (`rl…`) and comments.
+- Top-level names are readable since 2.4.5: `game` (controller), `ui` (instance of `GameUI`),
+  `store` (`SaveStore`), `renderer` (`Renderer`), `input` (`Input`), `sound` (`SoundEngine`),
+  `World` (simulation), `weaponDefs`, `enemyDefs`, `bossDefs`, `upgradeList`/`upgradesById`,
+  `workshopModules`, `milestones`, `threatLevels`, `biomeList`/`biomesById`, `computeStats`,
+  `planWave`, `updateEnemy`, `buildLayout` … The imports at the top of each file say where a name
+  comes from. Local variables inside functions (`t`, `e`, `n` …) still carry the minified names.
+  `window.__riftTest` keeps the old short keys (`Aa`, `nr`, `ue`, `data.Zi` …) for the tests.
 - The content packs 2.0–2.2 and every later fix hook into the original classes by wrapping
-  prototype methods (`const base = Aa.prototype.startWave; Aa.prototype.startWave = function …`).
+  prototype methods (`const base = World.prototype.startWave; World.prototype.startWave = function …`).
   New fixes should follow that pattern, go into the module of the class they change, and say which
   version added them.
 - An imported binding cannot be assigned. Where one module sets a variable of another, the
   owning module exports a setter (`set_RL_RETIRE_NOTE(v)`).
 - three.js is the npm package `three`, pinned to 0.186.0 (r186). Each module imports the classes it
-  needs under the short names the code uses (`import { BoxGeometry as Ct } from "three"`).
+  needs by their three.js names (`import { BoxGeometry, Mesh } from "three"`).
   Updating three.js means changing the version in `package.json`, running `npm install` and the
   full release checks.
 - `tests/determinism.mjs` runs fixed-seed simulations, stat computations, arena layouts and wave
@@ -150,7 +153,7 @@ to the game.
 ## Known limits and ideas
 
 - Automated tests run only in Chromium. Firefox and Safari are checked by hand.
-- The module structure (since 2.4.4) still carries the minified names of the original bundle, and
-  later releases still patch classes from outside instead of changing them. Next step: rename the
-  short names and fold the patches into the classes, module by module. The determinism test, deep
-  test, world audit and full QA are the safety net.
+- Local variables inside functions still carry the minified names (`t`, `e`, `n` …), and later
+  releases still patch classes from outside instead of changing them. Next step: rename the local
+  names and fold the patches into the classes, module by module. The determinism test, deep test,
+  world audit and full QA are the safety net.

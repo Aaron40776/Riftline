@@ -1,10 +1,10 @@
-// 2D overlay canvas (kl): health bars, off-screen indicators, hints and callouts.
+// 2D overlay canvas (Overlay): health bars, off-screen indicators, hints and callouts.
 
-import { Ae, en } from "../data/enemies.js";
-import { Lt } from "../core/util.js";
+import { enemyDefs, bossDefs } from "../data/enemies.js";
+import { clamp } from "../core/util.js";
 
-var jv = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mortar: 1, striker: 1 },
-  Qv = {
+var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mortar: 1, striker: 1 },
+  bossAttackNames = {
     charge: "CHARGE",
     ring: "BULLET RING",
     stomp: "STOMP",
@@ -19,7 +19,7 @@ var jv = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mor
     cross: "LASER CROSS",
     rain: "BOMBARDMENT",
   },
-  kl = class {
+  Overlay = class {
     constructor(t) {
       ((this.c = t),
         (this.g = t.getContext("2d")),
@@ -37,7 +37,7 @@ var jv = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mor
       (this.hurts.length > 5 && this.hurts.shift(), this.hurts.push({ a: s, life: 0.8 }));
     }
     callout(t) {
-      let e = Qv[t];
+      let e = bossAttackNames[t];
       e && (this.callouts = [{ t: e, life: 1.4 }]);
     }
     resize() {
@@ -88,12 +88,12 @@ var jv = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mor
         if (
           f.boss ||
           (f.hp >= f.maxHp && !(f.shieldMax > 0 && f.shield < f.shieldMax)) ||
-          !(f.elite || jv[f.type]) ||
+          !(f.elite || healthBarTypes[f.type]) ||
           (t.project(f.x, 1.2 + f.r * 1.4, f.y, a), !a.vis)
         )
           continue;
         let p = 18 + f.r * 16,
-          x = Lt(f.hp / f.maxHp, 0, 1);
+          x = clamp(f.hp / f.maxHp, 0, 1);
         ((r.fillStyle = "rgba(0,0,0,0.55)"),
           r.fillRect(a.x - p / 2 - 1, a.y - 1, p + 2, 5),
           (r.fillStyle = f.elite ? "#ffc84a" : "#ff5a7a"),
@@ -105,7 +105,7 @@ var jv = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mor
       ((r.textAlign = "center"), (r.textBaseline = "middle"));
       for (let f of t.nums) {
         if (f.life <= 0 || (t.project(f.x, f.y, f.z, a), !a.vis)) continue;
-        let p = Lt(f.life / 0.35, 0, 1),
+        let p = clamp(f.life / 0.35, 0, 1),
           x = f.crit ? 19 : f.burn ? 12 : 14;
         r.font = `700 ${x}px "Chakra Petch", "Barlow Semi Condensed", system-ui, sans-serif`;
         let m = String(Math.max(1, Math.round(f.v)));
@@ -146,10 +146,10 @@ var jv = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mor
               ? "#fff06a"
               : "#ff3a4e"
             : f.boss
-              ? Kf(en[f.type].color)
+              ? cssColor(bossDefs[f.type].color)
               : f.elite
                 ? "#ffc84a"
-                : Kf(Ae[f.type].color);
+                : cssColor(enemyDefs[f.type].color);
         (r.save(),
           r.translate(R, _),
           r.rotate(Math.atan2(M, g)),
@@ -271,9 +271,9 @@ var jv = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mor
       }
     }
   },
-  Jf = {};
-function Kf(i) {
-  return Jf[i] || (Jf[i] = "#" + i.toString(16).padStart(6, "0"));
+  cssColorCache = {};
+function cssColor(i) {
+  return cssColorCache[i] || (cssColorCache[i] = "#" + i.toString(16).padStart(6, "0"));
 }
 
-export { kl };
+export { Overlay };

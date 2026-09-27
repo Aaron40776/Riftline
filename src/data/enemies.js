@@ -1,6 +1,6 @@
 // Enemy and boss tables, spawn weights, enemy tips and champion data.
 
-import { Ip, ec } from "../core/waves.js";
+import { spawnWeights, heavyEnemies } from "../core/waves.js";
 
 /* ---- enemy intros: one short hint the first time each enemy type appears ---- */
 var RL_ENEMY_TIPS = {
@@ -29,7 +29,7 @@ var RL_ENEMY_TIPS = {
   beacon: "Repair Beacons heal every enemy around them. Destroy them first.",
   weaver: "Rift Weavers warp across the arena and fire spreads after each jump.",
 };
-var Ae = {
+var enemyDefs = {
   swarmer: {
     id: "swarmer",
     name: "Swarmer",
@@ -211,7 +211,7 @@ var Ae = {
     color: 3535103,
   },
 };
-var lu = [
+var enemyOrder = [
   "swarmer",
   "grunt",
   "gunner",
@@ -227,18 +227,18 @@ var lu = [
   "leaper",
   "turret",
 ];
-var cu = {
+var biomeVariants = {
   works: { id: "scorch", name: "Scorched", types: ["grunt", "brute", "splitter"], color: 16738858 },
   vault: { id: "frost", name: "Frost", types: ["gunner", "sniper", "mortar"], color: 11462911 },
   void: { id: "phase", name: "Phase", types: ["swarmer", "grunt", "gunner"], color: 16732120 },
   marsh: { id: "toxic", name: "Toxic", types: ["grunt", "splitter", "swarmer", "bomber"], color: 11861821 },
 };
-var ba = {
+var eliteAffixes = {
   shielded: { name: "Shielded", color: 7325951 },
   hasted: { name: "Hasted", color: 16773754 },
   volatile: { name: "Volatile", color: 16734778 },
 };
-var en = {
+var bossDefs = {
   warden: {
     id: "warden",
     name: "THE WARDEN",
@@ -284,10 +284,10 @@ var en = {
     color: 11758591,
   },
 };
-var uu = { 5: "warden", 10: "queen", 15: "prism", 20: "core" };
-var Kl = ["warden", "queen", "prism", "core"];
+var bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" };
+var bossOrder = ["warden", "queen", "prism", "core"];
 /* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
-Object.assign(Ae, {
+Object.assign(enemyDefs, {
   charger: {
     id: "charger",
     name: "Charger",
@@ -313,12 +313,12 @@ Object.assign(Ae, {
     color: 11646976,
   },
 });
-lu.push("charger", "minebot");
-Object.assign(Ip, { charger: 1.45, minebot: 0.8 });
-Object.assign(ec, { charger: 2, minebot: 3 });
+enemyOrder.push("charger", "minebot");
+Object.assign(spawnWeights, { charger: 1.45, minebot: 0.8 });
+Object.assign(heavyEnemies, { charger: 2, minebot: 3 });
 
 /* RIFTLINE 2.1 dynamic expansion: new content uses the existing data contracts. */
-Object.assign(Ae, {
+Object.assign(enemyDefs, {
   sapper: {
     id: "sapper",
     name: "Sapper",
@@ -368,12 +368,12 @@ Object.assign(Ae, {
     color: 37119,
   },
 });
-lu.push("sapper", "phantom", "sentinel", "carrier");
-Object.assign(Ip, { sapper: 1.05, phantom: 0.9, sentinel: 0.72, carrier: 0.66 });
-Object.assign(ec, { sapper: 1, phantom: 1, sentinel: 1, carrier: 1 });
+enemyOrder.push("sapper", "phantom", "sentinel", "carrier");
+Object.assign(spawnWeights, { sapper: 1.05, phantom: 0.9, sentinel: 0.72, carrier: 0.66 });
+Object.assign(heavyEnemies, { sapper: 1, phantom: 1, sentinel: 1, carrier: 1 });
 
 /* RIFTLINE 2.2 content pack: more build diversity, enemy roles, biomes and set-piece waves. */
-Object.assign(Ae, {
+Object.assign(enemyDefs, {
   drone: {
     id: "drone",
     name: "Needler Drone",
@@ -423,8 +423,8 @@ Object.assign(Ae, {
     color: 12617185,
   },
 });
-lu.push("drone", "driller", "beacon", "weaver");
-Object.assign(Ip, { drone: 0.95, driller: 0.62, beacon: 0.5, weaver: 0.72 });
-Object.assign(ec, { drone: 1, driller: 2, beacon: 3, weaver: 1 });
+enemyOrder.push("drone", "driller", "beacon", "weaver");
+Object.assign(spawnWeights, { drone: 0.95, driller: 0.62, beacon: 0.5, weaver: 0.72 });
+Object.assign(heavyEnemies, { drone: 1, driller: 2, beacon: 3, weaver: 1 });
 
-export { Ae, Kl, RL_ENEMY_TIPS, ba, cu, en, lu, uu };
+export { enemyDefs, bossOrder, RL_ENEMY_TIPS, eliteAffixes, biomeVariants, bossDefs, enemyOrder, bossByWave };

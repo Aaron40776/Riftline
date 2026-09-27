@@ -1,14 +1,22 @@
-// DOM UI (Gl): screens, HUD, dialogs, workshop, records and settings, plus DOM helpers and icons.
+// DOM UI (GameUI): screens, HUD, dialogs, workshop, records and settings, plus DOM helpers and icons.
 
-import { RL_RT, au, rlRunHealth, ru, set_RL_LAST_RUN_AUDIT, su, tr } from "../core/diagnostics.js";
-import { Ae, en } from "../data/enemies.js";
-import { ee } from "../main.js";
-import { Lt, _a, qn, rlAgo, va } from "../core/util.js";
-import { En, ue } from "../data/weapons.js";
-import { $i } from "../core/waves.js";
-import { _i, ai, rlRetired, si } from "../data/progression.js";
-import { Zi, jl, ri } from "../data/upgrades.js";
-import { nr, tc } from "../core/stats.js";
+import {
+  RL_RT,
+  clearErrorLog,
+  rlRunHealth,
+  onLogChange,
+  set_RL_LAST_RUN_AUDIT,
+  getErrorLog,
+  buildReport,
+} from "../core/diagnostics.js";
+import { enemyDefs, bossDefs } from "../data/enemies.js";
+import { store } from "../main.js";
+import { clamp, GAME_VERSION, formatCount, rlAgo, formatTime } from "../core/util.js";
+import { weaponOrder, weaponDefs } from "../data/weapons.js";
+import { waveEvents } from "../core/waves.js";
+import { milestones, workshopModules, rlRetired, threatLevels } from "../data/progression.js";
+import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
+import { computeStats, weaponRange } from "../core/stats.js";
 
 var RL_TOUCH_CLICK_GUARD = { until: 0, x: 0, y: 0, key: "" };
 function rlUiClickKey(t) {
@@ -28,36 +36,44 @@ function rlUiClickKey(t) {
 function rlRenderHistory() {
   const el = document.getElementById("runHist");
   if (!el) return;
-  const h = ee.data.history || [];
+  const h = store.data.history || [];
   if (!h.length) {
     el.innerHTML = '<p class="note">No runs yet — your last 12 runs appear here.</p>';
     return;
   }
   const killerName = (id) =>
-    id === "lava" ? "a lava vent" : id === "acid" ? "acid" : Ae[id] ? "a " + Ae[id].name : en[id] ? en[id].name : "";
+    id === "lava"
+      ? "a lava vent"
+      : id === "acid"
+        ? "acid"
+        : enemyDefs[id]
+          ? "a " + enemyDefs[id].name
+          : bossDefs[id]
+            ? bossDefs[id].name
+            : "";
   el.innerHTML = h
     .map((q) => {
       const icon = q.outcome === "win" ? "trophy" : q.outcome === "quit" ? "close" : "skull",
         kn = q.outcome === "dead" ? killerName(q.killer) : "";
       const meta = [
-        si[q.threat].name,
-        va(q.time),
-        qn(q.kills) + " kills",
-        "+" + qn(q.shards) + " shards",
+        threatLevels[q.threat].name,
+        formatTime(q.time),
+        formatCount(q.kills) + " kills",
+        "+" + formatCount(q.shards) + " shards",
         kn && "by " + kn,
         q.outcome === "quit" && "abandoned",
       ]
         .filter(Boolean)
         .join(" · ");
-      const build = q.build.map((id) => ri[id].name).join(" · ");
-      return `<div class="row panel hist ${q.outcome}"><div class="rico">${Ln(icon)}</div><div><b>${q.outcome === "win" ? "Rift sealed" : "Wave " + q.wave}${q.endless ? " · Endless" : ""} · ${we((ue[q.weapon] || rlRetired(q.weapon)).name)}</b><small>${we(meta)}</small>${build ? `<small class="hist-build">${we(build)}</small>` : ""}</div><span class="chip">${rlAgo(q.t)}</span></div>`;
+      const build = q.build.map((id) => upgradesById[id].name).join(" · ");
+      return `<div class="row panel hist ${q.outcome}"><div class="rico">${iconSvg(icon)}</div><div><b>${q.outcome === "win" ? "Rift sealed" : "Wave " + q.wave}${q.endless ? " · Endless" : ""} · ${escapeHtml((weaponDefs[q.weapon] || rlRetired(q.weapon)).name)}</b><small>${escapeHtml(meta)}</small>${build ? `<small class="hist-build">${escapeHtml(build)}</small>` : ""}</div><span class="chip">${rlAgo(q.t)}</span></div>`;
     })
     .join("");
 }
 function rlBiomeTitle(b) {
   return b.tag ? `${b.name} \xB7 ${b.tag}` : b.name;
 }
-var sp = {
+var iconPaths = {
   gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/><circle cx="12" cy="12" r="6.5"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   play: '<path d="M7 4.5l12 7.5-12 7.5z"/>',
@@ -98,43 +114,43 @@ var sp = {
     '<path d="M12 3a8 8 0 00-5 14.2V21h10v-3.8A8 8 0 0012 3z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
 };
-function Ln(i, t = "") {
-  let e = sp[i] || sp.info;
+function iconSvg(i, t = "") {
+  let e = iconPaths[i] || iconPaths.info;
   return `<svg class="ico ${t}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${e}</svg>`;
 }
-var k = (i) => document.getElementById(i),
-  Bh = ["home", "workshop", "records", "settings"],
-  gi = (i) => (Math.round(i * 10 + 1e-6) / 10).toString(),
-  Js = (i) => Math.round(i * 100) + "%",
-  rp = (i) => (i > 0 ? gi(i) + " s" : "off"),
-  t_ = [
-    ["Damage", (i) => i.weapon.dmg * i.dmgMul, gi],
-    ["Fire rate", (i) => i.weapon.rate * i.rateMul, (i) => gi(i) + "/s"],
+var getById = (i) => document.getElementById(i),
+  menuScreens = ["home", "workshop", "records", "settings"],
+  formatTenths = (i) => (Math.round(i * 10 + 1e-6) / 10).toString(),
+  formatPercent = (i) => Math.round(i * 100) + "%",
+  formatCooldown = (i) => (i > 0 ? formatTenths(i) + " s" : "off"),
+  statRows = [
+    ["Damage", (i) => i.weapon.dmg * i.dmgMul, formatTenths],
+    ["Fire rate", (i) => i.weapon.rate * i.rateMul, (i) => formatTenths(i) + "/s"],
     ["Projectiles", (i) => i.weapon.count + (i.weapon.cone ? i.extra * 2 : i.extra), String],
     ["Pierce", (i) => (i.pierce > 99 ? 0 : i.pierce), String],
     ["Bounces", (i) => i.bounce, String],
-    ["Crit", (i) => i.crit, Js],
+    ["Crit", (i) => i.crit, formatPercent],
     ["Max HP", (i) => i.maxHp, String],
-    ["Speed", (i) => i.speed, (i) => gi(i) + " m/s"],
+    ["Speed", (i) => i.speed, (i) => formatTenths(i) + " m/s"],
     ["Range", (i) => i.range, (i) => Math.round(i) + " m"],
-    ["Pickup radius", (i) => i.magnet, (i) => gi(i) + " m"],
-    ["Dash cooldown", (i) => i.dashCd, rp],
-    ["Aegis every", (i) => i.shieldCd, rp],
-    ["Regen", (i) => i.regen, (i) => gi(i) + " HP/s"],
+    ["Pickup radius", (i) => i.magnet, (i) => formatTenths(i) + " m"],
+    ["Dash cooldown", (i) => i.dashCd, formatCooldown],
+    ["Aegis every", (i) => i.shieldCd, formatCooldown],
+    ["Regen", (i) => i.regen, (i) => formatTenths(i) + " HP/s"],
     ["Blades", (i) => i.orbit, String],
-    ["Blade damage", (i) => (i.orbit ? i.orbitDmg * i.dmgMul : 0), gi],
-    ["Slow chance", (i) => i.cryo, Js],
-    ["Chain chance", (i) => i.arc, Js],
+    ["Blade damage", (i) => (i.orbit ? i.orbitDmg * i.dmgMul : 0), formatTenths],
+    ["Slow chance", (i) => i.cryo, formatPercent],
+    ["Chain chance", (i) => i.arc, formatPercent],
     ["Bolt jumps", (i) => i.chain, String],
-    ["Flame burn", (i) => (i.burn ? i.burn * i.burnMul * i.dmgMul : 0), (i) => gi(i) + "/s"],
+    ["Flame burn", (i) => (i.burn ? i.burn * i.burnMul * i.dmgMul : 0), (i) => formatTenths(i) + "/s"],
     ["Chain jumps", (i) => (i.arc ? i.arcJumps : 0), String],
-    ["Blast", (i) => i.payloadF, Js],
-    ["Burn", (i) => i.thermite, Js],
-    ["Repair chance", (i) => i.siphonCh, Js],
-    ["Nova radius", (i) => i.novaR, (i) => gi(i) + " m"],
+    ["Blast", (i) => i.payloadF, formatPercent],
+    ["Burn", (i) => i.thermite, formatPercent],
+    ["Repair chance", (i) => i.siphonCh, formatPercent],
+    ["Nova radius", (i) => i.novaR, (i) => formatTenths(i) + " m"],
     ["Drones", (i) => i.wingmen, String],
   ],
-  Hl = {
+  damageSources = {
     arc: ["Arc Relay", "#c58bff"],
     burn: ["Burning", "#ff8a2a"],
     payload: ["Payload", "#ffa13d"],
@@ -148,9 +164,9 @@ var k = (i) => document.getElementById(i),
     inferno: ["Inferno", "#ff5a3a"],
     other: ["Other", "#93a2bf"],
   },
-  we = (i) =>
+  escapeHtml = (i) =>
     String(i).replace(/[&<>"']/g, (t) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[t]),
-  Gl = class {
+  GameUI = class {
     constructor(t) {
       ((this.g = t),
         (this.screen = "home"),
@@ -160,12 +176,12 @@ var k = (i) => document.getElementById(i),
         (this.hudCache = {}),
         (this.dlgResolve = null),
         this.fillIcons(document),
-        (k("pauseBtn").innerHTML = Ln("pause")),
+        (getById("pauseBtn").innerHTML = iconSvg("pause")),
         this.bind());
     }
     fillIcons(t) {
       for (let e of t.querySelectorAll("[data-icon]"))
-        e.dataset.filled || ((e.dataset.filled = "1"), e.insertAdjacentHTML("afterbegin", Ln(e.dataset.icon)));
+        e.dataset.filled || ((e.dataset.filled = "1"), e.insertAdjacentHTML("afterbegin", iconSvg(e.dataset.icon)));
     }
     get save() {
       return this.g.store.data;
@@ -231,59 +247,59 @@ var k = (i) => document.getElementById(i),
     bind() {
       for (let s of document.querySelectorAll("[data-go]")) this.click(s, () => this.show(s.dataset.go));
       for (let s of document.querySelectorAll("[data-back]")) this.click(s, () => this.back());
-      (this.click(k("wPrev"), () => this.stepWeapon(-1)),
-        this.click(k("wNext"), () => this.stepWeapon(1)),
-        this.click(k("tPrev"), () => this.stepThreat(-1)),
-        this.click(k("tNext"), () => this.stepThreat(1)),
-        this.click(k("wBuy"), () => this.buyWeapon()),
-        this.click(k("playBtn"), () => this.play()),
-        this.click(k("continueBtn"), () => this.g.startRun({ resume: !0 })));
+      (this.click(getById("wPrev"), () => this.stepWeapon(-1)),
+        this.click(getById("wNext"), () => this.stepWeapon(1)),
+        this.click(getById("tPrev"), () => this.stepThreat(-1)),
+        this.click(getById("tNext"), () => this.stepThreat(1)),
+        this.click(getById("wBuy"), () => this.buyWeapon()),
+        this.click(getById("playBtn"), () => this.play()),
+        this.click(getById("continueBtn"), () => this.g.startRun({ resume: !0 })));
       let t = (s, r) =>
         s.addEventListener("pointerdown", (a) => {
           (a.preventDefault(), a.stopPropagation(), r());
         });
-      (t(k("dashBtn"), () => {
+      (t(getById("dashBtn"), () => {
         this.g.input.press("dash");
         let s = this.g.world,
-          r = k("dashBtn");
+          r = getById("dashBtn");
         s &&
           s.player.dashCdT > 0.08 &&
           (r.classList.remove("deny"), r.offsetWidth, r.classList.add("deny"), this.g.sound.play("deny"));
       }),
-        t(k("novaBtn"), () => {
+        t(getById("novaBtn"), () => {
           this.g.input.press("nova");
           let s = this.g.world,
-            r = k("novaBtn");
+            r = getById("novaBtn");
           s &&
             s.player.nova < 100 &&
             (r.classList.remove("deny"), r.offsetWidth, r.classList.add("deny"), this.g.sound.play("deny"));
         }),
-        this.click(k("pauseBtn"), () => this.g.pause()),
-        this.click(k("resumeBtn"), () => this.g.resume()),
-        this.click(k("abandonBtn"), async () => {
+        this.click(getById("pauseBtn"), () => this.g.pause()),
+        this.click(getById("resumeBtn"), () => this.g.resume()),
+        this.click(getById("abandonBtn"), async () => {
           (await this.confirm(
             "Abandon run?",
             "You keep the shards collected so far, but the run ends here.",
             "Abandon",
           )) && this.g.abandon();
         }),
-        this.click(k("rerollBtn"), () => this.g.reroll()),
-        this.click(k("restartBtn"), async () => {
+        this.click(getById("rerollBtn"), () => this.g.reroll()),
+        this.click(getById("restartBtn"), async () => {
           (await this.confirm(
             "Restart run?",
             "Shards collected so far are kept. A fresh run starts with the same weapon and threat.",
             "Restart",
           )) && this.g.restart();
         }),
-        this.click(k("retryBtn"), () => this.g.startRun({})),
-        this.click(k("homeBtn"), () => this.g.goHome()),
-        this.click(k("endlessBtn"), () => this.g.endless()),
-        this.click(k("crashHome"), () => this.g.recover()),
-        this.click(k("crashCopy"), () => this.copy(k("crashLog").value)),
-        this.click(k("updateBtn"), () => this.g.applyUpdate()));
+        this.click(getById("retryBtn"), () => this.g.startRun({})),
+        this.click(getById("homeBtn"), () => this.g.goHome()),
+        this.click(getById("endlessBtn"), () => this.g.endless()),
+        this.click(getById("crashHome"), () => this.g.recover()),
+        this.click(getById("crashCopy"), () => this.copy(getById("crashLog").value)),
+        this.click(getById("updateBtn"), () => this.g.applyUpdate()));
       let e = () => this.save.settings,
         n = (s, r) => {
-          let a = k(s);
+          let a = getById(s);
           a.addEventListener("change", () => {
             ((e()[r] = a.checked), this.g.settingsChanged());
           });
@@ -299,7 +315,7 @@ var k = (i) => document.getElementById(i),
         ["setSfx", "sfx"],
         ["setMusic", "music"],
       ]) {
-        let a = k(s);
+        let a = getById(s);
         (a.addEventListener("input", () => {
           ((e()[r] = +a.value), this.g.settingsChanged(!0));
         }),
@@ -311,11 +327,11 @@ var k = (i) => document.getElementById(i),
         ["setQuality", "quality", !1],
         ["setZoom", "zoom", !0],
       ])
-        for (let o of k(s).querySelectorAll("button"))
+        for (let o of getById(s).querySelectorAll("button"))
           this.click(o, () => {
             ((e()[r] = a ? +o.dataset.v : o.dataset.v), this.renderSettings(), this.g.settingsChanged());
           });
-      (this.click(k("resetBtn"), async () => {
+      (this.click(getById("resetBtn"), async () => {
         (await this.confirm(
           "Reset all progress?",
           "Shards, workshop, weapons, records and milestones are wiped. Settings stay.",
@@ -324,19 +340,19 @@ var k = (i) => document.getElementById(i),
           (await this.confirm("Really reset?", "This cannot be undone.", "Reset everything", !0)) &&
           this.g.resetProgress();
       }),
-        this.click(k("logBtn"), () => this.showLog()),
-        ru(() => {
+        this.click(getById("logBtn"), () => this.showLog()),
+        onLogChange(() => {
           this.screen === "settings" && this.renderLog();
         }),
-        k("dialog").addEventListener("click", (s) => {
-          s.target === k("dialog") && this.closeDialog(null);
+        getById("dialog").addEventListener("click", (s) => {
+          s.target === getById("dialog") && this.closeDialog(null);
         }));
     }
     show(t) {
-      (Bh.includes(this.screen) && this.screen !== t && this.stack.push(this.screen), this._show(t));
+      (menuScreens.includes(this.screen) && this.screen !== t && this.stack.push(this.screen), this._show(t));
     }
     _show(t) {
-      for (let e of Bh) k(e).hidden = e !== t;
+      for (let e of menuScreens) getById(e).hidden = e !== t;
       ((this.screen = t),
         t === "home" && ((this.stack = []), this.renderHome()),
         t === "workshop" && this.renderWorkshop(),
@@ -347,50 +363,51 @@ var k = (i) => document.getElementById(i),
       this._show(this.stack.pop() || "home");
     }
     hideMenus() {
-      for (let t of Bh) k(t).hidden = !0;
+      for (let t of menuScreens) getById(t).hidden = !0;
       this.screen = "game";
     }
     renderHome() {
       let t = this.save;
-      k("bank").textContent = qn(t.shards);
-      for (let r of document.querySelectorAll(".bankMirror")) r.textContent = qn(t.shards);
-      ((this.viewWeapon == null || !En[this.viewWeapon]) && (this.viewWeapon = 0),
-        this.homeInit || ((this.viewWeapon = En.indexOf(t.weapon)), (this.viewThreat = t.threat), (this.homeInit = !0)),
+      getById("bank").textContent = formatCount(t.shards);
+      for (let r of document.querySelectorAll(".bankMirror")) r.textContent = formatCount(t.shards);
+      ((this.viewWeapon == null || !weaponOrder[this.viewWeapon]) && (this.viewWeapon = 0),
+        this.homeInit ||
+          ((this.viewWeapon = weaponOrder.indexOf(t.weapon)), (this.viewThreat = t.threat), (this.homeInit = !0)),
         this.renderWeapon(),
         this.renderThreat());
       let e = t.run,
-        n = k("continueBtn");
+        n = getById("continueBtn");
       (e
         ? ((n.hidden = !1),
-          (n.innerHTML = `${Ln("play")}CONTINUE \xB7 WAVE ${e.wave + (e.offer ? 1 : 0)} \xB7 ${we(ue[e.weapon].name)}`),
-          k("playBtn").classList.remove("primary"))
-        : ((n.hidden = !0), k("playBtn").classList.add("primary")),
+          (n.innerHTML = `${iconSvg("play")}CONTINUE \xB7 WAVE ${e.wave + (e.offer ? 1 : 0)} \xB7 ${escapeHtml(weaponDefs[e.weapon].name)}`),
+          getById("playBtn").classList.remove("primary"))
+        : ((n.hidden = !0), getById("playBtn").classList.add("primary")),
         this.updatePlayState(),
-        (k("recBadge").hidden = !this.g.claimable().length));
+        (getById("recBadge").hidden = !this.g.claimable().length));
       let s = t.stats;
-      ((k("bestLine").hidden = !s.runs),
+      ((getById("bestLine").hidden = !s.runs),
         s.runs &&
-          (k("bestLine").textContent =
+          (getById("bestLine").textContent =
             `Best wave ${s.bestWave}` + (s.clears ? ` \xB7 ${s.clears} clear${s.clears > 1 ? "s" : ""}` : "")));
     }
     renderWeapon() {
       let t = this.save,
-        e = En[this.viewWeapon],
-        n = ue[e],
+        e = weaponOrder[this.viewWeapon],
+        n = weaponDefs[e],
         s = !!t.weapons[e],
         r = document.querySelector(".weapon-card");
       (r.classList.toggle("locked", !s),
         r.style.setProperty("--wc", "#" + n.color.toString(16).padStart(6, "0")),
-        (k("wIndex").textContent = `${this.viewWeapon + 1}/${En.length}`),
-        (k("wName").innerHTML = (s ? "" : Ln("lock", "inline")) + we(n.name)),
-        k("wName").querySelector(".ico") &&
-          (k("wName").querySelector(".ico").style.cssText =
+        (getById("wIndex").textContent = `${this.viewWeapon + 1}/${weaponOrder.length}`),
+        (getById("wName").innerHTML = (s ? "" : iconSvg("lock", "inline")) + escapeHtml(n.name)),
+        getById("wName").querySelector(".ico") &&
+          (getById("wName").querySelector(".ico").style.cssText =
             "display:inline-block;vertical-align:-3px;margin-right:6px;width:18px;height:18px"),
-        (k("wBlurb").textContent = n.blurb));
+        (getById("wBlurb").textContent = n.blurb));
       let a = n.dmg * n.count + (n.explodeDmg || 0),
-        o = tc(n),
+        o = weaponRange(n),
         c = (u) => {
-          let d = Lt(Math.round(u), 1, 8);
+          let d = clamp(Math.round(u), 1, 8);
           return (
             '<div class="segs">' +
             Array.from({ length: 8 }, (f, p) => `<i class="${p < d ? "on" : ""}"></i>`).join("") +
@@ -398,55 +415,55 @@ var k = (i) => document.getElementById(i),
           );
         },
         h = n.count > 1 ? `${n.dmg}\xD7${n.count}` : n.explodeDmg ? `${n.dmg}+${n.explodeDmg}` : String(n.dmg);
-      k("wStats").innerHTML = `
+      getById("wStats").innerHTML = `
     <div class="stat"><span class="k">DAMAGE</span><span class="v">${h}</span>${c((a / 55) * 8)}</div>
     <div class="stat"><span class="k">RATE</span><span class="v">${n.rate.toFixed(1)}/s</span>${c((n.rate / 6.5) * 8)}</div>
     <div class="stat"><span class="k">RANGE</span><span class="v">${Math.round(o)} m</span>${c((o / 28) * 8)}</div>`;
-      let l = k("wBuy");
+      let l = getById("wBuy");
       ((l.hidden = s),
         s || ((l.innerHTML = `UNLOCK \xB7 <span class="shard-ico"></span>${n.cost}`), (l.disabled = t.shards < n.cost)),
-        (k("wPrev").disabled = this.viewWeapon <= 0),
-        (k("wNext").disabled = this.viewWeapon >= En.length - 1),
+        (getById("wPrev").disabled = this.viewWeapon <= 0),
+        (getById("wNext").disabled = this.viewWeapon >= weaponOrder.length - 1),
         this.updatePlayState(),
         this.g.previewWeapon(s ? e : t.weapon));
     }
     renderThreat() {
       let t = this.save,
-        e = si[this.viewThreat],
+        e = threatLevels[this.viewThreat],
         n = this.viewThreat > t.threatMax;
-      ((k("tName").textContent = e.name),
-        k("tName").classList.toggle("hot", this.viewThreat > 0),
-        (k("tDesc").textContent = n
-          ? `Clear all ${20} waves on ${si[this.viewThreat - 1].name} to unlock`
+      ((getById("tName").textContent = e.name),
+        getById("tName").classList.toggle("hot", this.viewThreat > 0),
+        (getById("tDesc").textContent = n
+          ? `Clear all ${20} waves on ${threatLevels[this.viewThreat - 1].name} to unlock`
           : this.viewThreat > 0
             ? `${e.desc} Shards \xD7${(1 + 0.25 * this.viewThreat).toFixed(2)}`
             : e.desc),
-        (k("tPrev").disabled = this.viewThreat <= 0),
-        (k("tNext").disabled = this.viewThreat >= Math.min(5, t.threatMax + 1)),
+        (getById("tPrev").disabled = this.viewThreat <= 0),
+        (getById("tNext").disabled = this.viewThreat >= Math.min(5, t.threatMax + 1)),
         this.updatePlayState());
     }
     updatePlayState() {
       let t = this.save,
-        e = En[this.viewWeapon],
+        e = weaponOrder[this.viewWeapon],
         n = !!t.weapons[e] && this.viewThreat <= t.threatMax,
-        s = k("playBtn");
+        s = getById("playBtn");
       ((s.disabled = !n),
         (s.textContent = n ? (t.run ? "NEW RUN" : "START RUN") : t.weapons[e] ? "THREAT LOCKED" : "WEAPON LOCKED"));
     }
     stepWeapon(t) {
-      this.viewWeapon = Lt(this.viewWeapon + t, 0, En.length - 1);
-      let e = En[this.viewWeapon];
+      this.viewWeapon = clamp(this.viewWeapon + t, 0, weaponOrder.length - 1);
+      let e = weaponOrder[this.viewWeapon];
       (this.save.weapons[e] && ((this.save.weapon = e), this.g.store.save("weapon")), this.renderWeapon());
     }
     stepThreat(t) {
-      ((this.viewThreat = Lt(this.viewThreat + t, 0, Math.min(5, this.save.threatMax + 1))),
+      ((this.viewThreat = clamp(this.viewThreat + t, 0, Math.min(5, this.save.threatMax + 1))),
         this.viewThreat <= this.save.threatMax && ((this.save.threat = this.viewThreat), this.g.store.save("threat")),
         this.renderThreat());
     }
     buyWeapon() {
       let t = this.save,
-        e = En[this.viewWeapon],
-        n = ue[e];
+        e = weaponOrder[this.viewWeapon],
+        n = weaponDefs[e];
       if (t.weapons[e] || t.shards < n.cost) {
         this.g.sound.play("deny");
         return;
@@ -467,9 +484,9 @@ var k = (i) => document.getElementById(i),
     }
     renderWorkshop() {
       let t = this.save;
-      for (let n of document.querySelectorAll(".bankMirror")) n.textContent = qn(t.shards);
-      let e = k("wsList");
-      e.innerHTML = ai
+      for (let n of document.querySelectorAll(".bankMirror")) n.textContent = formatCount(t.shards);
+      let e = getById("wsList");
+      e.innerHTML = workshopModules
         .map((n) => {
           let s = t.workshop[n.id] || 0,
             r = n.costs.length,
@@ -479,14 +496,14 @@ var k = (i) => document.getElementById(i),
               s >= r
                 ? '<button class="btn" disabled>MAX</button>'
                 : `<button class="btn" data-buy="${n.id}" ${t.shards < a ? "disabled" : ""}><span class="shard-ico"></span>${a}</button>`;
-          return `<div class="row panel"><div class="rico">${Ln(n.icon)}</div><div><b>${we(n.name)}</b><small>${we(n.desc)}</small><div class="pips">${o}</div></div>${c}</div>`;
+          return `<div class="row panel"><div class="rico">${iconSvg(n.icon)}</div><div><b>${escapeHtml(n.name)}</b><small>${escapeHtml(n.desc)}</small><div class="pips">${o}</div></div>${c}</div>`;
         })
         .join("");
       for (let n of e.querySelectorAll("[data-buy]")) this.click(n, () => this.buyModule(n.dataset.buy));
     }
     buyModule(t) {
       let e = this.save,
-        n = ai.find((a) => a.id === t),
+        n = workshopModules.find((a) => a.id === t),
         s = e.workshop[t] || 0,
         r = n.costs[s];
       if (r == null || e.shards < r) {
@@ -502,40 +519,43 @@ var k = (i) => document.getElementById(i),
     renderRecords() {
       let t = this.save,
         e = t.stats;
-      for (let a of document.querySelectorAll(".bankMirror")) a.textContent = qn(t.shards);
+      for (let a of document.querySelectorAll(".bankMirror")) a.textContent = formatCount(t.shards);
       let n = Object.values(e.bosses).reduce((a, o) => a + o, 0),
         s = [
           ["Runs", e.runs],
           ["Best wave", e.bestWave || "\u2014"],
           ["Full clears", e.clears],
-          ["Enemies destroyed", qn(e.kills)],
+          ["Enemies destroyed", formatCount(e.kills)],
           ["Bosses defeated", n],
-          ["Best threat cleared", e.bestClearThreat >= 0 ? si[e.bestClearThreat].name : "\u2014"],
-          ["Time in the rift", va(e.playTime)],
-          ["Fastest clear", e.bestTime > 0 ? va(e.bestTime) : "—"],
-          ["Shards earned", qn(e.shardsEarned)],
+          ["Best threat cleared", e.bestClearThreat >= 0 ? threatLevels[e.bestClearThreat].name : "\u2014"],
+          ["Time in the rift", formatTime(e.playTime)],
+          ["Fastest clear", e.bestTime > 0 ? formatTime(e.bestTime) : "—"],
+          ["Shards earned", formatCount(e.shardsEarned)],
         ];
-      k("statGrid").innerHTML = s
-        .map(([a, o]) => `<div class="cell"><div class="k">${we(a)}</div><div class="v">${we(o)}</div></div>`)
+      getById("statGrid").innerHTML = s
+        .map(
+          ([a, o]) =>
+            `<div class="cell"><div class="k">${escapeHtml(a)}</div><div class="v">${escapeHtml(o)}</div></div>`,
+        )
         .join("");
-      let r = k("msList");
-      r.innerHTML = _i
+      let r = getById("msList");
+      r.innerHTML = milestones
         .map((a) => {
           let o = !!t.milestones[a.id],
             c = !o && a.test(t),
             h = o
-              ? `<span class="chip">${Ln("check")}DONE</span>`
+              ? `<span class="chip">${iconSvg("check")}DONE</span>`
               : c
                 ? `<button class="btn" data-claim="${a.id}"><span class="shard-ico"></span>${a.reward}</button>`
                 : `<span class="chip"><span class="shard-ico"></span>${a.reward}</span>`;
-          return `<div class="row panel ${o ? "done" : c ? "claim" : ""}"><div class="rico">${Ln(o ? "check" : "trophy")}</div><div><b>${we(a.name)}</b><small>${we(a.desc)}</small></div>${h}</div>`;
+          return `<div class="row panel ${o ? "done" : c ? "claim" : ""}"><div class="rico">${iconSvg(o ? "check" : "trophy")}</div><div><b>${escapeHtml(a.name)}</b><small>${escapeHtml(a.desc)}</small></div>${h}</div>`;
         })
         .join("");
       for (let a of r.querySelectorAll("[data-claim]")) this.click(a, () => this.claim(a.dataset.claim));
     }
     claim(t) {
       let e = this.save,
-        n = _i.find((s) => s.id === t);
+        n = milestones.find((s) => s.id === t);
       !n ||
         e.milestones[t] ||
         !n.test(e) ||
@@ -548,32 +568,33 @@ var k = (i) => document.getElementById(i),
     }
     renderSettings() {
       let t = this.save.settings;
-      ((k("setAuto").checked = t.autoFire),
-        (k("setAssist").checked = t.assist),
-        (k("setSwap").checked = t.swap),
-        (k("setShake").checked = t.shake),
-        (k("setNumbers").checked = t.numbers),
-        (k("setContrast").checked = t.contrast),
-        (k("setCalm").checked = t.calm),
-        (k("setSfx").value = t.sfx),
-        (k("setMusic").value = t.music));
-      for (let e of k("setQuality").querySelectorAll("button")) e.classList.toggle("on", e.dataset.v === t.quality);
-      for (let e of k("setZoom").querySelectorAll("button"))
+      ((getById("setAuto").checked = t.autoFire),
+        (getById("setAssist").checked = t.assist),
+        (getById("setSwap").checked = t.swap),
+        (getById("setShake").checked = t.shake),
+        (getById("setNumbers").checked = t.numbers),
+        (getById("setContrast").checked = t.contrast),
+        (getById("setCalm").checked = t.calm),
+        (getById("setSfx").value = t.sfx),
+        (getById("setMusic").value = t.music));
+      for (let e of getById("setQuality").querySelectorAll("button"))
+        e.classList.toggle("on", e.dataset.v === t.quality);
+      for (let e of getById("setZoom").querySelectorAll("button"))
         e.classList.toggle("on", Math.abs(+e.dataset.v - t.zoom) < 0.01);
-      ((k("qualityNote").textContent = this.g.qualityNote()),
-        (k("storageWarn").hidden = this.g.store.storageOk),
-        (k("verText").textContent = `v${_a}`),
+      ((getById("qualityNote").textContent = this.g.qualityNote()),
+        (getById("storageWarn").hidden = this.g.store.storageOk),
+        (getById("verText").textContent = `v${GAME_VERSION}`),
         this.renderLog());
     }
     renderLog() {
-      let t = su().length;
-      k("logCount").textContent = t ? String(t) : "0";
+      let t = getErrorLog().length;
+      getById("logCount").textContent = t ? String(t) : "0";
     }
     async showLog(q) {
       q || (await rlRunHealth({ context: "diagnostics" }));
       let t = await this.dialog({
         title: "Diagnostics",
-        body: `<p>Build ${we(this.g.buildId)}. “Deep test” runs the full simulation self-test (a few seconds). Copy this text when reporting a problem.</p><textarea readonly spellcheck="false">${we(tr())}</textarea>`,
+        body: `<p>Build ${escapeHtml(this.g.buildId)}. “Deep test” runs the full simulation self-test (a few seconds). Copy this text when reporting a problem.</p><textarea readonly spellcheck="false">${escapeHtml(buildReport())}</textarea>`,
         buttons: [
           { label: "Deep test", value: "deep", cls: "ghost" },
           { label: "Copy", value: "copy", cls: "ghost" },
@@ -581,8 +602,8 @@ var k = (i) => document.getElementById(i),
           { label: "Close", value: null, cls: "primary" },
         ],
       });
-      (t === "copy" && this.copy(tr()),
-        t === "clear" && (au(), set_RL_LAST_RUN_AUDIT(null), this.renderLog(), this.toast("Log cleared")),
+      (t === "copy" && this.copy(buildReport()),
+        t === "clear" && (clearErrorLog(), set_RL_LAST_RUN_AUDIT(null), this.renderLog(), this.toast("Log cleared")),
         t === "deep" &&
           (this.toast("Running deep self-test…", "", 2600),
           setTimeout(async () => {
@@ -613,8 +634,10 @@ var k = (i) => document.getElementById(i),
       return (this.toast(e ? "Copied" : "Copy failed \u2014 select the text and copy it by hand"), e);
     }
     dialog({ title: t, body: e, buttons: n, onOpen: s, read: r }) {
-      (this.dlgResolve && this.closeDialog(null), (k("dlgTitle").textContent = t), (k("dlgBody").innerHTML = e));
-      let a = k("dlgBtns");
+      (this.dlgResolve && this.closeDialog(null),
+        (getById("dlgTitle").textContent = t),
+        (getById("dlgBody").innerHTML = e));
+      let a = getById("dlgBtns");
       return (
         (a.innerHTML = ""),
         new Promise((o) => {
@@ -626,7 +649,7 @@ var k = (i) => document.getElementById(i),
               this.click(h, () => this.closeDialog(c.value)),
               a.appendChild(h));
           }
-          ((k("dialog").hidden = !1), s && s());
+          ((getById("dialog").hidden = !1), s && s());
         })
       );
     }
@@ -634,7 +657,7 @@ var k = (i) => document.getElementById(i),
       let e = this.dlgResolve,
         n = this.dlgRead ? this.dlgRead() : void 0;
       ((this.dlgResolve = null),
-        (k("dialog").hidden = !0),
+        (getById("dialog").hidden = !0),
         e && e(this.dlgRead ? { value: t, text: n } : t),
         (this.dlgRead = null));
     }
@@ -642,7 +665,7 @@ var k = (i) => document.getElementById(i),
       return (
         (await this.dialog({
           title: t,
-          body: `<p>${we(e)}</p>`,
+          body: `<p>${escapeHtml(e)}</p>`,
           buttons: [
             { label: "Cancel", value: !1, cls: "ghost" },
             { label: n, value: !0, cls: s ? "danger" : "primary" },
@@ -653,12 +676,12 @@ var k = (i) => document.getElementById(i),
     alert(t, e) {
       return this.dialog({
         title: t,
-        body: `<p>${we(e)}</p>`,
+        body: `<p>${escapeHtml(e)}</p>`,
         buttons: [{ label: "OK", value: !0, cls: "primary" }],
       });
     }
     toast(t, e = "", n = 2900) {
-      let s = k("toasts"),
+      let s = getById("toasts"),
         r = document.createElement("div");
       for (
         r.className = "toast " + e, r.style.animationDuration = n + "ms", r.textContent = t, s.appendChild(r);
@@ -668,8 +691,8 @@ var k = (i) => document.getElementById(i),
       setTimeout(() => r.remove(), n + 50);
     }
     banner(t, e, n = "", s = 2200) {
-      let r = k("banner");
-      ((r.innerHTML = `<div class="bn ${n}" style="animation-duration:${s}ms"><div class="small">${we(e || "")}</div><div class="big">${we(t)}</div></div>`),
+      let r = getById("banner");
+      ((r.innerHTML = `<div class="bn ${n}" style="animation-duration:${s}ms"><div class="small">${escapeHtml(e || "")}</div><div class="big">${escapeHtml(t)}</div></div>`),
         clearTimeout(this.bannerT),
         (this.bannerT = setTimeout(() => {
           r.innerHTML = "";
@@ -679,11 +702,11 @@ var k = (i) => document.getElementById(i),
       let n = document.createElement("div");
       ((n.className = "combo-pop"),
         (n.textContent = `\xD7${t} COMBO  +${e}`),
-        k("hud").appendChild(n),
+        getById("hud").appendChild(n),
         setTimeout(() => n.remove(), 1250));
     }
     coach(t, e, n) {
-      let s = k("coach");
+      let s = getById("coach");
       if (t == null) {
         ((s.hidden = !0), (this.coachKey = null));
         return;
@@ -691,21 +714,22 @@ var k = (i) => document.getElementById(i),
       let r = t + n;
       this.coachKey !== r &&
         ((this.coachKey = r),
-        (k("coachDots").innerHTML = Array.from({ length: e }, (a, o) => `<i class="${o <= t ? "on" : ""}"></i>`).join(
-          "",
-        )),
-        (k("coachText").textContent = n),
+        (getById("coachDots").innerHTML = Array.from(
+          { length: e },
+          (a, o) => `<i class="${o <= t ? "on" : ""}"></i>`,
+        ).join("")),
+        (getById("coachText").textContent = n),
         (s.hidden = !1));
     }
     setSwap(t) {
-      k("hud").classList.toggle("swap", !!t);
+      getById("hud").classList.toggle("swap", !!t);
     }
     showHud(t) {
-      ((k("hud").hidden = !t),
-        (k("hud").style.visibility = ""),
-        k("vignette").classList.remove("low"),
-        (k("touch").hidden = !t),
-        t || (k("bossBar").hidden = !0),
+      ((getById("hud").hidden = !t),
+        (getById("hud").style.visibility = ""),
+        getById("vignette").classList.remove("low"),
+        (getById("touch").hidden = !t),
+        t || (getById("bossBar").hidden = !0),
         (this.hudCache = {}));
     }
     hud(t) {
@@ -717,40 +741,41 @@ var k = (i) => document.getElementById(i),
         },
         a = Math.max(0, Math.ceil(n.hp));
       r("hp", a + "/" + s.maxHp, (x) => {
-        k("hpNum").textContent = x;
+        getById("hpNum").textContent = x;
       });
-      let o = Lt(n.hp / s.maxHp, 0, 1);
+      let o = clamp(n.hp / s.maxHp, 0, 1);
       if (
         (r("hpf", Math.round(o * 200), () => {
-          ((k("hpFill").style.transform = `scaleX(${o})`),
-            (k("hpLag").style.transform = `scaleX(${o})`),
-            k("hpFill").parentElement.classList.toggle("low", o < 0.3));
+          ((getById("hpFill").style.transform = `scaleX(${o})`),
+            (getById("hpLag").style.transform = `scaleX(${o})`),
+            getById("hpFill").parentElement.classList.toggle("low", o < 0.3));
         }),
         r("shieldOn", s.shieldCd > 0, (x) => {
-          k("shieldPip").hidden = !x;
+          getById("shieldPip").hidden = !x;
         }),
         s.shieldCd > 0 &&
           r("shield", n.shield ? 100 : Math.round((n.shieldT / s.shieldCd) * 20) * 5, (x) => {
-            (k("shieldPip").style.setProperty("--p", x + "%"), k("shieldPip").classList.toggle("ready", x >= 100));
+            (getById("shieldPip").style.setProperty("--p", x + "%"),
+              getById("shieldPip").classList.toggle("ready", x >= 100));
           }),
         e.hpVal != null && n.hp > e.hpVal + 0.5)
       ) {
-        let x = k("hpFill").parentElement;
+        let x = getById("hpFill").parentElement;
         (x.classList.remove("heal"), x.offsetWidth, x.classList.add("heal"));
       }
       ((e.hpVal = n.hp),
         this.buffs(t),
         r("low", n.alive && o < 0.25, (x) => {
-          k("vignette").classList.toggle("low", x);
+          getById("vignette").classList.toggle("low", x);
         }),
         r("shards", t.shards, (x) => {
-          k("runShards").textContent = qn(x);
-          let m = k("shardChip");
+          getById("runShards").textContent = formatCount(x);
+          let m = getById("shardChip");
           (e.shardsSeen && (m.classList.remove("bump"), m.offsetWidth, m.classList.add("bump")), (e.shardsSeen = !0));
         }));
       let c = t.endless ? "" : "/" + 20;
       r("wave", t.wave + c, () => {
-        k("waveLabel").textContent = `WAVE ${t.wave}${c}`;
+        getById("waveLabel").textContent = `WAVE ${t.wave}${c}`;
       });
       let h;
       if (t.state === "fight")
@@ -762,50 +787,52 @@ var k = (i) => document.getElementById(i),
         }
       else t.state === "cleared" ? (h = "CLEARED") : (h = "\xA0");
       r("sub", h, (x) => {
-        k("waveSub").textContent = x;
+        getById("waveSub").textContent = x;
       });
       let l = t.state === "fight" && !t.boss && !t.bossPending && t.planTotal > 0;
       if (
         (r("progOn", l, (x) => {
-          k("waveProg").hidden = !x;
+          getById("waveProg").hidden = !x;
         }),
         l)
       ) {
         let x = t.enemies.length + t.markers.length;
         for (let g = t.planIdx; g < t.plan.length; g++) x += t.plan[g].members.length;
-        let m = Lt(1 - x / Math.max(t.planTotal, x), 0, 1);
+        let m = clamp(1 - x / Math.max(t.planTotal, x), 0, 1);
         r("prog", Math.round(m * 50), () => {
-          k("waveProgFill").style.transform = `scaleX(${m})`;
+          getById("waveProgFill").style.transform = `scaleX(${m})`;
         });
       }
       let u = t.boss || (t.champion && !t.champion.dead ? t.champion : null);
       (r("bossOn", !!u, (x) => {
-        k("bossBar").hidden = !x;
+        getById("bossBar").hidden = !x;
       }),
         u &&
           (r("bossName", u.type + (u.enraged ? "!" : "") + (u.champion ? "c" : ""), () => {
-            ((k("bossName").textContent = u.champion ? `${Ae[u.type].name.toUpperCase()} CHAMPION` : en[u.type].name),
-              (k("bossPhase").textContent = u.enraged ? "ENRAGED" : u.champion ? "RALLYING" : ""));
+            ((getById("bossName").textContent = u.champion
+              ? `${enemyDefs[u.type].name.toUpperCase()} CHAMPION`
+              : bossDefs[u.type].name),
+              (getById("bossPhase").textContent = u.enraged ? "ENRAGED" : u.champion ? "RALLYING" : ""));
           }),
           r("bossF", Math.round((u.hp / u.maxHp) * 300), (x) => {
-            ((k("bossFill").style.transform = `scaleX(${Lt(x / 300, 0, 1)})`),
-              (k("bossLag").style.transform = `scaleX(${Lt(x / 300, 0, 1)})`));
+            ((getById("bossFill").style.transform = `scaleX(${clamp(x / 300, 0, 1)})`),
+              (getById("bossLag").style.transform = `scaleX(${clamp(x / 300, 0, 1)})`));
           }),
           r("bossTicks", u.type, (x) => {
-            k("bossTicks").innerHTML = x === "core" ? '<s style="left:66%"></s><s style="left:33%"></s>' : "";
+            getById("bossTicks").innerHTML = x === "core" ? '<s style="left:66%"></s><s style="left:33%"></s>' : "";
           })));
       let d = t.combo >= 5 ? t.combo : 0;
       (r("combo", d, (x) => {
-        ((k("combo").hidden = !x),
-          x && ((k("comboN").textContent = "\xD7" + x), k("combo").classList.toggle("hot", x >= 25)));
+        ((getById("combo").hidden = !x),
+          x && ((getById("comboN").textContent = "\xD7" + x), getById("combo").classList.toggle("hot", x >= 25)));
       }),
         d &&
           r("comboT", Math.round(t.comboT * 20), (x) => {
-            k("comboBar").style.transform = `scaleX(${Lt(x / 44, 0, 1)})`;
+            getById("comboBar").style.transform = `scaleX(${clamp(x / 44, 0, 1)})`;
           }));
       let f = s.dashCd > 0 ? Math.round((n.dashCdT / s.dashCd) * 100) : 0;
       (r("dash", f, (x) => {
-        let m = k("dashBtn");
+        let m = getById("dashBtn");
         (m.style.setProperty("--p", x + "%"), m.style.setProperty("--q", 100 - x + "%"));
         let g = x > 0;
         (m.classList.contains("cooling") &&
@@ -817,11 +844,11 @@ var k = (i) => document.getElementById(i),
           m.classList.toggle("cooling", g));
       }),
         r("dashSec", n.dashCdT > 0.25 ? n.dashCdT.toFixed(1) : "", (x) => {
-          k("dashSec").textContent = x;
+          getById("dashSec").textContent = x;
         }));
       let p = Math.floor(n.nova);
       r("nova", p, (x) => {
-        (k("novaBtn").style.setProperty("--p", x + "%"), k("novaBtn").classList.toggle("ready", x >= 100));
+        (getById("novaBtn").style.setProperty("--p", x + "%"), getById("novaBtn").classList.toggle("ready", x >= 100));
       });
     }
     buffs(t) {
@@ -833,12 +860,12 @@ var k = (i) => document.getElementById(i),
         (t.ws.revive || 0) > 0 && !t.revived && s.push(["life", "2ND LIFE", "#6dff8a", -1]),
         t.event &&
           t.state === "fight" &&
-          s.unshift(["event", $i[t.event].name, t.event === "elite" ? "#ffc84a" : "#7ff6ff", -1]),
+          s.unshift(["event", waveEvents[t.event].name, t.event === "elite" ? "#ffc84a" : "#7ff6ff", -1]),
         e.onIce && t.state === "fight" && s.push(["ice", "ICE", "#bff4ff", -1]),
         e.inAcid && t.state === "fight" && s.push(["acid", "ACID", "#b4ff3d", -1]),
         e.slowT > 0 && s.push(["chill", "CHILLED", "#aee8ff", e.slowT / 1.6]));
       let r = s.map((o) => o[0] + o[1]).join("|"),
-        a = k("buffs");
+        a = getById("buffs");
       this.hudCache.buffKey !== r &&
         ((this.hudCache.buffKey = r),
         (a.innerHTML = s
@@ -850,38 +877,38 @@ var k = (i) => document.getElementById(i),
       for (let [o, , , c] of s) {
         if (c < 0) continue;
         let h = a.querySelector(`[data-b="${o}"] i`);
-        h && (h.style.transform = `scaleX(${Lt(c, 0, 1).toFixed(2)})`);
+        h && (h.style.transform = `scaleX(${clamp(c, 0, 1).toFixed(2)})`);
       }
     }
     showChoose(t) {
       let e = t.offerBoss;
-      ((k("chooseEyebrow").textContent = e
-        ? `${en[t.bossKills[t.bossKills.length - 1]] ? en[t.bossKills[t.bossKills.length - 1]].name : "BOSS"} DEFEATED`
+      ((getById("chooseEyebrow").textContent = e
+        ? `${bossDefs[t.bossKills[t.bossKills.length - 1]] ? bossDefs[t.bossKills[t.bossKills.length - 1]].name : "BOSS"} DEFEATED`
         : `WAVE ${t.wave} CLEARED`),
-        (k("chooseTitle").textContent = e ? "Claim a rare reward" : "Choose an upgrade"));
-      let n = Lt(t.player.hp / t.stats.maxHp, 0, 1);
-      ((k("chooseHp").style.transform = `scaleX(${n})`),
-        (k("chooseHpNum").textContent = `${Math.ceil(t.player.hp)}/${t.stats.maxHp}`),
+        (getById("chooseTitle").textContent = e ? "Claim a rare reward" : "Choose an upgrade"));
+      let n = clamp(t.player.hp / t.stats.maxHp, 0, 1);
+      ((getById("chooseHp").style.transform = `scaleX(${n})`),
+        (getById("chooseHpNum").textContent = `${Math.ceil(t.player.hp)}/${t.stats.maxHp}`),
         this.renderCards(t),
         this.coverHud(!0),
-        (k("choose").hidden = !1));
+        (getById("choose").hidden = !1));
     }
     renderCards(t) {
-      let e = k("cards");
+      let e = getById("cards");
       ((e.innerHTML = t.offer
         .map((n, s) => {
-          let r = ri[n],
+          let r = upgradesById[n],
             a = t.up[n] || 0,
             o = r.evo
               ? "EVOLUTION"
               : r.repeat
-                ? jl[r.rarity].toUpperCase()
+                ? rarityNames[r.rarity].toUpperCase()
                 : a
                   ? `LV ${a} \u2192 ${a + 1}`
-                  : `NEW \xB7 ${jl[r.rarity].toUpperCase()}`,
+                  : `NEW \xB7 ${rarityNames[r.rarity].toUpperCase()}`,
             c = this.evoHint(r, t),
             h = this.statDelta(n, t);
-          return `<button class="card r${r.rarity}" data-pick="${n}" style="animation-delay:${s * 70}ms"><span class="cico">${Ln(r.icon)}</span><span><span class="ctop"><b>${we(r.name)}</b><span class="lv">${o}</span></span><p>${we(r.desc(a))}</p>${h}${c}</span></button>`;
+          return `<button class="card r${r.rarity}" data-pick="${n}" style="animation-delay:${s * 70}ms"><span class="cico">${iconSvg(r.icon)}</span><span><span class="ctop"><b>${escapeHtml(r.name)}</b><span class="lv">${o}</span></span><p>${escapeHtml(r.desc(a))}</p>${h}${c}</span></button>`;
         })
         .join("")),
         e.classList.add("locked"),
@@ -891,9 +918,9 @@ var k = (i) => document.getElementById(i),
         n.addEventListener("click", () => {
           e.classList.contains("locked") || this.g.choose(n.dataset.pick);
         });
-      ((k("rerollTxt").textContent = `Reroll (${t.rerolls})`),
-        (k("rerollBtn").disabled = t.rerolls <= 0),
-        (k("buildStrip").innerHTML = this.buildHtml(t)));
+      ((getById("rerollTxt").textContent = `Reroll (${t.rerolls})`),
+        (getById("rerollBtn").disabled = t.rerolls <= 0),
+        (getById("buildStrip").innerHTML = this.buildHtml(t)));
     }
     statDelta(t, e) {
       let n = e.player,
@@ -902,97 +929,102 @@ var k = (i) => document.getElementById(i),
         let o = Math.min(s.maxHp, n.hp + s.maxHp * 0.45);
         return `<small class="delta">Hull ${Math.ceil(n.hp)} \u2192 ${Math.ceil(o)}</small>`;
       }
-      let r = nr(e.weapon, { ...e.up, [t]: (e.up[t] || 0) + 1 }, e.ws),
+      let r = computeStats(e.weapon, { ...e.up, [t]: (e.up[t] || 0) + 1 }, e.ws),
         a = [];
-      for (let [o, c, h] of t_) {
+      for (let [o, c, h] of statRows) {
         let l = c(s),
           u = c(r);
         if (!(Math.abs(l - u) < 1e-6) && (a.push(`${o} ${h(l)} \u2192 ${h(u)}`), a.length >= 2)) break;
       }
-      return a.length ? `<small class="delta">${we(a.join(" \xB7 "))}</small>` : "";
+      return a.length ? `<small class="delta">${escapeHtml(a.join(" \xB7 "))}</small>` : "";
     }
     evoHint(t, e) {
       if (t.evo)
         return `<small class="evo-hint">Merges ${Object.keys(t.evo)
-          .map((o) => we(ri[o].name))
+          .map((o) => escapeHtml(upgradesById[o].name))
           .join(" + ")}</small>`;
-      let n = Zi.filter((o) => o.evo && o.evo[t.id] && !e.up[o.id] && (!o.weapon || o.weapon === e.weapon)),
+      let n = upgradeList.filter((o) => o.evo && o.evo[t.id] && !e.up[o.id] && (!o.weapon || o.weapon === e.weapon)),
         s = n.find((o) => o.weapon) || n[0];
       if (!s) return "";
       let r = Object.keys(s.evo)
           .filter((o) => o !== t.id)
-          .map((o) => `${ri[o].name} ${Math.min(e.up[o] || 0, s.evo[o])}/${s.evo[o]}`),
+          .map((o) => `${upgradesById[o].name} ${Math.min(e.up[o] || 0, s.evo[o])}/${s.evo[o]}`),
         a = `${Math.min((e.up[t.id] || 0) + 1, s.evo[t.id])}/${s.evo[t.id]}`;
-      return `<small class="evo-hint">\u2192 ${we(s.name)}: this ${a} \xB7 ${we(r.join(", "))}</small>`;
+      return `<small class="evo-hint">\u2192 ${escapeHtml(s.name)}: this ${a} \xB7 ${escapeHtml(r.join(", "))}</small>`;
     }
     hideChoose() {
-      ((k("choose").hidden = !0), this.coverHud(!1));
+      ((getById("choose").hidden = !0), this.coverHud(!1));
     }
     coverHud(t) {
-      ((k("hud").style.visibility = t ? "hidden" : ""),
-        t && ((k("banner").innerHTML = ""), clearTimeout(this.bannerT)));
+      ((getById("hud").style.visibility = t ? "hidden" : ""),
+        t && ((getById("banner").innerHTML = ""), clearTimeout(this.bannerT)));
     }
     buildHtml(t) {
-      let e = Zi.filter((n) => t.up[n.id] && !n.repeat);
+      let e = upgradeList.filter((n) => t.up[n.id] && !n.repeat);
       return e.length
         ? e
             .map(
               (n) =>
-                `<span class="bi r${n.rarity}" title="${we(n.name)}">${Ln(n.icon)}${we(n.name)}${t.up[n.id] > 1 ? " \xD7" + t.up[n.id] : ""}</span>`,
+                `<span class="bi r${n.rarity}" title="${escapeHtml(n.name)}">${iconSvg(n.icon)}${escapeHtml(n.name)}${t.up[n.id] > 1 ? " \xD7" + t.up[n.id] : ""}</span>`,
             )
             .join("")
         : '<span class="note">No upgrades yet.</span>';
     }
     showPause(t) {
-      ((k("pauseTitle").textContent = `Wave ${t.wave}${t.endless ? " \xB7 Endless" : ""}`),
-        (k("pauseStats").innerHTML =
-          `<span>${va(t.time)}</span><span>${t.kills} KILLS</span><span>${t.shards} SHARDS</span>`),
-        (k("pauseBuild").innerHTML = this.buildHtml(t)),
+      ((getById("pauseTitle").textContent = `Wave ${t.wave}${t.endless ? " \xB7 Endless" : ""}`),
+        (getById("pauseStats").innerHTML =
+          `<span>${formatTime(t.time)}</span><span>${t.kills} KILLS</span><span>${t.shards} SHARDS</span>`),
+        (getById("pauseBuild").innerHTML = this.buildHtml(t)),
         this.coverHud(!0),
-        (k("pause").hidden = !1),
+        (getById("pause").hidden = !1),
         (this.screen = "pause"));
     }
     hidePause() {
-      ((k("pause").hidden = !0), (k("settings").hidden = !0), this.coverHud(!1));
+      ((getById("pause").hidden = !0), (getById("settings").hidden = !0), this.coverHud(!1));
     }
     showOver(t) {
-      k("overEyebrow").textContent = t.win
-        ? `${si[t.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
-        : `${ue[t.weapon].name.toUpperCase()} \xB7 ${si[t.threat].name.toUpperCase()}`;
-      let e = k("overTitle");
+      getById("overEyebrow").textContent = t.win
+        ? `${threatLevels[t.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
+        : `${weaponDefs[t.weapon].name.toUpperCase()} \xB7 ${threatLevels[t.threat].name.toUpperCase()}`;
+      let e = getById("overTitle");
       ((e.textContent = t.win ? "RIFT SEALED" : t.abandoned ? "RUN ENDED" : "SIGNAL LOST"),
         (e.className = "over-title " + (t.win ? "win" : "lose")),
-        (k("overBest").hidden = !(t.best || t.fastest)),
-        (k("overBest").textContent = t.fastest && !t.best ? "NEW FASTEST" : "NEW BEST"));
-      let n = t.killer ? Ae[t.killer] || en[t.killer] : null;
-      ((k("overCause").hidden = !n && t.killer !== "lava" && t.killer !== "acid"),
+        (getById("overBest").hidden = !(t.best || t.fastest)),
+        (getById("overBest").textContent = t.fastest && !t.best ? "NEW FASTEST" : "NEW BEST"));
+      let n = t.killer ? enemyDefs[t.killer] || bossDefs[t.killer] : null;
+      ((getById("overCause").hidden = !n && t.killer !== "lava" && t.killer !== "acid"),
         n
-          ? (k("overCause").textContent = `Destroyed by ${en[t.killer] ? n.name : "a " + n.name}`)
+          ? (getById("overCause").textContent = `Destroyed by ${bossDefs[t.killer] ? n.name : "a " + n.name}`)
           : t.killer === "lava"
-            ? (k("overCause").textContent = "Burned by a lava vent")
-            : t.killer === "acid" && (k("overCause").textContent = "Dissolved in acid"),
-        (k("overStats").innerHTML = [
+            ? (getById("overCause").textContent = "Burned by a lava vent")
+            : t.killer === "acid" && (getById("overCause").textContent = "Dissolved in acid"),
+        (getById("overStats").innerHTML = [
           ["Wave", t.wave],
-          ["Time", va(t.time)],
+          ["Time", formatTime(t.time)],
           ["Kills", t.kills],
           ["Bosses", t.bosses],
         ]
           .map(([s, r]) => `<div class="cell"><div class="k">${s}</div><div class="v">${r}</div></div>`)
           .join("")),
-        (k("payRows").innerHTML = t.rows
-          .map(([s, r]) => `<div class="pay-row"><span>${we(s)}</span><span class="num">${we(r)}</span></div>`)
+        (getById("payRows").innerHTML = t.rows
+          .map(
+            ([s, r]) =>
+              `<div class="pay-row"><span>${escapeHtml(s)}</span><span class="num">${escapeHtml(r)}</span></div>`,
+          )
           .join("")),
-        (k("overMs").innerHTML =
-          (t.unlocks || []).map((s) => `<span class="chip">${Ln("star")} ${we(s)}</span>`).join("") +
-          t.milestones.map((s) => `<span class="chip">${Ln("trophy")} Milestone ready: ${we(s)}</span>`).join("")),
+        (getById("overMs").innerHTML =
+          (t.unlocks || []).map((s) => `<span class="chip">${iconSvg("star")} ${escapeHtml(s)}</span>`).join("") +
+          t.milestones
+            .map((s) => `<span class="chip">${iconSvg("trophy")} Milestone ready: ${escapeHtml(s)}</span>`)
+            .join("")),
         this.renderDamage(t),
-        (k("endlessBtn").hidden = !t.canEndless),
-        (k("retryBtn").hidden = t.canEndless),
-        (k("over").hidden = !1),
-        this.countUp(k("payTotal"), t.total));
+        (getById("endlessBtn").hidden = !t.canEndless),
+        (getById("retryBtn").hidden = t.canEndless),
+        (getById("over").hidden = !1),
+        this.countUp(getById("payTotal"), t.total));
     }
     renderDamage(t) {
-      let e = k("overDmg"),
+      let e = getById("overDmg"),
         n = t.dmgSrc || {},
         s = Object.entries(n)
           .filter(([, h]) => h >= 1)
@@ -1007,49 +1039,53 @@ var k = (i) => document.getElementById(i),
         '<div class="dh">Damage dealt</div>' +
         a
           .map(([h, l]) => {
-            let u = h === "weapon" ? t.weaponName : Hl[h] ? Hl[h][0] : "Other",
+            let u = h === "weapon" ? t.weaponName : damageSources[h] ? damageSources[h][0] : "Other",
               d =
-                h === "weapon" ? "#" + ue[t.weapon].color.toString(16).padStart(6, "0") : Hl[h] ? Hl[h][1] : "#93a2bf",
+                h === "weapon"
+                  ? "#" + weaponDefs[t.weapon].color.toString(16).padStart(6, "0")
+                  : damageSources[h]
+                    ? damageSources[h][1]
+                    : "#93a2bf",
               f = Math.round((l / r) * 100);
-            return `<div class="dmg-row" style="--dc:${d}"><span>${we(u)}</span><span class="num">${qn(l)} \xB7 ${f}%</span><span class="db"><i style="transform:scaleX(${(l / c).toFixed(3)})"></i></span></div>`;
+            return `<div class="dmg-row" style="--dc:${d}"><span>${escapeHtml(u)}</span><span class="num">${formatCount(l)} \xB7 ${f}%</span><span class="db"><i style="transform:scaleX(${(l / c).toFixed(3)})"></i></span></div>`;
           })
           .join("");
     }
     hideOver() {
-      k("over").hidden = !0;
+      getById("over").hidden = !0;
     }
     countUp(t, e) {
       let n = performance.now(),
         s = 900,
         r = (a) => {
-          let o = Lt((a - n) / s, 0, 1);
-          ((t.textContent = qn(Math.round(e * (1 - Math.pow(1 - o, 3))))), o < 1 && requestAnimationFrame(r));
+          let o = clamp((a - n) / s, 0, 1);
+          ((t.textContent = formatCount(Math.round(e * (1 - Math.pow(1 - o, 3))))), o < 1 && requestAnimationFrame(r));
         };
       requestAnimationFrame(r);
     }
     showCrash(t) {
-      for (let e of ["choose", "pause", "over"]) k(e).hidden = !0;
-      (this.showHud(!1), (k("crashLog").value = t), (k("crash").hidden = !1));
+      for (let e of ["choose", "pause", "over"]) getById(e).hidden = !0;
+      (this.showHud(!1), (getById("crashLog").value = t), (getById("crash").hidden = !1));
     }
     hideCrash() {
-      k("crash").hidden = !0;
+      getById("crash").hidden = !0;
     }
     hurtFlash() {
       if (this.calm) return;
-      let t = k("flash");
+      let t = getById("flash");
       (t.classList.add("on"), requestAnimationFrame(() => requestAnimationFrame(() => t.classList.remove("on"))));
     }
     setUpdate(t) {
-      k("updateBar").hidden = !t;
+      getById("updateBar").hidden = !t;
     }
   };
 (() => {
-  const _show = Gl.prototype._show;
-  Gl.prototype._show = function (screen) {
+  const _show = GameUI.prototype._show;
+  GameUI.prototype._show = function (screen) {
     const r = _show.call(this, screen);
     requestAnimationFrame(() => window.__riftLayoutAudit?.());
     return r;
   };
 })();
 
-export { Gl, Ln, RL_TOUCH_CLICK_GUARD, k, rlBiomeTitle, rlRenderHistory, sp, we };
+export { GameUI, iconSvg, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, rlRenderHistory, iconPaths, escapeHtml };

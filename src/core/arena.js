@@ -1,10 +1,10 @@
 // Arena layouts: obstacles, hazards (vents, ice, acid, portals), wave obstacles, flow field and
 // spatial hash.
 
-import { Lt, Me, Yi, er, qi } from "./util.js";
+import { clamp, TAU, hashString, angleDiff, makeRng } from "./util.js";
 import { RL_BIOME_HAZARD } from "../data/biomes.js";
 
-var Sa = class {
+var Arena = class {
   constructor(t, e) {
     this.biome = t;
     let n = e || { key: t.id + ":classic", W: t.W, H: t.H, obstacles: t.obstacles, deco: 0 };
@@ -20,7 +20,7 @@ var Sa = class {
       (this.ice = (s.ice || []).map((r) => ({ ...r }))),
       (this.portals = (s.portals || []).map((r) => ({ ...r }))),
       (this.acid = (s.acid || []).map((r) => ({ ...r }))),
-      (this.flow = new Ql(this)));
+      (this.flow = new FlowField(this)));
   }
   ventState(t, e) {
     let n = (e + t.phase) % t.period,
@@ -74,8 +74,8 @@ var Sa = class {
           ((t.x = a.x + (o / u) * h), (t.y = a.y + (c / u) * h), (n = !0));
         }
       } else {
-        let o = Lt(t.x, a.x - a.w, a.x + a.w),
-          c = Lt(t.y, a.y - a.h, a.y + a.h),
+        let o = clamp(t.x, a.x - a.w, a.x + a.w),
+          c = clamp(t.y, a.y - a.h, a.y + a.h),
           h = t.x - o,
           l = t.y - c,
           u = h * h + l * l;
@@ -109,11 +109,11 @@ var Sa = class {
           h = s - e,
           l = c * c + h * h,
           u = l > 0 ? ((a.x - t) * c + (a.y - e) * h) / l : 0;
-        u = Lt(u, 0, 1);
+        u = clamp(u, 0, 1);
         let d = t + c * u - a.x,
           f = e + h * u - a.y;
         if (d * d + f * f < o * o) return !1;
-      } else if (Ep(t, e, n, s, a.x - a.w - r, a.y - a.h - r, a.x + a.w + r, a.y + a.h + r)) return !1;
+      } else if (segmentHitsBox(t, e, n, s, a.x - a.w - r, a.y - a.h - r, a.x + a.w + r, a.y + a.h + r)) return !1;
     return !0;
   }
   rayLen(t, e, n, s) {
@@ -180,7 +180,7 @@ var Sa = class {
     return this.blocked(h, l, r + 0.1) || this.featureBlocked(h, l, r * 0.1) ? { x: 0, y: 0 } : { x: h, y: l };
   }
 };
-function Ep(i, t, e, n, s, r, a, o) {
+function segmentHitsBox(i, t, e, n, s, r, a, o) {
   let c = 0,
     h = 1,
     l = e - i,
@@ -203,7 +203,7 @@ function Ep(i, t, e, n, s, r, a, o) {
   }
   return !0;
 }
-var wa = class {
+var SpatialHash = class {
     constructor(t, e, n = 2.5) {
       ((this.cell = n),
         (this.ox = -t - 2),
@@ -219,8 +219,8 @@ var wa = class {
         (this.maxR = 1));
     }
     _cell(t, e) {
-      let n = Lt(Math.floor((t - this.ox) / this.cell), 0, this.cols - 1);
-      return Lt(Math.floor((e - this.oy) / this.cell), 0, this.rows - 1) * this.cols + n;
+      let n = clamp(Math.floor((t - this.ox) / this.cell), 0, this.cols - 1);
+      return clamp(Math.floor((e - this.oy) / this.cell), 0, this.rows - 1) * this.cols + n;
     }
     build(t) {
       this.list = t;
@@ -246,10 +246,10 @@ var wa = class {
     }
     query(t, e, n, s) {
       let r = n + this.maxR,
-        a = Lt(Math.floor((t - r - this.ox) / this.cell), 0, this.cols - 1),
-        o = Lt(Math.floor((t + r - this.ox) / this.cell), 0, this.cols - 1),
-        c = Lt(Math.floor((e - r - this.oy) / this.cell), 0, this.rows - 1),
-        h = Lt(Math.floor((e + r - this.oy) / this.cell), 0, this.rows - 1);
+        a = clamp(Math.floor((t - r - this.ox) / this.cell), 0, this.cols - 1),
+        o = clamp(Math.floor((t + r - this.ox) / this.cell), 0, this.cols - 1),
+        c = clamp(Math.floor((e - r - this.oy) / this.cell), 0, this.rows - 1),
+        h = clamp(Math.floor((e + r - this.oy) / this.cell), 0, this.rows - 1);
       for (let l = c; l <= h; l++)
         for (let u = a; u <= o; u++) {
           let d = l * this.cols + u;
@@ -257,7 +257,7 @@ var wa = class {
         }
     }
   },
-  Ql = class {
+  FlowField = class {
     constructor(t) {
       ((this.a = t), (this.cs = 1), (this.cols = Math.ceil(t.W * 2)), (this.rows = Math.ceil(t.H * 2)));
       let e = this.cols * this.rows;
@@ -275,8 +275,8 @@ var wa = class {
         }
     }
     idx(t, e) {
-      let n = Lt(Math.floor((t + this.a.W) / this.cs), 0, this.cols - 1);
-      return Lt(Math.floor((e + this.a.H) / this.cs), 0, this.rows - 1) * this.cols + n;
+      let n = clamp(Math.floor((t + this.a.W) / this.cs), 0, this.cols - 1);
+      return clamp(Math.floor((e + this.a.H) / this.cs), 0, this.rows - 1) * this.cols + n;
     }
     update(t, e) {
       let n = this.idx(t, e);
@@ -317,9 +317,9 @@ var wa = class {
         }
     }
   };
-var Ea = 2.7,
-  bi = { x: 0, y: 2, r: 4.6 },
-  Mu = {
+var OBSTACLE_GAP = 2.7,
+  spawnZone = { x: 0, y: 2, r: 4.6 },
+  obstacleShapes = {
     yard: [
       [5, (i) => ({ t: "c", r: i.range(1, 1.5) })],
       [
@@ -378,14 +378,14 @@ var Ea = 2.7,
       [3, (i) => ({ t: "c", r: i.range(0.9, 1.3) })],
     ],
   },
-  Dp = {
+  mapTemplates = {
     yard: ["scatter", "ring", "rot4", "mirror2"],
     works: ["scatter", "lanes", "mirror2", "rot2"],
     vault: ["scatter", "rot2", "ring", "rot4"],
     void: ["scatter", "ring", "rot2", "mirror4"],
     marsh: ["scatter", "mirror2", "ring", "rot2"],
   };
-function bu(i) {
+function classicLayout(i) {
   return {
     key: i.id + ":classic",
     W: i.W,
@@ -405,7 +405,7 @@ function mapScore(i, t, e, n) {
     let l = h.t === "c" ? Math.PI * h.r * h.r : 4 * h.w * h.h;
     s += l;
     let u = Math.atan2(h.y, h.x);
-    (u < 0 && (u += Me), o[Math.min(7, Math.floor((u / Me) * 8))]++, c.push(Math.hypot(h.x, h.y)));
+    (u < 0 && (u += TAU), o[Math.min(7, Math.floor((u / TAU) * 8))]++, c.push(Math.hypot(h.x, h.y)));
   }
   r = s / (4 * t * e);
   let h = o.filter((u) => u > 0).length,
@@ -423,21 +423,21 @@ function mapScore(i, t, e, n) {
     d * 3.5 + f * 3 + p * 1.5 + (i.length >= 5 && i.length <= 9 ? 1 : 0) + u * 1.2 + (n === "scatter" ? 3 : 0) - 0.2
   );
 }
-function Su(i, t, e, n) {
-  if (n || !Mu[i.id]) return bu(i);
-  let s = qi(Yi(t + ":map:" + e)),
+function buildLayout(i, t, e, n) {
+  if (n || !obstacleShapes[i.id]) return classicLayout(i);
+  let s = makeRng(hashString(t + ":map:" + e)),
     r = null,
     a = -1e9;
   for (let o = 0; o < 24; o++) {
-    let c = Lt(i.W + s.int(-1, 1), 15, 20),
-      h = Lt(i.H + s.int(-1, 1), 15, 20),
-      l = s.chance(0.55) ? "scatter" : s.pick(Dp[i.id].filter((u) => u !== "scatter")),
-      u = Up(s, i.id, l, c, h);
-    if (u.length < 4 || !kp(u, c, h)) continue;
+    let c = clamp(i.W + s.int(-1, 1), 15, 20),
+      h = clamp(i.H + s.int(-1, 1), 15, 20),
+      l = s.chance(0.55) ? "scatter" : s.pick(mapTemplates[i.id].filter((u) => u !== "scatter")),
+      u = placeObstacles(s, i.id, l, c, h);
+    if (u.length < 4 || !isConnected(u, c, h)) continue;
     let d = mapScore(u, c, h, l);
     d > a && ((a = d), (r = { W: c, H: h, obstacles: u, template: l }));
   }
-  if (!r) return bu(i);
+  if (!r) return classicLayout(i);
   return {
     key: `${i.id}:${t}:${e}`,
     W: r.W,
@@ -445,16 +445,16 @@ function Su(i, t, e, n) {
     obstacles: r.obstacles,
     deco: 1 + s.int(0, 3),
     template: r.template,
-    features: Op(s, i.id, r.obstacles, r.W, r.H),
+    features: placeFeatures(s, i.id, r.obstacles, r.W, r.H),
   };
 }
-const _rlSuBase = Su;
-function rlSuV21(i, t, e, n) {
-  const base = _rlSuBase(i, t, e, n),
+const _rlBuildLayoutBase = buildLayout;
+function rlBuildLayoutV21(i, t, e, n) {
+  const base = _rlBuildLayoutBase(i, t, e, n),
     layout = rlAddWaveObstacles(base, i, t, e, n);
   return layout;
 }
-Su = rlSuV21;
+buildLayout = rlBuildLayoutV21;
 function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75) {
   const taken = [];
   for (const k of ["vents", "ice", "acid"])
@@ -464,13 +464,13 @@ function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75) {
     taken.push({ x: q.bx, y: q.by, r: 1 + extraR });
   }
   for (let tries = 0; tries < 80; tries++) {
-    const a = rng.next() * Me,
+    const a = rng.next() * TAU,
       d = rng.range(6.5, 9.6),
-      x = bi.x + Math.cos(a) * d,
-      y = bi.y + Math.sin(a) * d,
+      x = spawnZone.x + Math.cos(a) * d,
+      y = spawnZone.y + Math.sin(a) * d,
       r = 0.72 + rng.next() * 0.28;
-    if (Math.abs(x) > W - 3.7 || Math.abs(y) > H - 3.7 || Math.hypot(x - bi.x, y - bi.y) < 6.2) continue;
-    if (Eu(obs, x, y, r + 0.9)) continue;
+    if (Math.abs(x) > W - 3.7 || Math.abs(y) > H - 3.7 || Math.hypot(x - spawnZone.x, y - spawnZone.y) < 6.2) continue;
+    if (hitsObstacle(obs, x, y, r + 0.9)) continue;
     if (taken.some((q) => Math.hypot(x - q.x, y - q.y) < r + q.r + 1)) continue;
     return { x, y, r };
   }
@@ -483,7 +483,7 @@ function rlAddDynamicFeatures(layout, biome, seed, wave, boss, mode = "standard"
     portals: [...(layout.features?.portals || [])],
     acid: [...(layout.features?.acid || [])],
   };
-  const rng = qi(Yi(seed + ":director-features-v21:" + wave + ":" + mode));
+  const rng = makeRng(hashString(seed + ":director-features-v21:" + wave + ":" + mode));
   const theme = RL_BIOME_HAZARD[biome.id] ?? "",
     own = theme === "vents" || theme === "ice" || theme === "acid" ? theme : "";
   // Every biome keeps ONE hazard theme: whatever the wave mode asks for becomes the biome's own hazard.
@@ -568,8 +568,8 @@ function rlAddWaveObstacles(layout, biome, seed, wave, boss) {
     };
     return layout;
   }
-  const mode = modePool[(wave + Yi(seed + ":" + biome.id + ":director-mode")) % modePool.length];
-  const rng = qi(Yi(seed + ":director-obstacles-v21:" + wave + ":" + mode)),
+  const mode = modePool[(wave + hashString(seed + ":" + biome.id + ":director-mode")) % modePool.length];
+  const rng = makeRng(hashString(seed + ":director-obstacles-v21:" + wave + ":" + mode)),
     obs = layout.obstacles.map((q) => ({ ...q })),
     baseCount = obs.length;
   const protectedPoints = [];
@@ -596,10 +596,10 @@ function rlAddWaveObstacles(layout, biome, seed, wave, boss) {
   for (let k = 0; k < target; k++) {
     let placed = null;
     for (let tries = 0; tries < 70 && !placed; tries++) {
-      const a = rng.next() * Me,
+      const a = rng.next() * TAU,
         d = rng.range(6.2, Math.min(10.8, Math.min(layout.W, layout.H) - 4.2)),
-        x = bi.x + Math.cos(a) * d,
-        y = bi.y + Math.sin(a) * d;
+        x = spawnZone.x + Math.cos(a) * d,
+        y = spawnZone.y + Math.sin(a) * d;
       let cand;
       if (mode === "barricade" || mode === "gauntlet")
         cand = { t: "b", x, y, w: rng.range(0.65, 1.45), h: rng.range(2.0, 4.0) };
@@ -620,9 +620,14 @@ function rlAddWaveObstacles(layout, biome, seed, wave, boss) {
         cand = rng.chance(0.45)
           ? { t: "c", x, y, r: rng.range(0.58, 1.0) }
           : { t: "b", x, y, w: rng.range(0.6, 1.25), h: rng.range(0.6, 1.25) };
-      if (!Bp(cand, obs, layout.W, layout.H) || obs.some((q) => Tu(cand, q) < Ea) || featureOverlap(cand)) continue;
+      if (
+        !canPlaceObstacle(cand, obs, layout.W, layout.H) ||
+        obs.some((q) => obstacleDistance(cand, q) < OBSTACLE_GAP) ||
+        featureOverlap(cand)
+      )
+        continue;
       const next = obs.concat(cand);
-      if (!kp(next, layout.W, layout.H)) continue;
+      if (!isConnected(next, layout.W, layout.H)) continue;
       placed = cand;
       obs.push(cand);
     }
@@ -633,21 +638,21 @@ function rlAddWaveObstacles(layout, biome, seed, wave, boss) {
   layout.deco = (layout.deco || 0) + 1;
   layout.director = {
     mode,
-    intensity: Lt(1 + Math.floor(wave / 12) + (obs.length - baseCount > 3 ? 1 : 0), 1, 8),
+    intensity: clamp(1 + Math.floor(wave / 12) + (obs.length - baseCount > 3 ? 1 : 0), 1, 8),
     obstacles: Math.max(0, obs.length - baseCount),
     features: Object.fromEntries(Object.entries(layout.features).map(([k, v]) => [k, v.length])),
   };
   return layout;
 }
-function wu(i, t) {
-  let e = Mu[t],
+function randomObstacle(i, t) {
+  let e = obstacleShapes[t],
     n = 0;
   for (let [r] of e) n += r;
   let s = i.next() * n;
   for (let [r, a] of e) if (((s -= r), s <= 0)) return a(i);
   return e[0][1](i);
 }
-function Np(i, t) {
+function mirrorObstacle(i, t) {
   let e = (r, a, o) => ({ ...t, x: r, y: a, ...(o && t.t === "b" ? { w: t.h, h: t.w } : {}) }),
     { x: n, y: s } = t;
   switch (i) {
@@ -663,31 +668,32 @@ function Np(i, t) {
       return [e(n, s)];
   }
 }
-function Up(i, t, e, n, s) {
+function placeObstacles(i, t, e, n, s) {
   let r = [],
     a = (o) => {
       if (r.length + o.length > 12) return !1;
-      for (let c of o) if (!Bp(c, r, n, s)) return !1;
-      for (let c = 0; c < o.length; c++) for (let h = c + 1; h < o.length; h++) if (Tu(o[c], o[h]) < Ea) return !1;
+      for (let c of o) if (!canPlaceObstacle(c, r, n, s)) return !1;
+      for (let c = 0; c < o.length; c++)
+        for (let h = c + 1; h < o.length; h++) if (obstacleDistance(o[c], o[h]) < OBSTACLE_GAP) return !1;
       return (r.push(...o), !0);
     },
     o;
   if (e === "scatter") {
     let c = i.int(5, 8),
-      h = i.next() * Me,
+      h = i.next() * TAU,
       l = Math.min(n, s);
     for (let u = 0; u < c; u++) {
-      let d = h + (u / c) * Me + i.range(-0.42, 0.42),
+      let d = h + (u / c) * TAU + i.range(-0.42, 0.42),
         f = i.range(l * 0.43, l * 0.72),
-        p = wu(i, t);
+        p = randomObstacle(i, t);
       p.x = Math.cos(d) * f;
       p.y = Math.sin(d) * f;
       a([p]);
     }
     for (let c = 0; c < 18 && r.length < 4; c++) {
-      let h = i.next() * Me,
+      let h = i.next() * TAU,
         l = i.range(Math.min(n, s) * 0.4, Math.min(n, s) * 0.76),
-        u = wu(i, t);
+        u = randomObstacle(i, t);
       u.x = Math.cos(h) * l;
       u.y = Math.sin(h) * l;
       a([u]);
@@ -696,37 +702,37 @@ function Up(i, t, e, n, s) {
     let o = i.pick([4, 6, 8]),
       c = Math.min(n, s) * i.range(0.42, 0.58),
       h = i.next() * Math.PI,
-      l = wu(i, t);
+      l = randomObstacle(i, t);
     for (let u = 0; u < o; u++) {
       let d = h + (u / o) * Math.PI * 2;
       a([{ ...l, x: Math.cos(d) * c, y: Math.sin(d) * c }]);
     }
-    nc(i, t, "mirror4", n, s, a, 2);
+    placeSymmetric(i, t, "mirror4", n, s, a, 2);
   } else if (e === "lanes") {
     let o = i.range(6, Math.min(9.5, s - 5)),
       c = i.range(3, 5.5),
       h = i.range(3.2, 5.5);
     for (let l of [-1, 1]) for (let u of [-1, 1]) a([{ t: "b", w: c / 2, h: 0.7, x: u * (h + c / 2), y: l * o }]);
-    nc(i, t, "mirror2", n, s, a, 3);
-  } else nc(i, t, e, n, s, a, i.int(2, 4));
+    placeSymmetric(i, t, "mirror2", n, s, a, 3);
+  } else placeSymmetric(i, t, e, n, s, a, i.int(2, 4));
   return r;
 }
-function nc(i, t, e, n, s, r, a) {
+function placeSymmetric(i, t, e, n, s, r, a) {
   for (let o = 0; o < a; o++)
     for (let c = 0; c < 14; c++) {
-      let h = wu(i, t);
+      let h = randomObstacle(i, t);
       if (
         ((h.x = i.range(e === "rot2" ? -n + 2 : 1.5, n - 2)),
         (h.y = i.range(e === "mirror4" ? 1.5 : -s + 2, s - 2)),
-        r(Np(e, h)))
+        r(mirrorObstacle(e, h)))
       )
         break;
     }
 }
-function Fp(i) {
+function halfSize(i) {
   return i.t === "c" ? { hx: i.r, hy: i.r } : { hx: i.w, hy: i.h };
 }
-function Tu(i, t) {
+function obstacleDistance(i, t) {
   if (i.t === "c" && t.t === "c") return Math.max(0, Math.hypot(i.x - t.x, i.y - t.y) - i.r - t.r);
   if (i.t === "c" || t.t === "c") {
     let s = i.t === "c" ? i : t,
@@ -739,24 +745,24 @@ function Tu(i, t) {
     n = Math.max(0, Math.abs(i.y - t.y) - i.h - t.h);
   return Math.hypot(e, n);
 }
-function Bp(i, t, e, n) {
-  let { hx: s, hy: r } = Fp(i);
-  if (Math.abs(i.x) + s > e - Ea || Math.abs(i.y) + r > n - Ea) return !1;
-  let a = Math.max(0, Math.abs(i.x - bi.x) - s),
-    o = Math.max(0, Math.abs(i.y - bi.y) - r),
-    c = Math.max(5.4, bi.r + Math.max(s, r) + 3.8);
+function canPlaceObstacle(i, t, e, n) {
+  let { hx: s, hy: r } = halfSize(i);
+  if (Math.abs(i.x) + s > e - OBSTACLE_GAP || Math.abs(i.y) + r > n - OBSTACLE_GAP) return !1;
+  let a = Math.max(0, Math.abs(i.x - spawnZone.x) - s),
+    o = Math.max(0, Math.abs(i.y - spawnZone.y) - r),
+    c = Math.max(5.4, spawnZone.r + Math.max(s, r) + 3.8);
   if (Math.hypot(a, o) < c) return !1;
-  for (let h of t) if (Tu(i, h) < Ea) return !1;
+  for (let h of t) if (obstacleDistance(i, h) < OBSTACLE_GAP) return !1;
   return !0;
 }
-function Eu(i, t, e, n) {
+function hitsObstacle(i, t, e, n) {
   for (let s of i)
     if (s.t === "c") {
       if (Math.hypot(t - s.x, e - s.y) < s.r + n) return !0;
     } else if (Math.abs(t - s.x) < s.w + n && Math.abs(e - s.y) < s.h + n) return !0;
   return !1;
 }
-function kp(i, t, e) {
+function isConnected(i, t, e) {
   let n = 0;
   for (let p of i) n += p.t === "c" ? Math.PI * p.r * p.r : 4 * p.w * p.h;
   if (n > 4 * t * e * 0.13) return !1;
@@ -770,9 +776,9 @@ function kp(i, t, e) {
     for (let x = 0; x < r; x++) {
       let m = -t + (x + 0.5) * s,
         g = -e + (p + 0.5) * s;
-      Math.abs(m) > t - o || Math.abs(g) > e - o || Eu(i, m, g, o) || ((c[p * r + x] = 1), h++);
+      Math.abs(m) > t - o || Math.abs(g) > e - o || hitsObstacle(i, m, g, o) || ((c[p * r + x] = 1), h++);
     }
-  let l = Math.floor((bi.y + e) / s) * r + Math.floor((bi.x + t) / s);
+  let l = Math.floor((spawnZone.y + e) / s) * r + Math.floor((spawnZone.x + t) / s);
   if (!c[l]) return !1;
   let u = new Uint8Array(r * a),
     d = [l];
@@ -798,17 +804,17 @@ function kp(i, t, e) {
   }
   return f >= h * 0.995;
 }
-function Op(i, t, e, n, s) {
+function placeFeatures(i, t, e, n, s) {
   let r = { vents: [], ice: [], portals: [], acid: [] },
     path = (c, h, l, u, d = 0.5) => {
-      let f = Math.max(d, bi.r + 0.12),
+      let f = Math.max(d, spawnZone.r + 0.12),
         p = l - c,
         x = u - h,
         m = p * p + x * x;
       if (Math.abs(c) > n - 2.7 || Math.abs(h) > s - 2.7 || Math.abs(l) > n - 2.7 || Math.abs(u) > s - 2.7) return !1;
       for (let M of e)
         if (M.t === "c") {
-          let b = m ? Lt(((M.x - c) * p + (M.y - h) * x) / m, 0, 1) : 0,
+          let b = m ? clamp(((M.x - c) * p + (M.y - h) * x) / m, 0, 1) : 0,
             v = c + p * b,
             S = h + x * b;
           if ((v - M.x) * (v - M.x) + (S - M.y) * (S - M.y) < (M.r + f) * (M.r + f)) return !1;
@@ -845,7 +851,7 @@ function Op(i, t, e, n, s) {
       let f = null,
         p = -1e9,
         x = Math.max(3.6, c + 2.7),
-        m = Math.max(5.6, bi.r + c + 4.1),
+        m = Math.max(5.6, spawnZone.r + c + 4.1),
         g = Math.max(0.1, Math.min(n, s) - x),
         M = Math.min(10.5, Math.hypot(Math.max(0, n - x), Math.max(0, s - x))),
         b = Math.min(d.maxRadius ?? 9.2, Math.max(m + 1, M * 0.72)),
@@ -853,23 +859,23 @@ function Op(i, t, e, n, s) {
       for (let S = 0; S < 96; S++) {
         let A, C;
         if (d.anchor) {
-          let T = i.next() * Me,
+          let T = i.next() * TAU,
             R = i.range(d.minDist ?? 6, d.maxDist ?? 9);
           ((A = d.anchor.x + Math.cos(T) * R), (C = d.anchor.y + Math.sin(T) * R));
         } else {
           let T =
               d.angleCenter != null
                 ? d.angleCenter + i.range(-(d.angleSpan ?? 0.5), d.angleSpan ?? 0.5)
-                : i.next() * Me,
+                : i.next() * TAU,
             R = i.range(d.minRadius ?? v, d.maxRadius ?? b);
-          ((A = bi.x + Math.cos(T) * R), (C = bi.y + Math.sin(T) * R));
+          ((A = spawnZone.x + Math.cos(T) * R), (C = spawnZone.y + Math.sin(T) * R));
         }
         if (
           Math.abs(A) > n - x ||
           Math.abs(C) > s - x ||
-          Math.hypot(A - bi.x, C - bi.y) < m ||
+          Math.hypot(A - spawnZone.x, C - spawnZone.y) < m ||
           !path(d.pathFrom?.x ?? A, d.pathFrom?.y ?? C, A, C, d.pathFrom?.x != null ? 0.45 : 0.5) ||
-          Eu(e, A, C, c + h)
+          hitsObstacle(e, A, C, c + h)
         )
           continue;
         let E = !0,
@@ -885,14 +891,14 @@ function Op(i, t, e, n, s) {
         }
         if (!E || (d.farFrom && Math.hypot(A - d.farFrom.x, C - d.farFrom.y) < (d.farMin || 0))) continue;
         let T = Math.min(n - Math.abs(A), s - Math.abs(C)),
-          R = Math.hypot(A - bi.x, C - bi.y),
+          R = Math.hypot(A - spawnZone.x, C - spawnZone.y),
           V = Math.min(_, 8),
           D = d.preferRadius != null ? Math.abs(R - d.preferRadius) : Math.abs(R - (v + b) * 0.5),
           P = 999;
         for (let L of l) {
-          let I = Math.atan2(L.y - bi.y, L.x - bi.x),
-            z = Math.atan2(C - bi.y, A - bi.x);
-          P = Math.min(P, Math.abs(er(I, z)));
+          let I = Math.atan2(L.y - spawnZone.y, L.x - spawnZone.x),
+            z = Math.atan2(C - spawnZone.y, A - spawnZone.x);
+          P = Math.min(P, Math.abs(angleDiff(I, z)));
         }
         let O = T * 1.35 + V * 0.75 - P * 0.85 - D * 1.15 + i.next() * 1.1;
         O > p && ((p = O), (f = { x: A, y: C }));
@@ -928,24 +934,24 @@ function Op(i, t, e, n, s) {
       clearPoint = (p) =>
         Math.abs(p.x) <= n - 3.6 &&
         Math.abs(p.y) <= s - 3.6 &&
-        !Eu(e, p.x, p.y, 2.3) &&
-        Math.hypot(p.x - bi.x, p.y - bi.y) > 7.1 &&
+        !hitsObstacle(e, p.x, p.y, 2.3) &&
+        Math.hypot(p.x - spawnZone.x, p.y - spawnZone.y) > 7.1 &&
         used.every((q) => Math.hypot(p.x - q.x, p.y - q.y) >= portalGap);
     for (let h = 0; h < c; h++) {
       let l = null;
       for (let u = 0; u < 96 && !l; u++) {
         let d = i.range(7.8, 9.8),
-          f = i.next() * Me,
-          g = { x: bi.x + Math.cos(f) * d, y: bi.y + Math.sin(f) * d };
+          f = i.next() * TAU,
+          g = { x: spawnZone.x + Math.cos(f) * d, y: spawnZone.y + Math.sin(f) * d };
         clearPoint(g) && (l = g);
       }
       if (!l) continue;
       let u = null,
-        d = Math.atan2(l.y - bi.y, l.x - bi.x) + Math.PI;
+        d = Math.atan2(l.y - spawnZone.y, l.x - spawnZone.x) + Math.PI;
       for (let f = 0; f < 96 && !u; f++) {
         let g = i.range(7.8, 9.8),
           M = d + i.range(-0.55, 0.55),
-          b = { x: bi.x + Math.cos(M) * g, y: bi.y + Math.sin(M) * g };
+          b = { x: spawnZone.x + Math.cos(M) * g, y: spawnZone.y + Math.sin(M) * g };
         clearPoint(b) && Math.hypot(b.x - l.x, b.y - l.y) > Math.max(n, s) * 0.78 && (u = b);
       }
       if (!u) continue;
@@ -955,4 +961,4 @@ function Op(i, t, e, n, s) {
   return r;
 }
 
-export { Dp, Eu, Mu, Sa, Su, kp, wa };
+export { mapTemplates, hitsObstacle, obstacleShapes, Arena, buildLayout, isConnected, SpatialHash };

@@ -1,6 +1,6 @@
 // Weapon table.
 
-var ue = {
+var weaponDefs = {
   pulse: {
     id: "pulse",
     name: "Pulse Blaster",
@@ -138,6 +138,6 @@ var ue = {
     shake: 0,
   },
 };
-var En = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
+var weaponOrder = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
 
-export { En, ue };
+export { weaponOrder, weaponDefs };

@@ -1,7 +1,7 @@
 // Run upgrades and evolutions, offer weights.
 
-var jl = ["", "Common", "Rare", "Epic", "Legendary", "Evolution"];
-var Zi = [
+var rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution"];
+var upgradeList = [
   { id: "dmg", name: "High-Yield Rounds", rarity: 1, max: 8, icon: "burst", desc: () => "+15% damage" },
   { id: "rate", name: "Rapid Cycler", rarity: 1, max: 8, icon: "rate", desc: () => "+12% fire rate" },
   { id: "hp", name: "Reinforced Hull", rarity: 1, max: 6, icon: "shield", desc: () => "+20 max HP and repair 20" },
@@ -358,10 +358,10 @@ var Zi = [
     desc: () => "Flames reach 30% further and burn 60% hotter.",
   },
 ];
-var ri = Object.fromEntries(Zi.map((i) => [i.id, i]));
-var Ap = [0, 60, 28, 10, 2],
-  Rp = [0, 0, 42, 44, 14];
-Zi.push(
+var upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
+var rarityWeights = [0, 60, 28, 10, 2],
+  bossRarityWeights = [0, 0, 42, 44, 14];
+upgradeList.push(
   { id: "caliber", name: "Overbore Caliber", rarity: 1, max: 5, icon: "burst", desc: () => "+10% damage" },
   {
     id: "stabilizer",
@@ -405,8 +405,8 @@ Zi.push(
     desc: () => "-12% dash and shield cooldowns",
   },
 );
-ri = Object.fromEntries(Zi.map((i) => [i.id, i]));
-Zi.push(
+upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
+upgradeList.push(
   {
     id: "overload",
     name: "Overload",
@@ -465,8 +465,8 @@ Zi.push(
     desc: (l, i = l + 1) => `Supply caches gain +${i} bonus value tier`,
   },
 );
-ri = Object.fromEntries(Zi.map((i) => [i.id, i]));
-Zi.push(
+upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
+upgradeList.push(
   { id: "kinetic", name: "Kinetic Matrix", rarity: 1, max: 4, icon: "burst", desc: () => "+8% damage" },
   {
     id: "deadeye",
@@ -513,6 +513,6 @@ Zi.push(
     desc: () => "-6% dash and shield cooldowns",
   },
 );
-ri = Object.fromEntries(Zi.map((i) => [i.id, i]));
+upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
 
-export { Ap, Rp, Zi, jl, ri };
+export { rarityWeights, bossRarityWeights, upgradeList, rarityNames, upgradesById };

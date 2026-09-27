@@ -1,12 +1,12 @@
-// Sound effects and procedural music (zl) with the music tables per biome.
+// Sound effects and procedural music (SoundEngine) with the music tables per biome.
 
-import { ze } from "../core/diagnostics.js";
-import { ue } from "../data/weapons.js";
+import { logError } from "../core/diagnostics.js";
+import { weaponDefs } from "../data/weapons.js";
 
 /* The sound engine has seven weapon voices; newer weapons borrow the closest one. */
 var RL_SFX_VOICES = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
 function rlShotSfx(id) {
-  const d = ue[id];
+  const d = weaponDefs[id];
   if (!d) return "pulse";
   if (RL_SFX_VOICES.includes(id)) return id;
   if (d.rail) return "rail";
@@ -17,7 +17,7 @@ function rlShotSfx(id) {
   if (d.count >= 5 || d.cone) return "scatter";
   return "pulse";
 }
-var Qf = {
+var musicChords = {
     yard: [
       [57, "m"],
       [53, "M"],
@@ -49,27 +49,27 @@ var Qf = {
       [48, "m"],
     ],
   },
-  tp = {
+  musicVoices = {
     yard: { arp: "square", bass: "sawtooth", lp: 2200, lead: "triangle" },
     works: { arp: "sawtooth", bass: "square", lp: 1600, lead: "sawtooth" },
     vault: { arp: "sine", bass: "triangle", lp: 4200, lead: "sine" },
     void: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
     marsh: { arp: "triangle", bass: "sawtooth", lp: 1200, lead: "triangle" },
   },
-  yn = (i) => 440 * Math.pow(2, (i - 69) / 12),
-  ep = [
+  midiToFreq = (i) => 440 * Math.pow(2, (i - 69) / 12),
+  arpPatterns = [
     [0, 1, 2, 3],
     [0, 2, 1, 3, 2, 1],
     [3, 2, 1, 0],
     [0, 2, 3, 1],
   ],
-  np = [
+  leadPatterns = [
     [0, null, null, 2, null, null, 3, null, 4, null, 3, null, 2, null, null, null],
     [1, null, 2, null, null, null, 3, null, null, 2, null, 1, null, null, 0, null],
     [2, null, null, 3, null, 4, null, null, 5, null, 4, null, 3, null, null, null],
     [3, null, 2, null, 1, null, null, 0, null, null, 1, null, 2, null, 3, null],
   ],
-  zl = class {
+  SoundEngine = class {
     constructor() {
       ((this.ctx = null),
         (this.ok = typeof window < "u" && !!(window.AudioContext || window.webkitAudioContext)),
@@ -131,7 +131,7 @@ var Qf = {
       ((r.buffer = e.createBuffer(1, 1, 22050)), r.connect(e.destination), r.start(0), this.startScheduler());
     }
     fail(t) {
-      (this.failed || ze("audio", t), (this.failed = !0));
+      (this.failed || logError("audio", t), (this.failed = !0));
     }
     setVolumes(t, e) {
       if (((this.sfxVol = t), (this.musVol = e), !this.ctx)) return;
@@ -252,7 +252,7 @@ var Qf = {
           break;
         case "combo":
           [0, 0.06, 0.12].forEach((s, r) =>
-            this.tone(yn(76 + Math.min(12, e || 0) + [0, 4, 7][r]), 0.14, "square", 0.035, { at: s, lp: 4e3 }),
+            this.tone(midiToFreq(76 + Math.min(12, e || 0) + [0, 4, 7][r]), 0.14, "square", 0.035, { at: s, lp: 4e3 }),
           );
           break;
         case "heart":
@@ -260,7 +260,7 @@ var Qf = {
           break;
         case "evolve":
           ([0, 0.09, 0.18, 0.27, 0.45].forEach((s, r) =>
-            this.tone(yn(67 + [0, 4, 7, 11, 14][r]), 0.4, "triangle", 0.08, { at: s }),
+            this.tone(midiToFreq(67 + [0, 4, 7, 11, 14][r]), 0.4, "triangle", 0.08, { at: s }),
           ),
             this.noise(0.8, 0.06, { type: "highpass", f: 5e3, attack: 0.2 }));
           break;
@@ -339,11 +339,13 @@ var Qf = {
           break;
         case "wave":
           [0, 0.14, 0.28].forEach((s, r) =>
-            this.tone(yn(57 + [0, 3, 7][r]), 0.35, "sawtooth", 0.06, { at: s, lp: 1800 }),
+            this.tone(midiToFreq(57 + [0, 3, 7][r]), 0.35, "sawtooth", 0.06, { at: s, lp: 1800 }),
           );
           break;
         case "cleared":
-          [0, 0.1, 0.2, 0.3].forEach((s, r) => this.tone(yn(69 + [0, 4, 7, 12][r]), 0.3, "triangle", 0.08, { at: s }));
+          [0, 0.1, 0.2, 0.3].forEach((s, r) =>
+            this.tone(midiToFreq(69 + [0, 4, 7, 12][r]), 0.3, "triangle", 0.08, { at: s }),
+          );
           break;
         case "boss":
           (this.tone(55, 1.6, "sawtooth", 0.18, { lp: 400, attack: 0.3 }),
@@ -351,14 +353,16 @@ var Qf = {
             this.noise(1.4, 0.08, { f: 300, to: 2e3, attack: 0.5 }));
           break;
         case "pick":
-          [0, 0.07, 0.14].forEach((s, r) => this.tone(yn(72 + [0, 4, 7][r]), 0.2, "square", 0.04, { at: s, lp: 3e3 }));
+          [0, 0.07, 0.14].forEach((s, r) =>
+            this.tone(midiToFreq(72 + [0, 4, 7][r]), 0.2, "square", 0.04, { at: s, lp: 3e3 }),
+          );
           break;
         case "click":
           this.tone(1800, 0.03, "triangle", 0.04);
           break;
         case "event":
           [0, 0.12, 0.24].forEach((s, r) =>
-            this.tone(yn(62 + [0, 6, 12][r]), 0.3, "sawtooth", 0.05, { at: s, lp: 2400 }),
+            this.tone(midiToFreq(62 + [0, 6, 12][r]), 0.3, "sawtooth", 0.05, { at: s, lp: 2400 }),
           );
           break;
         case "erupt":
@@ -397,7 +401,7 @@ var Qf = {
           break;
         case "victory":
           [0, 0.15, 0.3, 0.45, 0.75].forEach((s, r) =>
-            this.tone(yn(64 + [0, 4, 7, 12, 16][r]), 0.5, "triangle", 0.09, { at: s }),
+            this.tone(midiToFreq(64 + [0, 4, 7, 12, 16][r]), 0.5, "triangle", 0.09, { at: s }),
           );
           break;
         case "thud":
@@ -556,7 +560,7 @@ var Qf = {
           (this.intensity += (this.want - this.intensity) * 0.02));
     }
     note(t, e) {
-      let n = Qf[this.biome] || Qf.yard,
+      let n = musicChords[this.biome] || musicChords.yard,
         s = Math.floor(t / 16),
         r = t % 16,
         [a, o] = n[s],
@@ -584,30 +588,30 @@ var Qf = {
                 at: d,
               })
             : (r === 4 || r === 12) && this.noise(0.14, 0.14, { type: "bandpass", f: 1800, q: 0.8, dest: f, at: d }));
-        let g = tp[this.biome] || tp.yard;
+        let g = musicVoices[this.biome] || musicVoices.yard;
         if (
           (r % 2 === 0 &&
-            this.tone(yn(a - 24 + (r % 8 === 6 ? 12 : 0)), 0.16, g.bass, 0.11, {
+            this.tone(midiToFreq(a - 24 + (r % 8 === 6 ? 12 : 0)), 0.16, g.bass, 0.11, {
               lp: (u ? 700 : 520) + p * 380,
               dest: f,
               at: d,
             }),
           r % 2 === 0 || u || p > 0.8)
         ) {
-          let M = ep[x % ep.length],
+          let M = arpPatterns[x % arpPatterns.length],
             b = (r / (u || p > 0.8 ? 1 : 2)) | 0,
             v = h[M[b % M.length]] + (x % 4 === 3 ? 24 : 12);
-          this.tone(yn(v), 0.1, g.arp, g.arp === "sine" ? 0.045 : 0.025, {
+          this.tone(midiToFreq(v), 0.1, g.arp, g.arp === "sine" ? 0.045 : 0.025, {
             lp: g.lp + p * 1600,
             dest: this.delay,
             at: d,
           });
         }
         if ((p > 0.45 || u) && x % 2 === 0) {
-          let M = np[s % np.length][r];
+          let M = leadPatterns[s % leadPatterns.length][r];
           M != null &&
             this.tone(
-              yn(h[M % 4] + 24 + (M >= 4 ? 12 : 0)),
+              midiToFreq(h[M % 4] + 24 + (M >= 4 ? 12 : 0)),
               0.22,
               g.lead,
               g.lead === "sawtooth" || g.lead === "square" ? 0.028 : 0.045,
@@ -617,14 +621,14 @@ var Qf = {
       } else {
         if (r === 0)
           for (let p of h.slice(0, 3))
-            (this.tone(yn(p - 12), ip(100) * 16, "sawtooth", 0.025, {
+            (this.tone(midiToFreq(p - 12), stepSeconds(100) * 16, "sawtooth", 0.025, {
               lp: 800,
               attack: 0.6,
               dest: f,
               at: d,
               detune: 7,
             }),
-              this.tone(yn(p - 12), ip(100) * 16, "sawtooth", 0.02, {
+              this.tone(midiToFreq(p - 12), stepSeconds(100) * 16, "sawtooth", 0.02, {
                 lp: 800,
                 attack: 0.6,
                 dest: f,
@@ -633,13 +637,13 @@ var Qf = {
               }));
         (r % 4 === 0 &&
           (t * 7) % 3 !== 0 &&
-          this.tone(yn(h[((t / 4) % 4) | 0] + 12), 0.4, "triangle", 0.04, { dest: this.delay, at: d }),
-          r === 0 && this.tone(yn(a - 24), 1.6, "sine", 0.12, { dest: f, at: d, attack: 0.05 }));
+          this.tone(midiToFreq(h[((t / 4) % 4) | 0] + 12), 0.4, "triangle", 0.04, { dest: this.delay, at: d }),
+          r === 0 && this.tone(midiToFreq(a - 24), 1.6, "sine", 0.12, { dest: f, at: d, attack: 0.05 }));
       }
     }
   };
-function ip(i) {
+function stepSeconds(i) {
   return 60 / i / 4;
 }
 
-export { Qf, RL_SFX_VOICES, rlShotSfx, tp, zl };
+export { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices, SoundEngine };
