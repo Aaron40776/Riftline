@@ -76,6 +76,25 @@ async function section(name, fn) {
   out.push(`        (${name}: ${((Date.now() - t0) / 1000).toFixed(0)} s)`);
 }
 const check = (L, name, cond, detail = '') => L(cond ? 'PASS' : 'FAIL', name, detail);
+// what the input layer reports right now for horizontal movement (-1 … 1)
+const SAMPLE_MX = () => { const g = window.__riftTest.game; return g.input.sample(g.world, window.__riftTest.store.data.settings).mx; };
+// holds "move right": the D key on PC, a finger dragged right on the move side on touch
+async function holdMoveRight(P) {
+  const { page, prof } = P;
+  if (!prof.touch) {
+    await page.keyboard.down('d');
+    return { keep: (ms) => page.waitForTimeout(ms), release: () => page.keyboard.up('d') };
+  }
+  const cdp = await P.ctx.newCDPSession(page), x0 = prof.viewport.width * 0.22, y0 = prof.viewport.height * 0.62;
+  const touch = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: y0, id: 7 }] });
+  await touch('touchStart', x0);
+  for (let i = 1; i <= 4; i++) { await touch('touchMove', x0 + 15 * i); await page.waitForTimeout(40); }
+  let n = 0;
+  return {
+    keep: async (ms) => { for (const end = Date.now() + ms; Date.now() < end; ) { await touch('touchMove', x0 + 60 + (n++ % 2)); await page.waitForTimeout(50); } },
+    release: () => touch('touchEnd'),
+  };
+}
 // clear the current wave (kills everything, plan exhausted) -> choose / victory screen
 const CLEAR = () => { const w = window.__riftTest.game.world; w.god = true; w.planIdx = w.plan.length; w.bossPending = null; w.championPending = null; w.markers = []; for (const e of [...w.enemies]) w.killEnemy(e); };
 
@@ -348,6 +367,21 @@ for (const profName of ['desktop', 'phone']) await section(`run-${profName}`, as
   await P.tap('#cards .card'); await P.page.waitForTimeout(600);
   const bw = await P.ev(() => { const w = window.__riftTest.game.world; w.god = true; return { wave: w.wave, boss: !!(w.bossPending || w.boss) }; });
   check(L, 'wave 10 is a boss wave', bw.wave === 10 && bw.boss, JSON.stringify(bw));
+  // 2.3.6: input held through the camera pan to the boss keeps steering. The pan used to drop all
+  // input: a finger on the move side did nothing until it was lifted, held keys stopped.
+  const hold = await holdMoveRight(P);
+  const pan = await P.page.waitForFunction(() => !!window.__riftTest.game.intro, null, { timeout: 20000 }).then(() => true, () => false);
+  await P.page.waitForFunction(() => !window.__riftTest.game.intro, null, { timeout: 20000 }).catch(() => {});
+  await hold.keep(300);
+  const mx = await P.ev(SAMPLE_MX);
+  check(L, 'input held through the boss intro still steers', pan && mx > 0.5, `intro seen ${pan}, move x ${mx.toFixed(2)}`);
+  if (!P.prof.touch) {
+    // 2.3.6: held keys survive pause and resume (only the key that auto-repeats came back)
+    await P.page.keyboard.press('Escape'); await P.page.waitForTimeout(250); await P.page.keyboard.press('Escape'); await P.page.waitForTimeout(250);
+    const mx2 = await P.ev(SAMPLE_MX);
+    check(L, 'a key held through pause and resume still counts', mx2 > 0.5, `move x ${mx2.toFixed(2)}`);
+  }
+  await hold.release();
   const bossUp = await P.page.waitForFunction(() => { const w = window.__riftTest.game.world; return w.boss && !document.getElementById('bossBar').hidden; }, null, { timeout: 30000 }).then(() => true, () => false);
   check(L, 'boss spawns with its health bar', bossUp);
   const cachesInBoss = await P.ev(() => { const w = window.__riftTest.game.world; return JSON.stringify(w.pickups.filter(p => /cache/i.test(p.k || p.kind || p.type || '')).length); });
@@ -440,7 +474,7 @@ await section('visual', async L => {
 });
 
 /* ======================= 4c. layout criteria per device ======================= */
-for (const [name, vp, touch] of [['pc', { width: 1920, height: 955 }, false], ['phone', { width: 390, height: 844 }, true], ['land', { width: 844, height: 390 }, true]]) await section(`layout-${name}`, async L => {
+for (const [name, vp, touch] of [['pc', { width: 1920, height: 955 }, false], ['phone', { width: 390, height: 844 }, true], ['small', { width: 360, height: 640 }, true], ['land', { width: 844, height: 390 }, true]]) await section(`layout-${name}`, async L => {
   PROFILES['L' + name] = { viewport: vp, touch, mobile: touch };
   const P = await open('L' + name, { save: JSON.stringify({ v: 1, game: 'riftline', shards: 5000, seen: { tutorial: true } }) }); await P.boot();
   // settings: every switch/slider sits on the same line as its label, at the right edge
@@ -462,9 +496,38 @@ for (const [name, vp, touch] of [['pc', { width: 1920, height: 955 }, false], ['
   await P.ev(() => { const T = window.__riftTest; T.store.data.stats.runs = 12; T.ui.show('records'); }); await P.page.waitForTimeout(500);
   const tiles = await P.ev(() => { const v = [...document.querySelectorAll('#statGrid .cell .v')].map(e => e.getBoundingClientRect()); const top = Math.min(...v.map(r => r.top)); const row = v.filter(r => r.top < top + 40); return { n: row.length, spread: Math.round(Math.max(...row.map(r => r.bottom)) - Math.min(...row.map(r => r.bottom))) }; });
   check(L, 'records: numbers of the first tile row are aligned', tiles.spread <= 2, JSON.stringify(tiles));
-  await P.ev(() => window.__riftTest.ui.show('home'));
+  // 2.3.6: workshop prices from "50" to "6800" share one button width
+  await P.ev(() => window.__riftTest.ui.show('workshop')); await P.page.waitForTimeout(400);
+  const pw = await P.ev(() => [...document.querySelectorAll('#wsList .row .btn')].map((b) => Math.round(b.getBoundingClientRect().width)));
+  check(L, 'workshop: price buttons share one width', Math.max(...pw) - Math.min(...pw) <= 1, [...new Set(pw)].join('/'));
+  await P.ev(() => window.__riftTest.ui.show('home')); await P.page.waitForTimeout(900);
+  // 2.3.6: the drone preview stays off the RIFTLINE title (two-column homes put it on the "E")
+  const dr = await P.ev(() => { const r = window.__riftTest.renderer, o = {}; r.project(0, 0.5, 0, o); const l = document.querySelector('#home .logo').getBoundingClientRect(); return { x: Math.round(o.x), y: Math.round(o.y), logo: [l.left, l.top, l.right, l.bottom].map(Math.round) }; });
+  const onLogo = dr.x > dr.logo[0] - 30 && dr.x < dr.logo[2] + 30 && dr.y > dr.logo[1] - 30 && dr.y < dr.logo[3] + 30;
+  check(L, 'home: the drone preview is not on the title', !onLogo, JSON.stringify(dr));
+  if (touch) {
+    // 2.3.6: weapon/threat arrows shrink to 27–32 px on landscape phones; their tap area stays ≥ 44 px
+    const ar = await P.ev(() => [...document.querySelectorAll('#home .arrow')].filter((a) => a.offsetWidth).map((a) => { const r = a.getBoundingClientRect(), s = getComputedStyle(a, '::after'); return { id: a.id, box: Math.round(Math.min(r.width, r.height)), tap: Math.round(Math.min(parseFloat(s.width) || r.width, parseFloat(s.height) || r.height, 99)) }; }));
+    const small = ar.filter((a) => Math.max(a.box, a.tap) < 44);
+    check(L, 'home: weapon/threat arrows have a tap area of at least 44 px', ar.length === 4 && !small.length, ar.map((a) => `${a.id} ${a.box}/${a.tap}`).join(', '));
+  }
   // hints: hidden behind the pause menu; below the boss bar in a boss fight
   await P.ev(() => window.__riftTest.game.startRun({})); await P.page.waitForTimeout(800);
+  // 2.3.6: the hull value and the wave label keep apart (they touched on 360 px phones)
+  await P.ev(() => { const w = window.__riftTest.game.world; w.wave = 10; w.player.hp = w.stats.maxHp = 230; }); await P.page.waitForTimeout(400);
+  const hud = await P.ev(() => { const n = document.getElementById('hpNum').getBoundingClientRect(), w = document.getElementById('waveLabel').getBoundingClientRect(); return { hullEnd: Math.round(n.right), waveStart: Math.round(w.left), text: document.getElementById('waveLabel').textContent }; });
+  check(L, 'HUD: hull value and wave label do not touch', hud.waveStart - hud.hullEnd >= 6, JSON.stringify(hud));
+  // 2.3.6: gameplay hints stay off the drone (two hints hid it on landscape phones)
+  await P.ev(() => { const T = window.__riftTest, w = T.game.world; w.god = true; w.hold = true; w.planIdx = 0; T.ui.toast('NEW · SWARMER — Swarmers rush in packs. Keep moving and let splash damage thin them out.', 'intro', 8000); T.ui.toast('Tip: SPACE dashes — it makes you untouchable for a moment.', '', 8000); });
+  await P.page.waitForTimeout(1200);
+  const cover = await P.ev(() => { const g = window.__riftTest.game, p = g.world.player, o = {}; window.__riftTest.renderer.project(p.x, 0.6, p.y, o); const t = [...document.querySelectorAll('#toasts .toast')].filter((x) => getComputedStyle(x).display !== 'none').map((x) => x.getBoundingClientRect()); return { drone: [Math.round(o.x), Math.round(o.y)], hit: t.some((r) => o.x > r.left - 30 && o.x < r.right + 30 && o.y > r.top - 30 && o.y < r.bottom + 30), shown: t.length }; });
+  check(L, 'hints do not cover the drone', !cover.hit && cover.shown >= 1, JSON.stringify(cover));
+  if (touch) {
+    // 2.3.6: touches beside NOVA/DASH reach the aim side (the button box swallowed ~25 % of its area)
+    const dead = await P.ev(() => { const a = document.querySelector('#hud .act').getBoundingClientRect(); let n = 0, all = 0; for (let x = a.left + 1; x < a.right; x += 3) for (let y = a.top + 1; y < a.bottom; y += 3) { all++; const e = document.elementFromPoint(x, y); if (e && !e.closest('#novaBtn, #dashBtn') && e.id !== 'touch') n++; } return Math.round((100 * n) / all); });
+    check(L, 'every touch near NOVA/DASH hits a button or the aim side', dead === 0, `${dead} % of the button box is dead`);
+  }
+  await P.ev(() => { const w = window.__riftTest.game.world; w.hold = false; });
   await P.ev(() => { window.__riftTest.ui.toast('QA hint that must not cover the pause menu', 'intro', 8000); window.__riftTest.game.pause(); });
   await P.page.waitForTimeout(400);
   const tp = await P.ev(() => { const t = document.getElementById('toasts'); return getComputedStyle(t).visibility === 'hidden' || !t.children.length; });
@@ -475,7 +538,7 @@ for (const [name, vp, touch] of [['pc', { width: 1920, height: 955 }, false], ['
   await P.ev(() => { const w = window.__riftTest.game.world; w.wave = 9; w.choose(w.offer[0]); });
   await P.page.waitForFunction(() => { const b = document.getElementById('bossBar'); return !b.hidden && window.__riftTest.game.world.boss; }, null, { timeout: 40000 }).catch(() => {});
   await P.ev(() => window.__riftTest.ui.toast('QA hint during the boss fight', 'intro', 8000)); await P.page.waitForTimeout(500);
-  const bb = await P.ev(() => { const b = document.getElementById('bossBar').getBoundingClientRect(), t = [...document.querySelectorAll('#toasts .toast')].map(x => x.getBoundingClientRect()); return { bar: Math.round(b.bottom), top: t.length ? Math.round(Math.min(...t.map(x => x.top))) : null }; });
+  const bb = await P.ev(() => { const b = document.getElementById('bossBar').getBoundingClientRect(), t = [...document.querySelectorAll('#toasts .toast')].filter(x => getComputedStyle(x).display !== 'none').map(x => x.getBoundingClientRect()); return { bar: Math.round(b.bottom), top: t.length ? Math.round(Math.min(...t.map(x => x.top))) : null }; });
   check(L, 'boss fight: hints start below the boss health bar', bb.top != null && bb.top >= bb.bar, JSON.stringify(bb));
   check(L, 'no page errors', !P.errors.length, P.errors.join(' | '));
   await P.close();

@@ -1,3 +1,87 @@
+RIFTLINE v2.3.6 – CHECKUP STEUERUNG & DARSTELLUNG · NUR NOCH GITHUB
+Basis: v2.3.5 · Build r236a0927j-r1 · 27.09.2026
+
+Gemeldet: In der ZIP-Version (2.3.3) funktionierten Steuerung und Darstellung/Layout „noch nicht
+ganz“; konkrete Fälle waren nicht bekannt. Cloudflare soll komplett raus, alles läuft über GitHub.
+
+Vorgehen: Die mitgelieferten Tests prüfen bei der Steuerung nur, ob sich überhaupt etwas bewegt,
+und das Layout auf 3–5 Größen. Deshalb zusätzlich eigene Messskripte: Richtung jeder Eingabe auf
+dem Bildschirm, Eingaben über Übergänge hinweg (Pause, Upgrade-Wahl, Boss-Auftritt), Trefferflächen
+der Knöpfe; Layout auf 18 Größen (PC 800×600 bis 3440×1440, Handys 360×640 bis 932×430 hoch und
+quer, Tablets bis 1366×1024) mit automatischer Prüfung auf Überlauf und Überdeckung, dazu alle
+Screenshots angesehen.
+
+1) Steuerung – in Ordnung
+   Bewegen (W A S D / Pfeiltasten, linke Hälfte ziehen), Zielen (linke Maustaste, rechte Hälfte
+   ziehen), beides gleichzeitig, Dash (Leertaste, DASH, Doppeltipp), Nova (E, NOVA), Pause (Esc,
+   Knopf): Die Richtung stimmt auf allen 5 Profilen (PC 1440 und 1920, Handy hoch und quer,
+   Tablet). Abweichung beim Bewegen höchstens 6°, beim Zielen unter 8° (Kamera-Perspektive).
+
+2) Steuerung – gefunden und behoben
+   - Boss-Auftritt: Beim Kameraschwenk zum Boss (Wellen 5, 10, 15, 20, danach im Endlosmodus)
+     wurde jede Eingabe verworfen. Ein Finger auf der Bewegungsseite bewegte danach nichts mehr,
+     bis er angehoben wurde; am PC blieben gehaltene Tasten stehen (nur die Taste mit
+     Tastenwiederholung kam zurück, bei W+D also nur D). Jetzt werden nur einmalige Aktionen aus
+     dem Schwenk verworfen (Dash, Nova, halber Doppeltipp); gehaltene Finger und Tasten steuern
+     weiter.
+   - Gehaltene Tasten nach Pause, Fortsetzen oder Upgrade-Wahl: derselbe Fehler. Tasten werden nur
+     noch vergessen, wenn ihr Loslassen verloren gehen kann (Fenster verliert den Fokus, Seite wird
+     verlassen). Eine Taste, die in einem Textfeld losgelassen wird, gilt jetzt auch als losgelassen.
+   - Tote Zone neben NOVA/DASH: Der Kasten um die beiden Knöpfe nahm Berührungen in seinen leeren
+     Ecken an (rechts von NOVA, links von DASH) und tat nichts damit – im Hochformat ein Viertel
+     seiner Fläche, mitten auf der Zielseite. Jetzt reagieren nur die Knöpfe selbst (mit ihrem
+     vergrößerten Ring), der Rest gehört zur Zielseite.
+   - Tutorial: Die Hinweise „DRAG HERE TO MOVE / AIM + FIRE“ richteten sich danach, ob das Gerät
+     einen Touchscreen hat, nicht nach der benutzten Eingabe (wie die Texte seit 2.3.4). Auf
+     Laptops mit Touchscreen erschienen sie auch beim Spielen mit Tastatur und Maus.
+
+3) Darstellung – gefunden und behoben
+   - Hinweise im Kampf (Gegner-Vorstellungen, Tipps) standen mitten im Spielfeld. Auf Handys quer
+     verdeckten zwei davon die eigene Drohne, im Bosskampf lagen sie auf dem Boss. Im Kampf sind
+     sie jetzt kleiner, durchscheinend und höchstens zwei gleichzeitig; auf Handys quer stehen sie
+     oben links unter der Hüllenanzeige.
+   - 360 px breite Handys (viele Android-Geräte): Hüllenwert und Wellenanzeige stießen aneinander
+     („130/130WAVE 10/20“).
+   - Handy quer: Die Pfeile für Waffe und Bedrohungsstufe sind nur 27–32 px groß. Die Tippfläche
+     ist jetzt mindestens 44 px, das Aussehen bleibt.
+   - Startbildschirm mit zwei Spalten (Handy quer, Tablet quer): Die Drohnen-Vorschau steht in der
+     Bildschirmmitte und damit auf dem „E“ von RIFTLINE. Die Ansicht wird jetzt so verschoben, dass
+     die Drohne im freien Bereich der Titelspalte steht.
+   - Werkstatt: Jeder Preisknopf hatte die Breite seines Preises (50 bis 6800), die rechte Spalte
+     war ausgefranst. Jetzt sind alle gleich breit.
+   - Startbildschirm Handy hoch: Der Untertitel brach zwischen „4“ und „BOSSES“ um.
+
+   Neue Prüfungen in tests/full-qa.mjs (Gegenprobe mit dem Spielcode von 2.3.5: 16 FAIL):
+     run-*     gehaltene Eingabe steuert nach dem Boss-Auftritt · Taste über Pause und Fortsetzen
+     layout-*  neues Profil 360×640 · Preisknöpfe gleich breit · Drohne nicht auf dem Titel ·
+               Pfeil-Tippfläche ≥ 44 px · Hüllenwert und Wellenanzeige mit Abstand · Hinweise nicht
+               auf der Drohne · keine tote Zone neben NOVA/DASH
+   Die bestehende Prüfung „Hinweise unter der Boss-Leiste“ zählt ausgeblendete Hinweise nicht mehr.
+
+4) Repository
+   - Cloudflare entfernt: src/_headers (nur für Cloudflare/Netlify) samt Eintrag in build.js und
+     README. Riftline läuft nur noch über GitHub Pages.
+   - GitHub Actions auf die ersten Versionen mit Node 24 (checkout, setup-node,
+     upload-pages-artifact, deploy-pages v5); GitHub hatte Node 20 als veraltet gemeldet. Der
+     Deploy mit den neuen Versionen lief durch.
+   - Tests auch für andere Branches und Pull Requests (.github/workflows/test.yml), CLAUDE.md,
+     Lizenzhinweise für three.js (MIT) und die Schriften (OFL) in THIRD-PARTY-NOTICES.txt.
+
+Offen (hier nicht prüfbar):
+   - Echte iPhones/iPads (Safari) und Firefox weiterhin nur von Hand; hier läuft nur Chromium.
+     Nicht emulierbar sind vor allem Mehrfingergesten auf iOS und die Ränder bei Notch und
+     abgerundeten Ecken (safe-area).
+
+Ergebnisse 2.3.6 (headless Chromium, Software-WebGL):
+  full-qa.mjs   234 Prüfungen, 0 Fehler (neu: Profil 360×640 und die Prüfungen oben)
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok · world-audit 240 Wellen, 0 Befunde · data-audit ok
+  run-audit     Bot-Run bis Welle 22 inkl. Endlos, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   PC, Handy hoch und quer angesehen
+  Messskripte   Steuerung auf 5 Profilen, Layout auf 18 Größen (siehe oben)
+
+================================================================================
+
 RIFTLINE v2.3.5 – WERKSTATT OHNE DOPPELUNGEN · EIGENES REPOSITORY
 Basis: v2.3.4 · Build r235a0927i-r1 · 27.09.2026
 

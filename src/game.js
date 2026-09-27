@@ -36197,7 +36197,7 @@ varying float vFlash;`,
         window.addEventListener("keydown", (e) => this.key(e, !0)),
         window.addEventListener("keyup", (e) => this.key(e, !1)),
         window.addEventListener("blur", () => {
-          (this.reset(), this.onBlur && this.onBlur());
+          (this.reset(!0), this.onBlur && this.onBlur());
         }),
         window.addEventListener("mousemove", (e) => {
           (Number.isFinite(e.clientX) && (this.mouse.x = e.clientX),
@@ -36300,6 +36300,8 @@ varying float vFlash;`,
       let n = String(t.key || "").toLowerCase();
       if (!n) return;
       let s = t.target && t.target.tagName;
+      // 2.3.6: a released key always counts as released, even when a text field has focus.
+      e || this.keys.delete(n);
       if (!(s === "INPUT" || s === "TEXTAREA")) {
         e && (RL_INPUT.touch = !1);
         if (e && (n === "escape" || n === "p")) {
@@ -36316,7 +36318,11 @@ varying float vFlash;`,
     press(t) {
       this.enabled && (this.pending[t] = !0);
     }
-    reset() {
+    // 2.3.6: held keys survive a reset (pause, upgrade pick, resize): keyup events keep arriving,
+    // so W A S D stay correct. Before, holding W+D through a reset left only the key that
+    // auto-repeats (D) working. reset(true) also forgets the keys, for when keyups can get lost
+    // (window blur, page hide).
+    reset(all) {
       RL_RT.reset++;
       for (let t of [this.move, this.aim])
         if (t.active && t.id >= 0)
@@ -36326,11 +36332,17 @@ varying float vFlash;`,
       ((this.move.active = !1),
         (this.aim.active = !1),
         (this.lastTap = 0),
-        this.keys.clear(),
+        all && this.keys.clear(),
         (this.mouse.down = !1),
         (this.mouse.active = !1),
         (this.pending.dash = !1),
         (this.pending.nova = !1));
+    }
+    // 2.3.6: for the camera pan to a new boss. It dropped every input, so a finger held on the
+    // move side did nothing after the pan until it was lifted, and held keys stopped. Now only
+    // one-shot presses made during the pan (dash, nova, a half double-tap) are dropped.
+    settle() {
+      ((this.pending.dash = !1), (this.pending.nova = !1), (this.lastTap = 0));
     }
     sample(t, e) {
       let n = (this.R = Lt(Math.min(window.innerWidth, window.innerHeight) * 0.14, 44, 72)),
@@ -38718,6 +38730,61 @@ varying float vFlash;`,
       return r;
     };
   })();
+  // 2.3.6: on landscape phones and tablets the home screen has two columns (title left, weapon
+  // card right). The drone preview is drawn at the screen centre, which is where the title ends,
+  // so the drone sat on the last letters of RIFTLINE. With two columns the view is now shifted so
+  // the drone shows in the larger free band of the title column, above or below the title.
+  (() => {
+    const baseCamera = Bl.prototype.updateCamera;
+    let spot = null,
+      dirty = !0;
+    const measure = () => {
+      const q = (sel) => document.querySelector(sel),
+        brand = q("#home .brand"),
+        panel = q("#home .home-panel"),
+        top = q("#home .topbar"),
+        nav = q("#home .bottom-nav");
+      if (!brand || !panel || !top || !nav) return null;
+      const b = brand.getBoundingClientRect(),
+        p = panel.getBoundingClientRect();
+      if (b.width < 1 || p.width < 1 || b.right > p.left) return null; // stacked: the centre is free
+      const t = top.getBoundingClientRect().bottom,
+        n = nav.getBoundingClientRect().top,
+        above = b.top - t,
+        below = n - b.bottom;
+      return {
+        x: (b.left + b.right) / 2,
+        y: above > below ? b.top - Math.min(above / 2, 100) : b.bottom + Math.min(below / 2, 100),
+      };
+    };
+    // the device classes (phone/tablet, portrait/landscape) settle up to 420 ms after a resize
+    const remeasure = () => {
+      dirty = !0;
+      setTimeout(() => (dirty = !0), 450);
+    };
+    addEventListener("resize", remeasure, { passive: !0 });
+    window.visualViewport && window.visualViewport.addEventListener("resize", remeasure, { passive: !0 });
+    document.fonts && document.fonts.ready.then(() => (dirty = !0));
+    const baseShow = Gl.prototype._show;
+    Gl.prototype._show = function (screen) {
+      dirty = !0;
+      return baseShow.call(this, screen);
+    };
+    Bl.prototype.updateCamera = function (dt, world, menu) {
+      baseCamera.call(this, dt, world, menu);
+      let want = null;
+      if (menu && Ft.screen === "home") {
+        dirty && ((spot = measure()), (dirty = !1));
+        want = spot;
+      }
+      const key = want ? `${Math.round(want.x)},${Math.round(want.y)},${this.w},${this.h}` : "";
+      if (key === (this._rlViewKey || "")) return;
+      this._rlViewKey = key;
+      want
+        ? this.camera.setViewOffset(this.w, this.h, this.w / 2 - want.x, this.h / 2 - want.y, this.w, this.h)
+        : this.camera.clearViewOffset();
+    };
+  })();
   var Ft = new Gl(ft);
   ft.ui = Ft;
   ln.onBlur = () => {
@@ -38813,7 +38880,9 @@ varying float vFlash;`,
         (!n || (fp = (fp + 1) % 3) === 0) && oe.frame(n ? i * 3 : i, e);
       }
       if ((Be.consume(e.fx), (e.fx.length = 0), oe && !(ft.chooseShown || ft.overShown))) {
-        let n = !!ft.tut && ft.tut.step <= 1 && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+        // 2.3.6: the "DRAG HERE TO MOVE" hints follow the input in use (like the coach texts since
+        // 2.3.4); on a laptop with a touch screen they showed while playing with keys and mouse.
+        let n = !!ft.tut && ft.tut.step <= 1 && RL_INPUT.touch;
         Qs.draw(oe, e, ln, { hints: n, dt: i, safe: h_() });
       } else Qs.clear();
       (Ft.hud(e),
@@ -38881,7 +38950,7 @@ varying float vFlash;`,
         case "boss":
           (Ft.banner(t.name, t.title, "boss", 2600),
             Gn("boss", "Bosses telegraph every attack. Marked zones and lines hit hard \u2014 move out."),
-            i.boss && oe && ((ft.intro = { t: 0 }), oe.focusOn(i.boss.x, i.boss.y), ln.reset()));
+            i.boss && oe && ((ft.intro = { t: 0 }), oe.focusOn(i.boss.x, i.boss.y), ln.settle()));
           break;
         case "novaReady":
           Gn(
@@ -38969,7 +39038,7 @@ varying float vFlash;`,
         ((ft.intro = null),
         oe && oe.focusOn(null),
         t.boss && (t.boss.spawnT = Math.min(t.boss.spawnT, 0.1)),
-        ln.reset(),
+        ln.settle(),
         (ft.acc = 0)));
   }
   function fa(i) {
@@ -39048,10 +39117,10 @@ varying float vFlash;`,
       : (Be.resume(), (ft.last = performance.now()));
   });
   window.addEventListener("pagehide", () => {
-    (ln.reset(), ee.save("pagehide"));
+    (ln.reset(!0), ee.save("pagehide"));
   });
   window.addEventListener("pageshow", () => {
-    (ln.reset(), _scheduleResize("pageshow"));
+    (ln.reset(!0), _scheduleResize("pageshow"));
   });
   var u_ = () => {
     (Be.unlock(), Be.mode === "off" && ft.mode === "menu" && Be.setMusic("menu"));

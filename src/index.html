@@ -1206,6 +1206,36 @@ body.device-desktop #settings > .topbar, body.device-desktop #settings > .settin
 /* 2.3.4: record tiles whose label wraps ("Enemies destroyed") pushed their number down, so the
    numbers of one row sat at different heights. The number now sits at the bottom of every tile. */
 .stat-grid .cell { display: flex; flex-direction: column; justify-content: space-between; }
+/* 2.3.6: gameplay hints (enemy intros, tips) sat in the middle of the arena. On landscape phones
+   two of them covered the drone itself, and in boss fights they hid the boss. While the HUD is
+   up they are smaller and see-through, at most two show at once, and on landscape phones they
+   move to the top-left corner under the hull bar, away from the drone and the buttons. */
+#app:has(#hud:not([hidden])) #toasts { width: min(calc(100vw - 24px), 360px); gap: 4px; }
+#app:has(#hud:not([hidden])) .toast { padding: 6px 10px; font-size: 12.5px; background: rgba(15, 23, 41, 0.72); }
+#app:has(#hud:not([hidden])) #toasts > .toast:nth-last-child(n + 3) { display: none; }
+body.device-phone.is-landscape #app:has(#hud:not([hidden])) #toasts {
+  left: calc(var(--sl) + 10px); transform: none; top: calc(var(--st) + 66px); width: min(300px, 36vw); align-items: flex-start;
+}
+body.device-phone.is-landscape #app:has(#bossBar:not([hidden])) #toasts { top: calc(var(--st) + 96px); }
+body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast { text-align: left; }
+/* 2.3.6: the box around NOVA and DASH took touches in its empty corners (right of NOVA, left of
+   DASH; about a quarter of the box on phones), so a thumb aiming there did nothing. Only the
+   buttons themselves (with their enlarged ring) take touches now; the rest goes to the aim side. */
+#hud .act { pointer-events: none; }
+#hud .act-btn { pointer-events: auto; }
+/* 2.3.6: on 360 px wide phones the hull value ran into "WAVE 10/20". */
+@media (max-width: 400px) {
+  #hud .wave-block { min-width: 0; }
+  #hud .wave-label { font-size: 16px; letter-spacing: 0.08em; }
+  #hud .hp-label { gap: 6px; letter-spacing: 0.12em; }
+}
+/* 2.3.6: the weapon and threat arrows shrink to 27–32 px on landscape phones, too small to hit
+   reliably. The arrows keep their look; their tap area is at least 44 px. */
+body.device-touch #home .arrow { position: relative; }
+body.device-touch #home .arrow::after { content: ''; position: absolute; inset: min(0px, calc((100% - 44px) / 2)); }
+/* 2.3.6: workshop prices of every width ("50" to "6800") had buttons of their own width, so the
+   right column looked ragged. They share one width now. */
+#wsList .row .btn { min-width: 84px; }
 </style>
 
 <script>
@@ -1322,7 +1352,7 @@ body.device-desktop #settings > .topbar, body.device-desktop #settings > .settin
     <div class="home-grid">
       <div class="brand">
         <h1 class="logo" data-text="RIFTLINE">RIFTLINE</h1>
-        <p class="tagline">Arena roguelite · 21 weapons · 19 biomes · 4 bosses</p>
+        <p class="tagline">Arena&nbsp;roguelite · 21&nbsp;weapons · 19&nbsp;biomes · 4&nbsp;bosses</p>
         <p id="bestLine" class="best-line" hidden></p>
       </div>
       <div class="home-panel">
