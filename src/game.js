@@ -39228,6 +39228,129 @@ varying float vFlash;`,
     ee.save("retire");
   }
 
+  /* ---- 2.4.1: enemies and bosses wear the biome. A skin is laid over every enemy model by the
+   shader (same shapes, same type colours and glow, so types stay recognisable):
+     Neon Yard    none
+     Ember Works  charred shell with pulsing lava veins, embers rising off them
+     Cryo Vault   frost on the upper surfaces with glints, a cold tint, frost flakes
+     Toxin Marsh  slime running down with glowing toxic spots, green drops
+     Void Core    violet rim glow and star specks, motes rising
+   The skin is only visual; how an enemy fights does not change. ---- */
+  var RL_SKIN = { uSkin: { value: 0 }, uSkinT: { value: 0 } };
+  const RL_SKIN_VERT_HEAD = `
+varying vec3 vRlP;
+varying vec3 vRlN;`;
+  const RL_SKIN_VERT_BODY = `
+vRlP = position;
+#ifdef USE_INSTANCING
+vRlN = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * objectNormal);
+#else
+vRlN = normalize(mat3(modelMatrix) * objectNormal);
+#endif`;
+  const RL_SKIN_FRAG_HEAD = `
+uniform float uSkin;
+uniform float uSkinT;
+varying vec3 vRlP;
+varying vec3 vRlN;
+float rlH3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float rlN3(vec3 x) {
+  vec3 i = floor(x), f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(rlH3(i), rlH3(i + vec3(1.0, 0.0, 0.0)), f.x), mix(rlH3(i + vec3(0.0, 1.0, 0.0)), rlH3(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+    mix(mix(rlH3(i + vec3(0.0, 0.0, 1.0)), rlH3(i + vec3(1.0, 0.0, 1.0)), f.x), mix(rlH3(i + vec3(0.0, 1.0, 1.0)), rlH3(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+}`;
+  const RL_SKIN_FRAG_BODY = `
+{
+  int rlS = int(uSkin + 0.5);
+  if (rlS == 1) {
+    // molten: charred shell, lava veins that pulse
+    vec3 q = vRlP * 4.5;
+    float n = rlN3(q) * 0.65 + rlN3(q * 2.1) * 0.35;
+    float vein = smoothstep(0.07, 0.0, abs(n - 0.5));
+    float pulse = 0.65 + 0.35 * sin(uSkinT * 3.5 + q.y * 2.0 + q.x);
+    outgoingLight = outgoingLight * vec3(0.6, 0.5, 0.45) + vec3(1.0, 0.42, 0.08) * vein * pulse * 0.9;
+  } else if (rlS == 2) {
+    // frost on everything facing up, glints, a cold tint
+    float fr = smoothstep(0.05, 0.75, vRlN.y + (rlN3(vRlP * 6.0) - 0.5) * 0.9);
+    outgoingLight = outgoingLight * vec3(0.82, 0.93, 1.08);
+    outgoingLight = mix(outgoingLight, vec3(0.72, 0.88, 1.0) * (0.55 + 0.35 * max(vRlN.y, 0.0)), fr * 0.7);
+    float gl = step(0.9, rlN3(vRlP * 16.0)) * (0.5 + 0.5 * sin(uSkinT * 5.0 + vRlP.x * 30.0));
+    outgoingLight += vec3(0.9, 0.97, 1.0) * gl * fr * 0.55;
+  } else if (rlS == 3) {
+    // slime running down, glowing toxic spots
+    float s = smoothstep(0.56, 0.66, rlN3(vec3(vRlP.x * 5.0, vRlP.y * 1.8 + uSkinT * 0.35, vRlP.z * 5.0)));
+    outgoingLight = mix(outgoingLight * vec3(0.85, 0.95, 0.75), vec3(0.08, 0.18, 0.04) + vec3(0.14, 0.24, 0.05) * max(vRlN.y, 0.0), s * 0.55);
+    float spot = smoothstep(0.87, 0.93, rlN3(vRlP * 9.0 + 3.0));
+    outgoingLight += vec3(0.45, 1.0, 0.15) * spot * (0.35 + 0.25 * sin(uSkinT * 2.5 + vRlP.y * 9.0));
+  } else if (rlS == 4) {
+    // void: violet rim and drifting star specks
+    float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
+    outgoingLight = outgoingLight * vec3(0.72, 0.62, 0.9) + vec3(0.72, 0.28, 1.0) * fres * 0.95;
+    vec3 sc = vRlP * 10.0 + vec3(0.0, uSkinT * 0.6, 0.0);
+    float st = step(0.94, rlH3(floor(sc))) * smoothstep(0.32, 0.12, length(fract(sc) - 0.5));
+    outgoingLight += vec3(0.9, 0.8, 1.0) * st * 0.6;
+  }
+}`;
+  // Adds the skin (and, for enemy bodies, the hit flash they already had) to a Lambert material.
+  function rlSkinMaterial(mat, flash) {
+    mat.onBeforeCompile = (e) => {
+      e.uniforms.uSkin = RL_SKIN.uSkin;
+      e.uniforms.uSkinT = RL_SKIN.uSkinT;
+      e.vertexShader = e.vertexShader
+        .replace("#include <common>", `#include <common>${RL_SKIN_VERT_HEAD}${flash ? "\nattribute float aFlash;\nvarying float vFlash;" : ""}`)
+        .replace("#include <begin_vertex>", `#include <begin_vertex>${RL_SKIN_VERT_BODY}${flash ? "\nvFlash = aFlash;" : ""}`);
+      e.fragmentShader = e.fragmentShader
+        .replace("#include <common>", `#include <common>${RL_SKIN_FRAG_HEAD}${flash ? "\nvarying float vFlash;" : ""}`)
+        .replace(
+          "#include <opaque_fragment>",
+          `${RL_SKIN_FRAG_BODY}${flash ? "\noutgoingLight = mix(outgoingLight, vec3(1.0), vFlash);" : ""}\n#include <opaque_fragment>`,
+        );
+    };
+    mat.customProgramCacheKey = () => (flash ? "flashLambertSkin" : "lambertSkin");
+    mat.needsUpdate = !0;
+    mat.rlSkin = !0;
+  }
+  const RL_SKIN_FX = {
+    1: { c: new Ot(0xff8a30), vy: 1.4, grav: 0, life: 0.7, size: 0.15, spark: !1 },
+    2: { c: new Ot(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: !0 },
+    3: { c: new Ot(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: !1 },
+    4: { c: new Ot(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: !1 },
+  };
+  function rlSkinParticles(R, dt, w) {
+    const fx = RL_SKIN_FX[RL_SKIN.uSkin.value];
+    if (!fx || !w || !(dt > 0) || dt > 0.25) return;
+    const n = w.enemies.length,
+      k = Math.min(1, R.maxParticles / 1400),
+      rate = Math.min(2.2, 70 / Math.max(1, n)) * k;
+    for (const e of w.enemies) {
+      if (e.dead || e.ghost || e.spawnT > 0) continue;
+      const big = e.boss ? 6 : 1;
+      if (Math.random() >= rate * big * dt) continue;
+      const a = Math.random() * Me,
+        d = Math.random() * e.r * 0.8;
+      R.emit(e.x + Math.cos(a) * d, 0.3 + e.r * (e.boss ? 1.4 : 0.9), e.y + Math.sin(a) * d, (Math.random() - 0.5) * 0.4, fx.vy * (0.7 + Math.random() * 0.6), (Math.random() - 0.5) * 0.4, fx.life, fx.size * (e.boss ? 1.6 : 1), fx.c, { drag: 0.4, grav: fx.grav, spark: fx.spark });
+    }
+  }
+  const _rlFrame241 = Bl.prototype.frame;
+  Bl.prototype.frame = function (t, e, n = {}) {
+    if (!this.rlSkinned) {
+      for (const id in this.enemyPools) rlSkinMaterial(this.enemyPools[id].body.mesh.material, !0);
+      this.rlSkinned = !0;
+    }
+    const L = this.biome && RL_BIOME_LOOK[this.biome.id];
+    ((RL_SKIN.uSkin.value = L ? L.style : 0), (RL_SKIN.uSkinT.value += t || 0));
+    if (this.bossView && !this.bossView.rlSkin) {
+      for (const m of this.bossView.mats) rlSkinMaterial(m, !1);
+      this.bossView.rlSkin = !0;
+    }
+    try {
+      n.menu || rlSkinParticles(this, t, e);
+    } catch (err) {
+      this.rlSkinErr || (ze("skin", err), (this.rlSkinErr = !0));
+    }
+    return _rlFrame241.call(this, t, e, n);
+  };
+
   /* ---- 2.2.3: run monitor hooks (only the live run's world is observed;
    self-test and snapshot-check worlds are ignored by identity) ---- */
   (() => {

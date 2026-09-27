@@ -10,6 +10,8 @@ const OUT = `tests/shots/biomes-${NAME}`; fs.rmSync(OUT, { recursive: true, forc
 const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const ctx = await b.newContext(prof); const p = await ctx.newPage();
 const errs = []; p.on('pageerror', e => errs.push(e.message));
+// 2.4.1: shader compile errors only reach the console
+p.on('console', (m) => m.type() === 'error' && errs.push(m.text().slice(0, 300)));
 await p.goto(URL); await p.waitForFunction(() => window.__riftTest && window.__riftTest.ui, null, { timeout: 90000 });
 const ev = (f, a) => p.evaluate(f, a);
 await ev(() => { const T = window.__riftTest; T.store.data.seen.tutorial = true; for (const k of Object.keys(T.store.data.seen)) T.store.data.seen[k] = true; T.store.data.settings.quality = 'high'; });
@@ -20,7 +22,11 @@ for (const id of ids) {
   for (const boss of [false, true]) {
     const wave = await ev(([id, boss]) => {
       const g = window.__riftTest.game, w = g.world, i = w.route.indexOf(id), n = boss ? 5 + 5 * i : 2 + 5 * i;
-      w.god = true; w.startWave(n); g.intro = null; window.__riftTest.renderer.focusOn(null); return n;
+      w.god = true; w.startWave(n); g.intro = null; window.__riftTest.renderer.focusOn(null);
+      // a ring of different enemies around the drone, so the biome skin shows in the shot
+      if (boss && w.bossPending) { w.spawnBoss(w.bossPending); w.bossPending = null; }
+      if (!boss) ['grunt', 'brute', 'gunner', 'bulwark', 'striker', 'splitter', 'sniper', 'bomber'].forEach((t, k) => { const a = (k / 8) * Math.PI * 2; w.spawnEnemy(t, Math.cos(a) * 4.5, 2 + Math.sin(a) * 3.5, {}); });
+      return n;
     }, [id, boss]);
     await p.waitForTimeout(boss ? 4200 : 3200);
     const info = await ev(() => { const w = window.__riftTest.game.world; return { biome: w.arena.biome.id, wave: w.wave, enemies: w.enemies.length, feats: ['vents', 'ice', 'acid', 'portals'].map((k) => k + ':' + w.arena[k].length).join(' ') }; });

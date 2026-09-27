@@ -28,7 +28,7 @@ built with three.js and plain JavaScript. There is no framework.
 | | |
 |---|---|
 | Weapons | 7, unlocked with shards: Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher, Ember Jet |
-| Enemies | 25 types with their own models, plus biome champions |
+| Enemies | 25 types with their own models, plus biome champions; enemies and bosses wear a skin of the biome (lava veins, frost, slime, void glow) |
 | Bosses | 4: The Warden (wave 5), Hive Queen (10), Prism (15), Rift Core (20), then repeating in Endless |
 | Biomes | 5, one per boss cycle (waves 1–5 Neon Yard, then the other four in a seeded order). Each has its own floor, props, border, particles, light, music, hazard and enemy mix: Neon Yard (open ground), Ember Works (lava vents, heavy enemies), Cryo Vault (slick floor and ice, shielded/ranged enemies), Toxin Marsh (acid pools and fog, swarms), Void Core (portals over the abyss, teleporters) |
 | Upgrades | 72, 13 of them evolutions |
