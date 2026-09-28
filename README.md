@@ -32,10 +32,11 @@ AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY) mov
 | Weapons | 7, unlocked with shards: Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher, Ember Jet |
 | Enemies | 25 types with their own models, plus biome champions; enemies and bosses wear a skin of the biome (lava veins, frost, slime, void glow) |
 | Bosses | 5, one per biome: The Warden (Neon Yard), The Crucible (Ember Works), Frost Prism (Cryo Vault), Hive Queen (Toxin Marsh), Rift Core (Void Core); a boss wave brings the boss of its biome, its hull follows the wave (5, 10, 15, 20) |
-| Biomes | 5, one per boss cycle: waves 1–5 Neon Yard, 6–15 two of Ember Works, Cryo Vault and Toxin Marsh in a seeded order, 16–20 Void Core, the third from wave 21 in Endless. Each has its own floor, props, border, particles, light, music, hazard and enemy mix: Neon Yard (open ground), Ember Works (lava vents, heavy enemies), Cryo Vault (slick floor and ice, shielded/ranged enemies), Toxin Marsh (acid pools and fog, swarms), Void Core (portals over the abyss, teleporters) |
-| Upgrades | 72, 13 of them evolutions |
-| Workshop | 18 permanent modules |
+| Biomes | 5, one per boss cycle: waves 1–5 Neon Yard, 6–15 two of Ember Works, Cryo Vault and Toxin Marsh in a seeded order, 16–20 Void Core, the third from wave 21 in Endless. Each has its own floor, props, border, particles, light, music, hazard and enemy mix: Neon Yard (open ground), Ember Works (lava vents, heavy enemies), Cryo Vault (slick floor and ice, shielded/ranged enemies), Toxin Marsh (acid pools and fog, swarms), Void Core (portals over the abyss, teleporters). A new biome opens with a title card; each hazard biome has one event per visit: Meltdown (Ember Works), Whiteout (Cryo Vault), Spore Bloom (Toxin Marsh), Rift Storm (Void Core) |
+| Upgrades | 59, 13 of them evolutions; each does something of its own (2.5.0 folded the copies into the originals) |
+| Workshop | 18 permanent modules, among them Starter Kit, Hazard Attunement and Emergency Shield |
 | Milestones | 47 with shard rewards |
+| Codex | in Records: every enemy, boss and upgrade you have seen |
 | Threat | Standard and Threat I–V |
 
 ## Commands
