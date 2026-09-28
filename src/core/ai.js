@@ -369,6 +369,8 @@ var bossPatterns = {
   prism: ["sweep", "teleport", "shards", "lances", "teleport", "sweep"],
   core: ["spiral", "summon", "ring", "cross", "burst", "rain"],
 };
+// 2.4.6 placeholder until the Crucible gets its attacks (see the 2.4.6 section below)
+bossPatterns.forge = ["walk"];
 function initBoss(i, t) {
   ((t.st = "walk"), (t.t = 2.2), (t.t2 = 0), (t.n = 0), (t.pattern = 0), (t.spin = 0), (t.phaseN = 1));
 }

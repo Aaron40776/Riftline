@@ -279,8 +279,6 @@ var RL_REQUIRED_DOM = [
     "tPrev",
     "toasts",
     "touch",
-    "updateBar",
-    "updateBtn",
     "verText",
     "vignette",
     "wBlurb",

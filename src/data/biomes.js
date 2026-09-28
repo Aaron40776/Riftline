@@ -132,13 +132,19 @@ var biomeList = [
   },
 ];
 var biomesById = Object.fromEntries(biomeList.map((i) => [i.id, i]));
+// 2.4.6: Void Core is always the fourth biome (waves 16–20), so the Rift Core stays the final
+// boss. Ember Works, Cryo Vault and Toxin Marsh are shuffled: two of them in waves 6–15, the third
+// from wave 21 in Endless.
 function planBiomeRoute(i) {
-  let t = biomeList.slice(1).map((e) => e.id);
+  let t = biomeList
+    .slice(1)
+    .map((e) => e.id)
+    .filter((id) => id !== "void");
   for (let e = t.length - 1; e > 0; e--) {
     let n = Math.floor(i.next() * (e + 1));
     [t[e], t[n]] = [t[n], t[e]];
   }
-  return ["yard", ...t];
+  return ["yard", t[0], t[1], "void", ...t.slice(2)];
 }
 
 /* 2.4.0: 19 biomes → 5, and the biome changes after every boss again (it changed every wave

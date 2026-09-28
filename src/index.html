@@ -407,8 +407,6 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .toast.good { color: var(--green); border-color: rgba(109, 255, 138, 0.5); }
 .toast.warn { color: #ff9aac; border-color: rgba(255, 74, 94, 0.6); }
 @keyframes toastIn { 0% { opacity: 0; transform: translateY(-8px); } 10% { opacity: 1; transform: none; } 85% { opacity: 1; } 100% { opacity: 0; } }
-#updateBar { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + 12px); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 14px; background: #0c2a1a; border: 1px solid rgba(109, 255, 138, 0.5); color: var(--green); font: 600 14px/1 var(--display); letter-spacing: 0.06em; z-index: 70; clip-path: var(--notch); --n: 8px; }
-#updateBar .btn.primary { background: var(--green); border-color: var(--green); min-height: 34px; font-size: 13px; box-shadow: none; }
 
 .nojs { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: #05070d; color: #e6eefc; font: 500 17px/1.45 -apple-system, system-ui, sans-serif; z-index: 100; text-align: center; }
 .nojs-card { max-width: 380px; }
@@ -1148,17 +1146,6 @@ label.set-row > .toggle { flex: 0 0 auto; }
   #choose .card p, #choose .card .delta, #choose .card .evo-hint { overflow-wrap: anywhere; }
 }
 
-/* Safe update notification: do not cover the gameplay action buttons on
-   touch devices. Desktop remains bottom-centered. */
-body.device-touch #updateBar {
-  bottom: calc(var(--sb) + 82px);
-  width: min(calc(100vw - var(--sl) - var(--sr) - 20px), 420px);
-  justify-content: space-between;
-}
-@media (orientation: landscape) and (max-height: 440px) {
-  body.device-touch #updateBar { bottom: calc(var(--sb) + 8px); }
-}
-
 /* Toasts should clear the top HUD rather than sit directly on top of the
    wave indicator on compact phones. */
 @media (max-width: 520px) {
@@ -1547,7 +1534,6 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     </div>
   </div>
   <div id="toasts" aria-live="polite"></div>
-  <div id="updateBar" hidden><span>New version ready</span><button id="updateBtn" class="btn small primary">Reload</button></div>
 </div>
 <div id="nojs" class="nojs">
   <div class="nojs-card">

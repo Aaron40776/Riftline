@@ -295,8 +295,7 @@ var getById = (i) => document.getElementById(i),
         this.click(getById("homeBtn"), () => this.g.goHome()),
         this.click(getById("endlessBtn"), () => this.g.endless()),
         this.click(getById("crashHome"), () => this.g.recover()),
-        this.click(getById("crashCopy"), () => this.copy(getById("crashLog").value)),
-        this.click(getById("updateBtn"), () => this.g.applyUpdate()));
+        this.click(getById("crashCopy"), () => this.copy(getById("crashLog").value)));
       let e = () => this.save.settings,
         n = (s, r) => {
           let a = getById(s);
@@ -1074,9 +1073,6 @@ var getById = (i) => document.getElementById(i),
       if (this.calm) return;
       let t = getById("flash");
       (t.classList.add("on"), requestAnimationFrame(() => requestAnimationFrame(() => t.classList.remove("on"))));
-    }
-    setUpdate(t) {
-      getById("updateBar").hidden = !t;
     }
   };
 (() => {

@@ -390,7 +390,7 @@ var overlay = new Overlay(elementById("ov")),
         ui.show("home"),
         sound.setMusic("menu"),
         setWakeLock(!1),
-        this.pendingUpdate && ui.setUpdate(!0));
+        rlApplyUpdateWhenIdle("home"));
     },
     discardRun() {
       ((store.data.run = null), store.save("discard"));
@@ -487,9 +487,6 @@ var overlay = new Overlay(elementById("ov")),
     },
     previewWeapon(i) {
       this.previewW = i;
-    },
-    applyUpdate() {
-      (store.save("update"), this.pendingUpdate && this.pendingUpdate());
     },
   };
 game.qualityNote = () => {
@@ -1362,8 +1359,22 @@ renderer
       "warn",
       9000,
     ));
-registerServiceWorker((i) => {
-  ((game.pendingUpdate = i), game.mode === "menu" && ui.setUpdate(!0));
+// 2.4.6: no "New version ready" bar any more. A downloaded update is applied on its own when no run
+// is going on: right away while the game is still starting (that is the next opening), otherwise
+// as soon as the player is back in the menu after a run or hides the page while in the menu. A
+// run is never interrupted; the page only reloads when the player is not playing.
+const rlBootAt = performance.now();
+function rlApplyUpdateWhenIdle(why) {
+  if (!game.pendingUpdate || game.mode !== "menu" || game.world) return;
+  if (why === "found" && performance.now() - rlBootAt > 10e3) return; // not while someone is looking
+  const apply = game.pendingUpdate;
+  ((game.pendingUpdate = null), store.save("update"), apply());
+}
+registerServiceWorker((apply) => {
+  ((game.pendingUpdate = apply), rlApplyUpdateWhenIdle("found"));
+});
+document.addEventListener("visibilitychange", () => {
+  document.visibilityState === "hidden" && rlApplyUpdateWhenIdle("hidden");
 });
 // The keys keep the short names of the original bundle (Aa, nr, ue, data.Zi …) because the test
 // scripts in tests/ read them; the values are the renamed bindings (2.4.5).

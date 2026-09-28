@@ -1,7 +1,7 @@
 // The simulation world (World): player, enemies, bullets, pickups, waves and states. Runs without
 // rendering.
 
-import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByWave } from "../data/enemies.js";
+import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByWave, bossByBiome, BOSS_SLOT_HP } from "../data/enemies.js";
 import { clamp, TAU, turnToward, hashString, angleDiff, makeRng, dampFactor } from "./util.js";
 import { updateEnemy, updateBoss, initBoss } from "./ai.js";
 import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/biomes.js";
@@ -1839,6 +1839,23 @@ World.prototype.fire = function (angle) {
 World.prototype.biomeFor = function (wave) {
   const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
   return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
+};
+// 2.4.6: the boss of a boss wave is the boss of its biome (Neon Yard: Warden, Ember Works:
+// Crucible, Cryo Vault: Frost Prism, Toxin Marsh: Hive Queen, Void Core: Rift Core). In waves 5–20
+// its hull follows the slot (wave 5, 10, 15, 20), because Queen, Prism and Crucible can each come
+// at wave 10 or 15; Endless keeps each boss's own hull as before.
+World.prototype.bossFor = function (wave) {
+  return wave % 5 !== 0 ? null : bossByBiome[this.biomeFor(wave).id] || bossOrder[(wave / 5 - 1) % bossOrder.length];
+};
+const _rlSpawnBoss246 = World.prototype.spawnBoss;
+World.prototype.spawnBoss = function (id) {
+  const b = _rlSpawnBoss246.call(this, id),
+    slot = this.wave / 5 - 1;
+  if (b && !this.endless && this.wave <= 20 && Number.isInteger(slot) && BOSS_SLOT_HP[slot]) {
+    const k = BOSS_SLOT_HP[slot] / b.def.hp;
+    ((b.hp *= k), (b.maxHp *= k));
+  }
+  return b;
 };
 const _rlStartWave240 = World.prototype.startWave;
 World.prototype.startWave = function (wave, nova) {

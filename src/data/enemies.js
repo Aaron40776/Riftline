@@ -263,8 +263,8 @@ var bossDefs = {
   },
   prism: {
     id: "prism",
-    name: "PRISM",
-    title: "The Splitting Light",
+    name: "FROST PRISM",
+    title: "The Shattering Ice",
     hp: 4400,
     r: 1.6,
     speed: 3,
@@ -284,8 +284,24 @@ var bossDefs = {
     color: 11758591,
   },
 };
-var bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" };
-var bossOrder = ["warden", "queen", "prism", "core"];
+// 2.4.6: every biome has its own boss (the boss of a wave is the boss of its biome, see
+// World.bossFor). The Crucible is new; Prism became the Frost Prism of Cryo Vault.
+bossDefs.forge = {
+  id: "forge",
+  name: "THE CRUCIBLE",
+  title: "Heart of the Works",
+  hp: 3700,
+  r: 2.1,
+  speed: 1.8,
+  dmg: 24,
+  shards: 125,
+  color: 16741924,
+};
+var bossByBiome = { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core" };
+// hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
+var BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
+var bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" }; // before 2.4.6; kept for old tests
+var bossOrder = ["warden", "queen", "prism", "forge", "core"];
 /* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
 Object.assign(enemyDefs, {
   charger: {
@@ -427,4 +443,4 @@ enemyOrder.push("drone", "driller", "beacon", "weaver");
 Object.assign(spawnWeights, { drone: 0.95, driller: 0.62, beacon: 0.5, weaver: 0.72 });
 Object.assign(heavyEnemies, { drone: 1, driller: 2, beacon: 3, weaver: 1 });
 
-export { enemyDefs, bossOrder, RL_ENEMY_TIPS, eliteAffixes, biomeVariants, bossDefs, enemyOrder, bossByWave };
+export { enemyDefs, bossOrder, RL_ENEMY_TIPS, eliteAffixes, biomeVariants, bossDefs, enemyOrder, bossByWave, bossByBiome, BOSS_SLOT_HP };
