@@ -1634,7 +1634,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
       "game-data",
       Object.keys(weaponDefs).length === weaponOrder.length &&
         biomeList.length === 5 &&
-        Object.keys(bossDefs).length === 4 &&
+        Object.keys(bossDefs).length === 5 &&
         Object.keys(enemyDefs).length >= 25,
       `${Object.keys(weaponDefs).length} weapons (${weaponOrder.length} selectable) · ${Object.keys(enemyDefs).length} enemies · ${biomeList.length} biomes · ${Object.keys(bossDefs).length} bosses · ${upgradeList.length} upgrades · ${workshopModules.length} modules`,
     );

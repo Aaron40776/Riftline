@@ -81,10 +81,18 @@ var milestones = [
   },
   {
     id: "prism",
-    name: "Shattered Light",
-    desc: "Defeat Prism",
+    name: "Icebreaker", // 2.4.6: was "Shattered Light" / "Defeat Prism"
+    desc: "Defeat the Frost Prism",
     reward: 200,
     test: (i) => (i.stats.bosses.prism || 0) > 0,
+  },
+  // 2.4.6: the Crucible, boss of Ember Works
+  {
+    id: "forge",
+    name: "Quenched",
+    desc: "Defeat the Crucible",
+    reward: 175,
+    test: (i) => (i.stats.bosses.forge || 0) > 0,
   },
   { id: "clear", name: "Rift Sealed", desc: "Clear all 20 waves", reward: 400, test: (i) => i.stats.clears > 0 },
   {

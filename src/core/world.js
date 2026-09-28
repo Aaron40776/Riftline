@@ -1857,6 +1857,23 @@ World.prototype.spawnBoss = function (id) {
   }
   return b;
 };
+// 2.4.6: the Frost Prism's Glacier zones chill the player they catch (slower for 1.6 s, like a
+// frost shot). A dash through the zone avoids it, as it avoids the hit.
+const _rlUpdateHazards246 = World.prototype.updateHazards;
+World.prototype.updateHazards = function (dt) {
+  let cold = null;
+  for (const h of this.hazards) h.kind === "glacier" && !h.done && (cold || (cold = [])).push(h);
+  _rlUpdateHazards246.call(this, dt);
+  if (!cold) return;
+  const p = this.player;
+  for (const h of cold)
+    h.done &&
+      p.alive &&
+      p.dashT <= 0 &&
+      this.state === "fight" &&
+      Math.hypot(p.x - h.x, p.y - h.y) < h.r + p.r &&
+      ((p.slowT = Math.max(p.slowT, 1.6)), this.emit("chill", { x: p.x, y: p.y }));
+};
 const _rlStartWave240 = World.prototype.startWave;
 World.prototype.startWave = function (wave, nova) {
   set_RL_BIOME_MIX_CUR(RL_BIOME_INFO[this.biomeFor(wave).id]?.mix || null);
