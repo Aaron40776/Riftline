@@ -160,4 +160,23 @@ computeStats = function (weapon, run, workshop) {
   return s;
 };
 
+// 2.5.0 B: workshop merge and the new modules
+const _rlComputeStats250B = computeStats;
+computeStats = function (weapon, run, workshop) {
+  const s = _rlComputeStats250B(weapon, run, workshop),
+    w = (id) => workshop[id] || 0;
+  // Rift Battery / Reactor Core are merged into Nova Cell (its floor is applied in startWave);
+  // no module adds charge on top any more, even if an unsanitised ws object still names them.
+  s.novaStart = 0;
+  // Field Supply took over Route Scanner: +50% shards per cache and level
+  s.cacheValue = 1 + 0.5 * w("fieldSupply");
+  // Hazard Attunement: damage and repair while close to a map hazard (world.js decides "close")
+  s.attuneDmg = 0.1 * w("hazardAttune");
+  s.attuneRegen = 0.5 * w("hazardAttune");
+  // Emergency Shield: barrier seconds and repair share once per wave below 30% hull
+  s.barrierT = 1 * w("emergencyShield");
+  s.barrierHeal = 0.08 * w("emergencyShield");
+  return s;
+};
+
 export { computeStats, weaponRange };

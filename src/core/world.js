@@ -8,7 +8,7 @@ import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/bi
 import { weaponDefs } from "../data/weapons.js";
 import { waveEvents, EVENT_CHANCE, planWave, rollUpgradeOffer, set_RL_BIOME_MIX_CUR } from "./waves.js";
 import { threatMods } from "../data/progression.js";
-import { upgradesById } from "../data/upgrades.js";
+import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash } from "./arena.js";
 import { computeStats } from "./stats.js";
 
@@ -2076,6 +2076,113 @@ const RL_SLIP_TIME = 1.2,
         this._rlSurging = false;
       }
       this.emit("surge", { x: p.x, y: p.y, n: this.combo });
+    }
+    return out;
+  };
+})();
+
+/* ==========================================================================
+   2.5.0 B: new workshop modules (Starter Kit, Hazard Attunement, Emergency Shield)
+   ========================================================================== */
+/* Starter Kit: the common upgrades a new run starts with. Seeded by the run, so a run and its
+ replay get the same kit; one pick per module level, never the same upgrade twice. */
+function rlStarterKit(w, n) {
+  const rng = makeRng(hashString(w.seed + ":kit")),
+    pool = upgradeList.filter(
+      (u) => u.rarity === 1 && !u.evo && !u.repeat && u.id !== "heal" && (!u.weapon || u.weapon === w.weapon),
+    ),
+    out = [];
+  for (let i = 0; i < n && pool.length; i++) out.push(pool.splice(Math.floor(rng.next() * pool.length), 1)[0].id);
+  return out;
+}
+/* Hazard Attunement: close = within 2 m of the edge of a vent, ice sheet or acid pool, or of a
+ portal mouth. Boss-attack zones (this.hazards) do not count. */
+const RL_ATTUNE_RANGE = 2;
+function rlNearHazard(w) {
+  const a = w.arena,
+    p = w.player;
+  if (!a || !p.alive) return !1;
+  for (const list of [a.vents, a.ice, a.acid])
+    for (const h of list || []) if (Math.hypot(p.x - h.x, p.y - h.y) - (h.r || 0) < RL_ATTUNE_RANGE) return !0;
+  for (const q of a.portals || [])
+    if (
+      Math.hypot(p.x - q.ax, p.y - q.ay) < RL_ATTUNE_RANGE + 0.8 ||
+      Math.hypot(p.x - q.bx, p.y - q.by) < RL_ATTUNE_RANGE + 0.8
+    )
+      return !0;
+  return !1;
+}
+(() => {
+  const baseStartWave = World.prototype.startWave,
+    baseStep = World.prototype.step,
+    baseHurt = World.prototype.hurtPlayer;
+  World.prototype.startWave = function (wave, nova) {
+    // a fresh run (not a resumed one: that passes its saved Nova charge) gets its kit before the
+    // first wave is set up, so shield or HP upgrades from the kit count from the start
+    const kit = (this.ws.starterKit || 0) | 0;
+    let given = null;
+    if (kit > 0 && wave === 1 && nova == null && !this.kitGiven && !Object.keys(this.up).length) {
+      given = rlStarterKit(this, Math.min(3, kit));
+      for (const id of given) this.up[id] = (this.up[id] || 0) + 1;
+      this.stats = computeStats(this.weapon, this.up, this.ws);
+      this.player.hp = this.stats.maxHp;
+    }
+    this.kitGiven = !0;
+    // Emergency Shield is ready again in every wave
+    this.barrierUsed = !1;
+    this.barrierT = 0;
+    this.barrierOwnShield = !1;
+    this.attuned = !1;
+    const r = baseStartWave.call(this, wave, nova);
+    given && given.length && this.emit("kit", { ids: given });
+    return r;
+  };
+  World.prototype.step = function (dt, input) {
+    const st = this.stats,
+      p = this.player;
+    if (this.barrierT > 0) {
+      this.barrierT -= dt;
+      if (this.barrierT <= 0) {
+        this.barrierT = 0;
+        // the bubble was only shown for the barrier; a shield from the Energy Shield upgrade stays
+        this.barrierOwnShield && ((p.shield = !1), (p.shieldT = 0));
+        this.barrierOwnShield = !1;
+      }
+    }
+    this.attuned = st.attuneDmg > 0 && this.state === "fight" && rlNearHazard(this);
+    if (!this.attuned) return baseStep.call(this, dt, input);
+    const dmg = st.dmgMul,
+      regen = st.regen;
+    st.dmgMul = dmg * (1 + st.attuneDmg);
+    st.regen = (regen || 0) + st.attuneRegen;
+    try {
+      return baseStep.call(this, dt, input);
+    } finally {
+      st.dmgMul = dmg;
+      st.regen = regen;
+    }
+  };
+  World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
+    if (this.barrierT > 0 && this.player.alive && this.state === "fight") return !1;
+    const out = baseHurt.call(this, dmg, x, y, src, chip),
+      p = this.player,
+      st = this.stats;
+    if (
+      out &&
+      st.barrierT > 0 &&
+      !this.barrierUsed &&
+      p.alive &&
+      this.state === "fight" &&
+      p.hp > 0 &&
+      p.hp < st.maxHp * 0.3
+    ) {
+      this.barrierUsed = !0;
+      this.barrierT = st.barrierT;
+      p.hp = Math.min(st.maxHp, p.hp + Math.round(st.maxHp * st.barrierHeal));
+      this.barrierOwnShield = !p.shield;
+      p.shield = !0;
+      this.emit("barrier", { x: p.x, y: p.y, t: st.barrierT });
+      this.emit("heal", { x: p.x, y: p.y });
     }
     return out;
   };

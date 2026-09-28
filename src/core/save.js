@@ -5,7 +5,13 @@ import { logError } from "./diagnostics.js";
 import { bossOrder } from "../data/enemies.js";
 import { store } from "../main.js";
 import { weaponDefs } from "../data/weapons.js";
-import { RL_RETIRED_WEAPONS, milestones, workshopModules, rlRetired } from "../data/progression.js";
+import {
+  RL_RETIRED_WEAPONS,
+  RL_RETIRED_MODULES,
+  milestones,
+  workshopModules,
+  rlRetired,
+} from "../data/progression.js";
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
@@ -443,3 +449,50 @@ export {
   cleanRun,
   newSave,
 };
+
+/* ==========================================================================
+   2.5.0 B: merged workshop modules are refunded
+   ========================================================================== */
+/* Rift Battery, Reactor Core (→ Nova Cell) and Route Scanner (→ Field Supply) are gone. Every level
+ a save bought of them is paid back at its full price; the levels of the kept modules stay as they
+ are. Like rlMigrateRetired it runs on the raw save before cleanSave, never mutates its input,
+ returns it untouched when there is nothing to convert and changes nothing when run twice. A saved
+ run needs no change: it does not store workshop levels (World reads them from the save). */
+var RL_MODULE_NOTE = null;
+function set_RL_MODULE_NOTE(v) {
+  return (RL_MODULE_NOTE = v);
+}
+function rlMigrateModules(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const ws = raw.workshop && typeof raw.workshop === "object" && !Array.isArray(raw.workshop) ? raw.workshop : null;
+  if (!ws) return raw;
+  const found = Object.keys(RL_RETIRED_MODULES).filter((id) => Object.prototype.hasOwnProperty.call(ws, id));
+  if (!found.length) return raw;
+  const workshop = { ...ws },
+    names = [],
+    into = [];
+  let refund = 0;
+  for (const id of found) {
+    const r = RL_RETIRED_MODULES[id],
+      lv = Math.floor(cleanNumber(ws[id], 0, 0, r.costs.length)),
+      to = workshopModules.find((m) => m.id === r.to)?.name || r.to;
+    delete workshop[id];
+    if (lv > 0) {
+      names.push(r.name);
+      into.includes(to) || into.push(to);
+      refund += r.costs.slice(0, lv).reduce((a, b) => a + b, 0);
+    }
+  }
+  const out = { ...raw, workshop };
+  if (refund > 0) {
+    out.shards = (Number.isFinite(raw.shards) ? Math.max(0, raw.shards) : 0) + refund;
+    RL_MODULE_NOTE = { refund, names, into };
+  }
+  return out;
+}
+const _rlCleanSave250B = cleanSave;
+cleanSave = function (raw) {
+  return _rlCleanSave250B(rlMigrateModules(raw));
+};
+
+export { RL_MODULE_NOTE, rlMigrateModules, set_RL_MODULE_NOTE };

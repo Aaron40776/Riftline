@@ -230,20 +230,32 @@ await section('workshop', async L => {
     res.hazardSeal = near(S({ hazardSeal: L('hazardSeal') }).hazardResist, .15 * L('hazardSeal'));
     res.reroll = W({ reroll: L('reroll') }).rerolls === W({}).rerolls + L('reroll');
     res.insight = W({ insight: 1 }).makeOffer().length === 4 && W({}).makeOffer().length === 3;
-    // Nova Cell: each wave starts with AT LEAST 25 %/level; Rift Battery / Reactor Core ADD
-    // 10 % / 5 % per level on every wave start (carried charge is kept, capped at 100)
+    // Nova Cell: each wave starts with AT LEAST 25 %/level (carried charge is kept). 2.5.0 B: Rift
+    // Battery and Reactor Core were merged into it; nothing adds charge on top any more.
     const nova = (ws, carry) => { const w = W(ws); w.player.nova = carry; w.startWave(2); return w.player.nova; };
-    res.nova = nova({ nova: L('nova') }, 0) === 25 * L('nova') && nova({ nova: L('nova') }, 80) === 80;
-    res.riftBattery = nova({ riftBattery: L('riftBattery') }, 20) === 20 + 10 * L('riftBattery') && nova({ riftBattery: L('riftBattery') }, 90) === 100;
-    res.reactorCore = nova({ reactorCore: L('reactorCore') }, 20) === 20 + 5 * L('reactorCore');
+    res.nova = nova({ nova: L('nova') }, 0) === Math.min(100, 25 * L('nova')) && nova({ nova: 2 }, 80) === 80 && nova({ nova: 1 }, 10) === 25 && nova({}, 20) === 20;
     res.droneBay = S({ droneBay: 1 }, { wingman: 1 }).wingmen === S({}, { wingman: 1 }).wingmen + 1 && S({ droneBay: 1 }).wingmen === 0;
     // Field Supply: +1 cache per level in every non-boss wave from wave 2 (boss waves stay
-    // cache-free), same shards per cache. Route Scanner (2.3.5): same caches, +50 % shards/level.
+    // cache-free). 2.5.0 B: it took over Route Scanner, so every cache also holds +50 % shards/level.
     let nb = 0;
-    const caches = ws => { let n = 0, v = 0, boss = 0; nb = 0; for (let wave = 2; wave <= 12; wave++) { const w = W(ws); w.startWave(wave); const cs = w.pickups.filter(p => p.cache); if (w.bossPending) boss += cs.length; else { n += cs.length; nb++; for (const p of cs) if (p.kind === 'shard') v += p.v; } } return boss ? { n: -1 } : { n, v }; };
-    const c0 = caches({}), cf = caches({ fieldSupply: 2 }), cr = caches({ routeScanner: 2 });
-    res.fieldSupply = c0.n >= 0 && cf.n === c0.n + 2 * nb && cf.v > c0.v;
-    res.routeScanner = c0.n >= 0 && cr.n === c0.n && cr.v === 2 * c0.v;
+    const caches = ws => { let n = 0, v = 0, odd = 0, boss = 0; nb = 0; for (let wave = 2; wave <= 12; wave++) { const w = W(ws); w.startWave(wave); const cs = w.pickups.filter(p => p.cache); if (w.bossPending) boss += cs.length; else { n += cs.length; nb++; for (const p of cs) if (p.kind === 'shard') (v += p.v), (odd += p.v % 2); } } return boss ? { n: -1 } : { n, v, odd }; };
+    const c0 = caches({}), cf = caches({ fieldSupply: 2 });
+    res.fieldSupply = c0.n >= 0 && cf.n === c0.n + 2 * nb && cf.v > 2 * c0.v && cf.odd === 0 && near(S({ fieldSupply: 2 }).cacheValue, 2) && near(b.cacheValue, 1);
+    // 2.5.0 B: Starter Kit — one distinct common upgrade per level on a new run, none on a resumed one
+    const kit = W({ starterKit: L('starterKit') }), kitIds = Object.keys(kit.up);
+    const resumed = new T.Aa({ snap: T.data.sr({ v: 1, seed: 4, weapon: 'pulse', wave: 6, hp: 50, nova: 0, up: {} }), ws: { starterKit: 3 } });
+    res.starterKit = kitIds.length === L('starterKit') && kitIds.every(id => T.ri[id].rarity === 1 && kit.up[id] === 1) && kit.player.hp === kit.stats.maxHp && !Object.keys(W({}).up).length && !Object.keys(resumed.up).length;
+    // 2.5.0 B: Hazard Attunement — +10 % damage and +0.5 HP/s per level, only within 2 m of a hazard
+    const ha = L('hazardAttune'), aw = W({ hazardAttune: ha }); aw.startWave(2); aw.hold = true;
+    let dmgIn = 0; const baseStepDmg = aw.stats.dmgMul; aw.arena.vents.push({ x: aw.player.x + 3.3, y: aw.player.y, r: 1.5, phase: 0, period: 999 });
+    { const st = aw.stats, orig = aw.updatePlayer; aw.updatePlayer = function (dt, inp) { dmgIn = st.dmgMul; return orig.call(this, dt, inp); }; aw.step(1 / 60, {}); delete aw.updatePlayer; }
+    const onAt = aw.attuned; aw.arena.vents.pop(); aw.step(1 / 60, {});
+    res.hazardAttune = onAt && !aw.attuned && near(dmgIn, baseStepDmg * (1 + .1 * ha)) && near(aw.stats.dmgMul, baseStepDmg) && near(S({ hazardAttune: ha }).attuneRegen, .5 * ha) && near(S({ hazardAttune: ha }).dmgMul, b.dmgMul);
+    // 2.5.0 B: Emergency Shield — once per wave below 30 % hull: repair 8 %/level and block damage for 1 s/level
+    const esL = L('emergencyShield'), ew = W({ emergencyShield: esL }), ep = ew.player; ew.state = 'fight'; ep.iT = 0; ep.shield = false;
+    ew.hurtPlayer(ep.hp - 20, null, null, 'grunt', true); const eHeal = ep.hp, eBlock = ew.hurtPlayer(30, null, null, 'grunt', true) === false && ep.hp === eHeal, eT = ew.barrierT;
+    ew.barrierT = 0; ep.hp = 20; ew.hurtPlayer(1, null, null, 'grunt', true);
+    res.emergencyShield = eHeal === 20 + Math.round(ew.stats.maxHp * .08 * esL) && eBlock && near(eT, esL) && ep.hp === 19 && (ew.startWave(2), !ew.barrierUsed);
     const rv = W({ revive: 1 }); rv.state = 'fight'; rv.player.iT = 0; rv.player.shield = false; rv.hurtPlayer(99999, null, null, 'grunt', true);
     const dv = W({}); dv.state = 'fight'; dv.player.iT = 0; dv.player.shield = false; dv.hurtPlayer(99999, null, null, 'grunt', true);
     res.revive = rv.player.alive && rv.player.hp === Math.round(rv.stats.maxHp * .5) && !dv.player.alive;
@@ -260,6 +272,45 @@ await section('workshop', async L => {
   check(L, 'every workshop module has an effect test', !r.untested.length, r.untested.join(', '));
   check(L, 'no page errors', !P.errors.length, P.errors.join(' | '));
   await P.close();
+});
+
+/* ======================= 2c. 2.5.0 B: merged workshop modules in an old save ======================= */
+await section('workshop-merge', async L => {
+  // Rift Battery + Reactor Core → Nova Cell, Route Scanner → Field Supply: every bought level of a
+  // removed module is refunded at full price, the kept modules keep their levels, a saved run resumes
+  const old = { v: 1, game: 'riftline', shards: 300, weapon: 'pulse', weapons: { pulse: true }, seen: { tutorial: true },
+    workshop: { hull: 2, nova: 2, fieldSupply: 1, riftBattery: 3, reactorCore: 1, routeScanner: 2 },
+    run: { v: 1, seed: 77, weapon: 'pulse', threat: 0, wave: 4, hp: 60, nova: 30, up: { dmg: 1 }, offer: ['rate', 'crit', 'hp'] } };
+  const refund = (260 + 540 + 980) + 1600 + (1800 + 3800);
+  for (const profName of ['desktop', 'phone']) {
+    const P = await open(profName, { save: JSON.stringify(old) }); await P.boot();
+    const told = await P.page.waitForFunction(() => /Workshop update: Rift Battery, Reactor Core, Route Scanner were merged into Nova Cell and Field Supply\. All their levels refunded: \+[\d,.]+ shards/.test(document.getElementById('toasts').innerText), null, { timeout: 6000 }).then(() => true, () => false);
+    check(L, `${profName}: a toast says which modules were merged and what was refunded`, told);
+    const d = await P.ev(() => { const s = window.__riftTest.store.data; return { shards: s.shards, ws: s.workshop, stored: JSON.parse(localStorage.getItem('riftline.save.v1')), run: !!s.run }; });
+    check(L, `${profName}: full price refunded (+${refund}), kept modules keep their levels`, d.shards === 300 + refund && JSON.stringify(d.ws) === JSON.stringify({ hull: 2, nova: 2, fieldSupply: 1 }), JSON.stringify({ shards: d.shards, ws: d.ws }));
+    check(L, `${profName}: converted save stored at once`, d.stored.shards === d.shards && !('riftBattery' in d.stored.workshop) && !('routeScanner' in d.stored.workshop));
+    await P.nav('workshop');
+    const rows = await P.ev(() => [...document.querySelectorAll('#wsList .row b')].map(b => b.textContent)), nMods = await P.ev(() => window.__riftTest.ai.length);
+    check(L, `${profName}: workshop lists every module once, none of the removed ones`, rows.length === nMods && new Set(rows).size === nMods && !rows.some(n => /Rift Battery|Reactor Core|Route Scanner/.test(n)) && ['Starter Kit', 'Hazard Attunement', 'Emergency Shield'].every(n => rows.includes(n)), rows.join(', '));
+    const pips = await P.ev(() => [...document.querySelectorAll('#wsList .row')].map(r => [r.querySelector('b').textContent, r.querySelectorAll('.pips i.on').length]).filter(([n]) => n === 'Nova Cell' || n === 'Field Supply'));
+    check(L, `${profName}: Nova Cell and Field Supply show their kept levels`, JSON.stringify(pips) === JSON.stringify([['Nova Cell', 2], ['Field Supply', 1]]), JSON.stringify(pips));
+    await P.page.screenshot({ path: new URL(`./shots/workshop-merge-${profName}.png`, import.meta.url).pathname });
+    await P.back('workshop');
+    check(L, `${profName}: unfinished run offered`, await P.vis('continueBtn'));
+    await P.tap('#continueBtn'); await P.page.waitForTimeout(1200);
+    const r = await P.ev(() => { const w = window.__riftTest.game.world; return w && { wave: w.wave, choose: w.state === 'choose', offer: w.offer, dmg: w.up.dmg, ups: Object.keys(w.up).length, nova: w.player.nova }; });
+    check(L, `${profName}: the saved run resumes at its upgrade choice, no Starter Kit on resume`, r && r.wave === 4 && r.choose && r.dmg === 1 && r.ups === 1, JSON.stringify(r));
+    if (r && r.choose) { await P.tap('#cards .card'); await P.page.waitForTimeout(800); }
+    const w2 = await P.ev(() => { const w = window.__riftTest.game.world; return w && { wave: w.wave, nova: Math.round(w.player.nova) }; });
+    check(L, `${profName}: next wave starts with the kept Nova Cell floor (50%)`, w2 && w2.wave === 5 && w2.nova >= 50, JSON.stringify(w2));
+    await P.ev(() => window.__riftTest.game.abandon()); await P.page.waitForTimeout(1200);
+    // reload: the notice is not shown a second time and nothing is refunded twice
+    await P.page.reload(); await P.page.waitForFunction(() => window.__riftTest && window.__riftTest.ui, null, { timeout: 90000 }); await P.page.waitForTimeout(2500);
+    const again = await P.ev(() => ({ toast: /Workshop update/.test(document.getElementById('toasts').innerText), ws: window.__riftTest.store.data.workshop }));
+    check(L, `${profName}: after a reload no second notice, levels unchanged`, !again.toast && again.ws.nova === 2 && again.ws.fieldSupply === 1, JSON.stringify(again));
+    check(L, `${profName}: no page errors`, !P.errors.length, P.errors.join(' | '));
+    await P.close();
+  }
 });
 
 /* ======================= 3. menus: settings, workshop, weapons, import/export ======================= */
