@@ -793,17 +793,88 @@ function buildBossModel(i, t) {
       );
     }
   } else if (i === "prism") {
-    let c = new MeshLambertMaterial({ color: 8370392, emissive: 666170, flatShading: !0, transparent: !0, opacity: 1 }),
-      h = o(new OctahedronGeometry(1.35, 0), c, 0, 2.3, 0);
-    (h.scale.set(1, 1.5, 1), a.push({ m: h, ax: "y", v: 0.7 }), o(new OctahedronGeometry(0.55, 0), r, 0, 2.3, 0));
+    // 2.4.6: Frost Prism, a floating ice golem: a tall translucent crystal body with a cold glow
+    // core and visor, crystal shoulders and crown (n: frosted ice, flashes on hits), dark-blue
+    // rock chunks (s), orbiting frost shards and a frozen ring below. Everything fades out while
+    // it blinks (fadeMats); the ice keeps its own translucency (userData.opacity).
+    const ice = (color, emissive, opacity) => {
+      const m = new MeshLambertMaterial({ color, emissive, flatShading: !0, transparent: !0, opacity, depthWrite: !1 });
+      return ((m.userData.opacity = opacity), m);
+    };
+    let c = ice(13431295, 1716822, 0.8),
+      h = ice(14745599, 2771583, 0.5);
+    (n.color.setHex(10934000), (n.transparent = !0), s.color.setHex(2837350), (s.transparent = !0));
+    let body = o(new OctahedronGeometry(1.35, 0), c, 0, 2.3, 0);
+    (body.scale.set(1, 1.5, 1), a.push({ m: body, ax: "y", v: 0.35 }));
+    // glow core seen through the ice, and a visor slit on the facing side (+x)
+    (o(new OctahedronGeometry(0.55, 0), r, 0, 2.3, 0).scale.set(1, 1.35, 1),
+      o(new BoxGeometry(0.1, 0.12, 0.72), r, 0.98, 2.62, 0));
+    // shoulders: crystal clusters leaning outwards on dark rock
+    for (const z of [-1, 1]) {
+      o(new DodecahedronGeometry(0.42, 0), s, -0.05, 2.35, z * 1.2);
+      o(new OctahedronGeometry(0.34, 0), n, 0.05, 2.95, z * 1.35).rotation.set(z * 0.5, 0, 0.1);
+      const big = o(new ConeGeometry(0.3, 1.5, 5), n, -0.1, 3.0, z * 1.25);
+      big.rotation.set(z * 0.55, 0, -0.12);
+      o(new ConeGeometry(0.2, 0.95, 5), n, 0.25, 2.6, z * 1.55).rotation.set(z * 1.0, 0, 0.3);
+    }
+    // crown of small spikes above the head
+    for (let u = 0; u < 5; u++) {
+      const d = (u / 5) * Math.PI * 2 + 0.3,
+        f = o(new ConeGeometry(0.13, 0.75, 4), n, Math.cos(d) * 0.34, 4.35, Math.sin(d) * 0.34);
+      f.rotation.set(Math.sin(d) * 0.45, 0, -Math.cos(d) * 0.45);
+    }
+    // icicles hanging below the body
+    for (let u = 0; u < 4; u++) {
+      const d = (u / 4) * Math.PI * 2 + 0.8;
+      o(new ConeGeometry(0.14, 0.8, 4), h, Math.cos(d) * 0.45, 0.62, Math.sin(d) * 0.45).rotation.x = Math.PI;
+    }
+    // orbiting frost shards: three glowing, three of plain ice, at two heights
     let l = new Group();
     l.position.y = 2.3;
-    for (let u = 0; u < 3; u++) {
-      let d = (u / 3) * Math.PI * 2,
-        f = o(new OctahedronGeometry(0.32, 0), r, Math.cos(d) * 2.1, 0, Math.sin(d) * 2.1, l);
-      f.scale.y = 1.6;
+    for (let u = 0; u < 6; u++) {
+      const d = (u / 6) * Math.PI * 2,
+        f = o(
+          new OctahedronGeometry(u % 2 ? 0.26 : 0.32, 0),
+          u % 2 ? h : r,
+          Math.cos(d) * 2.15,
+          u % 2 ? 0.55 : -0.2,
+          Math.sin(d) * 2.15,
+          l,
+        );
+      ((f.scale.y = 1.7), (f.rotation.z = u % 2 ? 0.35 : -0.2));
     }
-    (e.add(l), a.push({ m: l, ax: "y", v: -1.6 }), (n.transparent = !0), (e.userData.fadeMats = [c, r]));
+    (e.add(l), a.push({ m: l, ax: "y", v: -1.4 }));
+    // frozen ring on the ground
+    const ring = o(new TorusGeometry(1.9, 0.07, 4, 40), r, 0, 0.12, 0);
+    ((ring.rotation.x = Math.PI / 2), (e.userData.fadeMats = [c, h, n, s, r]));
+  } else if (i === "forge") {
+    // 2.4.6: THE CRUCIBLE, a furnace golem: an iron crucible on stubby legs with molten metal inside
+    // a heavy rim, a head with a glowing visor and a furnace mouth at the front (+x), hammer fists,
+    // two chimneys and a flywheel on its back. The renderer lets the chimneys throw embers
+    // (userData.chimneys).
+    let c = new MeshLambertMaterial({ color: 2366244, emissive: 0, flatShading: !0 });
+    (o(new BoxGeometry(1, 1, 0.9), s, -0.1, 0.5, 0.95),
+      o(new BoxGeometry(1, 1, 0.9), s, -0.1, 0.5, -0.95),
+      o(new CylinderGeometry(1.55, 1.15, 2, 8), c, 0, 2, 0),
+      o(new CylinderGeometry(0.95, 0.95, 0.1, 12), r, -0.25, 3.02, 0),
+      o(new BoxGeometry(0.75, 0.6, 1.05), s, 1.05, 3.1, 0),
+      o(new BoxGeometry(0.1, 0.14, 0.75), r, 1.44, 3.14, 0),
+      o(new BoxGeometry(0.3, 0.55, 1.1), r, 1.3, 1.85, 0).rotation.set(0, 0, 0.2));
+    let h = o(new TorusGeometry(1.3, 0.26, 5, 16), n, 0, 3, 0);
+    h.rotation.x = Math.PI / 2;
+    for (let l of [1, -1])
+      (o(new BoxGeometry(0.85, 0.85, 0.85), n, 0, 2.35, l * 1.75),
+        o(new BoxGeometry(1.2, 0.95, 0.95), s, 0.55, 1.35, l * 1.95),
+        o(new CylinderGeometry(0.26, 0.34, 1.7, 6), s, -1.05, 3.1, l * 0.55),
+        o(new CylinderGeometry(0.2, 0.2, 0.08, 6), r, -1.05, 3.97, l * 0.55));
+    let u = o(new TorusGeometry(0.6, 0.14, 4, 8), n, -1.62, 1.9, 0);
+    ((u.rotation.y = Math.PI / 2),
+      a.push({ m: u, ax: "z", v: 1.4 }),
+      (e.userData.chimneys = [
+        [-1.05, 4.05, 0.55],
+        [-1.05, 4.05, -0.55],
+      ]),
+      (e.userData.mats = [c]));
   } else {
     o(new SphereGeometry(1.15, 18, 12), r, 0, 2.4, 0);
     for (let l = 0; l < 3; l++) {
@@ -816,7 +887,7 @@ function buildBossModel(i, t) {
     let h = o(new TorusGeometry(2.4, 0.08, 5, 44), r, 0, 0.1, 0);
     h.rotation.x = Math.PI / 2;
   }
-  return { group: e, mats: [n, s], glowMat: r, spin: a };
+  return { group: e, mats: [n, s, ...(e.userData.mats || [])], glowMat: r, spin: a };
 }
 function wingDroneGeometry() {
   return mergeParts([

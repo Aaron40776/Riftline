@@ -19,6 +19,12 @@ const r = await page.evaluate(() => {
       if (wave > 1 && (w.biomeFor(wave - 1).id === b.id) !== ((wave - 1) % 5 !== 0)) add('route-cycle', `seed ${seed} wave ${wave} ${b.id}`);
       if (wave <= 5 && b.id !== 'yard') add('route-start', `seed ${seed} wave ${wave} ${b.id}`);
       if (b.id !== w.biomeFor(wave).id) add('route-mismatch', `wave ${wave}`);
+      // 2.4.6: Void Core is always waves 16–20; every boss wave has the boss of its biome
+      if (wave >= 16 && wave <= 20 && b.id !== 'void') add('route-void-last', `seed ${seed} wave ${wave} ${b.id}`);
+      if (wave % 5 === 0) {
+        const want = { yard: 'warden', works: 'forge', vault: 'prism', marsh: 'queen', void: 'core' }[b.id];
+        if ((w.bossPending || (w.boss && w.boss.type)) !== want) add('boss-biome', `seed ${seed} wave ${wave} ${b.id}: ${w.bossPending}`);
+      }
       if (!A.key.startsWith(b.id + ':')) add('layout-key', `${A.key} vs ${b.id}`);
       // walls
       for (const o of A.obs) {

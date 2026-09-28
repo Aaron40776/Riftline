@@ -455,7 +455,26 @@ function rlBuildLayoutV21(i, t, e, n) {
   return layout;
 }
 buildLayout = rlBuildLayoutV21;
-function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75) {
+// 2.4.6: the Crucible's arena in Ember Works keeps three lava vents (boss arenas are open and had
+// no hazard at all). Its Eruption and Stoke attacks make nearby vents burst; the vents themselves
+// keep their normal cycle. Other biomes' boss arenas stay as they are.
+const _rlBuildLayout246 = buildLayout;
+buildLayout = function (biome, seed, wave, boss) {
+  const layout = _rlBuildLayout246(biome, seed, wave, boss);
+  if (!boss || biome.id !== "works") return layout;
+  const rng = makeRng(hashString(seed + ":crucible-vents:" + wave)),
+    features = { vents: [], ice: [], portals: [], acid: [] };
+  for (let k = 0; k < 12 && features.vents.length < 3; k++) {
+    const p = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 1.2, RL_HAZARD_SIZE.vents);
+    p && features.vents.push({ ...p, phase: rng.next() * 6, period: 3.2 + rng.next() * 1.2, st: "idle" });
+  }
+  return { ...layout, key: `${layout.key}:crucible:${seed}:${wave}`, features };
+};
+// 2.4.6: `size` sets the radius range; hazards are bigger than portals (see RL_HAZARD_SIZE)
+// 2.4.6: bigger hazards so they shape the fight (they were 0.7–1.0 wide per extra wave hazard):
+// radius ranges of the hazards a wave adds; the fixed layout hazards grew by the same share.
+const RL_HAZARD_SIZE = { vents: [1.3, 1.7], ice: [2.1, 2.9], acid: [1.7, 2.3] };
+function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75, size = [0.72, 1]) {
   const taken = [];
   for (const k of ["vents", "ice", "acid"])
     for (const q of features[k] || []) taken.push({ x: q.x, y: q.y, r: (q.r || 0.8) + extraR });
@@ -468,8 +487,9 @@ function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75) {
       d = rng.range(6.5, 9.6),
       x = spawnZone.x + Math.cos(a) * d,
       y = spawnZone.y + Math.sin(a) * d,
-      r = 0.72 + rng.next() * 0.28;
-    if (Math.abs(x) > W - 3.7 || Math.abs(y) > H - 3.7 || Math.hypot(x - spawnZone.x, y - spawnZone.y) < 6.2) continue;
+      r = size[0] + rng.next() * (size[1] - size[0]);
+    if (Math.abs(x) > W - 2.7 - r || Math.abs(y) > H - 2.7 - r || Math.hypot(x - spawnZone.x, y - spawnZone.y) < 6.2)
+      continue;
     if (hitsObstacle(obs, x, y, r + 0.9)) continue;
     if (taken.some((q) => Math.hypot(x - q.x, y - q.y) < r + q.r + 1)) continue;
     return { x, y, r };
@@ -492,7 +512,7 @@ function rlAddDynamicFeatures(layout, biome, seed, wave, boss, mode = "standard"
     if (!kind) return;
     for (let j = 0; j < count; j++) {
       if (features[kind].length >= 6) return;
-      const p = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 0.1);
+      const p = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 0.1, RL_HAZARD_SIZE[kind]);
       if (!p) continue;
       if (kind === "vents")
         features.vents.push({ ...p, phase: rng.next() * 6, period: 2.8 + rng.next() * 1.6, st: "idle" });
@@ -909,21 +929,21 @@ function placeFeatures(i, t, e, n, s) {
     let c = i.int(3, 5),
       h = i.range(6.5, 8);
     for (let l = 0; l < c; l++) {
-      let u = i.range(1.1, 1.5),
+      let u = i.range(1.5, 2), // 2.4.6: was 1.1–1.5
         d = o(u, 0.6, r.vents, 3, { minRadius: 6.5, maxRadius: 9.2, preferRadius: 7.8 });
       d && r.vents.push({ x: d.x, y: d.y, r: u, period: h, phase: (l / c) * h + i.range(0, 0.8) });
     }
   } else if (t === "vault") {
     let c = i.int(3, 5);
     for (let h = 0; h < c; h++) {
-      let l = i.range(2.2, 3.4),
+      let l = i.range(3, 4.4), // 2.4.6: was 2.2–3.4
         u = o(l, 0.45, r.ice, 1.5, { minRadius: 6, maxRadius: 8.8, preferRadius: 7.2 });
       u && r.ice.push({ x: u.x, y: u.y, r: l });
     }
   } else if (t === "marsh") {
     let c = i.int(3, 4);
     for (let h = 0; h < c; h++) {
-      let l = i.range(1.8, 2.8),
+      let l = i.range(2.4, 3.5), // 2.4.6: was 1.8–2.8
         u = o(l, 0.55, r.acid, 1.8, { minRadius: 5.8, maxRadius: 8.8, preferRadius: 7 });
       u && r.acid.push({ x: u.x, y: u.y, r: l });
     }

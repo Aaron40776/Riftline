@@ -5,7 +5,7 @@ import { GameUI, RL_TOUCH_CLICK_GUARD } from "../ui/ui.js";
 import { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices, SoundEngine } from "../audio/sound.js";
 import { RL_RETIRE_NOTE, SAVE_KEY, rlMigrateRetired, set_RL_RETIRE_NOTE, cleanRun } from "./save.js";
 import { RL_MESH_TYPES } from "../render/models.js";
-import { enemyDefs, bossOrder, RL_ENEMY_TIPS, biomeVariants, bossDefs, bossByWave } from "../data/enemies.js";
+import { enemyDefs, bossOrder, RL_ENEMY_TIPS, biomeVariants, bossDefs, bossByWave, bossByBiome } from "../data/enemies.js";
 import { ui, store, game, safeAreaInsets, input, renderer } from "../main.js";
 import { BUILD_ID, hashString, GAME_VERSION, makeRng, formatTime } from "./util.js";
 import { updateEnemy, findOpenSpot } from "./ai.js";
@@ -279,8 +279,6 @@ var RL_REQUIRED_DOM = [
     "tPrev",
     "toasts",
     "touch",
-    "updateBar",
-    "updateBtn",
     "verText",
     "vignette",
     "wBlurb",
@@ -1636,7 +1634,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
       "game-data",
       Object.keys(weaponDefs).length === weaponOrder.length &&
         biomeList.length === 5 &&
-        Object.keys(bossDefs).length === 4 &&
+        Object.keys(bossDefs).length === 5 &&
         Object.keys(enemyDefs).length >= 25,
       `${Object.keys(weaponDefs).length} weapons (${weaponOrder.length} selectable) · ${Object.keys(enemyDefs).length} enemies · ${biomeList.length} biomes · ${Object.keys(bossDefs).length} bosses · ${upgradeList.length} upgrades · ${workshopModules.length} modules`,
     );
@@ -2503,6 +2501,40 @@ rlSelfTest = function () {
     fail.push("migrate:" + JSON.stringify(m));
   if (rlMigrateRetired(m) !== m) fail.push("migrate-twice");
   return { ...r, ok: r.ok && fail.length === 0, v240: { ok: fail.length === 0, fail } };
+};
+// 2.4.6: one boss per biome, Void Core always waves 16–20 with the Rift Core as the final boss.
+const _rlSelfTest246 = rlSelfTest;
+rlSelfTest = function () {
+  const r = _rlSelfTest246(),
+    fail = [];
+  for (const [biome, id] of Object.entries(bossByBiome)) {
+    if (!biomesById[biome]) fail.push("boss-biome:" + biome);
+    if (!bossDefs[id]) fail.push("boss-def:" + id);
+  }
+  if (Object.keys(bossByBiome).length !== biomeList.length) fail.push("boss-per-biome");
+  for (const seed of [11, 222, 3333, 44444, 0x246]) {
+    const w = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
+      mid = new Set([w.biomeFor(6).id, w.biomeFor(11).id]);
+    if (w.biomeFor(16).id !== "void" || w.biomeFor(20).id !== "void") fail.push(`void-last:${seed}`);
+    if (w.bossFor(20) !== "core") fail.push(`final-boss:${seed}`);
+    if (w.bossFor(5) !== "warden") fail.push(`first-boss:${seed}`);
+    if (mid.size !== 2 || mid.has("void") || mid.has("yard")) fail.push(`mid-biomes:${seed}`);
+    if (w.biomeFor(21).id === "void" || w.biomeFor(21).id === "yard" || mid.has(w.biomeFor(21).id))
+      fail.push(`endless-biome:${seed}`);
+    for (let wave = 5; wave <= 60; wave += 5)
+      if (w.bossFor(wave) !== bossByBiome[w.biomeFor(wave).id]) fail.push(`boss-mismatch:${seed}:${wave}`);
+  }
+  // the hull of a boss in waves 5–20 follows its slot, whichever boss it is
+  const hull = (id, wave) => {
+    const w = new World({ seed: 0x2460, weapon: "pulse", threat: 0, ws: {} });
+    w.startWave(wave);
+    return w.spawnBoss(id).maxHp;
+  };
+  for (const wave of [10, 15])
+    for (const id of ["prism", "forge"])
+      if (!(Math.abs(hull(id, wave) - hull("queen", wave)) < 1e-6)) fail.push(`slot-hull:${id}:${wave}`);
+  if (!(hull("queen", 15) > hull("queen", 10))) fail.push("slot-hull-order");
+  return { ...r, ok: r.ok && fail.length === 0, v246: { ok: fail.length === 0, fail } };
 };
 window.addEventListener("error", (i) => logError("window", i));
 window.addEventListener("unhandledrejection", (i) => logError("promise", i.reason || i));

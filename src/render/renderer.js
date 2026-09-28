@@ -283,7 +283,13 @@ var MAX_PARTICLES = 1400,
     let t = colorCache.get(i);
     return (t || ((t = new Color(i)), colorCache.set(i, t)), t);
   },
-  enemyShotColors = { orb: hexColor(16727423), fast: hexColor(16722474), shard: hexColor(9431295) },
+  // 2.4.6: slag, the molten orbs of the Crucible
+  enemyShotColors = {
+    orb: hexColor(16727423),
+    fast: hexColor(16722474),
+    shard: hexColor(9431295),
+    slag: hexColor(16743722),
+  },
   shardColors = { 1: hexColor(8386303), 5: hexColor(16762954), 25: hexColor(16734936) },
   healColor = hexColor(7208842),
   whiteColor = hexColor(16777215),
@@ -793,7 +799,9 @@ var MAX_PARTICLES = 1400,
                       ? hexColor(16752957)
                       : a.kind === "rocket"
                         ? hexColor(16738877)
-                        : hexColor(16734778),
+                        : a.kind === "frost" || a.kind === "glacier" // 2.4.6: Frost Prism ice
+                          ? hexColor(12578815)
+                          : hexColor(16734778),
               c = a.r;
             (a.kind !== "nova" &&
               (this.burst(a.x, a.y, 0.5, Math.round(6 + c * 5), c * 5, o, 0.45, 0.5 + c * 0.12),
@@ -808,7 +816,14 @@ var MAX_PARTICLES = 1400,
               ),
               (a.kind !== "payload" || Math.random() < 0.3) &&
                 this.flash(a.x, a.y, c * 1.6, a.kind === "payload" ? 0.5 : 1.1, o, 4.5),
-              a.kind !== "payload" && a.kind !== "nova" && a.kind !== "pop" && this.addScorch(a.x, a.y, c * 0.7),
+              a.kind !== "payload" &&
+                a.kind !== "nova" &&
+                a.kind !== "pop" &&
+                a.kind !== "frost" &&
+                a.kind !== "glacier" &&
+                this.addScorch(a.x, a.y, c * 0.7),
+              (a.kind === "frost" || a.kind === "glacier") &&
+                this.burst(a.x, a.y, 0.2, Math.round(8 + c * 4), c * 1.6, whiteColor, 0.6, 0.22, { spark: !0 }),
               (a.kind === "rocket" || a.kind === "bomber" || a.kind === "mortar" || a.kind === "volatile") &&
                 this.debrisBurst(a.x, a.y, 0.3, 5, hexColor(3811874), 0.12, 5));
             break;
@@ -1448,9 +1463,11 @@ var MAX_PARTICLES = 1400,
           d = l.x + Math.cos(l.a) * u,
           f = l.y + Math.sin(l.a) * u;
         if (l.live) {
+          // 2.4.6: a beam can bring its own colour (Frost Prism: ice); Clear warnings keeps yellow
           let p = 0.85 + Math.random() * 0.3,
-            x = this.beams.seg(l.x, l.y, d, f, 1, l.w * p, l.w * 0.6);
-          this.beams.colC(x, beamColor, 0.8);
+            x = this.beams.seg(l.x, l.y, d, f, 1, l.w * p, l.w * 0.6),
+            bc = l.color && !this.contrast ? hexColor(l.color) : beamColor;
+          this.beams.colC(x, bc, 0.8);
           let m = this.beams.seg(l.x, l.y, d, f, 1, l.w * 0.35, l.w * 0.3);
           if ((this.beams.colC(m, whiteColor, 1), Math.random() < 0.5)) {
             let g = Math.random() * u;
@@ -1463,7 +1480,7 @@ var MAX_PARTICLES = 1400,
               (Math.random() - 0.5) * 4,
               0.3,
               0.4,
-              hexColor(16732064),
+              l.color ? bc : hexColor(16732064),
             );
           }
         } else {
@@ -1636,17 +1653,55 @@ var MAX_PARTICLES = 1400,
       (s.glowMat.color.setHex(n.enraged ? 16732120 : bossDefs[n.type].color),
         n.shielded && s.glowMat.color.setHex(16777215));
       let l = n.ghost ? 0.12 : 1;
-      if (r.userData.fadeMats) for (let d of r.userData.fadeMats) d.opacity = l;
+      // 2.4.6: a fade material can be translucent on its own (userData.opacity, Frost Prism ice)
+      if (r.userData.fadeMats) for (let d of r.userData.fadeMats) d.opacity = l * (d.userData.opacity ?? 1);
       ((s.glowMat.opacity = n.ghost ? 0.15 : 1), this.shadows.y(n.x, 0.02, n.y, 0, n.r * 3.4 * c));
       let u = this.sprites.bb(n.x, 1.2, n.y, n.r * 5, this.B);
       if ((this.sprites.colHex(u, n.enraged ? 16732120 : bossDefs[n.type].color, 0.25), n.shielded)) {
         let d = this.ringPool.y(n.x, 0.1, n.y, a, n.r * 1.6);
         this.ringPool.colC(d, whiteColor, 0.8);
       }
+      // 2.4.6: cold mist drifts off the Frost Prism
+      n.type === "prism" &&
+        !n.ghost &&
+        Math.random() < t * 18 &&
+        this.emit(
+          n.x + (Math.random() - 0.5) * 2.6,
+          1 + Math.random() * 2.4,
+          n.y + (Math.random() - 0.5) * 2.6,
+          (Math.random() - 0.5) * 0.6,
+          -0.5 - Math.random() * 0.6,
+          (Math.random() - 0.5) * 0.6,
+          1.1,
+          0.3,
+          hexColor(12578815),
+          { drag: 0.5 },
+        );
       n.type === "warden" &&
         n.st === "charge" &&
         n.sub === 0 &&
         this.chargeLine(n.x, n.y, n.ta, 12, 3.4, clamp(n.subT / 0.85, 0, 1));
+      // 2.4.6: the Crucible's chimneys throw embers, more while it winds up or is enraged
+      if (r.userData.chimneys && n.spawnT <= 0) {
+        const rate = (n.enraged ? 20 : 11) * (n.charging ? 2.2 : 1),
+          cf = Math.cos(n.face),
+          sf = Math.sin(n.face),
+          ember = this._emberColor || (this._emberColor = hexColor(16752957));
+        for (const [lx, ly, lz] of r.userData.chimneys)
+          Math.random() < t * rate &&
+            this.emit(
+              n.x + (lx * cf - lz * sf) * c,
+              ly * c,
+              n.y + (lx * sf + lz * cf) * c,
+              (Math.random() - 0.5) * 1.4,
+              2.6 + Math.random() * 2.2,
+              (Math.random() - 0.5) * 1.4,
+              0.8,
+              0.28,
+              ember,
+              { drag: 1, grow: 1.3 },
+            );
+      }
     }
     drawParticles(t) {
       let e = this.P,
