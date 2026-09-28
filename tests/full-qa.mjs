@@ -762,6 +762,54 @@ await section('upgrades250A', async L => {
   }
 });
 
+/* ======================= 2.5.0 C: biome events in the real game ======================= */
+// Every hazard biome's event, forced on PC and phone: the banner names it, the HUD chip shows it,
+// it only happens in its biome, the Whiteout fog closes in, the Rift Storm shows where the portals
+// jump, and nothing throws. Screenshots: tests/shots/qa-event-<profile>-<event>.png
+for (const profName of ['desktop', 'phone']) await section(`biome-events-${profName}`, async L => {
+  const P = await open(profName, { save: JSON.stringify({ v: 1, game: 'riftline', seen: { tutorial: true }, settings: { quality: 'high' } }) }); await P.boot();
+  await P.ev(() => { const T = window.__riftTest; for (const k of Object.keys(T.store.data.seen)) T.store.data.seen[k] = true; });
+  // record every banner with whether it fits the screen (the banner only lasts 2.6 s)
+  await P.ev(() => { const u = window.__riftTest.ui, base = u.banner; window.__qaBanners = [];
+    // offsetWidth: the banner starts its animation scaled by 1.25, the layout box is what must fit
+    u.banner = function (...a) { const out = base.apply(this, a), bn = document.querySelector('#banner .bn');
+      window.__qaBanners.push({ big: a[0], fits: !bn || bn.offsetWidth <= innerWidth }); return out; }; });
+  await P.ev(() => window.__riftTest.game.startRun({})); await P.page.waitForTimeout(800);
+  const route = await P.ev(() => window.__riftTest.game.world.route.slice(0, 4));
+  const want = { works: 'meltdown', vault: 'whiteout', marsh: 'bloom', void: 'riftstorm' };
+  let normalFog = null;
+  for (const biome of route) {
+    if (!want[biome]) continue;
+    const at = await P.ev((b) => { const w = window.__riftTest.game.world; return w.biomeEventWave(1 + 5 * w.route.indexOf(b)); }, biome);
+    if (biome === 'vault') { // the vault's fog in a wave without the event, for comparison
+      await P.ev((n) => { const g = window.__riftTest.game, w = g.world; w.god = true; w.startWave(n); g.intro = null; }, at === 7 ? 9 : 7);
+      await P.page.waitForTimeout(1500);
+      normalFog = await P.ev(() => window.__riftTest.renderer.scene.fog.far);
+    }
+    await P.ev((n) => { const g = window.__riftTest.game, w = g.world; w.god = true; w.startWave(n); g.intro = null; window.__riftTest.renderer.focusOn(null); }, at);
+    const name = await P.ev((n) => window.__riftTest.data.$i[n].name, want[biome]);
+    await P.page.waitForFunction((n) => window.__qaBanners.some((b) => b.big === n) && document.querySelector('#buffs [data-b="event"]')?.textContent === n, name, { timeout: 15000 }).catch(() => {});
+    await P.page.screenshot({ path: new URL(`./shots/qa-event-${profName}-${want[biome]}-banner.png`, import.meta.url).pathname });
+    const r = await P.ev((n) => { const w = window.__riftTest.game.world, chip = document.querySelector('#buffs [data-b="event"]'), bn = window.__qaBanners.find((b) => b.big === n);
+      window.__qaBanners.length = 0;
+      return { event: w.event, biome: w.arena.biome.id, banner: bn ? bn.big : '', fits: bn ? bn.fits : null, chip: chip ? chip.textContent : '' }; }, name);
+    check(L, `${biome}: wave ${at} brings ${want[biome]}`, r.event === want[biome] && r.biome === biome, JSON.stringify(r));
+    check(L, `${biome}: banner and HUD chip name the event`, r.banner === name && r.chip === name, `${r.banner} / ${r.chip}`);
+    check(L, `${biome}: banner text fits the screen`, r.fits === true);
+    // let the event play: 5 s of wave time (the Rift Storm telegraph is up from 4.4 s)
+    await P.ev(() => { const w = window.__riftTest.game.world; while (w.waveT < 4.7) w.step(1 / 60, { mx: 0, my: 0 }); });
+    await P.page.waitForTimeout(biome === 'vault' ? 1600 : 400);
+    const s = await P.ev(() => { const w = window.__riftTest.game.world, A = w.arena;
+      return { fog: window.__riftTest.renderer.scene.fog.far, next: A.portals.filter((q) => q.next).length, portals: A.portals.length, vents: A.vents.map((q) => A.ventState(q, w.waveT)), acid: A.acid.length, ice: A.ice.length }; });
+    if (biome === 'vault') check(L, 'whiteout: the fog closes in (far < 75 % of a normal vault wave)', normalFog && s.fog < normalFog * 0.75, `${s.fog.toFixed(1)} vs ${normalFog && normalFog.toFixed(1)}`);
+    if (biome === 'void') check(L, 'rift storm: every portal shows where it jumps next', s.portals > 0 && s.next === s.portals, JSON.stringify(s));
+    if (biome === 'works') check(L, 'meltdown: all vents in the same state', s.vents.length >= 6 && s.vents.every((v) => v === s.vents[0]), s.vents.join(','));
+    await P.page.screenshot({ path: new URL(`./shots/qa-event-${profName}-${want[biome]}.png`, import.meta.url).pathname });
+  }
+  check(L, 'no page errors', !P.errors.length, P.errors.slice(0, 3).join(' | '));
+  await P.close();
+});
+
 await browser.close();
 console.log(out.join('\n'));
 console.log(`\nFULL QA: ${fails ? fails + ' FAIL' : 'all checks passed'}`);

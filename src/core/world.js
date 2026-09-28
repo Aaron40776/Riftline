@@ -2103,7 +2103,9 @@ function rlNearHazard(w) {
     p = w.player;
   if (!a || !p.alive) return !1;
   for (const list of [a.vents, a.ice, a.acid])
-    for (const h of list || []) if (Math.hypot(p.x - h.x, p.y - h.y) - (h.r || 0) < RL_ATTUNE_RANGE) return !0;
+    for (const h of list || [])
+      // 2.5.0: the player's own Acid Coating puddles (mine) are not a map hazard
+      if (!h.mine && Math.hypot(p.x - h.x, p.y - h.y) - (h.r || 0) < RL_ATTUNE_RANGE) return !0;
   for (const q of a.portals || [])
     if (
       Math.hypot(p.x - q.ax, p.y - q.ay) < RL_ATTUNE_RANGE + 0.8 ||
@@ -2187,5 +2189,145 @@ function rlNearHazard(w) {
     return out;
   };
 })();
+// ---- 2.5.0 C: biome events. Every visit of a hazard biome brings its event in one of waves 2–4
+// of the visit (never a boss wave, never right next to an Elite Surge or Shard Rain):
+//   Ember Works  Meltdown     three extra vents, all vents erupt together every 3.4 s
+//   Cryo Vault   Whiteout     three extra ice sheets; the renderer thickens the fog (snow storm)
+//   Toxin Marsh  Spore Bloom  the pools grow by up to 40% over the wave, a new one sprouts every 7 s
+//   Void Core    Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
+// Extra and moved hazards follow the fairness rules of the wave hazards (arena.js) and keep off
+// the player. The signature enemies of a biome can spawn from its first wave (waves.js).
+import { RL_BIOME_EVENT, rlBiomeStart, rlEnemyFrom } from "./waves.js";
+import { rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
+const RL_MELTDOWN_PERIOD = 3.4,
+  RL_BLOOM_GROW = 1.4,
+  RL_BLOOM_GROW_T = 35,
+  RL_BLOOM_EVERY = 7,
+  RL_STORM_EVERY = 6,
+  RL_STORM_WARN = 1.6;
+// the wave of the current biome visit that gets its biome event (0: none)
+World.prototype.biomeEventWave = function (wave) {
+  const id = RL_BIOME_EVENT[this.biomeFor(wave).id];
+  if (!id) return 0;
+  const start = rlBiomeStart(wave),
+    at = start + 1 + Math.floor(makeRng(hashString(this.seed + ":biome-event:" + start)).next() * 3);
+  return this.bossFor(at) ? 0 : at;
+};
+// the wave from which an enemy type can spawn in this run's biome at `wave`
+World.prototype.enemyFrom = function (type, wave) {
+  return rlEnemyFrom(type, this.biomeFor(wave).id, wave);
+};
+const _rlEventFor250 = World.prototype.eventFor;
+World.prototype.eventFor = function (wave) {
+  const at = this.biomeEventWave(wave);
+  if (at && at === wave) return RL_BIOME_EVENT[this.biomeFor(wave).id];
+  if (at && Math.abs(at - wave) === 1) return null;
+  return _rlEventFor250.call(this, wave);
+};
+const _rlStartWave250 = World.prototype.startWave;
+World.prototype.startWave = function (wave, nova) {
+  // an arena changed by a biome event is never reused (startWave of the same wave again)
+  this.arena && this.arena.rlEvent && (this.arena.key += ":used");
+  this.bioEv = null;
+  const out = _rlStartWave250.call(this, wave, nova),
+    ev = this.event && waveEvents[this.event];
+  ev && ev.biome && ev.biome === this.arena.biome.id && !this.bossPending && this.startBiomeEvent(this.event, wave);
+  return out;
+};
+World.prototype.startBiomeEvent = function (id, wave) {
+  const A = this.arena,
+    p = this.player,
+    rng = makeRng(hashString(this.seed + ":biome-event:" + id + ":" + wave)),
+    avoid = [{ x: p.x, y: p.y, r: 3.5 }],
+    // the extra sheets of a Whiteout are smaller, so they still fit between the wave's big ones
+    add = (kind, n, size) => {
+      for (let k = 0; k < n * 3 && n > 0; k++)
+        rlAddHazard250(A, kind, rng, A.obs, A.W, A.H, { avoid, cap: 9, size, tries: 60 }) && n--;
+    };
+  A.rlEvent = id;
+  if (id === "meltdown") {
+    add("vents", 3);
+    // all vents in step: idle at the start, the first warning 0.7 s into the wave, then every 3.4 s
+    const P = RL_MELTDOWN_PERIOD,
+      phase = 0;
+    for (const q of A.vents) ((q.period = P), (q.phase = phase), (q.st = "idle"));
+  } else if (id === "whiteout") add("ice", 3, [1.7, 2.5]);
+  else if (id === "bloom") {
+    for (const q of A.acid)
+      q.life == null &&
+        (q.grow = { r0: q.r, to: rlHazardRoom250(A, q, q.r * RL_BLOOM_GROW), t0: 0, dur: RL_BLOOM_GROW_T });
+    this.bioEv = { id, t: 0, next: RL_BLOOM_EVERY, n: 0, rng };
+  } else if (id === "riftstorm") this.bioEv = { id, t: 0, next: RL_STORM_EVERY, rng };
+};
+World.prototype.tickBiomeEvent = function (ev, dt) {
+  const A = this.arena,
+    p = this.player;
+  ev.t += dt;
+  if (ev.id === "bloom") {
+    for (const q of A.acid)
+      q.grow && (q.r = q.grow.r0 + (q.grow.to - q.grow.r0) * clamp((ev.t - q.grow.t0) / q.grow.dur, 0, 1));
+    if (ev.t >= ev.next && ev.n < 4) {
+      ev.next += RL_BLOOM_EVERY;
+      // not on the player, not on an enemy about to spawn
+      const avoid = [{ x: p.x, y: p.y, r: 4 }, ...this.markers.map((m) => ({ x: m.x, y: m.y, r: 1.2 }))],
+        q = rlAddHazard250(A, "acid", ev.rng, A.obs, A.W, A.H, { avoid, cap: 10, size: [1.6, 2.3], tries: 90 });
+      if (q) {
+        ev.n++;
+        q.grow = { r0: 0.3, to: q.r, t0: ev.t, dur: 2.5 };
+        q.r = 0.3;
+        this.emit("hatch", { x: q.x, y: q.y, big: !0 });
+      }
+    }
+  } else if (ev.id === "riftstorm" && A.portals.length) {
+    if (!ev.planned && ev.t >= ev.next - RL_STORM_WARN) {
+      ev.planned = !0;
+      const next = { portals: [] };
+      for (const q of A.portals) {
+        const avoid = [
+            { x: p.x, y: p.y, r: 3.5 },
+            { x: q.ax, y: q.ay, r: 3 },
+            { x: q.bx, y: q.by, r: 3 },
+          ],
+          pair = rlPortalPair250(ev.rng, A.obs, A.W, A.H, next, { avoid });
+        q.next = pair;
+        pair && (next.portals.push(pair), this.emit("blinkWarn", { x: pair.ax, y: pair.ay }));
+      }
+    }
+    for (const q of A.portals) q.next && (q.moveIn = Math.max(0, ev.next - ev.t));
+    if (ev.t >= ev.next) {
+      ev.next += RL_STORM_EVERY;
+      ev.planned = !1;
+      for (const q of A.portals) {
+        const n = q.next;
+        if (!n) continue;
+        // the new spots must still be clear of the player (it may have walked there)
+        if (Math.hypot(p.x - n.ax, p.y - n.ay) > 1.6 && Math.hypot(p.x - n.bx, p.y - n.by) > 1.6) {
+          this.emit("blink", { x: q.ax, y: q.ay, small: !0, phase: !0 });
+          ((q.ax = n.ax), (q.ay = n.ay), (q.bx = n.bx), (q.by = n.by));
+          this.emit("blink", { x: q.ax, y: q.ay, small: !0, phase: !0 });
+          this.emit("blink", { x: q.bx, y: q.by, small: !0, phase: !0 });
+        }
+        q.next = null;
+        q.moveIn = 0;
+      }
+    }
+  }
+};
+const _rlUpdateFeatures250 = World.prototype.updateFeatures;
+World.prototype.updateFeatures = function (dt) {
+  if (this.bioEv && this.state === "fight") {
+    // 2.5.0: the player's Acid Coating puddles (mine) are not map pools: Spore Bloom neither grows
+    // them nor counts them when it looks for room or checks its pool cap
+    const all = this.arena.acid,
+      mine = all.filter((q) => q.mine);
+    if (mine.length) this.arena.acid = all.filter((q) => !q.mine);
+    try {
+      this.tickBiomeEvent(this.bioEv, dt);
+    } finally {
+      if (mine.length) this.arena.acid.push(...mine);
+    }
+  }
+  return _rlUpdateFeatures250.call(this, dt);
+};
 
 export { World, rlStep };

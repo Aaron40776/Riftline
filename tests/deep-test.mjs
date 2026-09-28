@@ -3,7 +3,7 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader','--enab
 const page = await browser.newPage();
 await page.goto(process.argv[2] || 'http://localhost:8124/index.html');
 await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 60000 });
-const res = await page.evaluate(() => { const r = window.__riftTest.selftest(); return { ok: r.ok, ms: r.ms, fail: r.fail, x21: r.expansion21?.fail, x22: r.expansion22?.fail, x23: r.expansion23, v240: r.v240?.fail, v246: r.v246?.fail, v250A: r.v250A?.fail, v250B: r.v250B?.fail }; });
+const res = await page.evaluate(() => { const r = window.__riftTest.selftest(); return { ok: r.ok, ms: r.ms, fail: r.fail, x21: r.expansion21?.fail, x22: r.expansion22?.fail, x23: r.expansion23, v240: r.v240?.fail, v246: r.v246?.fail, v250A: r.v250A?.fail, v250B: r.v250B?.fail, v250C: r.v250C?.fail }; });
 console.log(JSON.stringify(res, null, 1));
 console.log(res.ok ? 'DEEP TEST: ok' : 'DEEP TEST: FAIL');
 await browser.close();

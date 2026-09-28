@@ -982,3 +982,138 @@ function placeFeatures(i, t, e, n, s) {
 }
 
 export { mapTemplates, hitsObstacle, obstacleShapes, Arena, buildLayout, isConnected, SpatialHash };
+
+// ---- 2.5.0 C: stronger biomes. A hazard wave now has about five hazards (was ~3.3), each about
+// 25–30% bigger than the 2.4.6 sizes, and Void Core has two portal pairs in most waves (was 40%).
+// Hazards keep a clear ring around the spawn (their edge stays 5.2 from it, before it could come
+// within ~3.3), stay 0.95 off every obstacle and leave a lane of 1.3 between each other.
+// The same helpers place the extra hazards of the biome events (see World in world.js).
+const RL_HAZARD_SIZE_250 = { vents: [1.7, 2.2], ice: [2.7, 3.7], acid: [2.2, 3.0] },
+  RL_HAZARD_COUNT_250 = 5,
+  RL_HAZARD_CAP_250 = 9,
+  // wave modes that used to add extra hazards keep one more
+  RL_HAZARD_HEAVY_MODES_250 = new Set(["crossfire", "turbulence", "minefield", "deadzone", "shatter"]);
+// Obstacle clearance and lane width between hazards
+const RL_HAZARD_OBS_GAP_250 = 0.95,
+  RL_HAZARD_LANE_250 = 1.3,
+  RL_HAZARD_SPAWN_GAP_250 = 0.6;
+function rlHazardTaken250(features) {
+  const taken = [];
+  for (const k of ["vents", "ice", "acid"])
+    for (const q of features[k] || []) taken.push({ x: q.x, y: q.y, r: q.r || 0.8 });
+  for (const q of features.portals || []) {
+    taken.push({ x: q.ax, y: q.ay, r: 1.4 });
+    taken.push({ x: q.bx, y: q.by, r: 1.4 });
+  }
+  return taken;
+}
+// A free spot for a hazard of radius size[0]..size[1] (or opt.r): clear of the spawn ring, the
+// walls, every obstacle and the other hazards; opt.avoid adds circles to keep off (the player,
+// spawn markers …). Returns {x, y, r} or null.
+function rlHazardPoint250(rng, obs, W, H, features, size, opt = {}) {
+  const taken = rlHazardTaken250(features),
+    avoid = opt.avoid || [];
+  for (let tries = 0; tries < (opt.tries || 140); tries++) {
+    const r = opt.r || size[0] + rng.next() * (size[1] - size[0]),
+      a = rng.next() * TAU,
+      lo = spawnZone.r + r + RL_HAZARD_SPAWN_GAP_250,
+      d = rng.range(lo, lo + 7.5),
+      x = spawnZone.x + Math.cos(a) * d,
+      y = spawnZone.y + Math.sin(a) * d;
+    if (Math.abs(x) > W - 2.6 - r || Math.abs(y) > H - 2.6 - r) continue;
+    if (hitsObstacle(obs, x, y, r + RL_HAZARD_OBS_GAP_250)) continue;
+    if (taken.some((q) => Math.hypot(x - q.x, y - q.y) < r + q.r + RL_HAZARD_LANE_250)) continue;
+    if (avoid.some((q) => Math.hypot(x - q.x, y - q.y) < r + q.r)) continue;
+    return { x, y, r };
+  }
+  return null;
+}
+// Adds one hazard of `kind` to `features` (a feature set or an Arena, both have vents/ice/acid/
+// portals); `obs`, `W`, `H` describe the arena. Returns the new hazard or null.
+function rlAddHazard250(features, kind, rng, obs, W, H, opt = {}) {
+  if (!features[kind] || features[kind].length >= (opt.cap || RL_HAZARD_CAP_250)) return null;
+  const p = rlHazardPoint250(rng, obs, W, H, features, opt.size || RL_HAZARD_SIZE_250[kind], opt);
+  if (!p) return null;
+  const q =
+    kind === "vents"
+      ? { ...p, phase: rng.next() * 6, period: 2.8 + rng.next() * 1.6, st: "idle" }
+      : kind === "acid"
+        ? { ...p, life: null }
+        : { ...p };
+  features[kind].push(q);
+  return q;
+}
+// One more portal pair: both ends 7.1+ from the spawn, 2.3 off obstacles, inside the safe bounds,
+// 4.4 from every other portal end and 7.4 apart (the diagnostics ask for 7.0 and 4.0).
+function rlPortalPair250(rng, obs, W, H, features, opt = {}) {
+  const used = [];
+  for (const q of features.portals || []) used.push({ x: q.ax, y: q.ay }, { x: q.bx, y: q.by });
+  const avoid = opt.avoid || [],
+    ok = (p) =>
+      Math.abs(p.x) <= W - 3.6 &&
+      Math.abs(p.y) <= H - 3.6 &&
+      !hitsObstacle(obs, p.x, p.y, 2.3) &&
+      Math.hypot(p.x - spawnZone.x, p.y - spawnZone.y) > 7.1 &&
+      used.every((q) => Math.hypot(p.x - q.x, p.y - q.y) >= 4.4) &&
+      avoid.every((q) => Math.hypot(p.x - q.x, p.y - q.y) >= q.r);
+  let a = null;
+  for (let k = 0; k < 96 && !a; k++) {
+    const d = rng.range(7.4, 10.5),
+      t = rng.next() * TAU,
+      p = { x: spawnZone.x + Math.cos(t) * d, y: spawnZone.y + Math.sin(t) * d };
+    ok(p) && (a = p);
+  }
+  if (!a) return null;
+  const back = Math.atan2(a.y - spawnZone.y, a.x - spawnZone.x) + Math.PI;
+  for (let k = 0; k < 96; k++) {
+    const d = rng.range(7.4, 10.5),
+      t = back + rng.range(-0.9, 0.9),
+      b = { x: spawnZone.x + Math.cos(t) * d, y: spawnZone.y + Math.sin(t) * d };
+    if (ok(b) && Math.hypot(b.x - a.x, b.y - a.y) >= Math.max(7.4, Math.max(W, H) * 0.6))
+      return { ax: a.x, ay: a.y, bx: b.x, by: b.y, hue: (features.portals || []).length };
+  }
+  return null;
+}
+// The largest radius a hazard at (q.x, q.y) can grow to: 0.8 off obstacles (the diagnostics
+// rule), off the walls and clear of the spawn ring. Used by Spore Bloom.
+function rlHazardRoom250(arena, q, want) {
+  let r = Math.min(
+    want,
+    arena.W - 1.6 - Math.abs(q.x),
+    arena.H - 1.6 - Math.abs(q.y),
+    Math.hypot(q.x - spawnZone.x, q.y - spawnZone.y) - spawnZone.r,
+  );
+  while (r > q.r && hitsObstacle(arena.obs, q.x, q.y, r + 0.85)) r -= 0.05;
+  return Math.max(q.r, r);
+}
+const _rlAddDynamicFeatures250 = rlAddDynamicFeatures;
+rlAddDynamicFeatures = function (layout, biome, seed, wave, boss, mode = "standard") {
+  const theme = RL_BIOME_HAZARD[biome.id] ?? "";
+  if (boss) return _rlAddDynamicFeatures250(layout, biome, seed, wave, boss, mode);
+  const rng = makeRng(hashString(seed + ":director-features-v250:" + wave + ":" + mode));
+  if (theme === "portals") {
+    const features = _rlAddDynamicFeatures250(layout, biome, seed, wave, boss, mode);
+    if (features.portals.length < 2 && rng.chance(0.8)) {
+      const pair = rlPortalPair250(rng, layout.obstacles, layout.W, layout.H, features);
+      pair && features.portals.push(pair);
+    }
+    return features;
+  }
+  if (theme !== "vents" && theme !== "ice" && theme !== "acid")
+    return _rlAddDynamicFeatures250(layout, biome, seed, wave, boss, mode);
+  const features = {
+    vents: [...(layout.features?.vents || [])],
+    ice: [...(layout.features?.ice || [])],
+    portals: [...(layout.features?.portals || [])],
+    acid: [...(layout.features?.acid || [])],
+  };
+  const target = Math.min(
+    RL_HAZARD_CAP_250,
+    features[theme].length + RL_HAZARD_COUNT_250 + (RL_HAZARD_HEAVY_MODES_250.has(mode) ? 1 : 0),
+  );
+  for (let k = 0; k < target * 2 && features[theme].length < target; k++)
+    rlAddHazard250(features, theme, rng, layout.obstacles, layout.W, layout.H);
+  return features;
+};
+
+export { rlAddHazard250, rlPortalPair250, rlHazardRoom250, RL_HAZARD_SIZE_250, spawnZone as rlSpawnZone };

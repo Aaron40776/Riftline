@@ -2709,6 +2709,194 @@ window.addEventListener("unhandledrejection", (i) => logError("promise", i.reaso
   );
 })();
 
+// ---- 2.5.0 C: stronger biomes — hazard count, size and fairness, one biome event per visit of a
+// hazard biome and what it does, signature enemies from the biome's first wave, old saved runs.
+import { RL_BIOME_EVENT, rlEnemyFrom } from "./waves.js";
+import { RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
+const _rlSelfTest250C = rlSelfTest;
+rlSelfTest = function () {
+  const r = _rlSelfTest250C(),
+    fail = [],
+    bad = (k) => fail.length < 40 && fail.push(k),
+    theme = { works: "vents", vault: "ice", marsh: "acid" },
+    // fairness of one arena: hazards off obstacles and walls, the spawn ring clear, portals valid
+    fair = (A, tag) => {
+      for (const k of ["vents", "ice", "acid"])
+        for (const q of A[k]) {
+          if (q.life != null) continue;
+          if (hitsObstacle(A.obs, q.x, q.y, q.r + 0.8)) bad("hazard-on-obstacle:" + tag);
+          if (Math.hypot(q.x - rlSpawnZone.x, q.y - rlSpawnZone.y) < q.r + rlSpawnZone.r) bad("hazard-in-spawn:" + tag);
+          if (Math.abs(q.x) + q.r > A.W - 1.4 || Math.abs(q.y) + q.r > A.H - 1.4) bad("hazard-at-wall:" + tag);
+        }
+      const ends = [];
+      for (const q of A.portals) {
+        if (Math.hypot(q.ax - q.bx, q.ay - q.by) < 7) bad("portal-pair-close:" + tag);
+        for (const [x, y] of [
+          [q.ax, q.ay],
+          [q.bx, q.by],
+        ]) {
+          if (hitsObstacle(A.obs, x, y, 1.5) || Math.abs(x) > A.W - 3.6 || Math.abs(y) > A.H - 3.6)
+            bad("portal-bad:" + tag);
+          ends.some((e) => Math.hypot(e[0] - x, e[1] - y) < 4) && bad("portal-cluster:" + tag);
+          ends.push([x, y]);
+        }
+      }
+    };
+  // 1. hazards: about five per wave, 25–30% bigger than 2.4.6, fair; Void Core mostly two portal pairs
+  const count = { vents: [0, 0], ice: [0, 0], acid: [0, 0] },
+    pairs = [0, 0];
+  for (let seed = 1; seed <= 24; seed++) {
+    const w = new World({ seed: 0x2500 + seed, weapon: "pulse", threat: 0, ws: {} });
+    for (let wave = 6; wave <= 24; wave++) {
+      if (w.bossFor(wave)) continue;
+      w.startWave(wave);
+      const A = w.arena,
+        id = A.biome.id,
+        k = theme[id];
+      fair(A, `${seed}:${wave}`);
+      if (w.event && waveEvents[w.event].biome) continue; // the event adds its own
+      if (k) {
+        count[k][0] += A[k].length;
+        count[k][1]++;
+        for (const q of A[k])
+          (q.r < RL_HAZARD_SIZE_250[k][0] - 1e-9 || q.r > RL_HAZARD_SIZE_250[k][1] + 1e-9) && bad("hazard-size:" + k);
+      } else if (id === "void") (pairs[0] += A.portals.length >= 2 ? 1 : 0), pairs[1]++;
+    }
+  }
+  for (const [k, [n, waves]] of Object.entries(count)) waves && n / waves < 4.3 && bad(`hazard-count:${k}:${(n / waves).toFixed(2)}`);
+  pairs[1] && pairs[0] / pairs[1] < 0.7 && bad("portal-pairs:" + (pairs[0] / pairs[1]).toFixed(2));
+  // 2. biome events: one per visit of a hazard biome, in wave 2–4 of the visit, only there, never
+  // next to another event
+  for (let seed = 1; seed <= 30; seed++) {
+    const w = new World({ seed: 0x25c0 + seed, weapon: "pulse", threat: 0, ws: {} }),
+      evs = [];
+    for (let wave = 1; wave <= 40; wave++) evs[wave] = w.eventFor(wave);
+    for (let start = 1; start <= 36; start += 5) {
+      const id = w.biomeFor(start).id,
+        want = RL_BIOME_EVENT[id],
+        got = [1, 2, 3, 4, 5].map((k) => evs[start + k - 1]).filter((e) => e && waveEvents[e].biome);
+      if (want ? got.length !== 1 || got[0] !== want : got.length) bad(`biome-event:${seed}:${start}:${got}`);
+      if (evs[start] || evs[start + 4]) bad(`event-first-or-boss:${seed}:${start}`);
+    }
+    for (let wave = 2; wave <= 40; wave++) evs[wave] && evs[wave - 1] && bad(`event-adjacent:${seed}:${wave}`);
+  }
+  for (const [id, e] of Object.entries(RL_BIOME_EVENT))
+    (!waveEvents[e] || waveEvents[e].biome !== id || !waveEvents[e].name || !waveEvents[e].desc) && bad("event-def:" + e);
+  // 3. what the events do (run in the world with a god-mode player standing still)
+  const eventWorld = (biome, seed = 0x25e0) => {
+    for (let s = seed; s < seed + 40; s++) {
+      const w = new World({ seed: s, weapon: "pulse", threat: 0, ws: {} }),
+        i = w.route.indexOf(biome);
+      if (i < 0 || i > 3) continue;
+      const at = w.biomeEventWave(1 + 5 * i);
+      if (!at) continue;
+      w.god = !0;
+      w.startWave(at);
+      return w;
+    }
+    return null;
+  };
+  const run = (w, sec) => {
+    for (let t = 0; t < sec; t += 1 / 30) w.step(1 / 30, { mx: 0, my: 0 });
+  };
+  const melt = eventWorld("works");
+  if (!melt || melt.event !== "meltdown") bad("meltdown-missing");
+  else {
+    const V = melt.arena.vents;
+    V.length < 6 && bad("meltdown-vents:" + V.length);
+    V.some((q) => q.period !== V[0].period || q.phase !== V[0].phase) && bad("meltdown-sync");
+    fair(melt.arena, "meltdown");
+    run(melt, 2.5);
+    V.every((q) => melt.arena.ventState(q, melt.waveT) === "erupt") || bad("meltdown-erupt-together");
+  }
+  const white = eventWorld("vault");
+  if (!white || white.event !== "whiteout") bad("whiteout-missing");
+  else {
+    const lay = buildLayout(white.arena.biome, white.seed, white.wave, !1);
+    white.arena.ice.length > (lay.features?.ice || []).length || bad("whiteout-ice");
+    fair(white.arena, "whiteout");
+  }
+  const bloom = eventWorld("marsh");
+  if (!bloom || bloom.event !== "bloom") bad("bloom-missing");
+  else {
+    const n0 = bloom.arena.acid.filter((q) => q.life == null).length,
+      r0 = bloom.arena.acid.reduce((a, q) => a + q.r, 0);
+    run(bloom, 20);
+    const own = bloom.arena.acid.filter((q) => q.life == null);
+    own.length > n0 || bad("bloom-no-sprout");
+    own.slice(0, n0).reduce((a, q) => a + q.r, 0) > r0 + 0.5 || bad("bloom-no-growth");
+    fair(bloom.arena, "bloom");
+    // a pool never sprouts under the player
+    own.some((q) => Math.hypot(q.x - bloom.player.x, q.y - bloom.player.y) < q.r) && bad("bloom-on-player");
+  }
+  const storm = eventWorld("void");
+  if (!storm || storm.event !== "riftstorm") bad("riftstorm-missing");
+  else {
+    const at0 = storm.arena.portals.map((q) => [q.ax, q.ay]);
+    run(storm, 5);
+    storm.arena.portals.every((q) => q.next) || bad("riftstorm-no-telegraph");
+    run(storm, 1.2);
+    storm.arena.portals.some((q, k) => q.ax !== at0[k][0] || q.ay !== at0[k][1]) || bad("riftstorm-no-move");
+    fair(storm.arena, "riftstorm");
+  }
+  // 4. signature enemies: every mix enemy of a biome can spawn from the biome's first wave; the
+  // enemy table itself is not changed, and Neon Yard keeps the global unlock waves
+  const before = JSON.stringify(Object.values(enemyDefs).map((d) => d.from)),
+    seen = {};
+  for (let seed = 1; seed <= 40; seed++) {
+    const w = new World({ seed: 0x25f0 + seed, weapon: "pulse", threat: 0, ws: {} });
+    for (let wave = 1; wave <= 19; wave++) {
+      if (w.bossFor(wave)) continue;
+      w.startWave(wave);
+      const id = w.arena.biome.id;
+      for (const g of w.plan)
+        for (const m of g.members) {
+          (seen[id] || (seen[id] = new Set())).add(m.type);
+          id === "yard" && enemyDefs[m.type].from > wave && bad(`yard-early:${m.type}:${wave}`);
+          w.enemyFrom(m.type, wave) > wave && bad(`too-early:${m.type}:${wave}`);
+        }
+    }
+  }
+  JSON.stringify(Object.values(enemyDefs).map((d) => d.from)) !== before && bad("enemy-from-mutated");
+  for (const [id, info] of Object.entries(RL_BIOME_INFO))
+    for (const [type, m] of Object.entries(info.mix || {})) {
+      if (!(m >= 1)) continue;
+      rlEnemyFrom(type, id, 6) > 6 && bad(`from:${id}:${type}`);
+      seen[id] && !seen[id].has(type) && bad(`never-seen:${id}:${type}`);
+    }
+  // 5. an old saved run (2.4.6 snapshot, no event fields) in an event wave loads and plays it
+  const probe = eventWorld("void");
+  if (probe) {
+    const old = cleanRun({
+      v: 1,
+      seed: probe.seed,
+      weapon: "pulse",
+      threat: 0,
+      wave: probe.wave,
+      endless: !1,
+      up: { dmg: 2 },
+      hp: 80,
+      shards: 30,
+      kills: 50,
+      time: 300,
+      rerolls: 1,
+      revived: !1,
+      nova: 20,
+      bossKills: ["warden"],
+    });
+    const w = old && new World({ snap: old, ws: {} });
+    if (!w || w.event !== "riftstorm" || !w.bioEv) bad("old-save-event");
+    else {
+      run(w, 7);
+      w.state === "fight" || w.state === "choose" || bad("old-save-state:" + w.state);
+      const snap = w.snapshot(),
+        w2 = new World({ snap, ws: {} });
+      w2.event !== "riftstorm" && bad("resave-event");
+    }
+  }
+  return { ...r, ok: r.ok && fail.length === 0, v250C: { ok: fail.length === 0, fail } };
+};
+
 export {
   RL_EVENT_KINDS,
   RL_HEALTH,
