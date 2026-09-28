@@ -1455,4 +1455,55 @@ window.__riftTest = {
   },
 };
 
+/* ==========================================================================
+ 2.5.0 D: biome title card and boss intro card (the cards themselves are in the 2.5.0 D section
+ of ui/ui.js). The first wave of a biome (wave 1 and every biome change) shows the biome card in
+ place of its wave banner; an event on such a wave is announced right after the card. A new boss
+ shows its name card during the camera pan (game.intro) in place of the plain name banner and
+ counts as seen for the Codex (boss_<id>).
+ ========================================================================== */
+(() => {
+  const baseEvents = handleWorldEvents;
+  let cardWave = 0,
+    cardEvent = null;
+  handleWorldEvents = function (w) {
+    let card = null,
+      boss = null;
+    for (const t of w.fx)
+      t.k === "wave" && !t.boss && (t.n === 1 || w.biomeFor(t.n - 1).id !== w.biomeFor(t.n).id)
+        ? (card = t)
+        : t.k === "boss" && bossDefs[t.id] && (boss = t);
+    const r = baseEvents(w);
+    try {
+      if (card) {
+        ui.biomeCard(w.biomeFor(card.n), card.n);
+        ((cardWave = card.n), (cardEvent = (card.event && waveEvents[card.event]) || null));
+      }
+      boss && (ui.markSeen(["boss_" + boss.id]), ui.bossCard(boss.id, w.biomeFor(w.wave)));
+      // the biome card stays for the first 1.6 s of its wave (game time), the boss card for the
+      // camera pan; then they fade. An event of the biome's first wave is announced after the card.
+      const h = ui.cardHold;
+      if (h && (h.kind === "boss" ? !game.intro : w.wave !== cardWave || w.state !== "fight" || w.waveT >= 1.6)) {
+        ui.releaseTitleCard();
+        const ev = h.kind === "biome" && w.wave === cardWave && w.state === "fight" && cardEvent;
+        const n = cardWave;
+        ev &&
+          setTimeout(
+            () =>
+              game.world === w &&
+              !game.paused &&
+              w.state === "fight" &&
+              w.wave === n &&
+              ui.banner(ev.name, `Wave ${n} \xB7 ${ev.desc}`, "good", 2600),
+            450,
+          );
+        h.kind === "biome" && (cardEvent = null);
+      }
+    } catch (e) {
+      logError("titlecard", e);
+    }
+    return r;
+  };
+})();
+
 export { ui, store, game, safeAreaInsets, input, renderer };

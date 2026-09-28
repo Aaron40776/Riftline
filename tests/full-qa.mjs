@@ -655,6 +655,72 @@ await section('buttons', async L => {
   await P.close();
 });
 
+/* ======================= 2.5.0 D: biome title card, boss intro card, Codex ======================= */
+PROFILES.land = { viewport: { width: 844, height: 390 }, touch: true, mobile: true };
+for (const profName of ['desktop', 'phone', 'land']) await section(`codex-${profName}`, async L => {
+  // an old save: no Codex keys except one enemy tip, a defeated boss and a build in the history
+  const P = await open(profName, { save: JSON.stringify({ v: 1, game: 'riftline', seen: { tutorial: true, enemy_grunt: true }, stats: { runs: 3, bosses: { warden: 2 } }, history: [{ t: Date.now() - 6e4, outcome: 'dead', wave: 6, endless: false, weapon: 'pulse', threat: 0, time: 300, kills: 120, shards: 40, killer: 'grunt', build: ['dmg'] }] }) });
+  await P.boot();
+  const cardOn = (sel) => P.page.waitForFunction(s => document.querySelector(s), sel, { timeout: 60000, polling: 30 }).then(() => true, () => false);
+  const inView = () => P.ev(() => { const c = document.querySelector('#titleCard .tcard'); if (!c) return null; const r = (c.querySelector('.tc-panel') || c.querySelector('.tc-band')).getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, hit = document.elementFromPoint(x, y); return { ok: r.left >= -1 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight, noInput: !hit || !hit.closest('#titleCard'), wide: document.documentElement.scrollWidth <= innerWidth, text: c.textContent }; });
+  // Records → Codex tab
+  await P.nav('records');
+  await P.tap('[data-rtab="codex"]');
+  const cx = await P.ev(() => { const d = window.__riftTest, rows = [...document.querySelectorAll('#codexList .row')], txt = (k) => { const r = document.querySelector(`#codexList [data-cx="${k}"]`); return r ? r.textContent : ''; }; return { shown: !document.getElementById('codexList').hidden && document.getElementById('recStats').hidden, rows: rows.length, want: Object.keys(d.Ae).length + Object.keys(d.data.en).length + d.data.Zi.length, unseen: rows.filter(r => r.classList.contains('unseen')).length, grunt: txt('enemy_grunt'), warden: txt('boss_warden'), dmg: txt('up_dmg'), sniper: txt('enemy_sniper'), core: txt('boss_core'), audit: window.__riftLayoutAudit() }; });
+  check(L, 'codex: tab shows one row per enemy, boss and upgrade', cx.shown && cx.rows === cx.want, `${cx.rows}/${cx.want}`);
+  check(L, 'codex: old save — seen tip, defeated boss and history build are known, the rest is "???"', cx.unseen === cx.want - 3 && /Grunt/.test(cx.grunt) && /WARDEN/.test(cx.warden) && /Defeated ×2/.test(cx.warden) && /High-Yield|damage/i.test(cx.dmg) && /\?\?\?/.test(cx.sniper) && /\?\?\?/.test(cx.core), JSON.stringify({ unseen: cx.unseen, grunt: cx.grunt.slice(0, 30), warden: cx.warden.slice(0, 40), sniper: cx.sniper }));
+  check(L, 'codex: layout audit clean', cx.audit.ok, cx.audit.findings.join(', '));
+  const rows = await P.ev(() => Math.max(...[...document.querySelectorAll('#codexList .row')].map(r => r.getBoundingClientRect().width)));
+  check(L, 'codex: rows at most 900 px wide and inside the screen', rows <= 900 && rows <= P.prof.viewport.width, `${Math.round(rows)} px`);
+  await P.tap('[data-rtab="stats"]');
+  check(L, 'codex: Stats tab brings the records back', await P.ev(() => !document.getElementById('recStats').hidden && document.getElementById('codexList').hidden && document.querySelectorAll('#statGrid .cell').length > 5));
+  await P.back('records');
+  // wave 1: biome title card instead of the wave banner
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  const c1 = await cardOn('#titleCard .tcard.biome');
+  const b1 = await P.ev(() => ({ banner: document.getElementById('banner').textContent }));
+  const v1 = await inView();
+  check(L, 'biome card on wave 1: biome, hazard and boss, no wave banner', c1 && v1 && /Neon Yard/i.test(v1.text) && /no hazards/i.test(v1.text) && /THE WARDEN/.test(v1.text) && !b1.banner, JSON.stringify({ c1, b1, text: v1 && v1.text }));
+  check(L, 'biome card: on screen, no horizontal overflow, takes no input', v1 && v1.ok && v1.wide && v1.noInput, JSON.stringify(v1));
+  const gone = await P.page.waitForFunction(() => !document.querySelector('#titleCard .tcard'), null, { timeout: 15000 }).then(() => true, () => false);
+  check(L, 'biome card fades out on its own', gone);
+  // upgrades that are offered count as seen (and are saved)
+  await P.ev(CLEAR);
+  await P.page.waitForFunction(() => !document.getElementById('choose').hidden, null, { timeout: 60000 });
+  const up = await P.ev(() => { const w = window.__riftTest.game.world, s = window.__riftTest.store.data.seen; return { offer: [...w.offer], ok: w.offer.every(id => s['up_' + id] === true) }; });
+  const st = await P.stored();
+  check(L, 'offered upgrades are marked seen and saved', up.ok && up.offer.every(id => st.seen['up_' + id] === true), JSON.stringify(up));
+  // boss wave: name card during the camera pan
+  await P.ev(() => { const g = window.__riftTest.game; g.world.wave = 4; g.choose(g.world.offer[0]); });
+  const c2 = await cardOn('#titleCard .tcard.boss');
+  const i2 = await P.ev(() => !!window.__riftTest.game.intro);
+  const v2 = await inView();
+  check(L, 'boss card during the camera pan: name, title, biome', c2 && i2 && v2 && /THE WARDEN/.test(v2.text) && /Gatekeeper of the Yard/i.test(v2.text) && /Neon Yard/i.test(v2.text), JSON.stringify({ c2, i2, text: v2 && v2.text }));
+  check(L, 'boss card: on screen and takes no input', v2 && v2.ok && v2.noInput, JSON.stringify(v2));
+  if (P.prof.touch) {
+    const btn = await P.ev(() => { const c = document.querySelector('#titleCard .tc-panel'); if (!c) return null; const r = c.getBoundingClientRect(); return ['novaBtn', 'dashBtn'].map(id => document.getElementById(id).getBoundingClientRect()).some(b => b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top); });
+    check(L, 'boss card: clear of the NOVA and DASH buttons', btn === false, String(btn));
+  }
+  const saved = await P.stored();
+  check(L, 'boss counts as seen for the Codex', saved.seen.boss_warden === true);
+  const gone2 = await P.page.waitForFunction(() => !window.__riftTest.game.intro && !document.querySelector('#titleCard .tcard'), null, { timeout: 30000 }).then(() => true, () => false);
+  check(L, 'boss card fades out after the pan', gone2);
+  // biome change after the boss: the card of the next biome and its boss
+  await P.ev(CLEAR);
+  await P.page.waitForFunction(() => !document.getElementById('choose').hidden, null, { timeout: 60000 });
+  await P.ev(() => { const g = window.__riftTest.game; g.choose(g.world.offer[0]); });
+  const c3 = await cardOn('#titleCard .tcard.biome');
+  const want = await P.ev(() => { const w = window.__riftTest.game.world, b = w.biomeFor(6); return { wave: w.wave, name: b.name, boss: window.__riftTest.data.en[{ yard: 'warden', works: 'forge', vault: 'prism', marsh: 'queen', void: 'core' }[b.id]].name }; });
+  const v3 = await inView();
+  check(L, 'biome change (wave 6): card of the new biome with its boss', c3 && want.wave === 6 && v3 && v3.text.includes(want.name) && v3.text.includes(want.boss), JSON.stringify({ want, text: v3 && v3.text }));
+  // the pause menu hides a card
+  await P.ev(() => window.__riftTest.game.pause()); await P.page.waitForTimeout(300);
+  check(L, 'pause menu hides the card', await P.ev(() => !document.querySelector('#titleCard .tcard')));
+  await P.ev(() => window.__riftTest.game.resume());
+  check(L, 'no page errors', !P.errors.length, P.errors.join(' | '));
+  await P.close();
+});
+
 await browser.close();
 console.log(out.join('\n'));
 console.log(`\nFULL QA: ${fails ? fails + ' FAIL' : 'all checks passed'}`);

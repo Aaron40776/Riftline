@@ -9,7 +9,8 @@ import {
   getErrorLog,
   buildReport,
 } from "../core/diagnostics.js";
-import { enemyDefs, bossDefs } from "../data/enemies.js";
+import { enemyDefs, bossDefs, enemyOrder, bossByBiome, RL_ENEMY_TIPS } from "../data/enemies.js";
+import { biomeList, biomesById } from "../data/biomes.js";
 import { store } from "../main.js";
 import { clamp, GAME_VERSION, formatCount, rlAgo, formatTime } from "../core/util.js";
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
@@ -1084,4 +1085,312 @@ var getById = (i) => document.getElementById(i),
   };
 })();
 
-export { GameUI, iconSvg, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, rlRenderHistory, iconPaths, escapeHtml };
+/* ==========================================================================
+ 2.5.0 D: design — biome title card, boss intro card, Codex in Records
+ - a new biome (wave 1 and every biome change) gets a full-width title card instead of the plain
+   wave banner: biome name, its hazard in a few words and the boss that waits at its end
+ - while the camera pans to a new boss (game.intro), a bigger name card shows the boss name and
+   title with a short accent in the boss colour
+ - Records get a second tab, the Codex: enemies, bosses and upgrades. Seen entries show their name
+   and a short description, unseen ones "???". "Seen" lives in store.data.seen: enemy_<type> (set
+   by the first-encounter tips), boss_<id> (set when a boss spawns) and up_<id> (set when an
+   upgrade is offered). Old saves without these keys fall back to what the save already proves:
+   defeated bosses (stats.bosses) and upgrades in recent builds or the saved run.
+ Both cards take no input (pointer-events: none). They hold while the game needs them (first 1.6 s
+ of the wave, the boss camera pan; see main.js) and then fade out.
+ ========================================================================== */
+// the hazard of each biome in a few words (the RL_BIOME_INFO tag is the fallback for new biomes)
+var RL_BIOME_CARD = {
+  yard: "Open ground — no hazards",
+  works: "Lava vents erupt — lure enemies onto them",
+  vault: "Slick floor and ice sheets — mind your drift",
+  marsh: "Acid pools eat your hull — and weaken enemies",
+  void: "Portal pairs fold the arena — shots pass through",
+};
+// Codex texts for enemies without a first-encounter tip. Mites only come out of splitters (no
+// spawn event, no tip), so they are known together with the Splitter.
+var RL_CODEX_EXTRA = {
+  mite: "Mites burst out of destroyed Splitters. Small and fast, but one shot each.",
+};
+var RL_CODEX_WITH = { mite: "splitter" };
+const rlHex = (c) => "#" + ((Number(c) >>> 0) & 0xffffff).toString(16).padStart(6, "0");
+function rlBiomeCardInfo(b) {
+  b = b || biomeList[0];
+  const bossId = bossByBiome[b.id],
+    boss = bossId && bossDefs[bossId];
+  return {
+    id: b.id,
+    name: b.name,
+    hazard: RL_BIOME_CARD[b.id] || b.tag || "",
+    boss: boss ? boss.name : "",
+    color: rlHex(b.grid != null ? b.grid : 0x49f2ff),
+  };
+}
+// Codex entries of a save. Names and texts come from the data tables at run time, so added or
+// removed enemies, bosses and upgrades show up without changes here.
+function rlCodexEntries(save) {
+  const d = save || {},
+    seen = d.seen || {},
+    beaten = (d.stats && d.stats.bosses) || {},
+    offered = new Set();
+  // saves from before the Codex never stored up_<id>; builds in the run history and the saved run
+  // show which upgrades the player has been offered already
+  for (const h of Array.isArray(d.history) ? d.history : [])
+    for (const id of (h && Array.isArray(h.build) && h.build) || []) offered.add(id);
+  if (d.run && typeof d.run === "object") {
+    for (const id of Object.keys(d.run.up || {})) offered.add(id);
+    for (const id of Array.isArray(d.run.offer) ? d.run.offer : []) offered.add(id);
+  }
+  const enemyIds = [
+      ...enemyOrder.filter((id) => enemyDefs[id]),
+      ...Object.keys(enemyDefs).filter((id) => !enemyOrder.includes(id)),
+    ],
+    bossBiome = Object.fromEntries(Object.entries(bossByBiome).map(([b, id]) => [id, biomesById[b]])),
+    // the usual route: Neon Yard first, Void Core last
+    rank = (id) => (id === "warden" ? 0 : id === "core" ? 9 : 1),
+    bossIds = [
+      ...new Set([...biomeList.map((b) => bossByBiome[b.id]).filter((id) => bossDefs[id]), ...Object.keys(bossDefs)]),
+    ].sort((a, b) => rank(a) - rank(b));
+  const enemies = enemyIds.map((id) => ({
+      key: "enemy_" + id,
+      id,
+      seen: seen["enemy_" + id] === !0 || (!!RL_CODEX_WITH[id] && seen["enemy_" + RL_CODEX_WITH[id]] === !0),
+      name: enemyDefs[id].name,
+      desc: RL_ENEMY_TIPS[id] || RL_CODEX_EXTRA[id] || "A creature of the rift.",
+      color: rlHex(enemyDefs[id].color),
+      icon: "skull",
+    })),
+    bosses = bossIds.map((id) => {
+      const b = bossDefs[id],
+        n = +beaten[id] || 0,
+        bio = bossBiome[id];
+      return {
+        key: "boss_" + id,
+        id,
+        seen: seen["boss_" + id] === !0 || n > 0,
+        name: b.name,
+        desc: b.title + (bio ? ` \xB7 ${bio.name}` : ""),
+        extra: n > 0 ? `Defeated \xD7${n}` : "",
+        color: rlHex(b.color),
+        icon: "target",
+      };
+    }),
+    upgrades = upgradeList.map((u) => {
+      let desc = "";
+      try {
+        desc = typeof u.desc === "function" ? u.desc(0) : String(u.desc || "");
+      } catch {}
+      const w = u.weapon && weaponDefs[u.weapon];
+      return {
+        key: "up_" + u.id,
+        id: u.id,
+        seen: seen["up_" + u.id] === !0 || offered.has(u.id),
+        name: u.name,
+        desc,
+        extra: w ? w.name + " only" : "",
+        rarity: u.evo ? 5 : u.rarity,
+        tag: u.evo ? "Evolution" : rarityNames[u.rarity] || "",
+        icon: u.icon,
+      };
+    });
+  return { enemies, bosses, upgrades };
+}
+(() => {
+  const layer = () => {
+    let el = getById("titleCard");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "titleCard";
+      el.setAttribute("aria-live", "polite");
+      const banner = getById("banner");
+      banner ? banner.after(el) : getById("app").appendChild(el);
+    }
+    return el;
+  };
+  // The card starts after the next frame is on screen: the first frame of a new arena or boss can
+  // take long on slow devices (shader compiles), and the card must not run out during that stall.
+  const showCard = (ui, html, ms) => {
+    const el = layer(),
+      token = (ui.titleCardN = (ui.titleCardN || 0) + 1);
+    clearTimeout(ui.titleCardT);
+    el.innerHTML = "";
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (ui.titleCardN !== token) return;
+        el.innerHTML = html;
+        ui.titleCardT = setTimeout(() => ui.titleCardN === token && (el.innerHTML = ""), ms + 60);
+      }),
+    );
+    return token;
+  };
+  GameUI.prototype.clearTitleCard = function () {
+    this.titleCardN = (this.titleCardN || 0) + 1;
+    this.cardHold = null;
+    clearTimeout(this.titleCardT);
+    const el = getById("titleCard");
+    el && (el.innerHTML = "");
+  };
+  // Both cards hold until the game releases them (releaseTitleCard), because they follow game time:
+  // the biome card the first 1.6 s of its wave, the boss card the camera pan. Game time runs slower
+  // than the clock on a slow device and stalls while a new arena or boss is first drawn, so a card
+  // on a clock timer could be gone before the player saw it. `ms` is only a safety limit.
+  const holdCard = (ui, kind, html, min, ms) => {
+    ((getById("banner").innerHTML = ""), clearTimeout(ui.bannerT));
+    ui.cardHold = { token: showCard(ui, html, ms), kind, at: performance.now(), min };
+  };
+  // biome title card; it replaces the wave banner of its wave
+  GameUI.prototype.biomeCard = function (biome, wave, ms = 9000) {
+    const c = rlBiomeCardInfo(biome);
+    holdCard(
+      this,
+      "biome",
+      `<div class="tcard biome hold" data-biome="${escapeHtml(c.id)}" style="--bc:${c.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(c.name)}</div>${c.hazard ? `<div class="tc-haz">${escapeHtml(c.hazard)}</div>` : ""}${c.boss ? `<div class="tc-boss"><span>Boss</span>${escapeHtml(c.boss)}</div>` : ""}</div></div>`,
+      900,
+      ms,
+    );
+    return c;
+  };
+  // boss intro card, shown during the camera pan to a new boss
+  GameUI.prototype.bossCard = function (id, biome, ms = 9000) {
+    const b = bossDefs[id];
+    if (!b) return null;
+    holdCard(
+      this,
+      "boss",
+      `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(b.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Boss${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(b.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(b.title)}</div></div></div>`,
+      1600,
+      ms,
+    );
+    return b;
+  };
+  // fades the held card out in 0.5 s, after it has been on screen for its minimum time
+  GameUI.prototype.releaseTitleCard = function () {
+    const h = this.cardHold;
+    if (!h) return;
+    this.cardHold = null;
+    if (this.titleCardN !== h.token) return; // another card replaced it
+    clearTimeout(this.titleCardT);
+    this.titleCardT = setTimeout(
+      () => {
+        if (this.titleCardN !== h.token) return;
+        const c = document.querySelector("#titleCard .tcard");
+        c && c.classList.add("out");
+        this.titleCardT = setTimeout(() => this.titleCardN === h.token && (getById("titleCard").innerHTML = ""), 520);
+      },
+      Math.max(0, h.min - (performance.now() - h.at)),
+    );
+  };
+  // the upgrade choice, the pause menu and the end of a run hide the cards like the banner
+  const baseCover = GameUI.prototype.coverHud;
+  GameUI.prototype.coverHud = function (t) {
+    const r = baseCover.call(this, t);
+    t && this.clearTitleCard();
+    return r;
+  };
+  const baseShowHud = GameUI.prototype.showHud;
+  GameUI.prototype.showHud = function (t) {
+    const r = baseShowHud.call(this, t);
+    this.clearTitleCard();
+    return r;
+  };
+  // Codex "seen" keys; saves only when something is new
+  GameUI.prototype.markSeen = function (keys) {
+    const seen = this.save && this.save.seen;
+    if (!seen) return 0;
+    let n = 0;
+    for (const k of keys) seen[k] !== !0 && ((seen[k] = !0), n++);
+    n && this.g.store.save("codex");
+    return n;
+  };
+  // every upgrade that is offered counts as seen (also after a reroll and in a resumed run)
+  const baseCards = GameUI.prototype.renderCards;
+  GameUI.prototype.renderCards = function (t) {
+    const r = baseCards.call(this, t);
+    try {
+      this.markSeen((t.offer || []).filter((id) => upgradesById[id]).map((id) => "up_" + id));
+    } catch (e) {
+      console.warn("codex", e);
+    }
+    return r;
+  };
+
+  // ---- Records: Stats / Codex tabs (built on first use, the page markup stays as it was)
+  const ensureTabs = (ui) => {
+    if (getById("recTabs")) return;
+    const rec = getById("records"),
+      main = rec.querySelector(".scroll");
+    main.id || (main.id = "recStats");
+    rec
+      .querySelector(".topbar")
+      .insertAdjacentHTML(
+        "afterend",
+        '<div id="recTabs" class="seg rec-tabs" role="tablist"><button type="button" role="tab" data-rtab="stats" class="on" aria-selected="true">Stats</button><button type="button" role="tab" data-rtab="codex" aria-selected="false">Codex</button></div>',
+      );
+    main.insertAdjacentHTML("afterend", '<div id="codexList" class="scroll codex" hidden></div>');
+    for (const b of getById("recTabs").querySelectorAll("[data-rtab]"))
+      ui.click(b, () => ui.recordsTab(b.dataset.rtab));
+  };
+  GameUI.prototype.recordsTab = function (tab) {
+    ensureTabs(this);
+    this.recTab = tab === "codex" ? "codex" : "stats";
+    for (const b of getById("recTabs").querySelectorAll("[data-rtab]")) {
+      const on = b.dataset.rtab === this.recTab;
+      (b.classList.toggle("on", on), b.setAttribute("aria-selected", on ? "true" : "false"));
+    }
+    ((getById("records").querySelector(".scroll").hidden = this.recTab !== "stats"),
+      (getById("codexList").hidden = this.recTab !== "codex"));
+    this.recTab === "codex" && this.renderCodex();
+    requestAnimationFrame(() => window.__riftLayoutAudit?.());
+  };
+  GameUI.prototype.renderCodex = function () {
+    const c = rlCodexEntries(this.save),
+      all = [...c.enemies, ...c.bosses, ...c.upgrades],
+      found = all.filter((e) => e.seen).length,
+      rows = (list, hint) =>
+        list
+          .map((e) => {
+            const cls = `row panel cx${e.seen ? "" : " unseen"}${e.rarity ? " r" + e.rarity : ""}`;
+            if (!e.seen)
+              return `<div class="${cls}" data-cx="${escapeHtml(e.key)}"><div class="rico">${iconSvg("lock")}</div><div><b>???</b><small>${escapeHtml(hint)}</small></div></div>`;
+            return `<div class="${cls}" data-cx="${escapeHtml(e.key)}"${e.color ? ` style="--cc:${e.color}"` : ""}><div class="rico">${iconSvg(e.icon)}</div><div><b>${escapeHtml(e.name)}</b><small>${escapeHtml(e.desc)}</small>${e.extra ? `<small class="cx-extra">${escapeHtml(e.extra)}</small>` : ""}</div>${e.tag ? `<span class="chip">${escapeHtml(e.tag)}</span>` : ""}</div>`;
+          })
+          .join(""),
+      part = (title, list, hint) =>
+        `<h3 class="section-h">${title} <span class="cx-count">${list.filter((e) => e.seen).length}/${list.length}</span></h3><div class="codex-grid">${rows(list, hint)}</div>`;
+    getById("codexList").innerHTML =
+      `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies and bosses unlock when you meet them, upgrades when a run offers them.</p>` +
+      part("Enemies", c.enemies, "Not encountered yet") +
+      part("Bosses", c.bosses, "Not encountered yet") +
+      part("Upgrades", c.upgrades, "Not offered yet");
+  };
+  const baseRecords = GameUI.prototype.renderRecords;
+  GameUI.prototype.renderRecords = function () {
+    const r = baseRecords.call(this);
+    try {
+      this.recordsTab(this.recTab || "stats");
+    } catch (e) {
+      console.warn("codex", e);
+    }
+    return r;
+  };
+  // Records opened from another screen start on the stats
+  const baseShow = GameUI.prototype._show;
+  GameUI.prototype._show = function (t) {
+    t === "records" && this.screen !== "records" && (this.recTab = "stats");
+    return baseShow.call(this, t);
+  };
+})();
+
+export {
+  GameUI,
+  iconSvg,
+  RL_TOUCH_CLICK_GUARD,
+  getById,
+  rlBiomeTitle,
+  rlRenderHistory,
+  iconPaths,
+  escapeHtml,
+  RL_BIOME_CARD,
+  rlBiomeCardInfo,
+  rlCodexEntries,
+};
