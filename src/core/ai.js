@@ -369,8 +369,8 @@ var bossPatterns = {
   prism: ["sweep", "teleport", "shards", "lances", "teleport", "sweep"],
   core: ["spiral", "summon", "ring", "cross", "burst", "rain"],
 };
-// 2.4.6 placeholder until the Crucible gets its attacks (see the 2.4.6 section below)
-bossPatterns.forge = ["walk"];
+// 2.4.6: THE CRUCIBLE of Ember Works (its attacks are in updateCrucible at the end of this file)
+bossPatterns.forge = ["hammer", "slag", "eruption", "furnace", "hammer", "slag", "stoke"];
 function initBoss(i, t) {
   ((t.st = "walk"), (t.t = 2.2), (t.t2 = 0), (t.n = 0), (t.pattern = 0), (t.spin = 0), (t.phaseN = 1));
 }
@@ -711,6 +711,9 @@ function updateBoss(i, t, e) {
       }
       break;
     }
+    case "forge":
+      if (updateCrucible(i, t, e, o, a, h, l)) return;
+      break;
   }
   endBossAttack(t, 1);
 }
@@ -1137,5 +1140,166 @@ updateEnemy = function (game, enemy, dt) {
   }
   return _rlUpdateEnemy22(game, enemy, dt);
 };
+
+/* ---- 2.4.6: THE CRUCIBLE, the boss of Ember Works ----
+ A slow furnace golem that walks at the player like the Warden. Every hit is telegraphed on the
+ ground (hazard rings) or comes as slow slag orbs. Enraged (below half hull) its attacks get more
+ shots, more blasts and shorter pauses.
+   hammer    FORGE HAMMER   winds up and slams: a blast around itself, a fissure of blasts towards
+                            the player (three when enraged) and a shockwave ring of slag orbs
+   slag      SLAG RAIN      lobs molten globs at the player and where the player is heading
+   eruption  ERUPTION       three rings of lava bursts roll outward from it one after the other,
+                            and the lava vents near the player erupt early
+   furnace   FURNACE BLAST  fans of slow slag orbs from its mouth, aimed where the player was
+   stoke     STOKE          portals for bombers and a brute; the vents near the player flare up
+ The vents only erupt through extra hazards on top of them; their own cycle is not changed. */
+function crucibleVents(game, boss, delay, dmg) {
+  const p = game.player;
+  for (const v of game.arena.vents)
+    Math.hypot(v.x - p.x, v.y - p.y) < 15 &&
+      boss.fx.push(game.hazard({ x: v.x, y: v.y, r: v.r + 0.5, delay, dmg, kind: "rain" }));
+}
+function updateCrucible(game, boss, dt, aim, dist, shotDmg, rage) {
+  const p = game.player,
+    arena = game.arena,
+    inside = (x, y) => !arena.outside(x, y, 0.8);
+  // lava fountains where tracked blasts go off (vents and some of the eruption bursts)
+  if (boss.fx)
+    for (const hz of boss.fx) hz.done && !hz.fx && ((hz.fx = 1), game.emit("erupt", { x: hz.x, y: hz.y, r: hz.r }));
+  const end = (walk) => {
+    ((boss.fx = null), (boss.charging = !1), endBossAttack(boss, walk));
+  };
+  switch (boss.st) {
+    case "hammer": {
+      const wind = rage ? 0.8 : 1;
+      ((boss.vx *= 0.8), (boss.vy *= 0.8));
+      if (boss.n === 0) {
+        ((boss.n = 1), (boss.charging = !0), (boss.ta = aim));
+        game.hazard({ x: boss.x, y: boss.y, r: 4.4, delay: wind, dmg: boss.dmg, kind: "stomp" });
+        for (const off of rage ? [-0.5, 0, 0.5] : [0])
+          for (let k = 0; k < 5; k++) {
+            const d = 5.2 + k * 2.4,
+              x = boss.x + Math.cos(aim + off) * d,
+              y = boss.y + Math.sin(aim + off) * d;
+            inside(x, y) &&
+              game.hazard({ x, y, r: 1.45, delay: wind + 0.12 + k * 0.12, dmg: boss.dmg * 0.8, kind: "stomp" });
+          }
+        game.emit("charge", { x: boss.x, y: boss.y, type: "forge" });
+      }
+      boss.face = turnToward(boss.face, boss.ta, 6 * dt);
+      if (boss.n === 1 && boss.t >= wind) {
+        ((boss.n = 2), (boss.charging = !1));
+        shootRing(game, boss, 12 + rage * 4, 6.5, shotDmg, boss.spin, "slag");
+        game.emit("thud", { x: boss.x, y: boss.y, big: !0 });
+      }
+      if (boss.n === 2 && rage && boss.t >= wind + 0.45) {
+        boss.n = 3;
+        shootRing(game, boss, 16, 5, shotDmg, boss.spin + Math.PI / 16, "slag");
+      }
+      boss.t > wind + 1.1 && end(2 - rage * 0.5);
+      return !0;
+    }
+    case "slag": {
+      moveBoss(game, boss, dt, aim, dist, 0.35);
+      const salvos = 3 + rage;
+      if (boss.t >= 0.35 + boss.n * 0.6 && boss.n < salvos) {
+        boss.n++;
+        const spots = [
+          [p.x, p.y],
+          [p.x + p.vx * 1.1, p.y + p.vy * 1.1],
+        ];
+        if (rage) {
+          const a = game.rng.next() * TAU,
+            d = game.rng.range(2.5, 5);
+          spots.push([p.x + Math.cos(a) * d, p.y + Math.sin(a) * d]);
+        }
+        spots.forEach(([x, y], k) => {
+          ((x = clamp(x, -arena.W + 1, arena.W - 1)), (y = clamp(y, -arena.H + 1, arena.H - 1)));
+          game.hazard({
+            x,
+            y,
+            r: 1.9,
+            delay: 1.25 + k * 0.1,
+            dmg: boss.dmg * 0.75,
+            kind: "mortar",
+            sx: boss.x,
+            sy: boss.y,
+          });
+        });
+        game.emit("lob", { x: boss.x, y: boss.y });
+      }
+      boss.t > 0.35 + salvos * 0.6 + 1.1 && end(1.6 - rage * 0.3);
+      return !0;
+    }
+    case "eruption": {
+      ((boss.vx *= 0.8), (boss.vy *= 0.8));
+      const first = 1,
+        step = rage ? 0.35 : 0.45;
+      if (boss.n === 0) {
+        ((boss.n = 1), (boss.fx = []));
+        const turn = game.rng.next() * TAU;
+        for (let ring = 0; ring < 3; ring++) {
+          const R = 4.5 + ring * 4.5,
+            count = 5 * (ring + 1);
+          for (let k = 0; k < count; k++) {
+            const a = turn + ((k + (ring % 2) * 0.5) / count) * TAU,
+              x = boss.x + Math.cos(a) * R,
+              y = boss.y + Math.sin(a) * R;
+            if (!inside(x, y)) continue;
+            const hz = game.hazard({ x, y, r: 1.4, delay: first + ring * step, dmg: boss.dmg * 0.85, kind: "rain" });
+            k % 3 === 0 && boss.fx.push(hz);
+          }
+        }
+        crucibleVents(game, boss, first + 0.3, boss.dmg * 0.9);
+        rage && game.hazard({ x: p.x, y: p.y, r: 2, delay: first + 0.5, dmg: boss.dmg * 0.8, kind: "rain" });
+        ((boss.charging = !0), game.emit("charge", { x: boss.x, y: boss.y, type: "forge" }));
+      }
+      boss.t >= first && (boss.charging = !1);
+      boss.t > first + 2 * step + 0.6 && end(1.8 - rage * 0.4);
+      return !0;
+    }
+    case "furnace": {
+      ((boss.vx *= 0.85), (boss.vy *= 0.85));
+      const waves = 3 + rage,
+        count = 7,
+        spread = 1.1;
+      boss.n === 0 && boss.t2 === 0 && ((boss.t2 = 1), (boss.ta = aim), (boss.charging = !0));
+      // the mouth only turns slowly, so running around the fan gets out of it
+      ((boss.ta = turnToward(boss.ta, aim, 0.45 * dt)), (boss.face = turnToward(boss.face, boss.ta, 6 * dt)));
+      if (boss.t >= 0.6 + boss.n * 0.5 && boss.n < waves) {
+        boss.charging = !1;
+        const half = boss.n % 2 ? 0.5 : 0,
+          mx = boss.x + Math.cos(boss.face) * 1.6,
+          my = boss.y + Math.sin(boss.face) * 1.6;
+        for (let k = 0; k < count - (half ? 1 : 0); k++) {
+          const a = boss.face + (k + half - (count - 1) / 2) * (spread / (count - 1));
+          game.shoot(mx, my, a, 5.2 + rage * 0.6, shotDmg, { kind: "slag", r: 0.34, life: 6 });
+        }
+        (boss.n++, game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" }));
+      }
+      boss.t > 0.6 + waves * 0.5 + 0.4 && end(1.6 - rage * 0.3);
+      return !0;
+    }
+    case "stoke": {
+      ((boss.vx *= 0.8), (boss.vy *= 0.8));
+      if (boss.n === 0) {
+        ((boss.n = 1), (boss.fx = []), (boss.charging = !0));
+        const kinds = rage ? ["bomber", "bomber", "bomber", "brute"] : ["bomber", "bomber", "brute"],
+          alive = game.enemies.filter((q) => !q.dead && !q.boss).length,
+          room = Math.max(0, 10 - alive - game.markers.length);
+        for (const type of kinds.slice(0, room)) {
+          const pt = arena.freePoint(game.rng, p.x, p.y, 7, 1);
+          game.markers.push({ x: pt.x, y: pt.y, t: 0, dur: 1.1, type, elite: !1, done: !1 });
+        }
+        crucibleVents(game, boss, 1.1, boss.dmg * 0.9);
+        game.emit("portal", { x: boss.x, y: boss.y, n: Math.min(room, kinds.length) });
+      }
+      boss.t > 0.6 && (boss.charging = !1);
+      boss.t > 1.5 && end(1.8 - rage * 0.4);
+      return !0;
+    }
+  }
+  return !1;
+}
 
 export { RL_KITERS, updateEnemy, rlInstallHunt, updateBoss, findOpenSpot, initBoss };

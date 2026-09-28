@@ -283,7 +283,13 @@ var MAX_PARTICLES = 1400,
     let t = colorCache.get(i);
     return (t || ((t = new Color(i)), colorCache.set(i, t)), t);
   },
-  enemyShotColors = { orb: hexColor(16727423), fast: hexColor(16722474), shard: hexColor(9431295) },
+  // 2.4.6: slag, the molten orbs of the Crucible
+  enemyShotColors = {
+    orb: hexColor(16727423),
+    fast: hexColor(16722474),
+    shard: hexColor(9431295),
+    slag: hexColor(16743722),
+  },
   shardColors = { 1: hexColor(8386303), 5: hexColor(16762954), 25: hexColor(16734936) },
   healColor = hexColor(7208842),
   whiteColor = hexColor(16777215),
@@ -1647,6 +1653,27 @@ var MAX_PARTICLES = 1400,
         n.st === "charge" &&
         n.sub === 0 &&
         this.chargeLine(n.x, n.y, n.ta, 12, 3.4, clamp(n.subT / 0.85, 0, 1));
+      // 2.4.6: the Crucible's chimneys throw embers, more while it winds up or is enraged
+      if (r.userData.chimneys && n.spawnT <= 0) {
+        const rate = (n.enraged ? 20 : 11) * (n.charging ? 2.2 : 1),
+          cf = Math.cos(n.face),
+          sf = Math.sin(n.face),
+          ember = this._emberColor || (this._emberColor = hexColor(16752957));
+        for (const [lx, ly, lz] of r.userData.chimneys)
+          Math.random() < t * rate &&
+            this.emit(
+              n.x + (lx * cf - lz * sf) * c,
+              ly * c,
+              n.y + (lx * sf + lz * cf) * c,
+              (Math.random() - 0.5) * 1.4,
+              2.6 + Math.random() * 2.2,
+              (Math.random() - 0.5) * 1.4,
+              0.8,
+              0.28,
+              ember,
+              { drag: 1, grow: 1.3 },
+            );
+      }
     }
     drawParticles(t) {
       let e = this.P,

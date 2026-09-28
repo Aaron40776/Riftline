@@ -18,6 +18,12 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
     lances: "LANCES",
     cross: "LASER CROSS",
     rain: "BOMBARDMENT",
+    // 2.4.6: The Crucible
+    hammer: "FORGE HAMMER",
+    slag: "SLAG RAIN",
+    eruption: "ERUPTION",
+    furnace: "FURNACE BLAST",
+    stoke: "STOKE",
   },
   Overlay = class {
     constructor(t) {
