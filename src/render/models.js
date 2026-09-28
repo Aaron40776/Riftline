@@ -847,6 +847,34 @@ function buildBossModel(i, t) {
     // frozen ring on the ground
     const ring = o(new TorusGeometry(1.9, 0.07, 4, 40), r, 0, 0.12, 0);
     ((ring.rotation.x = Math.PI / 2), (e.userData.fadeMats = [c, h, n, s, r]));
+  } else if (i === "forge") {
+    // 2.4.6: THE CRUCIBLE, a furnace golem: an iron crucible on stubby legs with molten metal inside
+    // a heavy rim, a head with a glowing visor and a furnace mouth at the front (+x), hammer fists,
+    // two chimneys and a flywheel on its back. The renderer lets the chimneys throw embers
+    // (userData.chimneys).
+    let c = new MeshLambertMaterial({ color: 2366244, emissive: 0, flatShading: !0 });
+    (o(new BoxGeometry(1, 1, 0.9), s, -0.1, 0.5, 0.95),
+      o(new BoxGeometry(1, 1, 0.9), s, -0.1, 0.5, -0.95),
+      o(new CylinderGeometry(1.55, 1.15, 2, 8), c, 0, 2, 0),
+      o(new CylinderGeometry(0.95, 0.95, 0.1, 12), r, -0.25, 3.02, 0),
+      o(new BoxGeometry(0.75, 0.6, 1.05), s, 1.05, 3.1, 0),
+      o(new BoxGeometry(0.1, 0.14, 0.75), r, 1.44, 3.14, 0),
+      o(new BoxGeometry(0.3, 0.55, 1.1), r, 1.3, 1.85, 0).rotation.set(0, 0, 0.2));
+    let h = o(new TorusGeometry(1.3, 0.26, 5, 16), n, 0, 3, 0);
+    h.rotation.x = Math.PI / 2;
+    for (let l of [1, -1])
+      (o(new BoxGeometry(0.85, 0.85, 0.85), n, 0, 2.35, l * 1.75),
+        o(new BoxGeometry(1.2, 0.95, 0.95), s, 0.55, 1.35, l * 1.95),
+        o(new CylinderGeometry(0.26, 0.34, 1.7, 6), s, -1.05, 3.1, l * 0.55),
+        o(new CylinderGeometry(0.2, 0.2, 0.08, 6), r, -1.05, 3.97, l * 0.55));
+    let u = o(new TorusGeometry(0.6, 0.14, 4, 8), n, -1.62, 1.9, 0);
+    ((u.rotation.y = Math.PI / 2),
+      a.push({ m: u, ax: "z", v: 1.4 }),
+      (e.userData.chimneys = [
+        [-1.05, 4.05, 0.55],
+        [-1.05, 4.05, -0.55],
+      ]),
+      (e.userData.mats = [c]));
   } else {
     o(new SphereGeometry(1.15, 18, 12), r, 0, 2.4, 0);
     for (let l = 0; l < 3; l++) {
@@ -859,7 +887,7 @@ function buildBossModel(i, t) {
     let h = o(new TorusGeometry(2.4, 0.08, 5, 44), r, 0, 0.1, 0);
     h.rotation.x = Math.PI / 2;
   }
-  return { group: e, mats: [n, s], glowMat: r, spin: a };
+  return { group: e, mats: [n, s, ...(e.userData.mats || [])], glowMat: r, spin: a };
 }
 function wingDroneGeometry() {
   return mergeParts([
