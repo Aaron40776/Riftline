@@ -53,6 +53,7 @@
   "reviewed_from": "Riftline v2.4.5",
   "generatedAt": "2026-09-27T23:00:00+02:00",
   "changes": [
+    "2.4.6: bigger hazards so they shape the fight — per wave the hazard area grows about ×3 (lava vents), ×5 (acid pools) and ×8 (ice sheets); same number per wave, still placed clear of obstacles and the spawn",
     "2.4.6: every biome has its own boss — Neon Yard: The Warden, Ember Works: The Crucible (new), Cryo Vault: Frost Prism, Toxin Marsh: Hive Queen, Void Core: Rift Core; the boss hull follows its slot (wave 5/10/15/20), so each boss is fair at wave 10 or 15",
     "2.4.6: route — waves 1–5 Neon Yard, 6–15 two of Ember Works, Cryo Vault and Toxin Marsh in a seeded order, 16–20 always Void Core (the Rift Core stays the final boss), the third from wave 21 in Endless",
     "2.4.6: The Crucible — furnace golem with Forge Hammer (slam + fissures + slag ring), Slag Rain, Eruption rings, Furnace Blast and Stoke (bombers/brutes); its arena keeps three lava vents that its attacks make burst",

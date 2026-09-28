@@ -38,6 +38,14 @@ Void Core immer zuletzt.
    automatisch aktiv, sobald kein Run läuft: beim Start (nächstes Öffnen), beim Zurückkehren ins
    Menü nach einem Run oder wenn die Seite im Menü verborgen wird. Nie mitten im Run.
 
+3b) Größere Gefahrenflächen (Nachtrag, gewünscht: Eis-/Lavaflächen zu klein)
+   Die Flächen, die jede Welle hinzufügt, waren nur 0,7–1,0 groß (Radius). Jetzt: Lavaschlote
+   1,3–1,7, Eisflächen 2,1–2,9, Säurepfützen 1,7–2,3; die festen Flächen der Arena im gleichen
+   Verhältnis größer. Gemessen über 300 Arenen je Biom: gleiche Anzahl pro Welle (3,3), Fläche
+   pro Welle Lava 7,9 → 23,5, Eis 7,7 → 62,4, Säure 7,8 → 41,7; keine Überlappung mit
+   Hindernissen, Abstand zum Startpunkt wie bisher. Eis wächst am stärksten, weil es keinen
+   Schaden macht (nur rutschiger); Lava und Säure moderater.
+
 4) Tests
    - Deep test v246: ein Boss pro Biom, Void Core Welle 16–20, Rift Core in Welle 20, Warden in
      Welle 5, zwei verschiedene mittlere Biome, drittes ab Welle 21, Boss = Biom-Boss bis Welle
