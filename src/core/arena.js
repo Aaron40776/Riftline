@@ -455,6 +455,21 @@ function rlBuildLayoutV21(i, t, e, n) {
   return layout;
 }
 buildLayout = rlBuildLayoutV21;
+// 2.4.6: the Crucible's arena in Ember Works keeps three lava vents (boss arenas are open and had
+// no hazard at all). Its Eruption and Stoke attacks make nearby vents burst; the vents themselves
+// keep their normal cycle. Other biomes' boss arenas stay as they are.
+const _rlBuildLayout246 = buildLayout;
+buildLayout = function (biome, seed, wave, boss) {
+  const layout = _rlBuildLayout246(biome, seed, wave, boss);
+  if (!boss || biome.id !== "works") return layout;
+  const rng = makeRng(hashString(seed + ":crucible-vents:" + wave)),
+    features = { vents: [], ice: [], portals: [], acid: [] };
+  for (let k = 0; k < 12 && features.vents.length < 3; k++) {
+    const p = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 1.2);
+    p && features.vents.push({ ...p, r: p.r + 0.35, phase: rng.next() * 6, period: 3.2 + rng.next() * 1.2, st: "idle" });
+  }
+  return { ...layout, key: `${layout.key}:crucible:${seed}:${wave}`, features };
+};
 function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75) {
   const taken = [];
   for (const k of ["vents", "ice", "acid"])

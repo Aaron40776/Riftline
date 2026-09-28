@@ -134,7 +134,9 @@ Source: GitHub Actions*. Pushes to other branches and pull requests run the same
 deploying (`.github/workflows/test.yml`).
 
 `dist/` is a static site that works in any sub-path. The service worker only caches files of its own
-folder and removes old `riftline-*` caches on update. GitHub Pages sends `max-age=600` for every
+folder and removes old `riftline-*` caches on update. A new version is downloaded in the
+background and applied on its own when no run is going on (at start, back in the menu, or when the
+page is hidden in the menu); a run is never interrupted. GitHub Pages sends `max-age=600` for every
 file and allows no custom cache headers. None are needed: the service worker fetches `index.html`
 and `build-info.json` with `no-store`, and the game file has the version in its name.
 

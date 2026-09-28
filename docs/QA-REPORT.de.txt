@@ -1,3 +1,61 @@
+RIFTLINE v2.4.6 – EIN BOSS PRO BIOM, UPDATES OHNE HINWEIS
+Basis: v2.4.5 · Build r246a0928a-r1 · 28.09.2026
+
+Gewünscht: Bosse passend zum Biom (Void Core passt schon, die anderen nicht), weitere unpassende
+Dinge anpassen; den Hinweis „New version ready / Reload“ entfernen. Gewählt: ein Boss pro Biom,
+Void Core immer zuletzt.
+
+1) Boss und Route
+   - Jedes Biom hat seinen Boss: Neon Yard → The Warden, Ember Works → The Crucible (neu),
+     Cryo Vault → Frost Prism, Toxin Marsh → Hive Queen, Void Core → Rift Core.
+   - Route: Welle 1–5 Neon Yard, 6–15 zwei von Ember Works/Cryo Vault/Toxin Marsh (pro Run
+     gewürfelt), 16–20 immer Void Core (Rift Core bleibt Endboss), das dritte ab Welle 21.
+     Im Endlosmodus weiter: Boss = Boss des aktuellen Bioms.
+   - Die Hülle eines Bosses richtet sich in Welle 5–20 nach dem Platz (5/10/15/20: 1500/3000/
+     4400/7600 vor Threat und Wellen-Skalierung), weil Queen, Prism und Crucible jetzt in Welle 10
+     oder 15 kommen können. Endlos wie bisher.
+
+2) Bosse (Agents: einer für die Crucible, einer für Prism/Queen/Texte)
+   - THE CRUCIBLE: Schmelzofen-Golem (Eisenkessel mit flüssigem Metall, Schornsteine mit Glut,
+     Schwungrad, Hammerfäuste). Angriffe: Forge Hammer (Schlag, Risse zum Spieler, Schlackering),
+     Slag Rain (Schlackeklumpen auf Position und Laufrichtung), Eruption (drei Lava-Ringe mit
+     Lücken), Furnace Blast (langsame Fächer, die man umlaufen kann), Stoke (Bomber/Brute über
+     Portale, begrenzt). Alle Treffer mit Vorwarnung.
+     Beim Zusammenführen gefunden: Boss-Arenen sind offen und haben keine Biom-Gefahren, der
+     Schlot-Teil der Crucible lief also ins Leere. Ihre Arena in Ember Works hat jetzt drei
+     Lavaschlote (normaler Zyklus), die Eruption und Stoke zusätzlich ausbrechen lassen.
+   - FROST PRISM: Eis-Golem (durchscheinender Kristallkörper, Eisspitzen, kreisende Splitter,
+     Kältenebel). Frost Beam, Ice Lances, Ice Shards (wie vorher, eisfarben), neu Frost Nova
+     (Warnzone, dann Splitterringe) und Glacier (Warnzonen, die die Drohne 1,6 s verlangsamen;
+     Dash weicht aus).
+   - HIVE QUEEN: Eier hinterlassen kurzlebige Säurepfützen (max. 12).
+   - Warden und Rift Core passen bereits und bleiben.
+   - Meilensteine: Prism → „Icebreaker“, neu „Quenched“ (Crucible, 175 Splitter). Titel: 5 Bosse.
+
+3) Update ohne Hinweis
+   Der Balken „New version ready / Reload“ ist entfernt. Ablauf: Merge → GitHub Pages → die App
+   lädt die neue Version im Hintergrund; bisher aktivierte erst der Knopf sie. Jetzt wird sie
+   automatisch aktiv, sobald kein Run läuft: beim Start (nächstes Öffnen), beim Zurückkehren ins
+   Menü nach einem Run oder wenn die Seite im Menü verborgen wird. Nie mitten im Run.
+
+4) Tests
+   - Deep test v246: ein Boss pro Biom, Void Core Welle 16–20, Rift Core in Welle 20, Warden in
+     Welle 5, zwei verschiedene mittlere Biome, drittes ab Welle 21, Boss = Biom-Boss bis Welle
+     60, Hülle nach Platz.
+   - world-audit: Void Core in Welle 16–20 und Biom-Boss in jeder Bosswelle (6 Seeds, 40 Wellen).
+   - full-qa qol: kein Update-Balken; Update nie im Run, wohl aber zurück im Menü.
+   - Determinismus-Referenz neu aufgenommen (Verhalten ändert sich absichtlich).
+   - Kampf-Simulation mit Gott-Modus gegen jeden neuen/überarbeiteten Boss: alle Angriffe laufen
+     und enden, keine Fehler; Zeit bis zum Sieg in Welle 10 ähnlich wie Queen/Prism (grober Bot).
+
+Offen:
+   - Balance nur mit einem einfachen Bot geprüft, nicht von Hand gespielt – bitte die Crucible und
+     den Frost Prism einmal selbst spielen.
+
+__RESULTS__
+
+================================================================================
+
 RIFTLINE v2.4.5 – LESBARE NAMEN (UMBAU, SCHRITT 3a)
 Basis: v2.4.4 · Build r245a0927p-r1 · 27.09.2026
 
