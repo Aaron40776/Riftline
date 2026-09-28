@@ -1,10 +1,9 @@
 # Riftline
 
 A 3D arena roguelite shooter. You pilot a small combat drone through 20 waves of the rift, pick
-one upgrade after every wave and fight a boss every fifth wave. After each boss the rift moves on
-to the next biome. After
-the Rift Core at wave 20 you can keep going in Endless mode. Shards from every run, won or lost,
-buy permanent modules in the Workshop.
+one upgrade after every wave and fight a boss every fifth wave, the boss of the biome you are in.
+After each boss the rift moves on to the next biome. After the Rift Core at wave 20 you can keep
+going in Endless mode. Shards from every run, won or lost, buy permanent modules in the Workshop.
 
 The game runs in the browser (desktop and phone) and installs as an offline-capable PWA. It is
 built with three.js and plain JavaScript. There is no framework.
@@ -32,11 +31,11 @@ AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY) mov
 |---|---|
 | Weapons | 7, unlocked with shards: Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher, Ember Jet |
 | Enemies | 25 types with their own models, plus biome champions; enemies and bosses wear a skin of the biome (lava veins, frost, slime, void glow) |
-| Bosses | 4: The Warden (wave 5), Hive Queen (10), Prism (15), Rift Core (20), then repeating in Endless |
-| Biomes | 5, one per boss cycle (waves 1–5 Neon Yard, then the other four in a seeded order). Each has its own floor, props, border, particles, light, music, hazard and enemy mix: Neon Yard (open ground), Ember Works (lava vents, heavy enemies), Cryo Vault (slick floor and ice, shielded/ranged enemies), Toxin Marsh (acid pools and fog, swarms), Void Core (portals over the abyss, teleporters) |
+| Bosses | 5, one per biome: The Warden (Neon Yard), The Crucible (Ember Works), Frost Prism (Cryo Vault), Hive Queen (Toxin Marsh), Rift Core (Void Core); a boss wave brings the boss of its biome, its hull follows the wave (5, 10, 15, 20) |
+| Biomes | 5, one per boss cycle: waves 1–5 Neon Yard, 6–15 two of Ember Works, Cryo Vault and Toxin Marsh in a seeded order, 16–20 Void Core, the third from wave 21 in Endless. Each has its own floor, props, border, particles, light, music, hazard and enemy mix: Neon Yard (open ground), Ember Works (lava vents, heavy enemies), Cryo Vault (slick floor and ice, shielded/ranged enemies), Toxin Marsh (acid pools and fog, swarms), Void Core (portals over the abyss, teleporters) |
 | Upgrades | 72, 13 of them evolutions |
 | Workshop | 18 permanent modules |
-| Milestones | 46 with shard rewards |
+| Milestones | 47 with shard rewards |
 | Threat | Standard and Threat I–V |
 
 ## Commands
