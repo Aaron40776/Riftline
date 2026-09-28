@@ -614,6 +614,17 @@ await section('qol', async L => {
   await P.page.fill('#saveImport', exp); await P.dlg('Restore'); await P.dlg('Restore'); await P.page.waitForTimeout(300);
   const imp = await P.ev(() => ({ swap: window.__riftTest.game.input.swap, hud: document.getElementById('hud').classList.contains('swap') }));
   check(L, 'import applies the imported settings without a reload', imp.swap && imp.hud, JSON.stringify(imp));
+  // 2.4.6: no update bar; a downloaded update is applied only when no run is going on
+  const upd = await P.ev(() => {
+    const g = window.__riftTest.game, hide = () => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); delete document.visibilityState; };
+    const r = { bar: !!document.getElementById('updateBar') };
+    let n = 0;
+    g.startRun({}); g.pendingUpdate = () => n++; hide(); r.inRun = n;
+    g.abandon(); g.goHome(); r.afterRun = n;
+    g.pendingUpdate = () => n++; hide(); r.menuHidden = n;
+    return r;
+  });
+  check(L, 'update: no update bar, never applied during a run, applied back in the menu', !upd.bar && upd.inRun === 0 && upd.afterRun === 1 && upd.menuHidden === 2, JSON.stringify(upd));
   check(L, 'no page errors', !P.errors.length, P.errors.join(' | '));
   await P.close();
 });
