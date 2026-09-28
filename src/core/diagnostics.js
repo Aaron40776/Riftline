@@ -2897,6 +2897,57 @@ rlSelfTest = function () {
   return { ...r, ok: r.ok && fail.length === 0, v250C: { ok: fail.length === 0, fail } };
 };
 
+// 2.5.0 D: biome title card, boss intro card and Codex data. Every biome card names its hazard and
+// its boss; the Codex has one entry per enemy, boss and upgrade, hides unseen ones, reads old saves
+// without Codex keys (defeated bosses, builds in the history and the saved run count as seen) and
+// never throws on broken save data.
+import { rlCodexEntries, rlBiomeCardInfo } from "../ui/ui.js";
+const _rlSelfTest250D = rlSelfTest;
+rlSelfTest = function () {
+  const r = _rlSelfTest250D(),
+    fail = [];
+  try {
+    for (const b of biomeList) {
+      const c = rlBiomeCardInfo(b);
+      if (c.name !== b.name) fail.push("card-name:" + b.id);
+      if (!c.hazard) fail.push("card-hazard:" + b.id);
+      if (!c.boss || c.boss !== (bossDefs[bossByBiome[b.id]] || {}).name) fail.push("card-boss:" + b.id);
+      if (!/^#[0-9a-f]{6}$/.test(c.color)) fail.push("card-color:" + b.id);
+    }
+    const count = (c) => [c.enemies.length, c.bosses.length, c.upgrades.length].join("/"),
+      want = [Object.keys(enemyDefs).length, Object.keys(bossDefs).length, upgradeList.length].join("/"),
+      flat = (c) => [...c.enemies, ...c.bosses, ...c.upgrades];
+    const none = rlCodexEntries({ seen: {} });
+    if (count(none) !== want) fail.push(`codex-count:${count(none)}!=${want}`);
+    if (flat(none).some((e) => e.seen)) fail.push("codex-unseen");
+    const keys = flat(none).map((e) => e.key);
+    if (new Set(keys).size !== keys.length) fail.push("codex-keys");
+    const all = rlCodexEntries({ seen: Object.fromEntries(keys.map((k) => [k, !0])) });
+    for (const e of flat(all)) if (!e.seen || !e.name || !e.desc) fail.push("codex-entry:" + e.key);
+    // an old save: no Codex keys, but a defeated boss, a build in the history and a saved run
+    const old = rlCodexEntries({
+        seen: { tutorial: !0 },
+        stats: { bosses: { warden: 1 } },
+        history: [{ build: [upgradeList[0].id] }],
+        run: { up: { [upgradeList[1].id]: 1 }, offer: [upgradeList[2].id] },
+      }),
+      seenKeys = flat(old)
+        .filter((e) => e.seen)
+        .map((e) => e.key)
+        .sort()
+        .join(),
+      wantKeys = ["boss_warden", ...upgradeList.slice(0, 3).map((u) => "up_" + u.id)].sort().join();
+    if (seenKeys !== wantKeys) fail.push(`codex-old-save:${seenKeys}`);
+    for (const bad of [null, undefined, {}, { seen: null, history: "x", run: 5, stats: { bosses: null } }])
+      rlCodexEntries(bad);
+    for (const m of ["biomeCard", "bossCard", "releaseTitleCard", "clearTitleCard", "renderCodex", "recordsTab", "markSeen"])
+      typeof GameUI.prototype[m] !== "function" && fail.push("ui:" + m);
+  } catch (e) {
+    fail.push("exception:" + (e && e.message));
+  }
+  return { ...r, ok: r.ok && fail.length === 0, v250D: { ok: fail.length === 0, fail } };
+};
+
 export {
   RL_EVENT_KINDS,
   RL_HEALTH,
