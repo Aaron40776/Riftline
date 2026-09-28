@@ -41,8 +41,8 @@ const r = await page.evaluate(() => {
       for (const p of A.portals) for (const [x, y] of [[p.ax, p.ay], [p.bx, p.by]]) if (Eu(A.obs, x, y, 1) || A.outside(x, y, 1)) add('portal-bad', `${b.id} w${wave}`);
       // pickups / caches
       for (const q of w.pickups) { stats.pickups++; if (A.blocked(q.x, q.y, 0.3) || A.outside(q.x, q.y, 0.5)) add('pickup-in-wall', `${b.id} w${wave}`); }
-      // enemy plan: 'from' respected
-      for (const g of w.plan) for (const m of g.members) if (T.Ae[m.type].from > wave) add('enemy-too-early', `${m.type} (from ${T.Ae[m.type].from}) in wave ${wave}`);
+      // enemy plan: 'from' respected (2.5.0 C: a biome's signature enemies from its first wave, World.enemyFrom)
+      for (const g of w.plan) for (const m of g.members) if (w.enemyFrom(m.type, wave) > wave) add('enemy-too-early', `${m.type} (from ${w.enemyFrom(m.type, wave)}) in wave ${wave} ${b.id}`);
       // simulate spawns: run until plan exhausted or 90 s, check marker & enemy positions
       w.god = true; let t = 0;
       const boss = w.bossPending;

@@ -1918,4 +1918,76 @@ Renderer.prototype.frame = function (t, e, n = {}) {
   return _rlFrame241.call(this, t, e, n);
 };
 
+// ---- 2.5.0 C: biome events in the renderer.
+// Whiteout (Cryo Vault): the fog closes in and turns pale, and wind-driven snow blows across the
+// view; it fades in and out over about a second. The extra snow scales with the particle budget
+// of the quality setting, so phones on low quality get less of it.
+// Rift Storm (Void Core): the spots the portals jump to glow ahead of the jump — a shrinking ring
+// in the portal colour and a faint line from the old spot.
+const RL_WHITEOUT_FOG = [0.48, 1.5],
+  RL_WHITEOUT_TINT = new Color(0x55707c),
+  RL_WHITEOUT_SNOW = new Color(0xf2f8ff);
+const _rlFrame250 = Renderer.prototype.frame;
+Renderer.prototype.frame = function (t, e, n = {}) {
+  const want = !n.menu && e && e.event === "whiteout" && e.state === "fight" && e.arena?.biome?.id === "vault" ? 1 : 0;
+  this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 1 : -1) * (t || 0) * 0.9, 0, 1);
+  if (this.rlWhiteK > 0.02 && t > 0 && t < 0.25) {
+    const k = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
+      c = 70 * t * k,
+      m = Math.floor(c) + (Math.random() < c - Math.floor(c) ? 1 : 0),
+      W = e.arena.W,
+      H = e.arena.H;
+    for (let j = 0; j < m; j++)
+      this.emit(
+        clamp(this.camX + (Math.random() * 2 - 1) * 18, -W - 2, W + 2),
+        0.6 + Math.random() * 5,
+        clamp(this.camZ + (Math.random() * 2 - 1) * 14 - 2, -H - 2, H + 2),
+        5 + Math.random() * 3,
+        -1.6 - Math.random(),
+        1.2 + Math.random(),
+        2.2,
+        0.16 + Math.random() * 0.08,
+        RL_WHITEOUT_SNOW,
+        { drag: 0 },
+      );
+  }
+  return _rlFrame250.call(this, t, e, n);
+};
+const _rlSetBiome250 = Renderer.prototype.setBiome;
+Renderer.prototype.setBiome = function (t, e) {
+  _rlSetBiome250.call(this, t, e);
+  const k = this.rlWhiteK || 0;
+  if (!(k > 0) || t.id !== "vault") return;
+  const f = this.scene.fog,
+    a = this.camDistance();
+  ((f.near += (a * RL_WHITEOUT_FOG[0] - f.near) * k),
+    (f.far += (a * RL_WHITEOUT_FOG[1] - f.far) * k),
+    f.color.lerp(RL_WHITEOUT_TINT, 0.8 * k),
+    this.renderer.setClearColor(f.color, 1));
+};
+const _rlDrawFeatures250 = Renderer.prototype.drawFeatures;
+Renderer.prototype.drawFeatures = function (t, e) {
+  _rlDrawFeatures250.call(this, t, e);
+  const s = this.time;
+  for (const q of e.arena.portals) {
+    const nx = q.next;
+    if (!nx) continue;
+    const u = clamp((q.moveIn || 0) / 1.6, 0, 1),
+      blink = 0.45 + (Math.floor(s * 10) % 2) * 0.35;
+    for (const [x, y, ox, oy, col] of [
+      [nx.ax, nx.ay, q.ax, q.ay, hexColor(16732120)],
+      [nx.bx, nx.by, q.bx, q.by, hexColor(8386303)],
+    ]) {
+      const r1 = this.ringPool.y(x, 0.06, y, s * 3, 1.05 + u * 1.3);
+      this.ringPool.colC(r1, col, blink);
+      const r2 = this.ringPool.y(x, 0.05, y, -s * 2, 0.6);
+      this.ringPool.colC(r2, col, 0.5);
+      const d = this.discs.y(x, 0.03, y, 0, 1.05);
+      this.discs.colC(d, col, 0.12 + (1 - u) * 0.2);
+      const l = this.beams.seg(ox, oy, x, y, 0.08, 0.05, 0.05);
+      this.beams.colC(l, col, 0.18 + (1 - u) * 0.2);
+    }
+  }
+};
+
 export { Renderer, hexColor, additiveMaterial };
