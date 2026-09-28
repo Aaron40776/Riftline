@@ -38,7 +38,7 @@ const out = await page.evaluate(() => {
   // workshop
   for (const m of T.ai) { D.sp[m.icon] || bad('icon', `module ${m.id} icon "${m.icon}" missing`); for (let i = 1; i < m.costs.length; i++) m.costs[i] <= m.costs[i - 1] && bad('workshop', `${m.id} costs not increasing`);
     const s1 = T.nr('pulse', {}, { [m.id]: 1 }); const diff = Object.keys(s1).some(k => typeof s1[k] === 'number' && s1[k] !== base[k]);
-    diff || ['reroll', 'nova', 'insight', 'revive', 'salvage', 'fieldSupply', 'droneBay'].includes(m.id) || bad('workshop-noop', `${m.id} changes no stat`); }
+    diff || ['reroll', 'nova', 'insight', 'revive', 'salvage', 'fieldSupply', 'droneBay', 'starterKit'].includes(m.id) || bad('workshop-noop', `${m.id} changes no stat`); }
   dupe(T.ai, m => m.name, 'workshop');
   // milestones
   const fresh = D.zh(); dupe(D._i, m => m.id, 'milestone'); dupe(D._i, m => m.name, 'milestone');

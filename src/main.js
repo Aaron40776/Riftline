@@ -49,6 +49,9 @@ import {
   set_RL_RETIRE_NOTE,
   cleanRun,
   newSave,
+  RL_MODULE_NOTE,
+  set_RL_MODULE_NOTE,
+  rlMigrateModules,
 } from "./core/save.js";
 import { RL_MESH_TYPES } from "./render/models.js";
 import {
@@ -111,12 +114,9 @@ function rlApplyDataFixes() {
   // Drone Bay only works together with the Wingman upgrade. (Field Supply and Route Scanner
   // had the same effect until 2.3.5; their texts now live with their data.)
   const mod = (id) => workshopModules.find((a) => a.id === id);
-  mod("nova").desc = "Every wave starts with at least 25% Nova charge per level"; // floor, not additive
   mod("droneBay").desc = "+1 Wingman slot per level (needs the Wingman upgrade)";
-  // 2.3.4: both add their charge once per level (10 / 5 per level); the text sounded like a flat bonus.
-  mod("riftBattery").desc = "Start each wave with +10% Nova charge per level";
-  mod("reactorCore").desc = "Start each wave with +5% Nova charge per level";
-  // Route Scanner referenced a "map" icon that did not exist (fell back to "info").
+  // 2.5.0 B: Nova Cell's text lives with its data; Rift Battery and Reactor Core were merged into it.
+  // Route Scanner referenced a "map" icon that did not exist (fell back to "info"); Field Supply uses it now.
   iconPaths.map = '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>';
   rlApplyBiomeFixes();
 }
@@ -1454,5 +1454,37 @@ window.__riftTest = {
     };
   },
 };
+
+/* ==========================================================================
+   2.5.0 B: workshop merge notice and the events of the new modules
+   ========================================================================== */
+// Say once that merged workshop modules were refunded (after start-up, or after importing an old
+// save). Saving right away stores the converted save, so the notice does not come back.
+function rlModuleToast() {
+  const q = RL_MODULE_NOTE;
+  if (!q || !q.names.length) return;
+  set_RL_MODULE_NOTE(null);
+  ui.toast(
+    `Workshop update: ${q.names.join(", ")} ${q.names.length > 1 ? "were" : "was"} merged into ${q.into.join(" and ")}. All ${q.names.length > 1 ? "their" : "its"} levels refunded: +${formatCount(q.refund)} shards.`,
+    "good",
+    9000,
+  );
+  store.save("modules");
+}
+setTimeout(rlModuleToast, 1100);
+store.onChange((json, why) => {
+  why === "import" && RL_MODULE_NOTE && setTimeout(rlModuleToast, 300);
+});
+{
+  const baseEvents = handleWorldEvents;
+  handleWorldEvents = function (w) {
+    for (const t of w.fx)
+      t.k === "kit"
+        ? ui.toast(`STARTER KIT · ${t.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good", 3200)
+        : t.k === "barrier" && ui.banner("EMERGENCY SHIELD", "Hull critical — barrier up", "good", 1400);
+    return baseEvents(w);
+  };
+}
+window.__riftTest.v250B = { migrateModules: rlMigrateModules };
 
 export { ui, store, game, safeAreaInsets, input, renderer };

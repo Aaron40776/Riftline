@@ -8,7 +8,7 @@ const r = await page.evaluate(() => {
   const T = window.__riftTest, issues = {}, cnt = {}, add = (k, m) => { (issues[k] ||= []).length < 6 && issues[k].push(m); cnt[k] = (cnt[k] || 0) + 1; };
   const Eu = T.Eu, stats = { waves: 0, spawns: 0, pickups: 0, bosses: 0 };
   for (const seed of [1, 2, 3, 4, 5, 6]) {
-    const w = new T.Aa({ seed, weapon: 'pulse', threat: seed % 6, ws: { fieldSupply: 3, routeScanner: 3 } });
+    const w = new T.Aa({ seed, weapon: 'pulse', threat: seed % 6, ws: { fieldSupply: 3 } });
     const seen = new Set();
     for (let wave = 1; wave <= 40; wave++) {
       if (wave > 1) w.startWave(wave);

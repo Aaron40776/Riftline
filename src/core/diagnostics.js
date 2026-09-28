@@ -3,7 +3,16 @@
 
 import { GameUI, RL_TOUCH_CLICK_GUARD } from "../ui/ui.js";
 import { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices, SoundEngine } from "../audio/sound.js";
-import { RL_RETIRE_NOTE, SAVE_KEY, rlMigrateRetired, set_RL_RETIRE_NOTE, cleanRun } from "./save.js";
+import {
+  RL_RETIRE_NOTE,
+  SAVE_KEY,
+  rlMigrateRetired,
+  set_RL_RETIRE_NOTE,
+  cleanRun,
+  RL_MODULE_NOTE,
+  rlMigrateModules,
+  set_RL_MODULE_NOTE,
+} from "./save.js";
 import { RL_MESH_TYPES } from "../render/models.js";
 import { enemyDefs, bossOrder, RL_ENEMY_TIPS, biomeVariants, bossDefs, bossByWave, bossByBiome } from "../data/enemies.js";
 import { ui, store, game, safeAreaInsets, input, renderer } from "../main.js";
@@ -13,7 +22,7 @@ import { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, biomeList } from "../data/b
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
 import { waveEvents, planWave, set_RL_BIOME_MIX_CUR } from "./waves.js";
 import { World } from "./world.js";
-import { threatMods, workshopModules, modulesById } from "../data/progression.js";
+import { threatMods, workshopModules, modulesById, RL_RETIRED_MODULES } from "../data/progression.js";
 import { upgradeList, upgradesById } from "../data/upgrades.js";
 import { hitsObstacle, buildLayout, isConnected } from "./arena.js";
 import { computeStats } from "./stats.js";
@@ -2301,7 +2310,8 @@ rlSelfTest = function () {
     ].every((k) => upgrades.includes(k))
   )
     fail.push("missing-v22-upgrade");
-  if (!["routeScanner", "reactorCore"].every((k) => modules.includes(k))) fail.push("missing-v22-workshop");
+  // 2.5.0 B: Route Scanner and Reactor Core were merged into Field Supply and Nova Cell
+  if (!["fieldSupply", "nova"].every((k) => modules.includes(k))) fail.push("missing-v22-workshop");
   // 2.4.0: every selectable weapon (the 2.2 weapons are gone)
   for (const id of weaponOrder) {
     const w = new World({ seed: 0x2200 + id.length, weapon: id, threat: 0, ws: {} });
@@ -2587,4 +2597,93 @@ export {
   getErrorLog,
   buildReport,
   logError,
+};
+
+/* ==========================================================================
+   2.5.0 B: workshop merge (refund migration) and the three new modules
+   ========================================================================== */
+RL_EVENT_KINDS.add("kit");
+RL_EVENT_KINDS.add("barrier");
+const _rlSelfTest250B = rlSelfTest;
+rlSelfTest = function () {
+  const r = _rlSelfTest250B(),
+    fail = [],
+    ids = workshopModules.map((m) => m.id);
+  for (const id of Object.keys(RL_RETIRED_MODULES)) {
+    if (ids.includes(id) || modulesById[id]) fail.push("retired-listed:" + id);
+    if (!modulesById[RL_RETIRED_MODULES[id].to]) fail.push("retired-target:" + id);
+  }
+  for (const id of ["nova", "fieldSupply", "starterKit", "hazardAttune", "emergencyShield"])
+    modulesById[id] || fail.push("module-missing:" + id);
+  // old save: every bought level of a removed module is refunded at full price, kept modules keep
+  // their levels, over-range levels are capped, the run is left alone; a second pass changes nothing
+  const note = RL_MODULE_NOTE,
+    run = { v: 1, weapon: "pulse", wave: 7, hp: 50 },
+    raw = {
+      shards: 50,
+      workshop: { nova: 2, fieldSupply: 1, hull: 3, riftBattery: 2, reactorCore: 9, routeScanner: 1 },
+      run,
+    },
+    m = rlMigrateModules(raw);
+  const want = 50 + 260 + 540 + (1600 + 3400 + 6200) + 1800;
+  if (
+    m.shards !== want ||
+    m.workshop.nova !== 2 ||
+    m.workshop.fieldSupply !== 1 ||
+    m.workshop.hull !== 3 ||
+    "riftBattery" in m.workshop ||
+    "reactorCore" in m.workshop ||
+    "routeScanner" in m.workshop ||
+    m.run !== run ||
+    raw.workshop.riftBattery !== 2 ||
+    !RL_MODULE_NOTE ||
+    RL_MODULE_NOTE.refund !== want - 50 ||
+    RL_MODULE_NOTE.names.length !== 3
+  )
+    fail.push("migrate:" + JSON.stringify({ m, note: RL_MODULE_NOTE }));
+  set_RL_MODULE_NOTE(null);
+  if (rlMigrateModules(m) !== m || RL_MODULE_NOTE) fail.push("migrate-twice");
+  const zero = rlMigrateModules({ shards: 5, workshop: { routeScanner: 0 } });
+  if (zero.shards !== 5 || "routeScanner" in zero.workshop || RL_MODULE_NOTE) fail.push("migrate-zero");
+  set_RL_MODULE_NOTE(note);
+  // a saved run with the kept Nova Cell level resumes (no kit on resume)
+  const snap = cleanRun({ v: 1, seed: 9, weapon: "pulse", wave: 7, hp: 60, nova: 10, up: { dmg: 1 } }),
+    resumed = snap && new World({ snap, ws: { nova: 2, starterKit: 3 } });
+  if (!resumed || resumed.wave !== 7 || resumed.up.dmg !== 1 || Object.keys(resumed.up).length !== 1)
+    fail.push("resume");
+  // Starter Kit: one distinct common upgrade per level on a new run
+  const kit = new World({ seed: 0x250b, weapon: "pulse", threat: 0, ws: { starterKit: 3 } }),
+    kitIds = Object.keys(kit.up);
+  if (kitIds.length !== 3 || !kitIds.every((id) => upgradesById[id].rarity === 1 && kit.up[id] === 1))
+    fail.push("kit:" + kitIds.join(","));
+  if (Math.round(kit.player.hp) !== Math.round(kit.stats.maxHp)) fail.push("kit-hp");
+  if (Object.keys(new World({ seed: 0x250b, weapon: "pulse", threat: 0, ws: {} }).up).length) fail.push("kit-free");
+  // Hazard Attunement: close to a pool (edge within 2 m) raises damage and repair only while there
+  const at = new World({ seed: 0x250c, weapon: "pulse", threat: 0, ws: { hazardAttune: 2 } });
+  at.startWave(2);
+  at.hold = !0;
+  const d0 = at.stats.dmgMul;
+  at.arena.acid.push({ x: at.player.x + 3.2, y: at.player.y, r: 1.5 });
+  at.step(1 / 60, {});
+  const on = at.attuned;
+  at.arena.acid.pop();
+  at.step(1 / 60, {});
+  if (!on || at.attuned || at.stats.dmgMul !== d0) fail.push("attune");
+  // Emergency Shield: once per wave below 30% hull, blocks damage while up, ready again next wave
+  const es = new World({ seed: 0x250d, weapon: "pulse", threat: 0, ws: { emergencyShield: 1 } }),
+    p = es.player;
+  es.state = "fight";
+  p.iT = 0;
+  p.shield = !1;
+  es.hurtPlayer(p.hp - 20, null, null, "grunt", !0);
+  const healed = p.hp,
+    blocked = es.hurtPlayer(5, null, null, "grunt", !0) === !1;
+  es.barrierT = 0;
+  const hpNow = p.hp;
+  es.hurtPlayer(2, null, null, "grunt", !0);
+  if (healed !== 20 + Math.round(es.stats.maxHp * 0.08) || !blocked || p.hp !== hpNow - 2 || !es.barrierUsed)
+    fail.push("barrier:" + [healed, blocked, hpNow, p.hp]);
+  es.startWave(2);
+  if (es.barrierUsed) fail.push("barrier-wave");
+  return { ...r, ok: r.ok && fail.length === 0, v250B: { ok: fail.length === 0, fail } };
 };

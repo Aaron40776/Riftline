@@ -857,6 +857,9 @@ var getById = (i) => document.getElementById(i),
       (n.bloodrush && e.rushN > 0 && s.push(["rush", `RUSH \xD7${e.rushN}`, "#ff5a7a", e.rushT / 4]),
         t.chronoT > 0 && s.push(["chrono", "SLOW-MO", "#8fe8ff", t.chronoT / 2]),
         (t.ws.revive || 0) > 0 && !t.revived && s.push(["life", "2ND LIFE", "#6dff8a", -1]),
+        // 2.5.0 B: Emergency Shield barrier and Hazard Attunement
+        t.barrierT > 0 && s.push(["barrier", "BARRIER", "#7fd8ff", t.barrierT / Math.max(1, n.barrierT || 1)]),
+        t.attuned && t.state === "fight" && s.push(["attune", "ATTUNED", "#ffb86b", -1]),
         t.event &&
           t.state === "fight" &&
           s.unshift(["event", waveEvents[t.event].name, t.event === "elite" ? "#ffc84a" : "#7ff6ff", -1]),
