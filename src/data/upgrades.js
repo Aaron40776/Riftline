@@ -1,16 +1,18 @@
 // Run upgrades and evolutions, offer weights.
 
 var rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution"];
+// 2.5.0 A: 19 upgrades that were weaker copies of another one are gone (RL_RETIRED_UPGRADES at the
+// end says where each went); the upgrade that took them over has a higher max.
 var upgradeList = [
-  { id: "dmg", name: "High-Yield Rounds", rarity: 1, max: 8, icon: "burst", desc: () => "+15% damage" },
-  { id: "rate", name: "Rapid Cycler", rarity: 1, max: 8, icon: "rate", desc: () => "+12% fire rate" },
-  { id: "hp", name: "Reinforced Hull", rarity: 1, max: 6, icon: "shield", desc: () => "+20 max HP and repair 20" },
-  { id: "speed", name: "Servo Thrusters", rarity: 1, max: 4, icon: "wing", desc: () => "+8% move speed" },
+  { id: "dmg", name: "High-Yield Rounds", rarity: 1, max: 12, icon: "burst", desc: () => "+15% damage" },
+  { id: "rate", name: "Rapid Cycler", rarity: 1, max: 10, icon: "rate", desc: () => "+12% fire rate" },
+  { id: "hp", name: "Reinforced Hull", rarity: 1, max: 10, icon: "shield", desc: () => "+20 max HP and repair 20" },
+  { id: "speed", name: "Servo Thrusters", rarity: 1, max: 6, icon: "wing", desc: () => "+8% move speed" },
   {
     id: "velocity",
     name: "Long Barrel",
     rarity: 1,
-    max: 4,
+    max: 6,
     icon: "arrow",
     desc: () => "+20% projectile speed and range",
   },
@@ -19,9 +21,9 @@ var upgradeList = [
     id: "crit",
     name: "Targeting Chip",
     rarity: 1,
-    max: 5,
+    max: 8,
     icon: "crosshair",
-    desc: () => "+8% critical hit chance (x2 damage)",
+    desc: () => "+8% critical hit chance (x2 damage) and +5% range",
   },
   {
     id: "heal",
@@ -69,7 +71,7 @@ var upgradeList = [
     id: "regen",
     name: "Nanite Swarm",
     rarity: 2,
-    max: 3,
+    max: 5,
     icon: "heart",
     desc: (i) => `Regenerate ${(0.8 * (i + 1)).toFixed(1)} HP per second`,
   },
@@ -93,7 +95,7 @@ var upgradeList = [
     id: "payload",
     name: "Payload",
     rarity: 3,
-    max: 3,
+    max: 5,
     icon: "burst",
     desc: (i) => `Hits explode for ${40 + 15 * i}% damage around the target`,
   },
@@ -125,7 +127,7 @@ var upgradeList = [
     id: "siphon",
     name: "Siphon",
     rarity: 3,
-    max: 2,
+    max: 4,
     icon: "heart",
     desc: (i) => `Kills have a ${12 + 6 * i}% chance to repair 4 HP`,
   },
@@ -141,17 +143,9 @@ var upgradeList = [
     id: "overcharge",
     name: "Overcharge",
     rarity: 3,
-    max: 2,
+    max: 4,
     icon: "star",
-    desc: () => "Nova charges 40% faster, +25% radius",
-  },
-  {
-    id: "overclock",
-    name: "Overclock Matrix",
-    rarity: 2,
-    max: 3,
-    icon: "rate",
-    desc: (l, i = l + 1) => `+${8 * i}% fire rate and +${5 * i}% projectile speed`,
+    desc: (i) => `Nova charges 40% faster, +${i < 2 ? 25 : 10}% radius`,
   },
   {
     id: "wingman",
@@ -218,20 +212,12 @@ var upgradeList = [
     desc: (i) => `-${18 * (i + 1)}% incoming damage below 35% hull`,
   },
   {
-    id: "scavenger",
-    name: "Salvage Pulse",
-    rarity: 2,
-    max: 3,
-    icon: "magnet",
-    desc: (i) => `Every ${30 - 5 * (i + 1)} kills releases +${2 * (i + 1)} bonus shards`,
-  },
-  {
     id: "vector",
     name: "Vector Capacitor",
     rarity: 2,
-    max: 3,
+    max: 6,
     icon: "arrow",
-    desc: (i) => `-${8 * (i + 1)}% dash cooldown`,
+    desc: (i) => `-${8 * (i + 1)}% dash and Aegis cooldown`,
   },
   {
     id: "halo",
@@ -362,15 +348,6 @@ var upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
 var rarityWeights = [0, 60, 28, 10, 2],
   bossRarityWeights = [0, 0, 42, 44, 14];
 upgradeList.push(
-  { id: "caliber", name: "Overbore Caliber", rarity: 1, max: 5, icon: "burst", desc: () => "+10% damage" },
-  {
-    id: "stabilizer",
-    name: "Vector Stabilizer",
-    rarity: 1,
-    max: 4,
-    icon: "arrow",
-    desc: () => "+12% projectile speed and range",
-  },
   {
     id: "glasscore",
     name: "Glass Core",
@@ -379,7 +356,6 @@ upgradeList.push(
     icon: "star",
     desc: () => "+8% damage and +4% crit, but -5% max HP",
   },
-  { id: "aether", name: "Aether Capacitor", rarity: 2, max: 3, icon: "star", desc: () => "+15% Nova gain" },
   {
     id: "hunter",
     name: "Apex Hunter",
@@ -392,17 +368,9 @@ upgradeList.push(
     id: "supply",
     name: "Supply Loop",
     rarity: 2,
-    max: 4,
+    max: 6,
     icon: "shard",
-    desc: () => "Every 12 kills drop bonus shards",
-  },
-  {
-    id: "coolant",
-    name: "Cryo Coolant",
-    rarity: 2,
-    max: 3,
-    icon: "snow",
-    desc: () => "-12% dash and shield cooldowns",
+    desc: (i) => `Every 12 kills drop ${2 * (i + 1)} bonus shards`,
   },
 );
 upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
@@ -416,37 +384,20 @@ upgradeList.push(
     desc: (l, i = l + 1) => `Every 6th shot releases a close-range burst (${24 + 8 * i} damage)`,
   },
   {
-    id: "focus",
-    name: "Dead Focus",
-    rarity: 1,
-    max: 5,
-    icon: "crosshair",
-    desc: (l, i = l + 1) => `+${4 * i}% crit chance and +${10 * i}% range`,
-  },
-  {
     id: "resonance",
     name: "Resonance",
     rarity: 3,
-    max: 3,
+    max: 5,
     icon: "bolt",
-    desc: (l, i = l + 1) => `+${8 * i}% chain chance and +${i} chain jump`,
-  },
-  { id: "fortify", name: "Fortify", rarity: 1, max: 5, icon: "shield", desc: (l, i = l + 1) => `+${15 * i} max HP` },
-  {
-    id: "leech",
-    name: "Nanite Leech",
-    rarity: 3,
-    max: 2,
-    icon: "heart",
-    desc: (l, i = l + 1) => `${8 * i}% kill chance to repair 2 HP`,
+    desc: (l, i = l + 1) => `+${8 * i}% chain chance and +${i} chain jump${i > 1 ? "s" : ""}`,
   },
   {
     id: "hazmat",
     name: "Hazmat",
     rarity: 2,
-    max: 3,
+    max: 4,
     icon: "shield",
-    desc: (l, i = l + 1) => `-${25 * i}% feature hazard damage`,
+    desc: (l, i = l + 1) => `-${Math.min(88, 25 * i)}% hazard damage (lava, acid)`,
   },
   {
     id: "echo",
@@ -456,63 +407,110 @@ upgradeList.push(
     icon: "rate",
     desc: (l, i = l + 1) => `${8 * i}% chance for a shot to repeat`,
   },
-  {
-    id: "scavengerNet",
-    name: "Scavenger Net",
-    rarity: 2,
-    max: 3,
-    icon: "shard",
-    desc: (l, i = l + 1) => `Supply caches gain +${i} bonus value tier`,
-  },
 );
 upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
 upgradeList.push(
-  { id: "kinetic", name: "Kinetic Matrix", rarity: 1, max: 4, icon: "burst", desc: () => "+8% damage" },
-  {
-    id: "deadeye",
-    name: "Deadeye Lens",
-    rarity: 2,
-    max: 4,
-    icon: "crosshair",
-    desc: () => "+3% crit and +5% targeting range",
-  },
-  { id: "thruster", name: "Vector Thrusters", rarity: 1, max: 4, icon: "wing", desc: () => "+5% move speed" },
-  {
-    id: "nanorepair",
-    name: "Nanorepair Gel",
-    rarity: 2,
-    max: 3,
-    icon: "heart",
-    desc: (i) => `+${(0.55 * (i + 1)).toFixed(2)} HP/s regeneration`,
-  },
   {
     id: "salvager",
     name: "Salvager Core",
     rarity: 2,
-    max: 3,
+    max: 5,
     icon: "shard",
-    desc: () => "Find +1 extra supply cache",
-  },
-  { id: "phasecoat", name: "Phasecoat", rarity: 2, max: 3, icon: "shield", desc: () => "-8% map hazard damage" },
-  { id: "flux", name: "Flux Capacitor", rarity: 2, max: 4, icon: "star", desc: () => "+8% Nova gain" },
-  {
-    id: "payloadMatrix",
-    name: "Payload Matrix",
-    rarity: 3,
-    max: 3,
-    icon: "burst",
-    desc: () => "Larger and stronger explosion radius",
-  },
-  { id: "chainlink", name: "Chain Link", rarity: 2, max: 3, icon: "bolt", desc: () => "+1 chain jump" },
-  {
-    id: "afterburner",
-    name: "Afterburner",
-    rarity: 3,
-    max: 3,
-    icon: "wing",
-    desc: () => "-6% dash and shield cooldowns",
+    desc: () => "+1 supply cache per wave, and caches hold more shards",
   },
 );
 upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
 
-export { rarityWeights, bossRarityWeights, upgradeList, rarityNames, upgradesById };
+// 2.5.0 A: six upgrades with a mechanic of their own (World hooks at the end of core/world.js).
+// Cryo Skates and Acid Coating pay off most in their biome, Heat Sink wherever there is a hazard.
+upgradeList.push(
+  {
+    id: "skates",
+    name: "Cryo Skates",
+    rarity: 2,
+    max: 2,
+    icon: "snow",
+    desc: (l, i = l + 1) =>
+      `+${4 * i}% speed. On ice or in Cryo Vault: +${15 * i}% more, and dash recharges ${35 * i}% faster`,
+  },
+  {
+    id: "acidcoat",
+    name: "Acid Coating",
+    rarity: 3,
+    max: 2,
+    icon: "skull",
+    desc: (l, i = l + 1) =>
+      `${15 * i}% of hits leave acid for 3 s (enemies in it take +25% damage). Bigger in Toxin Marsh`,
+  },
+  {
+    id: "heatsink",
+    name: "Heat Sink",
+    rarity: 2,
+    max: 2,
+    icon: "flame",
+    desc: (l, i = l + 1) =>
+      `Lava, acid or an erupting vent nearby: +${25 * i}% fire rate for 3 s and Nova charge`,
+  },
+  {
+    id: "slipstream",
+    name: "Slipstream",
+    rarity: 3,
+    max: 2,
+    icon: "dash",
+    desc: (l, i = l + 1) => `After a dash, your shots deal +${25 * i}% damage for 1.2 s`,
+  },
+  {
+    id: "surge",
+    name: "Combo Surge",
+    rarity: 3,
+    max: 2,
+    icon: "star",
+    desc: (l) =>
+      `Combos last ${l ? 1 : 0.5} s longer. Every ${l ? 12 : 15} combo kills: a shockwave (${l ? 60 : 40} damage)`,
+  },
+  {
+    id: "reactive",
+    name: "Reactive Plating",
+    rarity: 2,
+    max: 2,
+    icon: "shield",
+    desc: (l, i = l + 1) =>
+      `Getting hit releases a repulse wave (${20 + 15 * l} damage) that clears nearby shots. -${8 * i}% fire rate`,
+  },
+);
+upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
+
+// 2.5.0 A: where the retired upgrades went. A saved run converts its levels with `k` (their value
+// in levels of the new one, rounded up, capped at its max); an offer gets the new upgrade instead.
+var RL_RETIRED_UPGRADES = {
+  caliber: { to: "dmg", k: 0.67 },
+  kinetic: { to: "dmg", k: 0.54 },
+  overclock: { to: "rate", k: 0.67 },
+  fortify: { to: "hp", k: 0.75 },
+  thruster: { to: "speed", k: 0.63 },
+  stabilizer: { to: "velocity", k: 0.6 },
+  focus: { to: "crit", k: 0.5 },
+  deadeye: { to: "crit", k: 0.38 },
+  nanorepair: { to: "regen", k: 0.69 },
+  leech: { to: "siphon", k: 0.5 },
+  aether: { to: "overcharge", k: 0.38 },
+  flux: { to: "overcharge", k: 0.2 },
+  afterburner: { to: "vector", k: 0.75 },
+  coolant: { to: "vector", k: 1.5 },
+  phasecoat: { to: "hazmat", k: 0.32 },
+  chainlink: { to: "resonance", k: 1 },
+  payloadMatrix: { to: "payload", k: 1 },
+  scavenger: { to: "supply", k: 1 },
+  scavengerNet: { to: "salvager", k: 1 },
+};
+var rlRetiredUpgrade = (id) => (Object.hasOwn(RL_RETIRED_UPGRADES, id) ? RL_RETIRED_UPGRADES[id] : null);
+
+export {
+  rarityWeights,
+  bossRarityWeights,
+  upgradeList,
+  rarityNames,
+  upgradesById,
+  RL_RETIRED_UPGRADES,
+  rlRetiredUpgrade,
+};

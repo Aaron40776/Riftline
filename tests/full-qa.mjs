@@ -655,6 +655,62 @@ await section('buttons', async L => {
   await P.close();
 });
 
+/* ======================= 2.5.0 A: upgrades (retired copies, new mechanics) ======================= */
+await section('upgrades250A', async L => {
+  // a save from 2.4 with a run saved mid-way: retired upgrades in the build and in the pending offer
+  const old = { v: 1, game: 'riftline', shards: 500, weapon: 'pulse', weapons: { pulse: true }, seen: { tutorial: true },
+    history: [{ t: 1, weapon: 'pulse', threat: 0, wave: 9, outcome: 'dead', build: ['caliber', 'fortify', 'dmg'] }],
+    run: { v: 1, seed: 250250, weapon: 'pulse', threat: 0, wave: 6, hp: 80, shards: 40, kills: 100, time: 300, rerolls: 1, nova: 20,
+      up: { caliber: 3, kinetic: 2, dmg: 2, fortify: 5, hp: 6, coolant: 3, afterburner: 3, scavenger: 2, focus: 1, payloadMatrix: 2, payload: 1, chainlink: 1 },
+      offer: ['fortify', 'flux', 'crit'], offerBoss: false } };
+  for (const prof of ['desktop', 'phone']) {
+    const P = await open(prof, { save: JSON.stringify(old) }); await P.boot();
+    const d = await P.ev(() => { const s = window.__riftTest.store.data; return { up: s.run && s.run.up, offer: s.run && s.run.offer, build: s.history[0] && s.history[0].build }; });
+    const want = { dmg: 6, hp: 10, vector: 6, supply: 2, crit: 1, payload: 3, resonance: 1 };
+    check(L, `${prof}: retired upgrade levels became levels of the upgrade that took them over`, d.up && Object.keys(d.up).length === 7 && Object.entries(want).every(([k, v]) => d.up[k] === v), JSON.stringify(d.up));
+    check(L, `${prof}: retired ids in the pending offer were replaced`, JSON.stringify(d.offer) === '["dmg","overcharge","crit"]', JSON.stringify(d.offer));
+    check(L, `${prof}: run history shows the new upgrade names`, JSON.stringify(d.build) === '["dmg","hp"]', JSON.stringify(d.build));
+    await P.tap('#continueBtn'); await P.page.waitForTimeout(1200);
+    const r = await P.ev(() => { const w = window.__riftTest.game.world; return w && { wave: w.wave, choose: !document.getElementById('choose').hidden, cards: [...document.querySelectorAll('#cards [data-pick]')].map(c => c.dataset.pick).join(','), maxHp: w.stats.maxHp }; });
+    check(L, `${prof}: continue shows the converted offer`, r && r.choose && r.wave === 6 && r.cards === 'dmg,overcharge,crit' && r.maxHp === 300, JSON.stringify(r));
+    await P.page.waitForFunction(() => !document.getElementById('cards').classList.contains('locked'), null, { timeout: 5000 });
+    await P.tap('#cards [data-pick="overcharge"]');
+    await P.ev(() => { window.__riftTest.game.world.god = true; });
+    await P.page.waitForTimeout(3000);
+    const g = await P.ev(() => { const w = window.__riftTest.game.world; return { wave: w.wave, state: w.state, oc: w.up.overcharge, hp: w.player.hp }; });
+    check(L, `${prof}: the migrated run plays on`, g.wave === 7 && g.state === 'fight' && g.oc === 1 && Number.isFinite(g.hp), JSON.stringify(g));
+    // the six new upgrades as cards: readable, nothing clipped (4 cards with Insight)
+    for (const [i, offer] of [['skates', 'acidcoat', 'heatsink', 'surge'], ['slipstream', 'surge', 'reactive']].entries()) {
+      // clear and run the simulation to the choice (splitters leave mites; a busy machine renders slowly)
+      await P.ev(CLEAR);
+      await P.ev(() => { const w = window.__riftTest.game.world; for (let k = 0; k < 900 && w.state !== 'choose'; k++) { for (const e of [...w.enemies]) w.killEnemy(e); w.step(1 / 60, {}); } });
+      await P.page.waitForFunction(() => !document.getElementById('choose').hidden, null, { timeout: 30000 });
+      await P.ev(o => { const T = window.__riftTest, w = T.game.world; w.offer = o; T.ui.renderCards(w); }, offer);
+      await P.page.waitForTimeout(900);
+      const c = await P.ev(() => { const cards = [...document.querySelectorAll('#cards .card')]; return { n: cards.length, clipped: cards.filter(x => x.scrollHeight > x.clientHeight + 1 || x.scrollWidth > x.clientWidth + 1).map(x => x.dataset.pick), off: cards.filter(x => { const b = x.getBoundingClientRect(); return b.left < 0 || b.right > innerWidth; }).map(x => x.dataset.pick), text: cards.map(x => x.querySelector('p').textContent) }; });
+      await P.page.screenshot({ path: new URL(`./shots/upgrades250A-${prof}-${i + 1}.png`, import.meta.url).pathname });
+      check(L, `${prof}: new upgrade cards ${offer.join(', ')} fit`, c.n === offer.length && !c.clipped.length && !c.off.length && c.text.every(t => t.length > 20 && !/NaN|undefined/.test(t)), JSON.stringify(c));
+      await P.page.waitForFunction(() => !document.getElementById('cards').classList.contains('locked'), null, { timeout: 5000 });
+      await P.tap('#cards .card');
+      await P.page.waitForTimeout(400);
+    }
+    // all six at once in a live wave: the timed ones show a HUD chip, nothing throws
+    const live = await P.ev(async () => {
+      const T = window.__riftTest, w = T.game.world;
+      Object.assign(w.up, { skates: 2, acidcoat: 2, heatsink: 2, slipstream: 2, surge: 2, reactive: 2 });
+      w.stats = T.nr(w.weapon, w.up, w.ws);
+      w.god = true; w.player.heatT = 3; w.player.slipT = 1.3;
+      await new Promise(r => setTimeout(r, 400));
+      const chips = [...document.querySelectorAll('#buffs [data-b]')].map(b => b.dataset.b);
+      await new Promise(r => setTimeout(r, 2500));
+      return { chips, state: w.state, finite: [w.player.x, w.player.y, w.player.nova].every(Number.isFinite) };
+    });
+    check(L, `${prof}: Heat Sink and Slipstream show a HUD chip, the wave keeps running`, live.chips.includes('heat') && live.chips.includes('slip') && live.finite, JSON.stringify(live));
+    check(L, `${prof}: no page errors`, !P.errors.length, P.errors.join(' | '));
+    await P.close();
+  }
+});
+
 await browser.close();
 console.log(out.join('\n'));
 console.log(`\nFULL QA: ${fails ? fails + ' FAIL' : 'all checks passed'}`);

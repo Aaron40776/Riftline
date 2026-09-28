@@ -6,7 +6,7 @@ import { bossOrder } from "../data/enemies.js";
 import { store } from "../main.js";
 import { weaponDefs } from "../data/weapons.js";
 import { RL_RETIRED_WEAPONS, milestones, workshopModules, rlRetired } from "../data/progression.js";
-import { upgradeList, upgradesById } from "../data/upgrades.js";
+import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
  save existed). Retry without the unfinished run, then fall back to a fresh
@@ -370,7 +370,68 @@ var safeStorage = {
     }
   };
 
+// 2.5.0 A: a run saved with retired upgrades (RL_RETIRED_UPGRADES in data/upgrades.js) keeps their
+// value: the levels become levels of the upgrade that took them over (rounded up, capped at its
+// max), and a retired id in a pending offer becomes that upgrade, or another one of its rarity
+// when it is already offered or maxed. Returns the input untouched when there is nothing to
+// convert; never mutates it.
+function rlMigrateUpgrades(run) {
+  if (!run || typeof run !== "object" || Array.isArray(run)) return run;
+  const up = run.up && typeof run.up === "object" && !Array.isArray(run.up) ? run.up : {},
+    offer = Array.isArray(run.offer) ? run.offer : [],
+    oldUp = Object.keys(up).filter((id) => rlRetiredUpgrade(id)),
+    oldOffer = offer.filter((id) => typeof id === "string" && rlRetiredUpgrade(id));
+  if (!oldUp.length && !oldOffer.length) return run;
+  const out = { ...run },
+    next = { ...up },
+    add = {};
+  for (const id of oldUp) {
+    const r = rlRetiredUpgrade(id),
+      lv = Number.isFinite(up[id]) ? Math.max(0, Math.floor(up[id])) : 0;
+    delete next[id];
+    if (lv) add[r.to] = (add[r.to] || 0) + lv * r.k;
+  }
+  for (const [id, v] of Object.entries(add)) {
+    const cur = Number.isFinite(next[id]) ? Math.max(0, Math.floor(next[id])) : 0;
+    next[id] = Math.min(upgradesById[id].max, cur + Math.ceil(v - 1e-9));
+  }
+  if (oldUp.length) out.up = next;
+  if (oldOffer.length) {
+    const kept = offer.filter((id) => typeof id === "string" && upgradesById[id]),
+      picked = [],
+      free = (d) =>
+        d && !d.evo && !d.repeat && (next[d.id] || 0) < d.max && !kept.includes(d.id) && !picked.includes(d.id);
+    for (const id of offer) {
+      if (!rlRetiredUpgrade(id)) {
+        typeof id === "string" && upgradesById[id] && picked.push(id);
+        continue;
+      }
+      const to = upgradesById[rlRetiredUpgrade(id).to],
+        rarity = run.offerBoss ? Math.max(2, to.rarity) : to.rarity,
+        d = to.rarity === rarity && free(to) ? to : upgradeList.find((u) => u.rarity === rarity && free(u));
+      d && picked.push(d.id);
+    }
+    out.offer = picked;
+  }
+  return out;
+}
+const _rlCleanRun250A = cleanRun;
+cleanRun = function (raw) {
+  return _rlCleanRun250A(rlMigrateUpgrades(raw));
+};
+// Run history: a retired upgrade in a build is shown as the upgrade that took it over.
+const _rlSanitizeHistory250A = rlSanitizeHistory;
+rlSanitizeHistory = function (h) {
+  if (!Array.isArray(h)) return _rlSanitizeHistory250A(h);
+  const map = (q) =>
+    q && typeof q === "object" && Array.isArray(q.build) && q.build.some((id) => rlRetiredUpgrade(id))
+      ? { ...q, build: [...new Set(q.build.map((id) => rlRetiredUpgrade(id)?.to || id))] }
+      : q;
+  return _rlSanitizeHistory250A(h.map(map));
+};
+
 export {
+  rlMigrateUpgrades,
   defaultSettings,
   RL_RETIRE_NOTE,
   SaveStore,

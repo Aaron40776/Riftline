@@ -1926,4 +1926,159 @@ World.prototype.startWave = function (wave, nova) {
   };
 })();
 
+// 2.5.0 A: the six new run upgrades (levels from computeStats: skates, acidCoat, heatSink, slip,
+// surge, reactive). Each hook does nothing without its upgrade.
+const RL_SLIP_TIME = 1.2,
+  RL_HEAT_TIME = 3,
+  RL_COAT_MAX = 6;
+(() => {
+  const baseStep = World.prototype.step,
+    baseFire = World.prototype.fire,
+    baseHurt = World.prototype.hurtPlayer,
+    baseHit = World.prototype.bulletHit,
+    baseCombo = World.prototype.addCombo,
+    baseFeatures = World.prototype.updateFeatures;
+  World.prototype.step = function (dt, input) {
+    const st = this.stats,
+      p = this.player;
+    if (!(st.skates || st.heatSink || st.slip)) return baseStep.call(this, dt, input);
+    const fight = this.state === "fight" && p.alive,
+      // Cryo Skates: on ice or anywhere in Cryo Vault (onIce is from the last frame)
+      skating = st.skates > 0 && fight && (p.onIce || this.arena.biome.id === "vault"),
+      speed = st.speed,
+      rate = st.rateMul,
+      dashId = p.dashId;
+    // Heat Sink: an erupting vent within 2.5 m of its edge keeps the heat up and charges Nova
+    if (st.heatSink && fight)
+      for (const v of this.arena.vents)
+        if (v.st === "erupt" && Math.hypot(p.x - v.x, p.y - v.y) < v.r + 2.5) {
+          p.heatT = RL_HEAT_TIME;
+          this.addNova(10 * st.heatSink * dt);
+          break;
+        }
+    p.skating = skating;
+    if (skating) st.speed = speed * (1 + 0.15 * st.skates);
+    if (p.heatT > 0) st.rateMul = rate * (1 + 0.25 * st.heatSink);
+    try {
+      return baseStep.call(this, dt, input);
+    } finally {
+      st.speed = speed;
+      st.rateMul = rate;
+      if (skating && p.dashCdT > 0) p.dashCdT = Math.max(0, p.dashCdT - 0.35 * st.skates * dt);
+      if (p.heatT > 0) p.heatT = Math.max(0, p.heatT - dt);
+      if (p.slipT > 0) p.slipT = Math.max(0, p.slipT - dt);
+      // Slipstream: a new dash primes the shots for the dash itself plus RL_SLIP_TIME
+      if (st.slip && p.dashId !== dashId) p.slipT = RL_SLIP_TIME + 0.17;
+    }
+  };
+  World.prototype.fire = function (angle) {
+    const st = this.stats,
+      boost = st.slip > 0 && this.player.slipT > 0;
+    if (!boost) return baseFire.call(this, angle);
+    const dmg = st.dmgMul;
+    st.dmgMul = dmg * (1 + 0.25 * st.slip);
+    try {
+      return baseFire.call(this, angle);
+    } finally {
+      st.dmgMul = dmg;
+    }
+  };
+  World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
+    const hit = baseHurt.call(this, dmg, x, y, src, chip),
+      st = this.stats,
+      p = this.player;
+    if (!hit || !p.alive) return hit;
+    // Heat Sink: lava and acid damage (after Hazmat) heat the drone up
+    if (st.heatSink && (src === "lava" || src === "acid")) {
+      p.heatT = RL_HEAT_TIME;
+      this.addNova(3 * st.heatSink);
+    }
+    // Reactive Plating: a real hit (not a hazard tick) pushes everything nearby away
+    if (st.reactive && !chip && !this._rlReacting) {
+      const r = 3 + 0.6 * (st.reactive - 1);
+      this._rlReacting = true;
+      try {
+        this.explode(p.x, p.y, r, (20 + 15 * (st.reactive - 1)) * st.dmgMul, {
+          enemies: true,
+          knock: 10,
+          kind: "reactive",
+        });
+      } finally {
+        this._rlReacting = false;
+      }
+      for (const b of this.eb)
+        if (b.life > 0 && Math.hypot(b.x - p.x, b.y - p.y) < r * 1.2) {
+          b.life = 0;
+          this.emit("pop", { x: b.x, y: b.y });
+        }
+    }
+    return hit;
+  };
+  World.prototype.bulletHit = function (bullet, enemy) {
+    const out = baseHit.call(this, bullet, enemy),
+      st = this.stats;
+    // Acid Coating: a puddle under the enemy (at most one per enemy every 1.2 s, flames less often)
+    if (
+      st.acidCoat > 0 &&
+      this.state === "fight" &&
+      !enemy.boss &&
+      !enemy.shielded &&
+      !enemy.ghost &&
+      this.time - (enemy.coatAt ?? -9) > 1.2 &&
+      this.rng.chance(0.15 * st.acidCoat * (bullet.drag ? 0.3 : 1))
+    ) {
+      enemy.coatAt = this.time;
+      const acid = this.arena.acid,
+        mine = acid.filter((q) => q.mine);
+      if (mine.length >= RL_COAT_MAX) acid.splice(acid.indexOf(mine[0]), 1);
+      const marsh = this.arena.biome.id === "marsh";
+      acid.push({ x: enemy.x, y: enemy.y, r: marsh ? 1.5 : 1.1, life: marsh ? 4 : 3, mine: true });
+    }
+    return out;
+  };
+  // The player's own acid never hurts the player: those puddles leave the list while the base
+  // update checks the player, then only mark enemies (corrode = +25% damage taken).
+  World.prototype.updateFeatures = function (dt) {
+    if (!this.stats.acidCoat) return baseFeatures.call(this, dt);
+    const all = this.arena.acid,
+      mine = all.filter((q) => q.mine);
+    this.arena.acid = all.filter((q) => !q.mine);
+    const natural = this.arena.acid.length > 0;
+    let live = mine;
+    try {
+      baseFeatures.call(this, dt);
+    } finally {
+      for (const q of mine) q.life -= dt;
+      live = mine.filter((q) => q.life > 0);
+      this.arena.acid.push(...live);
+    }
+    for (const e of this.enemies)
+      e.corrode =
+        (natural && !!e.corrode) || (!e.boss && live.some((q) => (e.x - q.x) ** 2 + (e.y - q.y) ** 2 < q.r * q.r));
+  };
+  // Combo Surge: longer combos, and every 15th (12th) combo kill sends out a shockwave
+  World.prototype.addCombo = function () {
+    const out = baseCombo.call(this),
+      lv = this.stats.surge || 0;
+    if (!lv) return out;
+    this.comboT += 0.5 * lv;
+    const every = lv > 1 ? 12 : 15,
+      p = this.player;
+    if (this.combo % every === 0 && p.alive && this.state === "fight" && !this._rlSurging) {
+      this._rlSurging = true;
+      try {
+        this.explode(p.x, p.y, lv > 1 ? 4 : 3.5, (lv > 1 ? 60 : 40) * this.stats.dmgMul, {
+          enemies: true,
+          knock: 8,
+          kind: "surge",
+        });
+      } finally {
+        this._rlSurging = false;
+      }
+      this.emit("surge", { x: p.x, y: p.y, n: this.combo });
+    }
+    return out;
+  };
+})();
+
 export { World, rlStep };

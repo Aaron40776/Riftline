@@ -136,4 +136,28 @@ computeStats = function (weapon, run, workshop) {
   return s;
 };
 
+// 2.5.0 A: the retired copies are folded into the upgrade they copied (their lines above now read
+// 0), and the six new upgrades expose their level for the World hooks in core/world.js.
+const _rlComputeStats250A = computeStats;
+computeStats = function (weapon, run, workshop) {
+  const s = _rlComputeStats250A(weapon, run, workshop),
+    u = (id) => run[id] || 0,
+    oc = u("overcharge");
+  // Targeting Chip took over Dead Focus and Deadeye Lens: +5% range per level
+  s.range *= 1 + 0.05 * u("crit");
+  // Overcharge (max 4): +25% Nova radius for each of the first two levels, +10% for the next two
+  s.novaR *= (1 + 0.25 * Math.min(2, oc) + 0.1 * Math.max(0, oc - 2)) / (1 + 0.25 * oc);
+  // Vector Capacitor took over Cryo Coolant and Afterburner: the Aegis recharges faster too
+  s.shieldCd *= Math.max(0.45, 1 - 0.08 * u("vector"));
+  s.skates = u("skates");
+  s.speed *= 1 + 0.04 * s.skates;
+  s.acidCoat = u("acidcoat");
+  s.heatSink = u("heatsink");
+  s.slip = u("slipstream");
+  s.surge = u("surge");
+  s.reactive = u("reactive");
+  s.rateMul *= 1 - 0.08 * s.reactive;
+  return s;
+};
+
 export { computeStats, weaponRange };

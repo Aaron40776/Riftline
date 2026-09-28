@@ -1084,4 +1084,39 @@ var getById = (i) => document.getElementById(i),
   };
 })();
 
+// 2.5.0 A: HUD chips for the new timed upgrades (Heat Sink, Slipstream) and active Cryo Skates.
+// They are added next to the chips of the base method, which may rebuild the row at any frame.
+(() => {
+  const baseBuffs = GameUI.prototype.buffs,
+    chips = ["heat", "slip", "skate"];
+  GameUI.prototype.buffs = function (t) {
+    const out = baseBuffs.call(this, t),
+      p = t.player,
+      st = t.stats,
+      on = t.state === "fight" && p.alive,
+      want = [];
+    on && st.heatSink && p.heatT > 0 && want.push(["heat", "HEAT", "#ff8a3d", p.heatT / 3]);
+    on && st.slip && p.slipT > 0 && want.push(["slip", "SLIPSTREAM", "#7ff6ff", p.slipT / 1.37]);
+    on && st.skates && p.skating && want.push(["skate", "SKATES", "#bff4ff", -1]);
+    const row = getById("buffs");
+    if (!row) return out;
+    for (const k of chips)
+      if (!want.some((w) => w[0] === k)) row.querySelector(`[data-b="${k}"]`)?.remove();
+    for (const [k, text, color, left] of want) {
+      let el = row.querySelector(`[data-b="${k}"]`);
+      if (!el) {
+        el = document.createElement("span");
+        el.className = "buff";
+        el.dataset.b = k;
+        el.style.setProperty("--bc", color);
+        el.innerHTML = escapeHtml(text) + (left >= 0 ? "<i></i>" : "");
+        row.appendChild(el);
+      }
+      const bar = el.querySelector("i");
+      bar && (bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`);
+    }
+    return out;
+  };
+})();
+
 export { GameUI, iconSvg, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, rlRenderHistory, iconPaths, escapeHtml };

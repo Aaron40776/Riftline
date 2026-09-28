@@ -520,9 +520,9 @@ function rlSelfTest() {
       }
     {
       const base = computeStats("pulse", {}, {}),
-        boost = computeStats("pulse", { overclock: 3 }, {});
+        boost = computeStats("pulse", { rate: 3, velocity: 2 }, {}); // 2.5.0: was Overclock Matrix
       if (!(boost.rateMul > base.rateMul && boost.velMul > base.velMul))
-        bad("upgrade-runtime", "Overclock Matrix does not alter rate and velocity");
+        bad("upgrade-runtime", "Rapid Cycler and Long Barrel do not alter rate and velocity");
       else upgradeChecks++;
       for (const def of upgradeList) {
         const testUp = {};
@@ -1644,19 +1644,8 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   try {
     const reqE = ["leaper", "turret", "charger", "minebot", "drone", "driller", "beacon", "weaver"],
       reqB = ["works", "vault", "void", "marsh"],
-      reqU = [
-        "overclock",
-        "bounty",
-        "capacitor",
-        "caliber",
-        "stabilizer",
-        "hunter",
-        "supply",
-        "momentum",
-        "laststand",
-        "scavenger",
-        "vector",
-      ],
+      // 2.5.0: Overclock Matrix, Overbore Caliber, Vector Stabilizer and Salvage Pulse were retired
+      reqU = ["bounty", "capacitor", "hunter", "supply", "momentum", "laststand", "vector", "skates", "heatsink"],
       badE = Object.keys(enemyDefs).filter((id) => !enemyDefs[id] || (!(enemyDefs[id].from >= 1) && id !== "mite")),
       badEvo = upgradeList.filter((u) => u.evo && Object.keys(u.evo).some((k) => !upgradesById[k])).map((u) => u.id),
       badWpn = upgradeList.filter((u) => u.weapon && !weaponDefs[u.weapon]).map((u) => u.id),
@@ -2286,21 +2275,8 @@ rlSelfTest = function () {
     upgrades = Object.keys(upgradesById),
     modules = Object.keys(modulesById);
   if (!["drone", "driller", "beacon", "weaver"].every((k) => enemies.includes(k))) fail.push("missing-v22-enemy");
-  if (
-    ![
-      "kinetic",
-      "deadeye",
-      "thruster",
-      "nanorepair",
-      "salvager",
-      "phasecoat",
-      "flux",
-      "payloadMatrix",
-      "chainlink",
-      "afterburner",
-    ].every((k) => upgrades.includes(k))
-  )
-    fail.push("missing-v22-upgrade");
+  // 2.5.0: of the 2.2 upgrades only Salvager Core is left; the others were copies (retired)
+  if (!upgrades.includes("salvager")) fail.push("missing-v22-upgrade");
   if (!["routeScanner", "reactorCore"].every((k) => modules.includes(k))) fail.push("missing-v22-workshop");
   // 2.4.0: every selectable weapon (the 2.2 weapons are gone)
   for (const id of weaponOrder) {
@@ -2385,9 +2361,8 @@ rlSelfTest = function () {
     upgrades = Object.keys(upgradesById);
   if (!["sapper", "phantom", "sentinel", "carrier"].every((k) => enemies.includes(k))) fail.push("missing-v21-enemy");
   if (
-    !["overload", "focus", "resonance", "fortify", "leech", "hazmat", "echo", "scavengerNet"].every((k) =>
-      upgrades.includes(k),
-    )
+    // 2.5.0: Dead Focus, Fortify, Nanite Leech and Scavenger Net were retired
+    !["overload", "resonance", "hazmat", "echo"].every((k) => upgrades.includes(k))
   )
     fail.push("missing-v21-upgrade");
   // 2.4.0: every weapon with a blast (was Graviton Core, Nova Bloom and Vortex)
@@ -2535,6 +2510,171 @@ rlSelfTest = function () {
       if (!(Math.abs(hull(id, wave) - hull("queen", wave)) < 1e-6)) fail.push(`slot-hull:${id}:${wave}`);
   if (!(hull("queen", 15) > hull("queen", 10))) fail.push("slot-hull-order");
   return { ...r, ok: r.ok && fail.length === 0, v246: { ok: fail.length === 0, fail } };
+};
+// 2.5.0 A: retired upgrades are gone and migrate, the six new upgrades do what their card says.
+import { RL_RETIRED_UPGRADES } from "../data/upgrades.js";
+import { rlMigrateUpgrades, rlSanitizeHistory } from "./save.js";
+const _rlSelfTest250A = rlSelfTest;
+rlSelfTest = function () {
+  const r = _rlSelfTest250A(),
+    fail = [],
+    NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
+  if (upgradeList.length !== 59) fail.push("count:" + upgradeList.length);
+  for (const [id, q] of Object.entries(RL_RETIRED_UPGRADES)) {
+    if (upgradesById[id]) fail.push("still-offered:" + id);
+    const to = upgradesById[q.to];
+    if (!to || to.evo || to.repeat || !(q.k > 0 && q.k <= 1.5)) fail.push("retired-target:" + id);
+  }
+  for (const id of NEW) if (!upgradesById[id] || upgradesById[id].evo) fail.push("new-missing:" + id);
+  // a run saved mid-way with retired upgrades and a pending offer of retired ids
+  const old = {
+      v: 1,
+      seed: 2500,
+      weapon: "pulse",
+      threat: 1,
+      wave: 7,
+      up: { caliber: 3, kinetic: 2, dmg: 2, fortify: 5, hp: 6, coolant: 3, afterburner: 3, scavenger: 2, focus: 1 },
+      hp: 60,
+      offer: ["fortify", "flux", "crit"],
+      offerBoss: false,
+    },
+    run = cleanRun(old),
+    want = { dmg: 6, hp: 10, vector: 6, supply: 2, crit: 1 };
+  if (!run || Object.keys(run.up).length !== 5 || Object.entries(want).some(([k, v]) => run.up[k] !== v))
+    fail.push("migrate-up:" + JSON.stringify(run && run.up));
+  // Fortify → Reinforced Hull is maxed, so a common takes its place; Flux Capacitor → Overcharge
+  if (!run || JSON.stringify(run.offer) !== JSON.stringify(["dmg", "overcharge", "crit"]))
+    fail.push("migrate-offer:" + JSON.stringify(run && run.offer));
+  if (old.up.caliber !== 3 || old.offer[0] !== "fortify") fail.push("migrate-mutates");
+  if (run && rlMigrateUpgrades(run) !== run) fail.push("migrate-twice");
+  const boss = cleanRun({ ...old, up: { rate: 10 }, offer: ["overclock", "leech", "arc"], offerBoss: true });
+  if (!boss || boss.offer.length !== 3 || boss.offer.some((id) => upgradesById[id].rarity < 2))
+    fail.push("migrate-boss-offer:" + JSON.stringify(boss && boss.offer));
+  if (run) {
+    const w = new World({ snap: run, ws: {} });
+    if (w.state !== "choose" || w.offer.length !== 3 || w.stats.maxHp !== 300) fail.push("resume:" + w.state);
+    w.choose(w.offer[0]);
+    for (let f = 0; f < 120; f++) w.step(1 / 60, { mx: 0.4, my: 0.2, fire: true, auto: true, dash: f === 30 });
+    if (w.wave !== 8 || ![w.player.hp, w.player.x, w.player.nova].every(Number.isFinite)) fail.push("resume-play");
+  }
+  const hist = rlSanitizeHistory([
+    { t: 1, weapon: "pulse", threat: 0, wave: 9, outcome: "dead", build: ["caliber", "dmg", "fortify", "flux"] },
+  ]);
+  if (JSON.stringify(hist[0]?.build) !== JSON.stringify(["dmg", "hp", "overcharge"])) fail.push("history-build");
+  // the new mechanics
+  const mk = (up, wave = 2) => {
+    const w = new World({ seed: 0x250a, weapon: "pulse", threat: 0, ws: {} });
+    w.up = { ...up };
+    w.stats = computeStats("pulse", w.up, {});
+    w.startWave(wave);
+    w.plan = [];
+    w.enemies = [];
+    w.player.iT = 0;
+    w.player.shield = false;
+    return w;
+  };
+  const foe = (w, x, y) => {
+    const e = w.spawnEnemy("brute", x, y, {});
+    e.spawnT = 0;
+    w.enemies.includes(e) || w.enemies.push(e);
+    w.hash.build(w.enemies);
+    return e;
+  };
+  // Cryo Skates: dash recharges 35%/level faster on ice
+  {
+    const w = mk({ skates: 2 }),
+      p = w.player;
+    p.dashCdT = 1;
+    p.onIce = true;
+    w.step(0.1, {});
+    if (!(Math.abs(p.dashCdT - (1 - 0.1 - 0.07)) < 1e-6)) fail.push("skates-dash:" + p.dashCdT.toFixed(3));
+    if (!(computeStats("pulse", { skates: 1 }, {}).speed > computeStats("pulse", {}, {}).speed))
+      fail.push("skates-speed");
+  }
+  // Acid Coating: hits leave acid that marks enemies but never hurts the player
+  {
+    const w = mk({ acidcoat: 2 }),
+      p = w.player,
+      e = foe(w, 4, 2);
+    e.hp = e.maxHp = 1e6;
+    for (let k = 0; k < 60 && !w.arena.acid.some((q) => q.mine); k++) {
+      w.time += 2;
+      w.bulletHit({ x: e.x, y: e.y, vx: 1, vy: 0, dmg: 1, hits: [], w: "pulse", pierce: 0, bounce: 0, life: 1 }, e);
+    }
+    const q = w.arena.acid.find((a) => a.mine);
+    if (!q) fail.push("acid-none");
+    else {
+      p.x = q.x;
+      p.y = q.y;
+      e.x = q.x + 0.3;
+      e.y = q.y;
+      const hp = p.hp;
+      for (let f = 0; f < 60; f++) w.updateFeatures(1 / 60);
+      if (p.hp !== hp || p.inAcid) fail.push("acid-hurts-player");
+      if (!e.corrode) fail.push("acid-no-corrode");
+      for (let f = 0; f < 300; f++) w.updateFeatures(1 / 60);
+      if (w.arena.acid.some((a) => a.mine) || e.corrode) fail.push("acid-stays");
+    }
+  }
+  // Heat Sink: hazard damage heats up (fire rate) and charges Nova
+  {
+    const w = mk({ heatsink: 1 }),
+      p = w.player;
+    p.nova = 0;
+    w.hurtPlayer(4, null, null, "lava", true);
+    if (!(p.heatT === 3 && p.nova > 0)) fail.push("heat-hazard");
+    const cold = mk({}),
+      shots = (x) => {
+        x.player.fireT = 0;
+        let n = 0;
+        for (let f = 0; f < 60; f++) {
+          const before = x.player.shotN || 0;
+          x.player.heatT = x === cold ? 0 : 3;
+          x.step(1 / 60, { aim: true, ax: 1, ay: 0 });
+          n += (x.player.shotN || 0) - before;
+        }
+        return n;
+      };
+    if (!(shots(w) > shots(cold))) fail.push("heat-rate");
+  }
+  // Slipstream: shots right after a dash hit harder
+  {
+    const w = mk({ slipstream: 2 }),
+      p = w.player;
+    w.step(1 / 60, { dash: true });
+    if (!(p.slipT > 1)) fail.push("slip-timer");
+    w.pb.length = 0;
+    w.fire(0);
+    const hot = w.pb[0]?.dmg;
+    p.slipT = 0;
+    w.pb.length = 0;
+    w.fire(0);
+    const cold = w.pb[0]?.dmg;
+    if (!(Math.abs(hot / cold - 1.5) < 1e-6)) fail.push("slip-dmg:" + hot + "/" + cold);
+  }
+  // Combo Surge: the 15th combo kill releases a shockwave
+  {
+    const w = mk({ surge: 1 }),
+      e = foe(w, 2, 2);
+    e.hp = e.maxHp = 1e6;
+    w.combo = 14;
+    w.fx.length = 0;
+    w.addCombo();
+    if (!w.fx.some((q) => q.k === "boom" && q.kind === "surge") || !(e.hp < 1e6)) fail.push("surge");
+    if (!(w.comboT > 2.2)) fail.push("surge-combo-time");
+  }
+  // Reactive Plating: a hit pushes enemies away and clears enemy shots; costs fire rate
+  {
+    const w = mk({ reactive: 1 }),
+      p = w.player,
+      e = foe(w, p.x + 1.5, p.y);
+    e.hp = e.maxHp = 1e6;
+    w.eb.push({ x: p.x + 1, y: p.y, vx: 0, vy: 0, r: 0.2, dmg: 5, life: 2 });
+    w.hurtPlayer(5, e.x, e.y, "brute");
+    if (!(e.hp < 1e6) || w.eb[0].life > 0) fail.push("reactive");
+    if (!(w.stats.rateMul < computeStats("pulse", {}, {}).rateMul)) fail.push("reactive-cost");
+  }
+  return { ...r, ok: r.ok && fail.length === 0, v250A: { ok: fail.length === 0, fail } };
 };
 window.addEventListener("error", (i) => logError("window", i));
 window.addEventListener("unhandledrejection", (i) => logError("promise", i.reason || i));
