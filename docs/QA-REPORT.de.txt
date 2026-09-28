@@ -1,3 +1,98 @@
+RIFTLINE v2.5.0 – UPGRADES OHNE DOPPELUNGEN, WERKSTATT, STÄRKERE BIOME, CODEX
+Basis: v2.4.6 · Build r250a0928b-r1 · 28.09.2026
+
+Gewünscht: Gefahrenflächen noch größer bzw. mehr; das Projekt durchsehen und selbst überlegen,
+was man überarbeiten oder ergänzen kann (Design, Funktionen, Level), weil sich manche Upgrades
+doppeln. Gewählt: alle vier vorgeschlagenen Pakete (A Upgrades, B Werkstatt, C Biome, D Design).
+Umsetzung: je ein Agent pro Paket auf eigenem Worktree, danach zusammengeführt.
+
+1) Upgrades (A)
+   - 19 Upgrades waren schwächere Kopien eines anderen und sind entfernt; ihr Anteil steckt im
+     Original, dessen Maximum steigt (Beispiele: Overbore Caliber und Kinetic Matrix → High-Yield
+     Rounds, Overclock Matrix → Rapid Cycler, Dead Focus und Deadeye Lens → Targeting Chip, das
+     jetzt auch +5 % Reichweite gibt, Afterburner und Cryo Coolant → Vector Capacitor, das jetzt
+     auch die Aegis-Abklingzeit senkt). 72 → 59 Upgrades, die 13 Evolutionen bleiben.
+   - Sechs neue Upgrades mit eigener Mechanik: Cryo Skates (auf Eis/in Cryo Vault schneller, Dash
+     lädt schneller), Acid Coating (Treffer hinterlassen eigene Säure, Gegner darin +25 %),
+     Heat Sink (bei Lava/Säure/ausbrechendem Schlot: +25 % Feuerrate für 3 s und Nova-Ladung),
+     Slipstream (+25 % Schaden 1,2 s nach einem Dash), Combo Surge (Combos halten länger, alle 15
+     Combo-Kills eine Druckwelle), Reactive Plating (Treffer lösen eine Abstoßwelle aus, die
+     Geschosse löscht; −8 % Feuerrate).
+   - Alte Spielstände: Stufen entfernter Upgrades werden zu Stufen des Originals (bis zu dessen
+     Maximum), entfernte Upgrades in einem offenen Angebot werden ersetzt.
+
+2) Werkstatt (B)
+   - Rift Battery und Reactor Core gehen in Nova Cell auf (4 Stufen, je mindestens 25 % Nova zu
+     Wellenbeginn); Route Scanner geht in Field Supply auf (+1 Kiste und +50 % Splitter pro Stufe).
+   - Gekaufte Stufen der entfernten Module werden voll erstattet, eine Meldung sagt das einmal.
+   - Neu: Starter Kit (zufälliges gewöhnliches Upgrade pro Stufe beim Run-Start, pro Run
+     festgelegt), Hazard Attunement (nahe einer Kartengefahr +10 % Schaden und +0,5 HP/s pro
+     Stufe), Emergency Shield (einmal pro Welle unter 30 % Hülle: kurze Barriere und Reparatur).
+     Weiterhin 18 Module.
+
+3) Biome (C)
+   - Gefahren pro Welle: etwa 5 statt 3,3 (bei gefahrenlastigen Wellenmodi 6, höchstens 9);
+     Radien Schlote 1,7–2,2, Eis 2,7–3,7, Säure 2,2–3,0. Gemessen (200 Seeds × Welle 1–25):
+     Fläche pro Welle Lava 23 → 64, Säure 41 → 103, Eis 62 → 137. Abstand zum Startpunkt
+     mindestens 5,2 (vorher ragten Gefahren in 908 von 5 000 Arenen in den Startbereich, jetzt 0),
+     0,95 zu Hindernissen, 1,3 Gasse zwischen Gefahren. Void Core: zwei Portalpaare in 88 % statt
+     40 % der Wellen.
+   - Biom-Ereignisse, eines pro Besuch eines Gefahrenbioms (Welle 2–4 des Besuchs, nie in einer
+     Bosswelle, nie direkt neben Elite Surge/Shard Rain, +25 % Splitter), mit Banner und HUD-Chip:
+     Meltdown (Ember Works: 3 zusätzliche Schlote, alle brechen gemeinsam alle 3,4 s aus),
+     Whiteout (Cryo Vault: Schneesturm, Nebel etwa halb so weit, 3 zusätzliche Eisflächen),
+     Spore Bloom (Toxin Marsh: Pfützen wachsen bis 40 %, alle 7 s eine neue, höchstens 4),
+     Rift Storm (Void Core: Portale springen alle 6 s, der neue Ort leuchtet 1,6 s vorher).
+   - Typische Gegner eines Bioms können ab dessen erster Welle kommen (bis zu ihrer normalen
+     Freischaltwelle mit halbem Gewicht, 1,5–3,5 % der Spawns). Neon Yard unverändert.
+
+4) Design (D)
+   - Biom-Titelkarte in Welle 1 und bei jedem Biomwechsel: Name, Gefahr in wenigen Worten, Boss.
+   - Boss-Karte während des Kameraschwenks zum neuen Boss: Name, Titel, Farbakzent des Bosses.
+   - Codex in Records (Tabs Stats / Codex): alle Gegner, Bosse und Upgrades; Gesehenes mit
+     Beschreibung, Ungesehenes als „???“. Alte Spielstände: besiegte Bosse, Builds im Verlauf und
+     der gespeicherte Run zählen als gesehen.
+
+5) Beim Zusammenführen
+   - Hazard Attunement zählte die eigenen Acid-Coating-Pfützen als Gefahr (Bonus dauerhaft an) –
+     korrigiert. Spore Bloom ließ auch diese Pfützen wachsen und zählte sie mit – korrigiert.
+   - Eigene Säure ist jetzt cyan statt giftgrün, damit man sie nicht für feindliche hält.
+   - Code der entfernten Upgrades/Module entfernt (Stat-Zeilen, Nanite Leech, Salvage Pulse).
+     Vergleich mit dem alten computeStats über 20 000 Zufalls-Builds: nur die Schlüssel scavenger
+     und leech fehlen (waren immer 0), alle Werte gleich.
+   - Nebenbefund Paket C: Die Wellengefahren aus rlAddDynamicFeatures/placeFeatures wurden in
+     normalen Wellen nie gesetzt (Abstandsregel verwarf jeden Punkt); alle kamen vom Director.
+     Mit der Neufassung ist das behoben.
+
+6) Tests
+   - Deep test: neue Selbsttests v250A (Upgrades, Migration), v250B (Module, Erstattung), v250C
+     (Gefahren, Ereignisse, alter Run in einer Rift-Storm-Welle), v250D (Karten, Codex, alte
+     Stände).
+   - full-qa: neue Abschnitte upgrades250A, workshop-merge, biome-events-desktop/-phone,
+     codex-desktop/-phone/-land.
+   - Determinismus-Referenz neu aufgenommen (Verhalten ändert sich absichtlich).
+
+Offen:
+   - Balance nur mit Bot und Messungen geprüft, nicht von Hand gespielt. Zu beobachten: Meltdown
+     mit 8–9 Schloten, Gegner der Biome schon ab Welle 6, Hazard Attunement bei jetzt viel mehr
+     Gefahrenfläche, Slipstream zusammen mit maximalem Vector Capacitor.
+   - Auf dem Handy brechen Ereignis-Banner in zwei Zeilen um (wie schon Elite Surge/Shard Rain);
+     passt in den Rahmen, der Einblend-Zoom ragt kurz darüber hinaus.
+
+Ergebnisse 2.5.0 (headless Chromium, Software-WebGL):
+  determinism   Referenz neu aufgenommen, danach 15 Fälle identisch; das Aufräumen danach
+                (entfernte Upgrades) mit eigenem Vergleich geprüft, siehe 5)
+  full-qa.mjs   365 Prüfungen, 0 Fehler
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok (inkl. v250A–D) · world-audit 0 Befunde · data-audit ok
+  run-audit     Bot-Run bis Welle 22, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   PC, Handy hoch und quer ohne Fehler; biome-shots und Ereignis-Bilder angesehen
+                (größere Flächen, Whiteout, Meltdown, Spore Bloom, Rift Storm), dazu eigene
+                Aufnahmen von Biom-Karte, Boss-Karte und Codex auf PC, Handy hoch und quer sowie
+                eigener (cyan) neben feindlicher (grün) Säure
+
+================================================================================
+
 RIFTLINE v2.4.6 – EIN BOSS PRO BIOM, UPDATES OHNE HINWEIS
 Basis: v2.4.5 · Build r246a0928a-r1 · 28.09.2026
 
