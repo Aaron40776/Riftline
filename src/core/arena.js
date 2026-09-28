@@ -466,7 +466,7 @@ buildLayout = function (biome, seed, wave, boss) {
     features = { vents: [], ice: [], portals: [], acid: [] };
   for (let k = 0; k < 12 && features.vents.length < 3; k++) {
     const p = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 1.2);
-    p && features.vents.push({ ...p, r: p.r + 0.35, phase: rng.next() * 6, period: 3.2 + rng.next() * 1.2, st: "idle" });
+    p && features.vents.push({ ...p, phase: rng.next() * 6, period: 3.2 + rng.next() * 1.2, st: "idle" });
   }
   return { ...layout, key: `${layout.key}:crucible:${seed}:${wave}`, features };
 };

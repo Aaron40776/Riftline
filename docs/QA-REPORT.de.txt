@@ -52,7 +52,18 @@ Offen:
    - Balance nur mit einem einfachen Bot geprüft, nicht von Hand gespielt – bitte die Crucible und
      den Frost Prism einmal selbst spielen.
 
-__RESULTS__
+   Beim Testen gefunden und korrigiert: Die Crucible-Schlote waren nach der Platzprüfung noch
+   vergrößert worden und konnten eine Säule überlappen (Deep test, zufälliger Seed). Jetzt keine
+   Überlappung in 6 000 geprüften Crucible-Arenen, immer drei Schlote.
+
+Ergebnisse 2.4.6 (headless Chromium, Software-WebGL):
+  determinism   Referenz neu aufgenommen, danach 15 Fälle identisch
+  full-qa.mjs   252 Prüfungen, 0 Fehler
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok (inkl. v246) · world-audit 0 Befunde · data-audit ok
+  run-audit     Bot-Run bis Welle 22 inkl. Endlos, alle Checks OK (input WARN ist erwartet)
+  screens.mjs   PC, Handy hoch und quer ohne Fehler; biome-shots: jeder Biom-Boss auf allen drei
+                Profilen angesehen (Warden, Crucible, Frost Prism, Hive Queen, Rift Core)
 
 ================================================================================
 
