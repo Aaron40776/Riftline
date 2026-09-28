@@ -1776,8 +1776,6 @@ World.prototype.killEnemy = function (enemy) {
   const before = this.kills;
   _rlKillEnemy.call(this, enemy);
   if (enemy?.boss || this.kills <= before || !this.player.alive) return;
-  if (this.stats.leech && this.rng.chance(Math.min(0.24, 0.08 * this.stats.leech)))
-    this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 2);
   if (enemy.type === "carrier" && this.state === "fight" && this.rng.chance(0.55)) {
     const v = rlCacheShards(this, 5 + 3 * (this.stats.cacheBonus || 0)),
       q = this.mkPickup("shard", enemy.x, enemy.y, v);
@@ -1885,8 +1883,7 @@ World.prototype.startWave = function (wave, nova) {
 };
 (() => {
   const baseStep = World.prototype.step,
-    baseHurt = World.prototype.hurtPlayer,
-    baseKill = World.prototype.killEnemy;
+    baseHurt = World.prototype.hurtPlayer;
   World.prototype.step = function (dt, input) {
     const st = this.stats,
       base = st.rateMul || 1;
@@ -1911,18 +1908,6 @@ World.prototype.startWave = function (wave, nova) {
       src,
       chip,
     );
-  };
-  World.prototype.killEnemy = function (enemy) {
-    const before = this.kills;
-    const out = baseKill.call(this, enemy);
-    const lv = this.stats.scavenger || 0,
-      every = Math.max(5, 30 - 5 * lv);
-    if (lv > 0 && !enemy?.boss && !enemy?.noDrop && this.kills > before && this.kills % every === 0) {
-      const amount = 2 * lv;
-      this.dropShards(this.player.x, this.player.y, amount);
-      this.emit("salvagePulse", { x: this.player.x, y: this.player.y, amount });
-    }
-    return out;
   };
 })();
 

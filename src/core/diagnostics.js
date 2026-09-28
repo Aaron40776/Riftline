@@ -804,7 +804,6 @@ var RL_EVENT_KINDS = new Set([
   "portal",
   "reroll",
   "revive",
-  "salvagePulse",
   "shard",
   "shieldBreak",
   "shieldPop",

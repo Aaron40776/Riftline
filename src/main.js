@@ -731,9 +731,6 @@ function handleWorldEvents(i) {
       case "combo":
         ui.comboPop(t.n, t.bonus);
         break;
-      case "salvagePulse":
-        ui.toast(`SALVAGE PULSE · +${t.amount} shards`, "good", 1800);
-        break;
       case "bountyPulse":
         ui.toast(`BOUNTY · +${t.amount} shards`, "good", 1500);
         break;
