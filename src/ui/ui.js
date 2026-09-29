@@ -1183,6 +1183,33 @@ var getById = (id) => document.getElementById(id),
         (getById("retryBtn").hidden = result.canEndless),
         (getById("over").hidden = !1),
         this.countUp(getById("payTotal"), result.total));
+      this.renderRunExtra();
+    }
+    // 1.6.0: run metrics for the game-over screen (game._runExtra, set in game.endRun)
+    renderRunExtra() {
+      const box = getById("overExtra"),
+        extra = this.g && this.g._runExtra;
+      if (!box) return;
+      if (!extra) {
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      box.innerHTML =
+        '<div class="dh">Run performance</div><div class="run-extra-grid">' +
+        [
+          ["Damage dealt", formatCount(Math.round(extra.dmgDealt || 0))],
+          ["Damage taken", formatCount(Math.round(extra.dmgTaken || 0))],
+          ["Crits", formatCount(extra.critHits || 0)],
+          ["Dashes", formatCount(extra.dashes || 0)],
+          ["Best combo", "×" + formatCount(extra.bestCombo || 0)],
+        ]
+          .map(
+            ([label, value]) =>
+              `<div class="xcell"><div class="xk">${escapeHtml(label)}</div><div class="xv num">${escapeHtml(value)}</div></div>`,
+          )
+          .join("") +
+        "</div>";
     }
     renderDamage(result) {
       let box = getById("overDmg"),

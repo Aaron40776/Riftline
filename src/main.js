@@ -980,41 +980,7 @@ document.addEventListener(
   { passive: !1 },
 );
 
-/* v1.6.0 merged polish: persistent run metrics + save backup + tutorial replay */
-(function () {
-  var __showOver = ui.showOver.bind(ui);
-  ui.showOver = function (result) {
-    __showOver(result);
-    var box = getById("overExtra"),
-      extra = this.g && this.g._runExtra;
-    if (!box) return;
-    if (!extra) {
-      box.hidden = true;
-      return;
-    }
-    box.hidden = false;
-    box.innerHTML =
-      '<div class="dh">Run performance</div><div class="run-extra-grid">' +
-      [
-        ["Damage dealt", formatCount(Math.round(extra.dmgDealt || 0))],
-        ["Damage taken", formatCount(Math.round(extra.dmgTaken || 0))],
-        ["Crits", formatCount(extra.critHits || 0)],
-        ["Dashes", formatCount(extra.dashes || 0)],
-        ["Best combo", "×" + formatCount(extra.bestCombo || 0)],
-      ]
-        .map(function (row) {
-          return (
-            '<div class="xcell"><div class="xk">' +
-            escapeHtml(row[0]) +
-            '</div><div class="xv num">' +
-            escapeHtml(row[1]) +
-            "</div></div>"
-          );
-        })
-        .join("") +
-      "</div>";
-  };
-})();
+/* v1.6.0 merged polish: save backup + tutorial replay (the run metrics are in GameUI.renderRunExtra) */
 (function () {
   var makeBackup = function () {
     return JSON.stringify(store.data, null, 2);
