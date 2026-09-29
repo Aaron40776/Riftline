@@ -1,77 +1,77 @@
 // Small helpers used everywhere: clamp/lerp, number and time formatting, the seeded RNG and
 // hashing, version and build id.
 
-function rlAgo(t) {
-  const s = Math.max(0, (Date.now() - t) / 1e3);
-  return s < 60
+function rlAgo(time) {
+  const secs = Math.max(0, (Date.now() - time) / 1e3);
+  return secs < 60
     ? "now"
-    : s < 3600
-      ? Math.floor(s / 60) + "m ago"
-      : s < 86400
-        ? Math.floor(s / 3600) + "h ago"
-        : Math.floor(s / 86400) + "d ago";
+    : secs < 3600
+      ? Math.floor(secs / 60) + "m ago"
+      : secs < 86400
+        ? Math.floor(secs / 3600) + "h ago"
+        : Math.floor(secs / 86400) + "d ago";
 }
 var TAU = Math.PI * 2,
-  clamp = (i, t, e) => (i < t ? t : i > e ? e : i);
-function angleDiff(i, t) {
-  let e = (t - i) % TAU;
-  return (e > Math.PI && (e -= TAU), e < -Math.PI && (e += TAU), e);
+  clamp = (value, min, max) => (value < min ? min : value > max ? max : value);
+function angleDiff(from, to) {
+  let diff = (to - from) % TAU;
+  return (diff > Math.PI && (diff -= TAU), diff < -Math.PI && (diff += TAU), diff);
 }
-function turnToward(i, t, e) {
-  let n = angleDiff(i, t);
-  return Math.abs(n) <= e ? t : i + Math.sign(n) * e;
+function turnToward(angle, target, maxStep) {
+  let diff = angleDiff(angle, target);
+  return Math.abs(diff) <= maxStep ? target : angle + Math.sign(diff) * maxStep;
 }
-var dampFactor = (i, t) => 1 - Math.exp(-i * t);
-function makeRng(i) {
-  let t = i >>> 0,
-    e = () => {
-      t = (t + 1831565813) >>> 0;
-      let n = t;
+var dampFactor = (rate, dt) => 1 - Math.exp(-rate * dt);
+function makeRng(seed) {
+  let state = seed >>> 0,
+    next = () => {
+      state = (state + 1831565813) >>> 0;
+      let x = state;
       return (
-        (n = Math.imul(n ^ (n >>> 15), n | 1)),
-        (n ^= n + Math.imul(n ^ (n >>> 7), n | 61)),
-        ((n ^ (n >>> 14)) >>> 0) / 4294967296
+        (x = Math.imul(x ^ (x >>> 15), x | 1)),
+        (x ^= x + Math.imul(x ^ (x >>> 7), x | 61)),
+        ((x ^ (x >>> 14)) >>> 0) / 4294967296
       );
     };
   return {
-    next: e,
-    range: (n, s) => n + (s - n) * e(),
-    int: (n, s) => n + Math.floor(e() * (s - n + 1)),
-    chance: (n) => e() < n,
-    pick: (n) => n[Math.floor(e() * n.length)],
+    next,
+    range: (min, max) => min + (max - min) * next(),
+    int: (min, max) => min + Math.floor(next() * (max - min + 1)),
+    chance: (p) => next() < p,
+    pick: (list) => list[Math.floor(next() * list.length)],
     get state() {
-      return t;
+      return state;
     },
   };
 }
-function weightedPick(i, t, e) {
-  let n = 0;
-  for (let r of e) n += r;
-  if (n <= 0) return t[0];
-  let s = i.next() * n;
-  for (let r = 0; r < t.length; r++) if (((s -= e[r]), s <= 0)) return t[r];
-  return t[t.length - 1];
+function weightedPick(rng, items, weights) {
+  let total = 0;
+  for (let weight of weights) total += weight;
+  if (total <= 0) return items[0];
+  let roll = rng.next() * total;
+  for (let i = 0; i < items.length; i++) if (((roll -= weights[i]), roll <= 0)) return items[i];
+  return items[items.length - 1];
 }
-function hashString(i) {
-  let t = 2166136261;
-  for (let e = 0; e < i.length; e++) ((t ^= i.charCodeAt(e)), (t = Math.imul(t, 16777619)));
-  return t >>> 0;
+function hashString(str) {
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) ((hash ^= str.charCodeAt(i)), (hash = Math.imul(hash, 16777619)));
+  return hash >>> 0;
 }
-function formatTime(i) {
-  i = Math.max(0, Math.floor(i));
-  let t = Math.floor(i / 60),
-    e = i % 60;
-  return t + ":" + String(e).padStart(2, "0");
+function formatTime(secs) {
+  secs = Math.max(0, Math.floor(secs));
+  let mins = Math.floor(secs / 60),
+    rest = secs % 60;
+  return mins + ":" + String(rest).padStart(2, "0");
 }
-function formatCount(i) {
-  return ((i = Math.floor(i)), i >= 1e4 ? (i / 1e3).toFixed(i >= 1e5 ? 0 : 1) + "k" : String(i));
+function formatCount(n) {
+  return ((n = Math.floor(n)), n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + "k" : String(n));
 }
 var GAME_VERSION = __RL_VERSION__;
-function smoothstep(i) {
-  return ((i = clamp(i, 0, 1)), i * i * (3 - 2 * i));
+function smoothstep(x) {
+  return ((x = clamp(x, 0, 1)), x * x * (3 - 2 * x));
 }
-function easeOutBack(i) {
-  return 1 + 2.70158 * Math.pow(i - 1, 3) + 1.70158 * Math.pow(i - 1, 2);
+function easeOutBack(x) {
+  return 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);
 }
 var BUILD_ID = __RL_BUILD__;
 

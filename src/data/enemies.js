@@ -443,4 +443,15 @@ enemyOrder.push("drone", "driller", "beacon", "weaver");
 Object.assign(spawnWeights, { drone: 0.95, driller: 0.62, beacon: 0.5, weaver: 0.72 });
 Object.assign(heavyEnemies, { drone: 1, driller: 2, beacon: 3, weaver: 1 });
 
-export { enemyDefs, bossOrder, RL_ENEMY_TIPS, eliteAffixes, biomeVariants, bossDefs, enemyOrder, bossByWave, bossByBiome, BOSS_SLOT_HP };
+export {
+  enemyDefs,
+  bossOrder,
+  RL_ENEMY_TIPS,
+  eliteAffixes,
+  biomeVariants,
+  bossDefs,
+  enemyOrder,
+  bossByWave,
+  bossByBiome,
+  BOSS_SLOT_HP,
+};

@@ -21,7 +21,7 @@ var RL_PALETTES = {
   },
 };
 function rlApplyBiomeFixes() {
-  for (const [id, p] of Object.entries(RL_PALETTES)) biomesById[id] && Object.assign(biomesById[id], p);
+  for (const [id, palette] of Object.entries(RL_PALETTES)) biomesById[id] && Object.assign(biomesById[id], palette);
 }
 
 /* ---- one hazard theme per biome (2.3.1). The wave director used to drop a
@@ -131,20 +131,20 @@ var biomeList = [
     ],
   },
 ];
-var biomesById = Object.fromEntries(biomeList.map((i) => [i.id, i]));
+var biomesById = Object.fromEntries(biomeList.map((biome) => [biome.id, biome]));
 // 2.4.6: Void Core is always the fourth biome (waves 16–20), so the Rift Core stays the final
 // boss. Ember Works, Cryo Vault and Toxin Marsh are shuffled: two of them in waves 6–15, the third
 // from wave 21 in Endless.
-function planBiomeRoute(i) {
-  let t = biomeList
+function planBiomeRoute(rng) {
+  let ids = biomeList
     .slice(1)
-    .map((e) => e.id)
+    .map((biome) => biome.id)
     .filter((id) => id !== "void");
-  for (let e = t.length - 1; e > 0; e--) {
-    let n = Math.floor(i.next() * (e + 1));
-    [t[e], t[n]] = [t[n], t[e]];
+  for (let i = ids.length - 1; i > 0; i--) {
+    let j = Math.floor(rng.next() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
   }
-  return ["yard", t[0], t[1], "void", ...t.slice(2)];
+  return ["yard", ids[0], ids[1], "void", ...ids.slice(2)];
 }
 
 /* 2.4.0: 19 biomes → 5, and the biome changes after every boss again (it changed every wave

@@ -14,15 +14,15 @@ import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js
 function rlLoadSave(raw) {
   try {
     return cleanSave(raw);
-  } catch (e) {
-    logError("load", e);
+  } catch (err) {
+    logError("load", err);
   }
   try {
-    const d = cleanSave({ ...raw, run: null });
+    const data = cleanSave({ ...raw, run: null });
     logError("load", "unfinished run discarded: it could not be restored");
-    return d;
-  } catch (e) {
-    logError("load", e);
+    return data;
+  } catch (err) {
+    logError("load", err);
   }
   rlBackupSave(JSON.stringify(raw));
   return newSave();
@@ -33,83 +33,86 @@ function rlLoadSave(raw) {
 function rlBackupSave(text) {
   try {
     localStorage.setItem("riftline.save.v1.backup-" + Date.now(), String(text));
-  } catch (e) {
-    logError("backup", e);
+  } catch (err) {
+    logError("backup", err);
   }
 }
 /* 2.3.2: numeric settings get the range of their control (volume 0–1, zoom
  snaps to Near/Normal/Far) instead of a blanket 0–2 clamp. */
 const RL_ZOOM_STEPS = [0.85, 1, 1.18];
-function rlSettingNum(key, v, def) {
-  const x = cleanNumber(v, def, 0, key === "sfx" || key === "music" ? 1 : 2);
-  return key === "zoom" ? RL_ZOOM_STEPS.reduce((a, b) => (Math.abs(b - x) < Math.abs(a - x) ? b : a)) : x;
+function rlSettingNum(key, value, def) {
+  const num = cleanNumber(value, def, 0, key === "sfx" || key === "music" ? 1 : 2);
+  return key === "zoom"
+    ? RL_ZOOM_STEPS.reduce((best, step) => (Math.abs(step - num) < Math.abs(best - num) ? step : best))
+    : num;
 }
 
 /* ---- run history: the last 12 runs, shown under Records ---- */
-function rlSanitizeHistory(h) {
-  if (!Array.isArray(h)) return [];
+function rlSanitizeHistory(history) {
+  if (!Array.isArray(history)) return [];
   // 2.5.0 A: a retired upgrade in a build is shown as the upgrade that took it over.
-  h = h.map((q) =>
-    q && typeof q === "object" && Array.isArray(q.build) && q.build.some((id) => rlRetiredUpgrade(id))
-      ? { ...q, build: [...new Set(q.build.map((id) => rlRetiredUpgrade(id)?.to || id))] }
-      : q,
+  history = history.map((entry) =>
+    entry && typeof entry === "object" && Array.isArray(entry.build) && entry.build.some((id) => rlRetiredUpgrade(id))
+      ? { ...entry, build: [...new Set(entry.build.map((id) => rlRetiredUpgrade(id)?.to || id))] }
+      : entry,
   );
   const out = [],
-    ni2 = (v, lo, hi, d = 0) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
-  for (const q of h.slice(0, 12)) {
+    ni2 = (value, lo, hi, def = 0) =>
+      typeof value === "number" && Number.isFinite(value) ? Math.min(hi, Math.max(lo, value)) : def;
+  for (const entry of history.slice(0, 12)) {
     // 2.4.0: runs with a retired weapon stay in the list (shown with the weapon's old name)
-    if (!q || typeof q !== "object" || !(weaponDefs[q.weapon] || rlRetired(q.weapon))) continue;
+    if (!entry || typeof entry !== "object" || !(weaponDefs[entry.weapon] || rlRetired(entry.weapon))) continue;
     out.push({
-      t: ni2(q.t, 0, 9e15),
-      weapon: q.weapon,
-      threat: Math.floor(ni2(q.threat, 0, 5)),
-      wave: Math.floor(ni2(q.wave, 1, 999, 1)),
-      outcome: ["win", "dead", "quit"].includes(q.outcome) ? q.outcome : "dead",
-      endless: !!q.endless,
-      time: Math.round(ni2(q.time, 0, 1e7)),
-      kills: Math.floor(ni2(q.kills, 0, 1e9)),
-      shards: Math.floor(ni2(q.shards, 0, 1e9)),
-      killer: typeof q.killer === "string" && /^[a-z]{1,18}$/.test(q.killer) ? q.killer : "",
-      build: Array.isArray(q.build)
-        ? q.build.filter((id) => typeof id === "string" && upgradesById[id]).slice(0, 6)
+      t: ni2(entry.t, 0, 9e15),
+      weapon: entry.weapon,
+      threat: Math.floor(ni2(entry.threat, 0, 5)),
+      wave: Math.floor(ni2(entry.wave, 1, 999, 1)),
+      outcome: ["win", "dead", "quit"].includes(entry.outcome) ? entry.outcome : "dead",
+      endless: !!entry.endless,
+      time: Math.round(ni2(entry.time, 0, 1e7)),
+      kills: Math.floor(ni2(entry.kills, 0, 1e9)),
+      shards: Math.floor(ni2(entry.shards, 0, 1e9)),
+      killer: typeof entry.killer === "string" && /^[a-z]{1,18}$/.test(entry.killer) ? entry.killer : "",
+      build: Array.isArray(entry.build)
+        ? entry.build.filter((id) => typeof id === "string" && upgradesById[id]).slice(0, 6)
         : [],
     });
   }
   return out;
 }
-function rlRecordRun(w, pre, win, abandoned) {
-  const d = store.data,
-    up = Object.entries(w.up || {})
+function rlRecordRun(world, pre, win, abandoned) {
+  const data = store.data,
+    up = Object.entries(world.up || {})
       .filter(([id]) => upgradesById[id] && !upgradesById[id].repeat)
       .sort((a, b) => upgradesById[b[0]].rarity - upgradesById[a[0]].rarity || b[1] - a[1]);
   const entry = {
     t: Date.now(),
-    weapon: w.weapon,
-    threat: w.threat,
-    wave: win && !w.endless ? 20 : w.wave,
+    weapon: world.weapon,
+    threat: world.threat,
+    wave: win && !world.endless ? 20 : world.wave,
     outcome: win ? "win" : abandoned ? "quit" : "dead",
-    endless: !!w.endless,
-    time: Math.round(w.time),
-    kills: w.kills,
-    shards: Math.max(0, d.shards - pre.bank),
-    killer: (!win && !abandoned && w.lastHit) || "",
+    endless: !!world.endless,
+    time: Math.round(world.time),
+    kills: world.kills,
+    shards: Math.max(0, data.shards - pre.bank),
+    killer: (!win && !abandoned && world.lastHit) || "",
     build: up.slice(0, 6).map(([id]) => id),
   };
-  d.history = rlSanitizeHistory([entry, ...(d.history || [])]);
+  data.history = rlSanitizeHistory([entry, ...(data.history || [])]);
   store.save("history");
 }
 // What the last load converted (shown once as a toast after start-up).
 var RL_RETIRE_NOTE = null;
 // assigned from other modules (an imported binding cannot be assigned)
-function set_RL_RETIRE_NOTE(v) {
-  return (RL_RETIRE_NOTE = v);
+function set_RL_RETIRE_NOTE(note) {
+  return (RL_RETIRE_NOTE = note);
 }
 /* Runs on the raw save before it is sanitised (cleanSave), so it covers loading and importing. Returns
  the input untouched when there is nothing to convert; never mutates it (rlLoadSave may still
  back up the raw object). Running it again on its own output changes nothing. */
 function rlMigrateRetired(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
-  const obj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : null),
+  const obj = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : null),
     own = obj(raw.weapons),
     run = obj(raw.run),
     owned = own ? Object.keys(RL_RETIRED_WEAPONS).filter((id) => own[id] === true) : [],
@@ -120,10 +123,10 @@ function rlMigrateRetired(raw) {
     weapons = { ...(own || {}) };
   let refund = 0;
   for (const id of owned) {
-    const r = RL_RETIRED_WEAPONS[id];
+    const retired = RL_RETIRED_WEAPONS[id];
     delete weapons[id];
-    if (weapons[r.to] === true) refund += r.cost;
-    else ((weapons[r.to] = true), (refund += Math.max(0, r.cost - weaponDefs[r.to].cost)));
+    if (weapons[retired.to] === true) refund += retired.cost;
+    else ((weapons[retired.to] = true), (refund += Math.max(0, retired.cost - weaponDefs[retired.to].cost)));
   }
   out.weapons = weapons;
   if (sel) out.weapon = sel.to;
@@ -186,89 +189,91 @@ function newSave() {
     seen: {},
   };
 }
-var cleanNumber = (i, t, e = -1 / 0, n = 1 / 0) =>
-    typeof i == "number" && Number.isFinite(i) ? Math.min(n, Math.max(e, i)) : t,
-  cleanBool = (i, t) => (typeof i == "boolean" ? i : t),
-  asObject = (i) => (i && typeof i == "object" && !Array.isArray(i) ? i : {});
-function cleanRun(i) {
-  i = rlMigrateUpgrades(i); // 2.5.0 A: retired upgrades of a saved run
+var cleanNumber = (value, fallback, min = -1 / 0, max = 1 / 0) =>
+    typeof value == "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback,
+  cleanBool = (value, fallback) => (typeof value == "boolean" ? value : fallback),
+  asObject = (value) => (value && typeof value == "object" && !Array.isArray(value) ? value : {});
+function cleanRun(raw) {
+  raw = rlMigrateUpgrades(raw); // 2.5.0 A: retired upgrades of a saved run
   if (
-    !i ||
-    typeof i !== "object" ||
-    i.v !== 1 ||
-    !weaponDefs[i.weapon] ||
-    !Number.isFinite(i.wave) ||
-    i.wave < 1 ||
-    i.wave > 999 ||
-    !Number.isFinite(i.hp) ||
-    i.hp <= 0
+    !raw ||
+    typeof raw !== "object" ||
+    raw.v !== 1 ||
+    !weaponDefs[raw.weapon] ||
+    !Number.isFinite(raw.wave) ||
+    raw.wave < 1 ||
+    raw.wave > 999 ||
+    !Number.isFinite(raw.hp) ||
+    raw.hp <= 0
   )
     return null;
-  const o = {
+  const run = {
     v: 1,
-    seed: Number.isFinite(i.seed) ? i.seed >>> 0 : 0,
-    weapon: i.weapon,
-    threat: Math.floor(cleanNumber(i.threat, 0, 0, 5)),
-    wave: Math.floor(cleanNumber(i.wave, 1, 1, 999)),
-    endless: !!i.endless,
+    seed: Number.isFinite(raw.seed) ? raw.seed >>> 0 : 0,
+    weapon: raw.weapon,
+    threat: Math.floor(cleanNumber(raw.threat, 0, 0, 5)),
+    wave: Math.floor(cleanNumber(raw.wave, 1, 1, 999)),
+    endless: !!raw.endless,
     up: {},
-    hp: Math.max(1, Math.round(cleanNumber(i.hp, 1, 1, 1e6))),
-    shards: Math.floor(cleanNumber(i.shards, 0, 0, 1e9)),
-    kills: Math.floor(cleanNumber(i.kills, 0, 0, 1e9)),
-    time: cleanNumber(i.time, 0, 0, 1e8),
-    rerolls: Math.floor(cleanNumber(i.rerolls, 0, 0, 99)),
-    revived: !!i.revived,
-    nova: Math.floor(cleanNumber(i.nova, 0, 0, 100)),
+    hp: Math.max(1, Math.round(cleanNumber(raw.hp, 1, 1, 1e6))),
+    shards: Math.floor(cleanNumber(raw.shards, 0, 0, 1e9)),
+    kills: Math.floor(cleanNumber(raw.kills, 0, 0, 1e9)),
+    time: cleanNumber(raw.time, 0, 0, 1e8),
+    rerolls: Math.floor(cleanNumber(raw.rerolls, 0, 0, 99)),
+    revived: !!raw.revived,
+    nova: Math.floor(cleanNumber(raw.nova, 0, 0, 100)),
     bossKills: [],
-    flawless: Math.floor(cleanNumber(i.flawless, 0, 0, 1e6)),
-    legendaries: Math.floor(cleanNumber(i.legendaries, 0, 0, 1e6)),
-    dmgDealt: Math.floor(cleanNumber(i.dmgDealt, 0, 0, 1e12)),
-    bestCombo: Math.floor(cleanNumber(i.bestCombo, 0, 0, 1e6)),
-    evolved: Math.floor(cleanNumber(i.evolved, 0, 0, 1e6)),
+    flawless: Math.floor(cleanNumber(raw.flawless, 0, 0, 1e6)),
+    legendaries: Math.floor(cleanNumber(raw.legendaries, 0, 0, 1e6)),
+    dmgDealt: Math.floor(cleanNumber(raw.dmgDealt, 0, 0, 1e12)),
+    bestCombo: Math.floor(cleanNumber(raw.bestCombo, 0, 0, 1e6)),
+    evolved: Math.floor(cleanNumber(raw.evolved, 0, 0, 1e6)),
     runStats: { dmgTaken: 0, dashes: 0, critHits: 0 },
     dmgSrc: {},
   };
-  const rawUp = asObject(i.up);
-  for (const d of upgradeList) {
-    const v = Math.floor(cleanNumber(rawUp[d.id], 0, 0, d.max));
-    if (v) o.up[d.id] = v;
+  const rawUp = asObject(raw.up);
+  for (const upgrade of upgradeList) {
+    const level = Math.floor(cleanNumber(rawUp[upgrade.id], 0, 0, upgrade.max));
+    if (level) run.up[upgrade.id] = level;
   }
-  const rawBoss = Array.isArray(i.bossKills) ? i.bossKills : [];
-  o.bossKills = [...new Set(rawBoss.filter((v) => typeof v === "string" && bossOrder.includes(v)))];
-  const rs = asObject(i.runStats);
-  ((o.runStats.dmgTaken = Math.floor(cleanNumber(rs.dmgTaken, 0, 0, 1e12))),
-    (o.runStats.dashes = Math.floor(cleanNumber(rs.dashes, 0, 0, 1e7))),
-    (o.runStats.critHits = Math.floor(cleanNumber(rs.critHits, 0, 0, 1e9))));
-  const src = asObject(i.dmgSrc);
-  for (const k in src) if (/^[A-Za-z0-9_-]{1,18}$/.test(k)) o.dmgSrc[k] = Math.floor(cleanNumber(src[k], 0, 0, 1e12));
-  if (Array.isArray(i.offer)) {
-    const offer = [...new Set(i.offer.filter((v) => typeof v === "string" && !!upgradesById[v]))].slice(0, 4);
-    if (offer.length) ((o.offer = offer), (o.offerBoss = !!i.offerBoss));
+  const rawBoss = Array.isArray(raw.bossKills) ? raw.bossKills : [];
+  run.bossKills = [...new Set(rawBoss.filter((id) => typeof id === "string" && bossOrder.includes(id)))];
+  const rawStats = asObject(raw.runStats);
+  ((run.runStats.dmgTaken = Math.floor(cleanNumber(rawStats.dmgTaken, 0, 0, 1e12))),
+    (run.runStats.dashes = Math.floor(cleanNumber(rawStats.dashes, 0, 0, 1e7))),
+    (run.runStats.critHits = Math.floor(cleanNumber(rawStats.critHits, 0, 0, 1e9))));
+  const src = asObject(raw.dmgSrc);
+  for (const key in src)
+    if (/^[A-Za-z0-9_-]{1,18}$/.test(key)) run.dmgSrc[key] = Math.floor(cleanNumber(src[key], 0, 0, 1e12));
+  if (Array.isArray(raw.offer)) {
+    const offer = [...new Set(raw.offer.filter((id) => typeof id === "string" && !!upgradesById[id]))].slice(0, 4);
+    if (offer.length) ((run.offer = offer), (run.offerBoss = !!raw.offerBoss));
   }
-  return o;
+  return run;
 }
-function cleanSave(i) {
+function cleanSave(input) {
   // 2.5.0 B: refund merged workshop modules, then 2.4.0: convert retired weapons (both on the raw save)
-  i = rlMigrateRetired(rlMigrateModules(i));
-  let t = newSave(),
-    e = asObject(i),
-    n = t;
-  ((n.created = cleanNumber(e.created, t.created)),
-    (n.savedAt = cleanNumber(e.savedAt, 0)),
-    (n.shards = Math.floor(cleanNumber(e.shards, 0, 0, 1e9))));
-  for (let c in weaponDefs) asObject(e.weapons)[c] === !0 && (n.weapons[c] = !0);
-  ((n.weapons.pulse = !0),
-    (n.weapon = weaponDefs[e.weapon] && n.weapons[e.weapon] ? e.weapon : "pulse"),
-    (n.threatMax = Math.floor(cleanNumber(e.threatMax, 0, 0, 5))),
-    (n.threat = Math.floor(cleanNumber(e.threat, 0, 0, n.threatMax))));
-  for (let c of workshopModules) {
-    let h = Math.floor(cleanNumber(asObject(e.workshop)[c.id], 0, 0, c.costs.length));
-    h && (n.workshop[c.id] = h);
+  input = rlMigrateRetired(rlMigrateModules(input));
+  let fresh = newSave(),
+    raw = asObject(input),
+    save = fresh;
+  ((save.created = cleanNumber(raw.created, fresh.created)),
+    (save.savedAt = cleanNumber(raw.savedAt, 0)),
+    (save.shards = Math.floor(cleanNumber(raw.shards, 0, 0, 1e9))));
+  for (let id in weaponDefs) asObject(raw.weapons)[id] === !0 && (save.weapons[id] = !0);
+  ((save.weapons.pulse = !0),
+    (save.weapon = weaponDefs[raw.weapon] && save.weapons[raw.weapon] ? raw.weapon : "pulse"),
+    (save.threatMax = Math.floor(cleanNumber(raw.threatMax, 0, 0, 5))),
+    (save.threat = Math.floor(cleanNumber(raw.threat, 0, 0, save.threatMax))));
+  for (let mod of workshopModules) {
+    let level = Math.floor(cleanNumber(asObject(raw.workshop)[mod.id], 0, 0, mod.costs.length));
+    level && (save.workshop[mod.id] = level);
   }
-  for (let c of milestones) asObject(e.milestones)[c.id] === !0 && (n.milestones[c.id] = !0);
-  let s = asObject(e.stats),
-    r = t.stats;
-  for (let c of [
+  for (let milestone of milestones)
+    asObject(raw.milestones)[milestone.id] === !0 && (save.milestones[milestone.id] = !0);
+  let rawStats = asObject(raw.stats),
+    stats = fresh.stats;
+  for (let key of [
     "runs",
     "kills",
     "bestWave",
@@ -282,96 +287,96 @@ function cleanSave(i) {
     "evolved",
     "bestCombo",
   ])
-    r[c] = cleanNumber(s[c], 0, 0, 1e12);
-  r.bestClearThreat = Math.floor(cleanNumber(s.bestClearThreat, -1, -1, 5));
-  for (let c of ["bosses", "clearsBy", "bestBy"]) {
-    let h = asObject(s[c]);
-    for (let l in h) /^[a-z]{2,12}$/.test(l) && (r[c][l] = cleanNumber(h[l], 0, 0, 1e9));
+    stats[key] = cleanNumber(rawStats[key], 0, 0, 1e12);
+  stats.bestClearThreat = Math.floor(cleanNumber(rawStats.bestClearThreat, -1, -1, 5));
+  for (let key of ["bosses", "clearsBy", "bestBy"]) {
+    let rawMap = asObject(rawStats[key]);
+    for (let id in rawMap) /^[a-z]{2,12}$/.test(id) && (stats[key][id] = cleanNumber(rawMap[id], 0, 0, 1e9));
   }
-  let a = asObject(e.settings);
-  for (let c in defaultSettings) {
-    let h = defaultSettings[c];
-    typeof h == "boolean"
-      ? (n.settings[c] = cleanBool(a[c], h))
-      : typeof h == "number"
-        ? (n.settings[c] = rlSettingNum(c, a[c], h))
-        : (n.settings[c] = ["auto", "high", "battery"].includes(a[c]) ? a[c] : h);
+  let rawSettings = asObject(raw.settings);
+  for (let key in defaultSettings) {
+    let def = defaultSettings[key];
+    typeof def == "boolean"
+      ? (save.settings[key] = cleanBool(rawSettings[key], def))
+      : typeof def == "number"
+        ? (save.settings[key] = rlSettingNum(key, rawSettings[key], def))
+        : (save.settings[key] = ["auto", "high", "battery"].includes(rawSettings[key]) ? rawSettings[key] : def);
   }
-  n.run = cleanRun(e.run);
-  n.history = rlSanitizeHistory(e.history);
-  let o = asObject(e.seen);
-  for (let c in o) o[c] === !0 && (n.seen[c] = !0);
-  return n;
+  save.run = cleanRun(raw.run);
+  save.history = rlSanitizeHistory(raw.history);
+  let rawSeen = asObject(raw.seen);
+  for (let id in rawSeen) rawSeen[id] === !0 && (save.seen[id] = !0);
+  return save;
 }
 var safeStorage = {
     ok: null,
-    get(i) {
+    get(key) {
       try {
-        return globalThis.localStorage ? localStorage.getItem(i) : null;
+        return globalThis.localStorage ? localStorage.getItem(key) : null;
       } catch {
         return ((this.ok = !1), null);
       }
     },
-    set(i, t) {
+    set(key, value) {
       try {
-        return (localStorage.setItem(i, t), (this.ok = !0), !0);
-      } catch (e) {
-        return (this.ok !== !1 && logError("storage", e), (this.ok = !1), !1);
+        return (localStorage.setItem(key, value), (this.ok = !0), !0);
+      } catch (err) {
+        return (this.ok !== !1 && logError("storage", err), (this.ok = !1), !1);
       }
     },
-    del(i) {
+    del(key) {
       try {
-        localStorage.removeItem(i);
+        localStorage.removeItem(key);
       } catch {}
     },
   },
   SaveStore = class {
     constructor() {
       this.listeners = new Set();
-      let t = null,
-        e = safeStorage.get(SAVE_KEY);
-      if (e && e.length <= 262144)
+      let data = null,
+        text = safeStorage.get(SAVE_KEY);
+      if (text && text.length <= 262144)
         try {
-          t = JSON.parse(e);
-        } catch (n) {
-          logError("load", n);
+          data = JSON.parse(text);
+        } catch (err) {
+          logError("load", err);
         }
-      e && (!t || typeof t != "object") && rlBackupSave(e);
-      ((this.data = t && typeof t == "object" ? rlLoadSave(t) : newSave()),
+      text && (!data || typeof data != "object") && rlBackupSave(text);
+      ((this.data = data && typeof data == "object" ? rlLoadSave(data) : newSave()),
         (this.persistent = safeStorage.get(SAVE_KEY) !== null || safeStorage.set("riftline.probe", "1")),
         safeStorage.del("riftline.probe"));
     }
     get storageOk() {
       return safeStorage.ok !== !1;
     }
-    onChange(t) {
-      this.listeners.add(t);
+    onChange(listener) {
+      this.listeners.add(listener);
     }
-    save(t) {
+    save(reason) {
       this.data.savedAt = Date.now();
-      let e = JSON.stringify(this.data);
-      safeStorage.set(SAVE_KEY, e);
-      for (let n of this.listeners)
+      let text = JSON.stringify(this.data);
+      safeStorage.set(SAVE_KEY, text);
+      for (let listener of this.listeners)
         try {
-          n(e, t);
-        } catch (s) {
-          logError("save-listener", s);
+          listener(text, reason);
+        } catch (err) {
+          logError("save-listener", err);
         }
     }
-    parse(t) {
-      let e,
-        r = String(t ?? "").trim();
-      if (!r || r.length > 262144) return { ok: !1 };
+    parse(text) {
+      let data,
+        str = String(text ?? "").trim();
+      if (!str || str.length > 262144) return { ok: !1 };
       try {
-        e = JSON.parse(r);
+        data = JSON.parse(str);
       } catch {
         return { ok: !1 };
       }
-      return !e || e.game !== "riftline" || e.v !== 1 ? { ok: !1 } : { ok: !0, data: cleanSave(e) };
+      return !data || data.game !== "riftline" || data.v !== 1 ? { ok: !1 } : { ok: !0, data: cleanSave(data) };
     }
     reset() {
-      let t = this.data.settings;
-      ((this.data = newSave()), (this.data.settings = t), this.save("reset"));
+      let settings = this.data.settings;
+      ((this.data = newSave()), (this.data.settings = settings), this.save("reset"));
     }
   };
 
@@ -391,21 +396,26 @@ function rlMigrateUpgrades(run) {
     next = { ...up },
     add = {};
   for (const id of oldUp) {
-    const r = rlRetiredUpgrade(id),
+    const retired = rlRetiredUpgrade(id),
       lv = Number.isFinite(up[id]) ? Math.max(0, Math.floor(up[id])) : 0;
     delete next[id];
-    if (lv) add[r.to] = (add[r.to] || 0) + lv * r.k;
+    if (lv) add[retired.to] = (add[retired.to] || 0) + lv * retired.k;
   }
-  for (const [id, v] of Object.entries(add)) {
+  for (const [id, level] of Object.entries(add)) {
     const cur = Number.isFinite(next[id]) ? Math.max(0, Math.floor(next[id])) : 0;
-    next[id] = Math.min(upgradesById[id].max, cur + Math.ceil(v - 1e-9));
+    next[id] = Math.min(upgradesById[id].max, cur + Math.ceil(level - 1e-9));
   }
   if (oldUp.length) out.up = next;
   if (oldOffer.length) {
     const kept = offer.filter((id) => typeof id === "string" && upgradesById[id]),
       picked = [],
-      free = (d) =>
-        d && !d.evo && !d.repeat && (next[d.id] || 0) < d.max && !kept.includes(d.id) && !picked.includes(d.id);
+      free = (upgrade) =>
+        upgrade &&
+        !upgrade.evo &&
+        !upgrade.repeat &&
+        (next[upgrade.id] || 0) < upgrade.max &&
+        !kept.includes(upgrade.id) &&
+        !picked.includes(upgrade.id);
     for (const id of offer) {
       if (!rlRetiredUpgrade(id)) {
         typeof id === "string" && upgradesById[id] && picked.push(id);
@@ -413,8 +423,9 @@ function rlMigrateUpgrades(run) {
       }
       const to = upgradesById[rlRetiredUpgrade(id).to],
         rarity = run.offerBoss ? Math.max(2, to.rarity) : to.rarity,
-        d = to.rarity === rarity && free(to) ? to : upgradeList.find((u) => u.rarity === rarity && free(u));
-      d && picked.push(d.id);
+        upgrade =
+          to.rarity === rarity && free(to) ? to : upgradeList.find((other) => other.rarity === rarity && free(other));
+      upgrade && picked.push(upgrade.id);
     }
     out.offer = picked;
   }
@@ -443,8 +454,8 @@ export {
  returns it untouched when there is nothing to convert and changes nothing when run twice. A saved
  run needs no change: it does not store workshop levels (World reads them from the save). */
 var RL_MODULE_NOTE = null;
-function set_RL_MODULE_NOTE(v) {
-  return (RL_MODULE_NOTE = v);
+function set_RL_MODULE_NOTE(note) {
+  return (RL_MODULE_NOTE = note);
 }
 function rlMigrateModules(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
@@ -457,14 +468,14 @@ function rlMigrateModules(raw) {
     into = [];
   let refund = 0;
   for (const id of found) {
-    const r = RL_RETIRED_MODULES[id],
-      lv = Math.floor(cleanNumber(ws[id], 0, 0, r.costs.length)),
-      to = workshopModules.find((m) => m.id === r.to)?.name || r.to;
+    const retired = RL_RETIRED_MODULES[id],
+      lv = Math.floor(cleanNumber(ws[id], 0, 0, retired.costs.length)),
+      to = workshopModules.find((mod) => mod.id === retired.to)?.name || retired.to;
     delete workshop[id];
     if (lv > 0) {
-      names.push(r.name);
+      names.push(retired.name);
       into.includes(to) || into.push(to);
-      refund += r.costs.slice(0, lv).reduce((a, b) => a + b, 0);
+      refund += retired.costs.slice(0, lv).reduce((sum, cost) => sum + cost, 0);
     }
   }
   const out = { ...raw, workshop };
