@@ -9,8 +9,10 @@ README.md explains build, commands, project structure and hosting. Read it first
 - The game code is split into ES modules under `src/` (`main.js`, `core/`, `data/`, `render/`,
   `audio/`, `ui/`; see README). three.js comes from npm (`three`, pinned to 0.186.0) and
   `build.js` bundles everything from `src/main.js`. Top-level names are readable (`World`,
-  `game`, `ui`, `store` …); new ones follow the same style. New fixes wrap prototype methods like
-  the existing ones, go into the module of the class they change, and say which version added them.
+  `game`, `ui`, `store` …); new ones follow the same style. Since 2.5.1 nothing is patched from
+  outside any more: change classes and functions directly, in the module that owns them. A
+  version comment (`// 2.5.1: …`) is kept only where it explains why code looks the way it does.
+- Format with Prettier (`npm run format`, width 120, `.prettierrc`); CI runs `npm run format:check`.
 - `npm test` includes `tests/determinism.mjs`. A refactor must pass it unchanged; update
   `tests/fixtures/determinism.json` (`--update`) only for changes meant to alter game behaviour.
 - The version and build id exist only in `package.json` (`version`, `riftline.build`). After a

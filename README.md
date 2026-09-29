@@ -42,7 +42,7 @@ AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY) mov
 ## Commands
 
 ```bash
-npm install          # esbuild + playwright (browsers are preinstalled in the cloud env,
+npm install          # esbuild, playwright, prettier (browsers are preinstalled in the cloud env,
                      # elsewhere: npx playwright install chromium)
 npm run build        # -> dist/ (the deployable site)
 npm run dev          # build unminified, rebuild on change, serve http://localhost:8124
@@ -52,6 +52,7 @@ npm run qa           # full QA: saves, settings, workshop, runs on PC and phone,
 npm run e2e          # end-to-end with real pointer/touch input on 5 device sizes
 npm run audit        # world audit (routes, walls, spawns), data audit, bot run to wave 22 + post-run audit
 npm run sim -- pulse,ion 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
+npm run format       # Prettier over src/, tests/, tools/ (CI runs npm run format:check)
 npm run screens      # screenshot of every screen and every biome on PC, phone and landscape phone -> tests/shots/
 ```
 
@@ -85,36 +86,42 @@ CLAUDE.md          short working rules for Claude Code sessions in this reposito
 
 Riftline was released as one minified bundle (game code and three.js, built with esbuild) and then
 patched by hand for several releases. The module sources the bundle was built from are not part of
-the release. Since 2.4.3 three.js comes from npm; since 2.4.4 the game code of that bundle is split
-into ES modules under `src/` (formatted with Prettier). `build.js` bundles `src/main.js`, everything
-it imports and three.js into one minified file.
+the release, so the code was turned back into readable sources step by step:
 
-- Every file starts with a comment that says what it contains. `main.js` imports every module;
-  their code runs in the order the original file had, which matters because later releases patch
-  earlier code when their module is loaded.
-- Top-level names are readable since 2.4.5: `game` (controller), `ui` (instance of `GameUI`),
-  `store` (`SaveStore`), `renderer` (`Renderer`), `input` (`Input`), `sound` (`SoundEngine`),
-  `World` (simulation), `weaponDefs`, `enemyDefs`, `bossDefs`, `upgradeList`/`upgradesById`,
+- 2.4.3: three.js comes from npm (`three`, pinned to 0.186.0 / r186). Each module imports the
+  classes it needs by their three.js names (`import { BoxGeometry, Mesh } from "three"`). Updating
+  three.js means changing the version in `package.json`, running `npm install` and the full release
+  checks.
+- 2.4.4: the game code is split into ES modules under `src/`. `build.js` bundles `src/main.js`,
+  everything it imports and three.js into one minified file.
+- 2.4.5: readable top-level names: `game` (controller), `ui` (instance of `GameUI`), `store`
+  (`SaveStore`), `renderer` (`Renderer`), `input` (`Input`), `sound` (`SoundEngine`), `World`
+  (simulation), `weaponDefs`, `enemyDefs`, `bossDefs`, `upgradeList`/`upgradesById`,
   `workshopModules`, `milestones`, `threatLevels`, `biomeList`/`biomesById`, `computeStats`,
   `planWave`, `updateEnemy`, `buildLayout` … The imports at the top of each file say where a name
-  comes from. Local variables inside functions (`t`, `e`, `n` …) still carry the minified names.
-  `window.__riftTest` keeps the old short keys (`Aa`, `nr`, `ue`, `data.Zi` …) for the tests.
-- The content packs 2.0–2.2 and every later fix hook into the original classes by wrapping
-  prototype methods (`const base = World.prototype.startWave; World.prototype.startWave = function …`).
-  New fixes should follow that pattern, go into the module of the class they change, and say which
-  version added them.
+  comes from.
+- 2.5.1: the patches of the content packs and later fixes (methods wrapped from outside, up to
+  eight times) are folded into the classes and functions, so every method is in one place; local
+  variables have readable names; the syntax tricks of the minifier (`!0`, comma chains,
+  `a && f()` as a statement …) are plain statements; the self-tests have their own module
+  (`core/selftest.js`); `window.__riftTest` uses the real names; Prettier (`.prettierrc`, width
+  120) formats everything and CI checks it.
+
+Working rules:
+
+- Every file starts with a comment that says what it contains. `main.js` imports every module.
+- Change classes and functions directly, in the module that owns them; nothing is patched from
+  outside. Keep a version comment (`// 2.5.1: …`) only where it explains why code looks the way
+  it does.
 - An imported binding cannot be assigned. Where one module sets a variable of another, the
   owning module exports a setter (`set_RL_RETIRE_NOTE(v)`).
-- three.js is the npm package `three`, pinned to 0.186.0 (r186). Each module imports the classes it
-  needs by their three.js names (`import { BoxGeometry, Mesh } from "three"`).
-  Updating three.js means changing the version in `package.json`, running `npm install` and the
-  full release checks.
 - `tests/determinism.mjs` runs fixed-seed simulations, stat computations, arena layouts and wave
   plans and compares them with `tests/fixtures/determinism.json`. A refactor must pass it
   unchanged. Only a change that is meant to alter game behaviour updates the file
   (`node tools/qa.js determinism --update`), in the same commit.
 - `window.__riftTest` (end of `main.js`) exposes the game, UI, store, renderer and data tables for
   the tests.
+- `npm run format` formats the code; `npm run format:check` is what CI runs.
 
 ### Versions
 
@@ -155,7 +162,3 @@ to the game.
 ## Known limits and ideas
 
 - Automated tests run only in Chromium. Firefox and Safari are checked by hand.
-- Local variables inside functions still carry the minified names (`t`, `e`, `n` …), and later
-  releases still patch classes from outside instead of changing them. Next step: rename the local
-  names and fold the patches into the classes, module by module. The determinism test, deep test,
-  world audit and full QA are the safety net.
