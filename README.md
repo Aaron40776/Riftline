@@ -66,7 +66,7 @@ of the full QA. Before a release run
 ```
 src/
   main.js          entry point: boot, game controller, main loop, wiring
-  core/            simulation and services: world, arena, waves, AI, stats, save, diagnostics, util
+  core/            simulation and services: world, arena, waves, AI, stats, save, diagnostics (runtime log and monitor), selftest (deep self-test), util
   data/            tables: weapons, enemies, upgrades, progression (workshop, milestones, threat), biomes
   render/          three.js renderer, models, biome visuals and skins, 2D overlay
   audio/           sound effects and music

@@ -54,9 +54,13 @@
     "optional run timer and FPS counter"
   ],
   "build": "__RL_BUILD__",
-  "reviewed_from": "Riftline v2.4.6",
-  "generatedAt": "2026-09-28T21:50:16+02:00",
+  "reviewed_from": "Riftline v2.5.0",
+  "generatedAt": "2026-09-29T13:21:17+02:00",
   "changes": [
+    "2.5.1: code refactor, no change to the game: the patches of the content packs and later fixes (methods wrapped from outside, up to eight times each) are folded into the classes and functions, so every method is in one place",
+    "2.5.1: about 3,600 minified local names (t, e, n …) are readable names; the minifier's syntax tricks (!0, comma chains, a && f() as a statement, var) are plain statements",
+    "2.5.1: the deep self-test has its own module (core/selftest.js); window.__riftTest uses the real names; Prettier formats the code and CI checks it",
+    "2.5.1: the save-sanitize health check expected the old High-Yield maximum 8 and reported FAIL since 2.5.0; it reads the maximum from the upgrade now",
     "2.5.0: upgrades without duplicates — 19 weaker copies are folded into the upgrade they copied (e.g. Overbore Caliber and Kinetic Matrix into High-Yield Rounds, Afterburner and Cryo Coolant into Vector Capacitor, which now also shortens the Aegis cooldown); the kept upgrades have higher maximums, so a build reaches about the same totals. 59 upgrades, 13 evolutions unchanged",
     "2.5.0: six new upgrades with their own mechanic — Cryo Skates (faster on ice and in Cryo Vault), Acid Coating (hits leave your own cyan acid, enemies in it take +25%), Heat Sink (fire-rate burst and Nova charge near lava or acid), Slipstream (+25% damage after a dash), Combo Surge (longer combos, a shockwave every 15 combo kills), Reactive Plating (a hit releases a repulse wave, -8% fire rate)",
     "2.5.0: workshop — Rift Battery and Reactor Core are merged into Nova Cell (4 levels, at least 25% Nova per level at the start of each wave), Route Scanner into Field Supply (+1 cache and +50% cache shards per level); bought levels of the removed modules are refunded in full",
