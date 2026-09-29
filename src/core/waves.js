@@ -22,44 +22,53 @@ var waveEvents = {
   },
 };
 var EVENT_CHANCE = 0.2;
-function rollUpgradeOffer(i, t, e, n, s, r, a = [], o = null) {
-  let c = upgradeList.filter(
-      (f) => !(f.evo || (t[f.id] || 0) >= f.max || (f.id === "heal" && n > 0.7) || (r && f.rarity < 2)),
+function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], weapon = null) {
+  let pool = upgradeList.filter(
+      (upgrade) =>
+        !(
+          upgrade.evo ||
+          (owned[upgrade.id] || 0) >= upgrade.max ||
+          (upgrade.id === "heal" && hpFrac > 0.7) ||
+          (boss && upgrade.rarity < 2)
+        ),
     ),
-    h = (f) => {
-      let x = (r ? bossRarityWeights : rarityWeights)[f.rarity];
+    weightOf = (upgrade) => {
+      let weight = (boss ? bossRarityWeights : rarityWeights)[upgrade.rarity];
       return (
-        r || (f.rarity === 3 && (x += e * 0.35), f.rarity === 4 && (x += e * 0.15)),
-        f.id === "heal" && (x *= n < 0.35 ? 3 : 1.2),
-        a.includes(f.id) && (x *= 0.05),
-        x / Math.max(1, countRarity(c, f.rarity))
+        boss || (upgrade.rarity === 3 && (weight += wave * 0.35), upgrade.rarity === 4 && (weight += wave * 0.15)),
+        upgrade.id === "heal" && (weight *= hpFrac < 0.35 ? 3 : 1.2),
+        exclude.includes(upgrade.id) && (weight *= 0.05),
+        weight / Math.max(1, countRarity(pool, upgrade.rarity))
       );
     },
-    l = [],
-    u = upgradeList.filter(
-      (f) =>
-        f.evo && !t[f.id] && (!f.weapon || f.weapon === o) && Object.entries(f.evo).every(([p, x]) => (t[p] || 0) >= x),
+    picks = [],
+    evos = upgradeList.filter(
+      (upgrade) =>
+        upgrade.evo &&
+        !owned[upgrade.id] &&
+        (!upgrade.weapon || upgrade.weapon === weapon) &&
+        Object.entries(upgrade.evo).every(([id, need]) => (owned[id] || 0) >= need),
     );
-  u.length && l.push(u[Math.floor(i.next() * u.length)].id);
-  let d = c.slice();
-  for (; l.length < s && d.length; ) {
-    let f = 0;
-    for (let m of d) f += h(m);
-    let p = i.next() * f,
-      x = d[d.length - 1];
-    for (let m of d)
-      if (((p -= h(m)), p <= 0)) {
-        x = m;
+  evos.length && picks.push(evos[Math.floor(rng.next() * evos.length)].id);
+  let left = pool.slice();
+  for (; picks.length < count && left.length; ) {
+    let total = 0;
+    for (let upgrade of left) total += weightOf(upgrade);
+    let roll = rng.next() * total,
+      pick = left[left.length - 1];
+    for (let upgrade of left)
+      if (((roll -= weightOf(upgrade)), roll <= 0)) {
+        pick = upgrade;
         break;
       }
-    (l.push(x.id), d.splice(d.indexOf(x), 1));
+    (picks.push(pick.id), left.splice(left.indexOf(pick), 1));
   }
-  return l;
+  return picks;
 }
-function countRarity(i, t) {
-  let e = 0;
-  for (let n of i) n.rarity === t && e++;
-  return e;
+function countRarity(list, rarity) {
+  let count = 0;
+  for (let upgrade of list) upgrade.rarity === rarity && count++;
+  return count;
 }
 var spawnWeights = {
     swarmer: 5,
@@ -78,89 +87,104 @@ var spawnWeights = {
     turret: 0.9,
   },
   heavyEnemies = { brute: 1, hive: 1, sniper: 1, bulwark: 1, mortar: 1, mender: 1, turret: 1 };
-function waveBudget(i, t) {
-  return (16 + 8 * i + 0.3 * i * i) * t.budget;
+function waveBudget(wave, tm) {
+  return (16 + 8 * wave + 0.3 * wave * wave) * tm.budget;
 }
-function planWave(i, t, e, n, s = {}) {
-  let r = waveBudget(t, e) * (n ? 0.22 : 1) * (s.budget || 1),
-    a = enemyOrder.filter((S) => enemyDefs[S].from <= t && (!n || !heavyEnemies[S])),
-    o = {
-      hive: 1 + Math.floor(t / 8),
-      brute: 2 + Math.floor(t / 4),
-      sniper: 2 + Math.floor(t / 4),
-      splitter: 3 + Math.floor(t / 3),
-      bulwark: 1 + Math.floor(t / 6),
-      mortar: 1 + Math.floor(t / 6),
-      striker: 2 + Math.floor(t / 5),
-      mender: 1 + Math.floor(t / 10),
-      leaper: 2 + Math.floor(t / 5),
-      turret: 1 + Math.floor(t / 8),
-      charger: 2 + Math.floor(t / 6),
-      minebot: 2 + Math.floor(t / 8),
-      sapper: 1 + Math.floor(t / 7),
-      phantom: 1 + Math.floor(t / 8),
-      sentinel: 1 + Math.floor(t / 9),
-      carrier: 1 + Math.floor(t / 10),
-      drone: 2 + Math.floor(t / 6),
-      driller: 1 + Math.floor(t / 8),
-      beacon: 1 + Math.floor(t / 14),
-      weaver: 1 + Math.floor(t / 8),
-    },
-    c = {},
-    h = [],
-    l = s.elite != null ? s.elite : t >= 6 ? 0.035 + 0.006 * t + e.elite : 0,
-    u = 0;
-  for (; r >= 1 && u++ < 500; ) {
-    let S = a.filter((R) => enemyDefs[R].cost <= r && (c[R] || 0) < (o[R] ?? 999));
-    if (!S.length) break;
-    let T = weightedPick(
-      i,
-      S,
-      S.map((R) => spawnWeights[R] * ((s.weights && s.weights[R]) || 1)),
-    );
-    ((c[T] = (c[T] || 0) + 1), (r -= enemyDefs[T].cost), h.push({ type: T, elite: T !== "swarmer" && i.chance(l) }));
-  }
-  for (let S = h.length - 1; S > 0; S--) {
-    let T = Math.floor(i.next() * (S + 1));
-    [h[S], h[T]] = [h[T], h[S]];
-  }
-  let d = Math.floor(h.length / 4),
-    f = h.slice(0, d),
-    p = h.slice(d),
-    x = f.filter((S) => heavyEnemies[S.type] || S.elite),
-    m = f.filter((S) => !(heavyEnemies[S.type] || S.elite)).concat(p, x),
-    g = [],
-    M = clamp(4 + Math.floor(t / 2.5), 4, 12),
-    b = n ? 7 : Math.max(1.6, 3.2 - t * 0.06),
-    v = 0;
-  for (; v < m.length; ) {
-    let S = M + i.int(-1, 1),
-      T = [],
-      R = 0;
-    for (; v < m.length && R < S; ) {
-      let _ = m[v++];
-      (T.push(_), (R += _.type === "swarmer" ? 0.5 : 1));
+function planWave(rng, wave, tm, boss, plan = {}) {
+  // 2.4.0: the biome's enemy mix (set by World.startWave) multiplies the spawn weights (events keep
+  // theirs on top). 2.5.0 C: signature enemies, the ones the mix favours (weight >= 1), can spawn
+  // from the biome's first wave at half their weight until their own wave (see rlEnemyFrom).
+  const mix = RL_BIOME_MIX_CUR;
+  let early = [],
+    saved = [];
+  if (mix) {
+    early = Object.keys(mix).filter((id) => mix[id] >= 1 && enemyDefs[id] && enemyDefs[id].from > wave);
+    const weights = { ...(plan.weights || {}) };
+    if (early.length) {
+      saved = early.map((id) => enemyDefs[id].from);
+      for (const id of early) weights[id] = (weights[id] || 1) * RL_EARLY_WEIGHT_250;
     }
-    g.push({ gap: b * i.range(0.85, 1.15), members: T });
+    for (const [id, mul] of Object.entries(mix)) weights[id] = (weights[id] || 1) * mul;
+    plan = { ...plan, weights };
   }
-  return g;
+  try {
+    const start = rlBiomeStart(wave);
+    for (const id of early) enemyDefs[id].from = start;
+    let budget = waveBudget(wave, tm) * (boss ? 0.22 : 1) * (plan.budget || 1),
+      types = enemyOrder.filter((type) => enemyDefs[type].from <= wave && (!boss || !heavyEnemies[type])),
+      caps = {
+        hive: 1 + Math.floor(wave / 8),
+        brute: 2 + Math.floor(wave / 4),
+        sniper: 2 + Math.floor(wave / 4),
+        splitter: 3 + Math.floor(wave / 3),
+        bulwark: 1 + Math.floor(wave / 6),
+        mortar: 1 + Math.floor(wave / 6),
+        striker: 2 + Math.floor(wave / 5),
+        mender: 1 + Math.floor(wave / 10),
+        leaper: 2 + Math.floor(wave / 5),
+        turret: 1 + Math.floor(wave / 8),
+        charger: 2 + Math.floor(wave / 6),
+        minebot: 2 + Math.floor(wave / 8),
+        sapper: 1 + Math.floor(wave / 7),
+        phantom: 1 + Math.floor(wave / 8),
+        sentinel: 1 + Math.floor(wave / 9),
+        carrier: 1 + Math.floor(wave / 10),
+        drone: 2 + Math.floor(wave / 6),
+        driller: 1 + Math.floor(wave / 8),
+        beacon: 1 + Math.floor(wave / 14),
+        weaver: 1 + Math.floor(wave / 8),
+      },
+      counts = {},
+      spawns = [],
+      eliteChance = plan.elite != null ? plan.elite : wave >= 6 ? 0.035 + 0.006 * wave + tm.elite : 0,
+      tries = 0;
+    for (; budget >= 1 && tries++ < 500; ) {
+      let fits = types.filter((type) => enemyDefs[type].cost <= budget && (counts[type] || 0) < (caps[type] ?? 999));
+      if (!fits.length) break;
+      let type = weightedPick(
+        rng,
+        fits,
+        fits.map((type) => spawnWeights[type] * ((plan.weights && plan.weights[type]) || 1)),
+      );
+      ((counts[type] = (counts[type] || 0) + 1),
+        (budget -= enemyDefs[type].cost),
+        spawns.push({ type: type, elite: type !== "swarmer" && rng.chance(eliteChance) }));
+    }
+    for (let i = spawns.length - 1; i > 0; i--) {
+      let j = Math.floor(rng.next() * (i + 1));
+      [spawns[i], spawns[j]] = [spawns[j], spawns[i]];
+    }
+    let quarter = Math.floor(spawns.length / 4),
+      head = spawns.slice(0, quarter),
+      tail = spawns.slice(quarter),
+      heavyHead = head.filter((spawn) => heavyEnemies[spawn.type] || spawn.elite),
+      order = head.filter((spawn) => !(heavyEnemies[spawn.type] || spawn.elite)).concat(tail, heavyHead),
+      groups = [],
+      groupSize = clamp(4 + Math.floor(wave / 2.5), 4, 12),
+      gap = boss ? 7 : Math.max(1.6, 3.2 - wave * 0.06),
+      next = 0;
+    for (; next < order.length; ) {
+      let size = groupSize + rng.int(-1, 1),
+        members = [],
+        weight = 0;
+      for (; next < order.length && weight < size; ) {
+        let spawn = order[next++];
+        (members.push(spawn), (weight += spawn.type === "swarmer" ? 0.5 : 1));
+      }
+      groups.push({ gap: gap * rng.range(0.85, 1.15), members: members });
+    }
+    return groups;
+  } finally {
+    early.forEach((id, k) => (enemyDefs[id].from = saved[k]));
+  }
 }
-// Enemy mix: startWave builds the wave plan with _u; the biome's weights multiply the spawn
-// weights of the plan (events keep theirs on top).
+// Enemy mix: World.startWave sets the biome's mix while it builds the wave plan with planWave; the
+// biome's weights multiply the spawn weights of the plan (events keep theirs on top).
 var RL_BIOME_MIX_CUR = null;
 // assigned from other modules (an imported binding cannot be assigned)
-function set_RL_BIOME_MIX_CUR(v) {
-  return (RL_BIOME_MIX_CUR = v);
+function set_RL_BIOME_MIX_CUR(mix) {
+  return (RL_BIOME_MIX_CUR = mix);
 }
-const _rlPlan240 = planWave;
-planWave = function (rng, wave, tm, boss, plan = {}) {
-  const mix = RL_BIOME_MIX_CUR;
-  if (!mix) return _rlPlan240(rng, wave, tm, boss, plan);
-  const weights = { ...(plan.weights || {}) };
-  for (const [id, m] of Object.entries(mix)) weights[id] = (weights[id] || 1) * m;
-  return _rlPlan240(rng, wave, tm, boss, { ...plan, weights });
-};
-
 export { waveEvents, spawnWeights, EVENT_CHANCE, planWave, heavyEnemies, rollUpgradeOffer, set_RL_BIOME_MIX_CUR };
 
 // ---- 2.5.0 C: biome events and signature enemies ----
@@ -217,22 +241,4 @@ function rlEnemyFrom(type, biome, wave) {
   const mix = RL_BIOME_INFO[biome]?.mix;
   return mix && mix[type] >= 1 ? Math.min(def.from, rlBiomeStart(wave)) : def.from;
 }
-const _rlPlan250 = planWave;
-planWave = function (rng, wave, tm, boss, plan = {}) {
-  const mix = RL_BIOME_MIX_CUR;
-  if (!mix) return _rlPlan250(rng, wave, tm, boss, plan);
-  const start = rlBiomeStart(wave),
-    early = Object.keys(mix).filter((id) => mix[id] >= 1 && enemyDefs[id] && enemyDefs[id].from > wave);
-  if (!early.length) return _rlPlan250(rng, wave, tm, boss, plan);
-  const saved = early.map((id) => enemyDefs[id].from),
-    weights = { ...(plan.weights || {}) };
-  for (const id of early) weights[id] = (weights[id] || 1) * RL_EARLY_WEIGHT_250;
-  try {
-    for (const id of early) enemyDefs[id].from = start;
-    return _rlPlan250(rng, wave, tm, boss, { ...plan, weights });
-  } finally {
-    early.forEach((id, k) => (enemyDefs[id].from = saved[k]));
-  }
-};
-
 export { RL_BIOME_EVENT, rlEnemyFrom, rlBiomeStart };

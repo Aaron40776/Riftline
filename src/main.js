@@ -1047,32 +1047,6 @@ function rlRetireToast() {
  self-test and snapshot-check worlds are ignored by identity) ---- */
 (() => {
   rlInstallHunt();
-  const baseStep = World.prototype.step;
-  World.prototype.step = function (dt, input) {
-    if (!RL_MON || RL_MON.w !== this) return baseStep.call(this, dt, input);
-    const n0 = this.fx.length,
-      d0 = this.player.dashId,
-      s0 = this.shards,
-      k0 = this.kills;
-    const r = baseStep.call(this, dt, input);
-    try {
-      rlMonStep(this, n0, d0, s0, k0, dt);
-    } catch (e) {
-      rlMonIssue("WARN", "monitor", "monitor exception: " + e.message);
-    }
-    return r;
-  };
-  const baseWave = World.prototype.startWave;
-  World.prototype.startWave = function (wave, nova) {
-    const r = baseWave.call(this, wave, nova);
-    if (RL_MON && RL_MON.w === this)
-      try {
-        rlMonBeginWave(this);
-      } catch (e) {
-        rlMonIssue("WARN", "monitor", "monitor exception: " + e.message);
-      }
-    return r;
-  };
   const baseStart = game.startRun;
   game.startRun = function (o) {
     const r = baseStart.call(this, o);
