@@ -6,8 +6,6 @@ import { clamp, TAU, turnToward } from "./util.js";
  enemy.hunt so they come to the player. The 2.1/2.2 ranged enemies ignored
  it and could kite forever (the last Beacon fleeing into a corner). ---- */
 var RL_KITERS = new Set(["turret", "minebot", "sapper", "sentinel", "carrier", "drone", "beacon", "weaver"]);
-// 3b: the hunt override is folded into updateEnemy; kept as a no-op because main.js still calls it.
-function rlInstallHunt() {}
 function updateEnemyCore(game, enemy, dt) {
   if (enemy.spawnT > 0) {
     ((enemy.vx = 0), (enemy.vy = 0));
@@ -1481,4 +1479,4 @@ function updateCrucible(game, boss, dt, aim, dist, shotDmg, rage) {
   return !1;
 }
 
-export { RL_KITERS, updateEnemy, rlInstallHunt, updateBoss, findOpenSpot, initBoss };
+export { RL_KITERS, updateEnemy, updateBoss, findOpenSpot, initBoss };
