@@ -2,7 +2,7 @@
 
 import { weaponDefs } from "../data/weapons.js";
 
-function computeStatsCore(i, t, e) {
+function computeStats(i, t, e) {
   let n = weaponDefs[i] || weaponDefs.pulse,
     s = (u) => t[u] || 0,
     r = (u) => e[u] || 0,
@@ -11,7 +11,7 @@ function computeStatsCore(i, t, e) {
     c = (u) => s(u) > 0,
     h = s("shield") ? [12, 8, 5][Math.min(s("shield"), 3) - 1] * (c("halo") ? 0.7 : 1) : 0,
     l = o("arc", 0.2, 0.1);
-  return {
+  const st = {
     weapon: n,
     maxHp: 100 + 10 * r("hull") + 20 * s("hp"),
     speed: 6.2 * (1 + 0.04 * r("thrust")) * (1 + 0.08 * s("speed")),
@@ -66,32 +66,56 @@ function computeStatsCore(i, t, e) {
     hellfire: c("hellfire"),
     range: weaponRange(n) * (1 + 0.2 * s("velocity")) * (c("dragon") ? 1.3 : 1),
   };
-}
-function computeStats(i, t, e) {
-  const s = computeStatsCore(i, t, e),
-    u = (id) => t[id] || 0,
-    w = (id) => e[id] || 0;
-  s.maxHp = Math.max(25, s.maxHp * (1 - 0.05 * u("glasscore")));
-  s.dmgMul *= 1 + 0.08 * u("glasscore");
-  s.crit += 0.04 * u("glasscore");
-  s.eliteMul = 1 + 0.1 * u("hunter");
-  s.supply = u("supply");
-  s.armor = 0.04 * w("armorCore"); // 2.3.5: share of enemy damage absorbed (was +8 max HP)
-  s.wingmen += s.wingman ? Math.min(2, w("droneBay")) : 0;
+  st.maxHp = Math.max(25, st.maxHp * (1 - 0.05 * s("glasscore")));
+  st.dmgMul *= 1 + 0.08 * s("glasscore");
+  st.crit += 0.04 * s("glasscore");
+  st.eliteMul = 1 + 0.1 * s("hunter");
+  st.supply = s("supply");
+  st.armor = 0.04 * r("armorCore"); // 2.3.5: share of enemy damage absorbed (was +8 max HP)
+  st.wingmen += st.wingman ? Math.min(2, r("droneBay")) : 0;
   // v2.1 meta/run stats
-  s.rateMul *= 1 + 0.06 * w("arsenalLab"); // 2.3.5: fire rate (was +5% damage like Power Core)
-  s.hazardResist = Math.min(0.88, 0.15 * w("hazardSeal") + 0.25 * u("hazmat"));
+  st.rateMul *= 1 + 0.06 * r("arsenalLab"); // 2.3.5: fire rate (was +5% damage like Power Core)
+  st.hazardResist = Math.min(0.88, 0.15 * r("hazardSeal") + 0.25 * s("hazmat"));
   // 2.3.5: the cache modules split into quantity and value. cacheBonus (run upgrade Salvager
   // Core) adds both a cache and +2 shards per cache; Field Supply adds caches (cacheCount) and,
   // since 2.5.0, multiplies the shards in caches (cacheValue, set in the 2.5.0 B section).
-  s.cacheBonus = u("salvager");
-  s.cacheCount = w("fieldSupply");
-  s.overload = u("overload");
-  s.crit = Math.min(0.95, s.crit);
-  s.chain += u("resonance");
-  s.arc = Math.min(0.95, s.arc + 0.08 * u("resonance"));
-  s.echo = u("echo");
-  return s;
+  st.cacheBonus = s("salvager");
+  st.cacheCount = r("fieldSupply");
+  st.overload = s("overload");
+  st.crit = Math.min(0.95, st.crit);
+  st.chain += s("resonance");
+  st.arc = Math.min(0.95, st.arc + 0.08 * s("resonance"));
+  st.echo = s("echo");
+  // 2.5.0 A: the retired copies are folded into the upgrade they copied (their lines above now
+  // read 0), and the six new upgrades expose their level for the World hooks in core/world.js.
+  const oc = s("overcharge");
+  // Targeting Chip took over Dead Focus and Deadeye Lens: +5% range per level
+  st.range *= 1 + 0.05 * s("crit");
+  // Overcharge (max 4): +25% Nova radius for each of the first two levels, +10% for the next two
+  st.novaR *= (1 + 0.25 * Math.min(2, oc) + 0.1 * Math.max(0, oc - 2)) / (1 + 0.25 * oc);
+  // Vector Capacitor took over Cryo Coolant and Afterburner: the Aegis recharges faster too
+  st.shieldCd *= Math.max(0.45, 1 - 0.08 * s("vector"));
+  st.skates = s("skates");
+  st.speed *= 1 + 0.04 * st.skates;
+  st.acidCoat = s("acidcoat");
+  st.heatSink = s("heatsink");
+  st.slip = s("slipstream");
+  st.surge = s("surge");
+  st.reactive = s("reactive");
+  st.rateMul *= 1 - 0.08 * st.reactive;
+  // 2.5.0 B: workshop merge and the new modules
+  // Rift Battery / Reactor Core are merged into Nova Cell (its floor is applied in startWave);
+  // no module adds charge on top any more, even if an unsanitised ws object still names them.
+  st.novaStart = 0;
+  // Field Supply took over Route Scanner: +50% shards per cache and level
+  st.cacheValue = 1 + 0.5 * r("fieldSupply");
+  // Hazard Attunement: damage and repair while close to a map hazard (world.js decides "close")
+  st.attuneDmg = 0.1 * r("hazardAttune");
+  st.attuneRegen = 0.5 * r("hazardAttune");
+  // Emergency Shield: barrier seconds and repair share once per wave below 30% hull
+  st.barrierT = 1 * r("emergencyShield");
+  st.barrierHeal = 0.08 * r("emergencyShield");
+  return st;
 }
 function weaponRange(i) {
   return i.boomerang
@@ -103,48 +127,5 @@ function weaponRange(i) {
 
 /* v2.2 stat integration: its upgrades and modules were copies and are retired since 2.5.0 (Salvager
  Core moved into computeStats above). */
-
-// 2.5.0 A: the retired copies are folded into the upgrade they copied (their lines above now read
-// 0), and the six new upgrades expose their level for the World hooks in core/world.js.
-const _rlComputeStats250A = computeStats;
-computeStats = function (weapon, run, workshop) {
-  const s = _rlComputeStats250A(weapon, run, workshop),
-    u = (id) => run[id] || 0,
-    oc = u("overcharge");
-  // Targeting Chip took over Dead Focus and Deadeye Lens: +5% range per level
-  s.range *= 1 + 0.05 * u("crit");
-  // Overcharge (max 4): +25% Nova radius for each of the first two levels, +10% for the next two
-  s.novaR *= (1 + 0.25 * Math.min(2, oc) + 0.1 * Math.max(0, oc - 2)) / (1 + 0.25 * oc);
-  // Vector Capacitor took over Cryo Coolant and Afterburner: the Aegis recharges faster too
-  s.shieldCd *= Math.max(0.45, 1 - 0.08 * u("vector"));
-  s.skates = u("skates");
-  s.speed *= 1 + 0.04 * s.skates;
-  s.acidCoat = u("acidcoat");
-  s.heatSink = u("heatsink");
-  s.slip = u("slipstream");
-  s.surge = u("surge");
-  s.reactive = u("reactive");
-  s.rateMul *= 1 - 0.08 * s.reactive;
-  return s;
-};
-
-// 2.5.0 B: workshop merge and the new modules
-const _rlComputeStats250B = computeStats;
-computeStats = function (weapon, run, workshop) {
-  const s = _rlComputeStats250B(weapon, run, workshop),
-    w = (id) => workshop[id] || 0;
-  // Rift Battery / Reactor Core are merged into Nova Cell (its floor is applied in startWave);
-  // no module adds charge on top any more, even if an unsanitised ws object still names them.
-  s.novaStart = 0;
-  // Field Supply took over Route Scanner: +50% shards per cache and level
-  s.cacheValue = 1 + 0.5 * w("fieldSupply");
-  // Hazard Attunement: damage and repair while close to a map hazard (world.js decides "close")
-  s.attuneDmg = 0.1 * w("hazardAttune");
-  s.attuneRegen = 0.5 * w("hazardAttune");
-  // Emergency Shield: barrier seconds and repair share once per wave below 30% hull
-  s.barrierT = 1 * w("emergencyShield");
-  s.barrierHeal = 0.08 * w("emergencyShield");
-  return s;
-};
 
 export { computeStats, weaponRange };
