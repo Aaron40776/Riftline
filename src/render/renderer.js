@@ -514,6 +514,23 @@ var MAX_PARTICLES = 1400,
         this.hemi.color.setHex(t.sky),
         this.hemi.groundColor.setHex(t.ground),
         (this.biome = t));
+      // 2.4.0: sun colour and fog density of the biome look
+      const look = RL_BIOME_LOOK[t.id] || RL_BIOME_LOOK.yard,
+        fog = this.scene.fog;
+      this.sun.color.setHex(look.sun);
+      if (look.fog) {
+        // fog relative to the camera distance, so portrait phones (camera further out) look the same
+        const dist = this.camDistance();
+        ((fog.near = dist * look.fog[0]), (fog.far = dist * look.fog[1]));
+      } else ((fog.near = 30), (fog.far = 75));
+      // 2.5.0 C: in a Whiteout the fog closes in and turns pale
+      const whiteK = this.rlWhiteK || 0;
+      if (!(whiteK > 0) || t.id !== "vault") return;
+      const camDist = this.camDistance();
+      ((fog.near += (camDist * RL_WHITEOUT_FOG[0] - fog.near) * whiteK),
+        (fog.far += (camDist * RL_WHITEOUT_FOG[1] - fog.far) * whiteK),
+        fog.color.lerp(RL_WHITEOUT_TINT, 0.8 * whiteK),
+        this.renderer.setClearColor(fog.color, 1));
     }
     ensurePlayer(t) {
       (this.playerWeapon === t && this.player) ||
@@ -605,6 +622,9 @@ var MAX_PARTICLES = 1400,
           (this.bLight.intensity = Math.min(1.5, c.i) * 10),
           (this.bLight.distance = c.r * 3))
         : (this.bLight.intensity = 0);
+      // 2.4.0: light intensities of the biome look
+      const look = this.biome && RL_BIOME_LOOK[this.biome.id];
+      look && ((this.hemi.intensity = look.hemi), (this.sun.intensity = look.sunI));
     }
     debrisBurst(t, e, n, s, r, a, o) {
       let c = this.D;
@@ -1028,8 +1048,68 @@ var MAX_PARTICLES = 1400,
         (c.fx = o[8]),
         (c.fy = o[9]),
         (c.fz = o[10]));
+      // 2.3.6: on the two-column home screen the drone is shown in the free band of the title
+      // column instead of the screen centre (see homeViewSpot below the class)
+      let want = null;
+      if (n && ui.screen === "home") {
+        dirty && ((homeViewSpot = measureHomeViewSpot()), (dirty = !1));
+        want = homeViewSpot;
+      }
+      const key = want ? `${Math.round(want.x)},${Math.round(want.y)},${this.w},${this.h}` : "";
+      if (key === (this._rlViewKey || "")) return;
+      this._rlViewKey = key;
+      want
+        ? this.camera.setViewOffset(this.w, this.h, this.w / 2 - want.x, this.h / 2 - want.y, this.w, this.h)
+        : this.camera.clearViewOffset();
     }
     frame(t, e, n = {}) {
+      // 2.5.0 C: Whiteout (Cryo Vault) blows wind-driven snow across the view; it fades in and out
+      // over about a second and scales with the particle budget of the quality setting
+      const want =
+        !n.menu && e && e.event === "whiteout" && e.state === "fight" && e.arena?.biome?.id === "vault" ? 1 : 0;
+      this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 1 : -1) * (t || 0) * 0.9, 0, 1);
+      if (this.rlWhiteK > 0.02 && t > 0 && t < 0.25) {
+        const k = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
+          c = 70 * t * k,
+          m = Math.floor(c) + (Math.random() < c - Math.floor(c) ? 1 : 0),
+          W = e.arena.W,
+          H = e.arena.H;
+        for (let j = 0; j < m; j++)
+          this.emit(
+            clamp(this.camX + (Math.random() * 2 - 1) * 18, -W - 2, W + 2),
+            0.6 + Math.random() * 5,
+            clamp(this.camZ + (Math.random() * 2 - 1) * 14 - 2, -H - 2, H + 2),
+            5 + Math.random() * 3,
+            -1.6 - Math.random(),
+            1.2 + Math.random(),
+            2.2,
+            0.16 + Math.random() * 0.08,
+            RL_WHITEOUT_SNOW,
+            { drag: 0 },
+          );
+      }
+      // 2.4.1: biome skins for enemy and boss materials and particles
+      if (!this.rlSkinned) {
+        for (const id in this.enemyPools) rlSkinMaterial(this.enemyPools[id].body.mesh.material, !0);
+        this.rlSkinned = !0;
+      }
+      const look = this.biome && RL_BIOME_LOOK[this.biome.id];
+      ((RL_SKIN.uSkin.value = look ? look.style : 0), (RL_SKIN.uSkinT.value += t || 0));
+      if (this.bossView && !this.bossView.rlSkin) {
+        for (const mat of this.bossView.mats) rlSkinMaterial(mat, !1);
+        this.bossView.rlSkin = !0;
+      }
+      try {
+        n.menu || rlSkinParticles(this, t, e);
+      } catch (err) {
+        this.rlSkinErr || (logError("skin", err), (this.rlSkinErr = !0));
+      }
+      // 2.4.0: ambient particles of the biome
+      try {
+        rlAmbient(this, t, e, n);
+      } catch (err) {
+        this.rlAmbErr || (logError("ambient", err), (this.rlAmbErr = !0));
+      }
       ((this.time += t), this.resize());
       let s = !e || n.menu;
       if (s) {
@@ -1604,6 +1684,27 @@ var MAX_PARTICLES = 1400,
             );
           }
         }
+      // 2.5.0 C: Rift Storm (Void Core): the spots the portals jump to glow ahead of the jump — a
+      // shrinking ring in the portal colour and a faint line from the old spot
+      for (const portal of e.arena.portals) {
+        const next = portal.next;
+        if (!next) continue;
+        const u = clamp((portal.moveIn || 0) / 1.6, 0, 1),
+          blink = 0.45 + (Math.floor(s * 10) % 2) * 0.35;
+        for (const [x, y, ox, oy, col] of [
+          [next.ax, next.ay, portal.ax, portal.ay, hexColor(16732120)],
+          [next.bx, next.by, portal.bx, portal.by, hexColor(8386303)],
+        ]) {
+          const ring = this.ringPool.y(x, 0.06, y, s * 3, 1.05 + u * 1.3);
+          this.ringPool.colC(ring, col, blink);
+          const inner = this.ringPool.y(x, 0.05, y, -s * 2, 0.6);
+          this.ringPool.colC(inner, col, 0.5);
+          const disc = this.discs.y(x, 0.03, y, 0, 1.05);
+          this.discs.colC(disc, col, 0.12 + (1 - u) * 0.2);
+          const line = this.beams.seg(ox, oy, x, y, 0.08, 0.05, 0.05);
+          this.beams.colC(line, col, 0.18 + (1 - u) * 0.2);
+        }
+      }
     }
     aimLine(t, e, n, s, r, a) {
       let o = 0.6,
@@ -1822,175 +1923,50 @@ var MAX_PARTICLES = 1400,
 // 2.3.6: on landscape phones and tablets the home screen has two columns (title left, weapon
 // card right). The drone preview is drawn at the screen centre, which is where the title ends,
 // so the drone sat on the last letters of RIFTLINE. With two columns the view is now shifted so
-// the drone shows in the larger free band of the title column, above or below the title.
-(() => {
-  const baseCamera = Renderer.prototype.updateCamera;
-  let spot = null,
-    dirty = !0;
-  const measure = () => {
-    const q = (sel) => document.querySelector(sel),
-      brand = q("#home .brand"),
-      panel = q("#home .home-panel"),
-      top = q("#home .topbar"),
-      nav = q("#home .bottom-nav");
-    if (!brand || !panel || !top || !nav) return null;
-    const b = brand.getBoundingClientRect(),
-      p = panel.getBoundingClientRect();
-    if (b.width < 1 || p.width < 1 || b.right > p.left) return null; // stacked: the centre is free
-    const t = top.getBoundingClientRect().bottom,
-      n = nav.getBoundingClientRect().top,
-      above = b.top - t,
-      below = n - b.bottom;
-    return {
-      x: (b.left + b.right) / 2,
-      y: above > below ? b.top - Math.min(above / 2, 100) : b.bottom + Math.min(below / 2, 100),
-    };
+// the drone shows in the larger free band of the title column, above or below the title
+// (Renderer.updateCamera). `dirty` asks for a new measurement.
+let homeViewSpot = null,
+  dirty = !0;
+const measureHomeViewSpot = () => {
+  const q = (sel) => document.querySelector(sel),
+    brand = q("#home .brand"),
+    panel = q("#home .home-panel"),
+    top = q("#home .topbar"),
+    nav = q("#home .bottom-nav");
+  if (!brand || !panel || !top || !nav) return null;
+  const b = brand.getBoundingClientRect(),
+    p = panel.getBoundingClientRect();
+  if (b.width < 1 || p.width < 1 || b.right > p.left) return null; // stacked: the centre is free
+  const t = top.getBoundingClientRect().bottom,
+    n = nav.getBoundingClientRect().top,
+    above = b.top - t,
+    below = n - b.bottom;
+  return {
+    x: (b.left + b.right) / 2,
+    y: above > below ? b.top - Math.min(above / 2, 100) : b.bottom + Math.min(below / 2, 100),
   };
-  // the device classes (phone/tablet, portrait/landscape) settle up to 420 ms after a resize
-  const remeasure = () => {
-    dirty = !0;
-    setTimeout(() => (dirty = !0), 450);
-  };
-  addEventListener("resize", remeasure, { passive: !0 });
-  window.visualViewport && window.visualViewport.addEventListener("resize", remeasure, { passive: !0 });
-  document.fonts && document.fonts.ready.then(() => (dirty = !0));
-  const baseShow = GameUI.prototype._show;
-  GameUI.prototype._show = function (screen) {
-    dirty = !0;
-    return baseShow.call(this, screen);
-  };
-  Renderer.prototype.updateCamera = function (dt, world, menu) {
-    baseCamera.call(this, dt, world, menu);
-    let want = null;
-    if (menu && ui.screen === "home") {
-      dirty && ((spot = measure()), (dirty = !1));
-      want = spot;
-    }
-    const key = want ? `${Math.round(want.x)},${Math.round(want.y)},${this.w},${this.h}` : "";
-    if (key === (this._rlViewKey || "")) return;
-    this._rlViewKey = key;
-    want
-      ? this.camera.setViewOffset(this.w, this.h, this.w / 2 - want.x, this.h / 2 - want.y, this.w, this.h)
-      : this.camera.clearViewOffset();
-  };
-})();
-const _rlFrame240 = Renderer.prototype.frame;
-Renderer.prototype.frame = function (t, e, n = {}) {
-  try {
-    rlAmbient(this, t, e, n);
-  } catch (err) {
-    this.rlAmbErr || (logError("ambient", err), (this.rlAmbErr = !0));
-  }
-  return _rlFrame240.call(this, t, e, n);
 };
-const _rlSetBiome240 = Renderer.prototype.setBiome;
-Renderer.prototype.setBiome = function (t, e) {
-  _rlSetBiome240.call(this, t, e);
-  const L = RL_BIOME_LOOK[t.id] || RL_BIOME_LOOK.yard,
-    f = this.scene.fog;
-  this.sun.color.setHex(L.sun);
-  if (L.fog) {
-    // fog relative to the camera distance, so portrait phones (camera further out) look the same
-    const a = this.camDistance();
-    ((f.near = a * L.fog[0]), (f.far = a * L.fog[1]));
-  } else ((f.near = 30), (f.far = 75));
+/** Asks the home screen drone view for a new measurement (the UI calls it when a screen is shown). */
+function markHomeViewDirty() {
+  dirty = !0;
+}
+// the device classes (phone/tablet, portrait/landscape) settle up to 420 ms after a resize
+const remeasureHomeView = () => {
+  dirty = !0;
+  setTimeout(() => (dirty = !0), 450);
 };
-const _rlLights240 = Renderer.prototype.updateLights;
-Renderer.prototype.updateLights = function (t, e) {
-  _rlLights240.call(this, t, e);
-  const L = this.biome && RL_BIOME_LOOK[this.biome.id];
-  L && ((this.hemi.intensity = L.hemi), (this.sun.intensity = L.sunI));
-};
-const _rlFrame241 = Renderer.prototype.frame;
-Renderer.prototype.frame = function (t, e, n = {}) {
-  if (!this.rlSkinned) {
-    for (const id in this.enemyPools) rlSkinMaterial(this.enemyPools[id].body.mesh.material, !0);
-    this.rlSkinned = !0;
-  }
-  const L = this.biome && RL_BIOME_LOOK[this.biome.id];
-  ((RL_SKIN.uSkin.value = L ? L.style : 0), (RL_SKIN.uSkinT.value += t || 0));
-  if (this.bossView && !this.bossView.rlSkin) {
-    for (const m of this.bossView.mats) rlSkinMaterial(m, !1);
-    this.bossView.rlSkin = !0;
-  }
-  try {
-    n.menu || rlSkinParticles(this, t, e);
-  } catch (err) {
-    this.rlSkinErr || (logError("skin", err), (this.rlSkinErr = !0));
-  }
-  return _rlFrame241.call(this, t, e, n);
+addEventListener("resize", remeasureHomeView, { passive: !0 });
+window.visualViewport && window.visualViewport.addEventListener("resize", remeasureHomeView, { passive: !0 });
+document.fonts && document.fonts.ready.then(() => (dirty = !0));
+const baseShow = GameUI.prototype._show;
+GameUI.prototype._show = function (screen) {
+  dirty = !0;
+  return baseShow.call(this, screen);
 };
 
-// ---- 2.5.0 C: biome events in the renderer.
-// Whiteout (Cryo Vault): the fog closes in and turns pale, and wind-driven snow blows across the
-// view; it fades in and out over about a second. The extra snow scales with the particle budget
-// of the quality setting, so phones on low quality get less of it.
-// Rift Storm (Void Core): the spots the portals jump to glow ahead of the jump — a shrinking ring
-// in the portal colour and a faint line from the old spot.
+// 2.5.0 C: biome events in the renderer (Whiteout fog and snow, see frame() and setBiome()).
 const RL_WHITEOUT_FOG = [0.48, 1.5],
   RL_WHITEOUT_TINT = new Color(0x55707c),
   RL_WHITEOUT_SNOW = new Color(0xf2f8ff);
-const _rlFrame250 = Renderer.prototype.frame;
-Renderer.prototype.frame = function (t, e, n = {}) {
-  const want = !n.menu && e && e.event === "whiteout" && e.state === "fight" && e.arena?.biome?.id === "vault" ? 1 : 0;
-  this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 1 : -1) * (t || 0) * 0.9, 0, 1);
-  if (this.rlWhiteK > 0.02 && t > 0 && t < 0.25) {
-    const k = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
-      c = 70 * t * k,
-      m = Math.floor(c) + (Math.random() < c - Math.floor(c) ? 1 : 0),
-      W = e.arena.W,
-      H = e.arena.H;
-    for (let j = 0; j < m; j++)
-      this.emit(
-        clamp(this.camX + (Math.random() * 2 - 1) * 18, -W - 2, W + 2),
-        0.6 + Math.random() * 5,
-        clamp(this.camZ + (Math.random() * 2 - 1) * 14 - 2, -H - 2, H + 2),
-        5 + Math.random() * 3,
-        -1.6 - Math.random(),
-        1.2 + Math.random(),
-        2.2,
-        0.16 + Math.random() * 0.08,
-        RL_WHITEOUT_SNOW,
-        { drag: 0 },
-      );
-  }
-  return _rlFrame250.call(this, t, e, n);
-};
-const _rlSetBiome250 = Renderer.prototype.setBiome;
-Renderer.prototype.setBiome = function (t, e) {
-  _rlSetBiome250.call(this, t, e);
-  const k = this.rlWhiteK || 0;
-  if (!(k > 0) || t.id !== "vault") return;
-  const f = this.scene.fog,
-    a = this.camDistance();
-  ((f.near += (a * RL_WHITEOUT_FOG[0] - f.near) * k),
-    (f.far += (a * RL_WHITEOUT_FOG[1] - f.far) * k),
-    f.color.lerp(RL_WHITEOUT_TINT, 0.8 * k),
-    this.renderer.setClearColor(f.color, 1));
-};
-const _rlDrawFeatures250 = Renderer.prototype.drawFeatures;
-Renderer.prototype.drawFeatures = function (t, e) {
-  _rlDrawFeatures250.call(this, t, e);
-  const s = this.time;
-  for (const q of e.arena.portals) {
-    const nx = q.next;
-    if (!nx) continue;
-    const u = clamp((q.moveIn || 0) / 1.6, 0, 1),
-      blink = 0.45 + (Math.floor(s * 10) % 2) * 0.35;
-    for (const [x, y, ox, oy, col] of [
-      [nx.ax, nx.ay, q.ax, q.ay, hexColor(16732120)],
-      [nx.bx, nx.by, q.bx, q.by, hexColor(8386303)],
-    ]) {
-      const r1 = this.ringPool.y(x, 0.06, y, s * 3, 1.05 + u * 1.3);
-      this.ringPool.colC(r1, col, blink);
-      const r2 = this.ringPool.y(x, 0.05, y, -s * 2, 0.6);
-      this.ringPool.colC(r2, col, 0.5);
-      const d = this.discs.y(x, 0.03, y, 0, 1.05);
-      this.discs.colC(d, col, 0.12 + (1 - u) * 0.2);
-      const l = this.beams.seg(ox, oy, x, y, 0.08, 0.05, 0.05);
-      this.beams.colC(l, col, 0.18 + (1 - u) * 0.2);
-    }
-  }
-};
 
-export { Renderer, hexColor, additiveMaterial };
+export { Renderer, hexColor, additiveMaterial, markHomeViewDirty };

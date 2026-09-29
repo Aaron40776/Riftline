@@ -114,112 +114,45 @@ void main() {
         })),
         (this.biomeId = null));
     }
+    // 2.4.0: the arena is rebuilt from scratch for every layout (as before); build() asks the biome
+    // for its border and props and switches the floor shader's style
     build(t, e, n = !1) {
       if (((e = e || { key: t.id + ":classic", W: t.W, H: t.H, obs: t.obstacles, deco: 0 }), this.layKey === e.key))
         return;
-      let s = this.layKey == null;
-      ((this.layKey = e.key),
-        (this.biomeId = t.id),
-        this.group.traverse((b) => {
-          (b.geometry && b.geometry.dispose(), b.material && b.material !== this.floorMat && b.material.dispose());
-        }),
-        this.group.clear());
-      let r = this.uniforms;
+      const first = this.layKey == null;
+      if (!this.rlFloor) {
+        // same uniforms, new fragment shader with one branch per biome style
+        this.uniforms.uStyle = { value: 0 };
+        this.floorMat.dispose();
+        this.floorMat = new ShaderMaterial({
+          uniforms: this.uniforms,
+          vertexShader: floorVertexShader,
+          fragmentShader: RL_FLOOR_FRAG,
+          fog: !0,
+        });
+        this.rlFloor = !0;
+      }
+      ((this.layKey = e.key), (this.biomeId = t.id));
+      this.group.traverse((b) => {
+        (b.geometry && b.geometry.dispose(), b.material && b.material !== this.floorMat && b.material.dispose());
+      });
+      this.group.clear();
+      const look = RL_BIOME_LOOK[t.id] || RL_BIOME_LOOK.yard,
+        r = this.uniforms;
       (r.uBase.value.setHex(t.floor),
         r.uGrid.value.setHex(t.grid),
         r.uAccent.value.setHex(t.accent),
         r.uHalf.value.set(e.W, e.H),
-        (r.uDeco.value = e.deco || 0));
-      let a = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
-      ((a.rotation.x = -Math.PI / 2), this.group.add(a));
-      let o = new MeshLambertMaterial({ color: t.wall }),
-        c = new MeshBasicMaterial({ color: t.grid, toneMapped: !1 }),
-        h = new MeshBasicMaterial({ color: t.accent, toneMapped: !1 }),
-        l = e.W,
-        u = e.H,
-        d = 0.5,
-        f = 0.7,
-        p = [
-          [0, -u - d / 2, l * 2 + d * 2, d],
-          [0, u + d / 2, l * 2 + d * 2, d],
-          [-l - d / 2, 0, d, u * 2],
-          [l + d / 2, 0, d, u * 2],
-        ];
-      for (let [b, v, S, T] of p) {
-        let R = new Mesh(new BoxGeometry(S, f, T), o);
-        (R.position.set(b, f / 2, v), this.group.add(R));
-        let _ = new Mesh(new BoxGeometry(S === d ? 0.08 : S, 0.06, T === d ? 0.08 : T), c);
-        (_.position.set(
-          b + (S === d ? (b < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
-          f + 0.03,
-          v + (T === d ? (v < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
-        ),
-          this.group.add(_));
-      }
-      for (let b of [-1, 1])
-        for (let v of [-1, 1]) {
-          let S = new Mesh(new BoxGeometry(0.9, 1.4, 0.9), o);
-          S.position.set(b * (l + 0.25), 0.7, v * (u + 0.25));
-          let T = new Mesh(new BoxGeometry(0.95, 0.08, 0.95), h);
-          (T.position.set(b * (l + 0.25), 1.42, v * (u + 0.25)), this.group.add(S, T));
-        }
-      let x = new Group();
+        (r.uDeco.value = look.style === 0 ? e.deco || 0 : 0),
+        (r.uStyle.value = look.style));
+      const floor = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
+      ((floor.rotation.x = -Math.PI / 2), this.group.add(floor));
+      const x = new Group();
       (this.group.add(x), (this.obsGroup = x));
-      let m = new MeshLambertMaterial({ color: new Color(t.wall).multiplyScalar(1.4) }),
-        g = new MeshLambertMaterial({
-          color: new Color(t.grid).multiplyScalar(0.55),
-          emissive: new Color(t.grid).multiplyScalar(0.12),
-          flatShading: !0,
-        }),
-        M = t.id;
-      for (let b of e.obs)
-        if (b.t === "c") {
-          if (M === "vault") {
-            let E = new Mesh(new CylinderGeometry(b.r * 0.35, b.r * 1.05, 1.8, 6), g);
-            (E.position.set(b.x, 0.9, b.y), (E.rotation.y = (b.x * 7 + b.y * 3) % 6));
-            let C = new Mesh(new OctahedronGeometry(b.r * 0.4), c);
-            C.position.set(b.x, 1.95, b.y);
-            let L = new Mesh(new TorusGeometry(b.r * 1.1, 0.04, 4, 24), h);
-            ((L.rotation.x = Math.PI / 2), L.position.set(b.x, 0.05, b.y), x.add(E, C, L));
-            continue;
-          }
-          let v = M === "works" ? 1.5 : 1.8,
-            S = new Mesh(new CylinderGeometry(b.r, b.r * 1.08, v, 20), m);
-          S.position.set(b.x, v / 2, b.y);
-          let T = new Mesh(new CylinderGeometry(b.r * 1.02, b.r * 1.02, 0.08, 20, 1, !0), c);
-          T.position.set(b.x, v * 0.75, b.y);
-          let R = new Mesh(new TorusGeometry(b.r * 1.1, 0.04, 4, 32), h);
-          ((R.rotation.x = Math.PI / 2), R.position.set(b.x, 0.05, b.y));
-          let _ = new Mesh(new CylinderGeometry(b.r * 0.6, b.r * 0.6, 0.06, 16), c);
-          if ((_.position.set(b.x, v + 0.03, b.y), x.add(S, T, R, _), M === "works")) {
-            let E = T.clone();
-            ((E.position.y = v * 0.35), x.add(E));
-          }
-        } else {
-          let v = M === "void" ? 1.75 : M === "vault" ? 1 : M === "yard" && b.w < 1.3 && b.h < 1.3 ? 1.1 : 1.3,
-            S = new Mesh(new BoxGeometry(b.w * 2, v, b.h * 2), M === "vault" ? g : m);
-          (S.position.set(b.x, v / 2, b.y), x.add(S));
-          let T = new Mesh(new BoxGeometry(b.w * 2 + 0.04, 0.07, 0.07), c);
-          for (let E of [-b.h, b.h]) {
-            let C = T.clone();
-            (C.position.set(b.x, v, b.y + E), x.add(C));
-          }
-          let R = new Mesh(new BoxGeometry(0.07, 0.07, b.h * 2 + 0.04), c);
-          for (let E of [-b.w, b.w]) {
-            let C = R.clone();
-            (C.position.set(b.x + E, v, b.y), x.add(C));
-          }
-          if (M === "void") {
-            let E = new Mesh(
-              new BoxGeometry(b.w > b.h ? b.w * 2 + 0.02 : 0.06, v * 0.7, b.w > b.h ? 0.06 : b.h * 2 + 0.02),
-              h,
-            );
-            (E.position.set(b.x, v * 0.5, b.y), x.add(E));
-          }
-          let _ = new Mesh(new BoxGeometry(b.w * 2 + 0.3, 0.05, b.h * 2 + 0.3), h);
-          (_.position.set(b.x, 0.03, b.y), x.add(_));
-        }
-      ((this.rise = n && !s ? 0 : 1), (x.position.y = this.rise < 1 ? -2.6 : 0));
+      this.rlAnim = [];
+      this.rlEmit = [];
+      (RL_BIOME_BUILD[t.id] || RL_BIOME_BUILD.yard)(this, t, e.W, e.H, e.obs, makeRng(hashString(e.key + ":look")));
+      ((this.rise = n && !first ? 0 : 1), (x.position.y = this.rise < 1 ? -2.6 : 0));
     }
     update(t, e, n, s) {
       if (this.obsGroup && this.rise < 1) {
@@ -228,6 +161,13 @@ void main() {
         this.obsGroup.position.y = -2.6 * (1 - r);
       }
       ((this.uniforms.uTime.value += t), this.uniforms.uPlayer.value.set(e, n), (this.uniforms.uPulse.value = s));
+      // 2.4.0: animated props (spinning and bobbing)
+      const T = this.uniforms.uTime.value;
+      for (const a of this.rlAnim || []) {
+        const o = a.o;
+        if (a.k === "spin" || a.k === "spinbob") o.rotation.y += t * a.s;
+        if (a.k === "bob" || a.k === "spinbob") o.position.y = a.b + Math.sin(T * (a.s || 1) + a.ph) * (a.a || 0.1);
+      }
     }
   };
 
@@ -914,56 +854,6 @@ var RL_BIOME_BUILD = {
         rlFootSlab(x, b, rim, 0.2);
       }
   },
-};
-
-/* The arena is rebuilt from scratch for every layout (as before); build() now asks the biome
- for its border and props and switches the floor shader's style. */
-ArenaView.prototype.build = function (t, e, n = !1) {
-  if (((e = e || { key: t.id + ":classic", W: t.W, H: t.H, obs: t.obstacles, deco: 0 }), this.layKey === e.key)) return;
-  const first = this.layKey == null;
-  if (!this.rlFloor) {
-    // same uniforms, new fragment shader with one branch per biome style
-    this.uniforms.uStyle = { value: 0 };
-    this.floorMat.dispose();
-    this.floorMat = new ShaderMaterial({
-      uniforms: this.uniforms,
-      vertexShader: floorVertexShader,
-      fragmentShader: RL_FLOOR_FRAG,
-      fog: !0,
-    });
-    this.rlFloor = !0;
-  }
-  ((this.layKey = e.key), (this.biomeId = t.id));
-  this.group.traverse((b) => {
-    (b.geometry && b.geometry.dispose(), b.material && b.material !== this.floorMat && b.material.dispose());
-  });
-  this.group.clear();
-  const look = RL_BIOME_LOOK[t.id] || RL_BIOME_LOOK.yard,
-    r = this.uniforms;
-  (r.uBase.value.setHex(t.floor),
-    r.uGrid.value.setHex(t.grid),
-    r.uAccent.value.setHex(t.accent),
-    r.uHalf.value.set(e.W, e.H),
-    (r.uDeco.value = look.style === 0 ? e.deco || 0 : 0),
-    (r.uStyle.value = look.style));
-  const floor = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
-  ((floor.rotation.x = -Math.PI / 2), this.group.add(floor));
-  const x = new Group();
-  (this.group.add(x), (this.obsGroup = x));
-  this.rlAnim = [];
-  this.rlEmit = [];
-  (RL_BIOME_BUILD[t.id] || RL_BIOME_BUILD.yard)(this, t, e.W, e.H, e.obs, makeRng(hashString(e.key + ":look")));
-  ((this.rise = n && !first ? 0 : 1), (x.position.y = this.rise < 1 ? -2.6 : 0));
-};
-const _rlArenaUpdate240 = ArenaView.prototype.update;
-ArenaView.prototype.update = function (t, e, n, s) {
-  _rlArenaUpdate240.call(this, t, e, n, s);
-  const T = this.uniforms.uTime.value;
-  for (const a of this.rlAnim || []) {
-    const o = a.o;
-    if (a.k === "spin" || a.k === "spinbob") o.rotation.y += t * a.s;
-    if (a.k === "bob" || a.k === "spinbob") o.position.y = a.b + Math.sin(T * (a.s || 1) + a.ph) * (a.a || 0.1);
-  }
 };
 
 // Ambient particles: the air of the biome, around the camera, plus sparks/spores/glints from props.
