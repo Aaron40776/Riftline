@@ -12,14 +12,11 @@ import {
   errorLog,
   setLogContext,
   rlBiomeDistinct,
-  rlMonBeginWave,
   rlMonCrashed,
   rlMonFinish,
   rlMonFrame,
-  rlMonIssue,
   rlMonPreEnd,
   rlMonStart,
-  rlMonStep,
   rlPaletteIssues,
   rlRunAudit,
   rlRunHealth,
@@ -28,14 +25,7 @@ import {
   buildReport,
   logError,
 } from "./core/diagnostics.js";
-import {
-  GameUI,
-  RL_TOUCH_CLICK_GUARD,
-  getById,
-  rlBiomeTitle,
-  iconPaths,
-  escapeHtml,
-} from "./ui/ui.js";
+import { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml } from "./ui/ui.js";
 import { Input, RL_INPUT } from "./ui/input.js";
 import { musicChords, rlShotSfx, musicVoices, SoundEngine } from "./audio/sound.js";
 import {
@@ -62,7 +52,7 @@ import {
   bossByWave,
 } from "./data/enemies.js";
 import { BUILD_ID, GAME_VERSION, formatCount } from "./core/util.js";
-import { RL_KITERS, updateEnemy, rlInstallHunt } from "./core/ai.js";
+import { RL_KITERS, updateEnemy } from "./core/ai.js";
 import { RL_BIOME_HAZARD, biomesById, biomeList, rlApplyBiomeFixes } from "./data/biomes.js";
 import { weaponOrder, weaponDefs } from "./data/weapons.js";
 import { waveEvents, spawnWeights, heavyEnemies } from "./core/waves.js";
@@ -272,10 +262,12 @@ var overlay = new Overlay(elementById("ov")),
     slowMo: 0,
     pendingUpdate: null,
     cloud: null,
-    startRun({ resume: i }) {
+    startRun(o) {
+      const { resume: i } = o;
       let t = store.data,
         e = i ? t.run : null;
       i || t.stats.runs++;
+      let started = !0;
       try {
         this.world = new World({
           seed: (Math.random() * 4294967296) >>> 0,
@@ -289,9 +281,10 @@ var overlay = new Overlay(elementById("ov")),
           (t.run = null),
           store.save("bad-run"),
           ui.alert("Could not start", "The saved run could not be restored and was discarded."));
-        return;
+        started = !1;
       }
-      ((this.mode = "game"),
+      started &&
+        ((this.mode = "game"),
         (this.paused = !1),
         (this.chooseShown = !1),
         (this.overShown = !1),
@@ -320,6 +313,13 @@ var overlay = new Overlay(elementById("ov")),
         renderer && renderer.resetCamera(),
         sound.setMusic("fight", this.world.biomeFor(this.world.wave).id),
         setWakeLock(!0));
+      // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
+      // worlds are ignored by identity). Also runs when the world could not be built.
+      try {
+        this.world && this.mode === "game" && rlMonStart(this.world, !!(o && o.resume));
+      } catch (e) {
+        logError("monitor", e);
+      }
     },
     choose(i) {
       let t = this.world;
@@ -375,6 +375,12 @@ var overlay = new Overlay(elementById("ov")),
         i.continueEndless(),
         ui.showHud(!0),
         (this.chooseShown = !1));
+      // 2.2.3: the endless part is monitored as a new run
+      try {
+        this.world && this.world.endless && rlMonStart(this.world, !0);
+      } catch (e) {
+        logError("monitor", e);
+      }
     },
     goHome() {
       ((this.mode = "menu"),
@@ -397,6 +403,19 @@ var overlay = new Overlay(elementById("ov")),
       (ui.hideCrash(), (this.crashed = !1), this.goHome(), startLoop());
     },
     endRun(i, t = !1, e = !1) {
+      // 2.2.3: run monitor, read before the run is settled
+      const w = this.world,
+        pre = w && !this.overShown ? rlMonPreEnd(w) : null;
+      // 1.6.0: run metrics for the game-over screen (ui.showOver reads game._runExtra)
+      this._runExtra = w
+        ? {
+            dmgDealt: w.dmgDealt,
+            dmgTaken: w.runStats && w.runStats.dmgTaken,
+            critHits: w.runStats && w.runStats.critHits,
+            dashes: w.runStats && w.runStats.dashes,
+            bestCombo: w.bestCombo,
+          }
+        : null;
       let n = this.world,
         s = store.data,
         r = s.stats;
@@ -442,36 +461,46 @@ var overlay = new Overlay(elementById("ov")),
       let m = this.claimable()
         .filter((g) => !d.has(g))
         .map((g) => milestones.find((M) => M.id === g).name);
-      if (
-        (game.tut && ((store.data.seen.tutorial = !0), (game.tut = null), ui.coach(null), store.save("tutorial")), e)
-      ) {
+      if ((game.tut && ((store.data.seen.tutorial = !0), (game.tut = null), ui.coach(null), store.save("tutorial")), e))
         this.overShown = !1;
-        return;
-      }
-      (ui.showHud(!1),
-        ui.hideChoose(),
-        ui.showOver({
-          win: i,
-          abandoned: t,
-          wave: p,
-          time: n.time,
-          kills: n.kills,
-          bosses: n.bossKills.length,
-          weapon: n.weapon,
-          threat: n.threat,
-          rows: u,
-          total: l,
-          best: x,
-          milestones: m,
-          unlocks: f,
-          canEndless: i && !n.endless,
-          killer: i || t ? null : n.lastHit,
-          dmgSrc: n.dmgSrc,
-          weaponName: weaponDefs[n.weapon].name,
-          fastest: y,
-        }),
-        sound.setMusic("menu"),
-        setWakeLock(!1));
+      else
+        (ui.showHud(!1),
+          ui.hideChoose(),
+          ui.showOver({
+            win: i,
+            abandoned: t,
+            wave: p,
+            time: n.time,
+            kills: n.kills,
+            bosses: n.bossKills.length,
+            weapon: n.weapon,
+            threat: n.threat,
+            rows: u,
+            total: l,
+            best: x,
+            milestones: m,
+            unlocks: f,
+            canEndless: i && !n.endless,
+            killer: i || t ? null : n.lastHit,
+            dmgSrc: n.dmgSrc,
+            weaponName: weaponDefs[n.weapon].name,
+            fastest: y,
+          }),
+          sound.setMusic("menu"),
+          setWakeLock(!1));
+      // 2.2.3: run audit and run history (a silent end is recorded too)
+      if (pre)
+        try {
+          rlMonFinish(w, pre, !!i, !!t, !!e, !1);
+        } catch (err) {
+          logError("audit", err);
+        }
+      if (pre)
+        try {
+          rlRecordRun(w, pre, !!i, !!t);
+        } catch (err) {
+          logError("history", err);
+        }
     },
     settingsChanged(i) {
       (applySettings(), i || store.save("settings"));
@@ -508,6 +537,12 @@ input.isPlaying = () => game.mode === "game" && !game.paused && !game.chooseShow
 input.onPause = () => {
   if (!document.getElementById("dialog").hidden) {
     ui.closeDialog(null);
+    return;
+  }
+  // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
+  if (ui.rlFromPause) return ui.back();
+  if (game.mode === "menu") {
+    input._rlKey === "escape" && ["workshop", "records", "settings"].includes(ui.screen) && ui.back();
     return;
   }
   game.mode === "game" && (game.paused ? game.resume() : game.pause());
@@ -621,7 +656,26 @@ function menuBiomeIndex() {
   let i = store.data.stats.bestWave;
   return Math.min(biomeList.length - 1, Math.floor(Math.max(0, i - 1) / 5));
 }
+/* 2.5.0 D: biome title card and boss intro card (the cards themselves are in the 2.5.0 D section
+ of ui/ui.js). The first wave of a biome (wave 1 and every biome change) shows the biome card in
+ place of its wave banner; an event on such a wave is announced right after the card. A new boss
+ shows its name card during the camera pan (game.intro) in place of the plain name banner and
+ counts as seen for the Codex (boss_<id>). */
+let cardWave = 0,
+  cardEvent = null;
 function handleWorldEvents(i) {
+  // 2.5.0 D: find the title cards of this frame before the banners are shown
+  let card = null,
+    boss = null;
+  for (const t of i.fx)
+    t.k === "wave" && !t.boss && (t.n === 1 || i.biomeFor(t.n - 1).id !== i.biomeFor(t.n).id)
+      ? (card = t)
+      : t.k === "boss" && bossDefs[t.id] && (boss = t);
+  // 2.5.0 B: the events of the new modules
+  for (const t of i.fx)
+    t.k === "kit"
+      ? ui.toast(`STARTER KIT · ${t.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good", 3200)
+      : t.k === "barrier" && ui.banner("EMERGENCY SHIELD", "Hull critical — barrier up", "good", 1400);
   for (let t of i.fx)
     switch (t.k) {
       case "wave": {
@@ -757,6 +811,35 @@ function handleWorldEvents(i) {
         sound.setMusic("menu");
         break;
     }
+  // 2.5.0 D: show the title cards
+  try {
+    if (card) {
+      ui.biomeCard(i.biomeFor(card.n), card.n);
+      ((cardWave = card.n), (cardEvent = (card.event && waveEvents[card.event]) || null));
+    }
+    boss && (ui.markSeen(["boss_" + boss.id]), ui.bossCard(boss.id, i.biomeFor(i.wave)));
+    // the biome card stays for the first 1.6 s of its wave (game time), the boss card for the
+    // camera pan; then they fade. An event of the biome's first wave is announced after the card.
+    const h = ui.cardHold;
+    if (h && (h.kind === "boss" ? !game.intro : i.wave !== cardWave || i.state !== "fight" || i.waveT >= 1.6)) {
+      ui.releaseTitleCard();
+      const ev = h.kind === "biome" && i.wave === cardWave && i.state === "fight" && cardEvent;
+      const n = cardWave;
+      ev &&
+        setTimeout(
+          () =>
+            game.world === i &&
+            !game.paused &&
+            i.state === "fight" &&
+            i.wave === n &&
+            ui.banner(ev.name, `Wave ${n} \xB7 ${ev.desc}`, "good", 2600),
+          450,
+        );
+      h.kind === "biome" && (cardEvent = null);
+    }
+  } catch (e) {
+    logError("titlecard", e);
+  }
 }
 var BOSS_INTRO_TIME = 1.5;
 function updateBossIntro(i, t) {
@@ -916,20 +999,6 @@ document.addEventListener(
         .join("") +
       "</div>";
   };
-  var __endRun = game.endRun;
-  game.endRun = function (win, abandoned, silent) {
-    var w = this.world;
-    this._runExtra = w
-      ? {
-          dmgDealt: w.dmgDealt,
-          dmgTaken: w.runStats && w.runStats.dmgTaken,
-          critHits: w.runStats && w.runStats.critHits,
-          dashes: w.runStats && w.runStats.dashes,
-          bestCombo: w.bestCombo,
-        }
-      : null;
-    return __endRun.call(this, win, abandoned, silent);
-  };
 })();
 (function () {
   var makeBackup = function () {
@@ -1043,49 +1112,8 @@ function rlRetireToast() {
   store.save("retire");
 }
 
-/* ---- 2.2.3: run monitor hooks (only the live run's world is observed;
- self-test and snapshot-check worlds are ignored by identity) ---- */
+/* ---- 2.2.3 (the run monitor hooks are in game.startRun, game.endRun and game.endless) ---- */
 (() => {
-  rlInstallHunt();
-  const baseStart = game.startRun;
-  game.startRun = function (o) {
-    const r = baseStart.call(this, o);
-    try {
-      this.world && this.mode === "game" && rlMonStart(this.world, !!(o && o.resume));
-    } catch (e) {
-      logError("monitor", e);
-    }
-    return r;
-  };
-  const baseEnd = game.endRun;
-  game.endRun = function (win, abandoned, silent) {
-    const w = this.world,
-      pre = w && !this.overShown ? rlMonPreEnd(w) : null;
-    const r = baseEnd.call(this, win, abandoned, silent);
-    if (pre)
-      try {
-        rlMonFinish(w, pre, !!win, !!abandoned, !!silent, !1);
-      } catch (e) {
-        logError("audit", e);
-      }
-    if (pre)
-      try {
-        rlRecordRun(w, pre, !!win, !!abandoned);
-      } catch (e) {
-        logError("history", e);
-      }
-    return r;
-  };
-  const baseEndless = game.endless;
-  game.endless = function () {
-    const r = baseEndless.call(this);
-    try {
-      this.world && this.world.endless && rlMonStart(this.world, !0);
-    } catch (e) {
-      logError("monitor", e);
-    }
-    return r;
-  };
   // Touch ghost-click shield: after a touch activation the browser still sends a
   // compatibility click to whatever is under the finger NOW — often a button on
   // the next screen, a settings toggle or a workshop "buy". Drop that one click
@@ -1140,17 +1168,7 @@ function rlRetireToast() {
   });
   window.addEventListener("pagehide", settle);
 
-  // ---- Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
-  const basePause = input.onPause;
-  input.onPause = () => {
-    if (!getById("dialog").hidden) return basePause();
-    if (ui.rlFromPause) return ui.back();
-    if (game.mode === "menu") {
-      input._rlKey === "escape" && ["workshop", "records", "settings"].includes(ui.screen) && ui.back();
-      return;
-    }
-    basePause();
-  };
+  // ---- Esc (the key handling itself is in input.onPause)
 
   // ---- settings from the pause menu
   ui.click(getById("pauseSetBtn"), () => ui.openPauseSettings());
@@ -1311,67 +1329,6 @@ setTimeout(rlModuleToast, 1100);
 store.onChange((json, why) => {
   why === "import" && RL_MODULE_NOTE && setTimeout(rlModuleToast, 300);
 });
-{
-  const baseEvents = handleWorldEvents;
-  handleWorldEvents = function (w) {
-    for (const t of w.fx)
-      t.k === "kit"
-        ? ui.toast(`STARTER KIT · ${t.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good", 3200)
-        : t.k === "barrier" && ui.banner("EMERGENCY SHIELD", "Hull critical — barrier up", "good", 1400);
-    return baseEvents(w);
-  };
-}
 window.__riftTest.v250B = { migrateModules: rlMigrateModules };
-
-/* ==========================================================================
- 2.5.0 D: biome title card and boss intro card (the cards themselves are in the 2.5.0 D section
- of ui/ui.js). The first wave of a biome (wave 1 and every biome change) shows the biome card in
- place of its wave banner; an event on such a wave is announced right after the card. A new boss
- shows its name card during the camera pan (game.intro) in place of the plain name banner and
- counts as seen for the Codex (boss_<id>).
- ========================================================================== */
-(() => {
-  const baseEvents = handleWorldEvents;
-  let cardWave = 0,
-    cardEvent = null;
-  handleWorldEvents = function (w) {
-    let card = null,
-      boss = null;
-    for (const t of w.fx)
-      t.k === "wave" && !t.boss && (t.n === 1 || w.biomeFor(t.n - 1).id !== w.biomeFor(t.n).id)
-        ? (card = t)
-        : t.k === "boss" && bossDefs[t.id] && (boss = t);
-    const r = baseEvents(w);
-    try {
-      if (card) {
-        ui.biomeCard(w.biomeFor(card.n), card.n);
-        ((cardWave = card.n), (cardEvent = (card.event && waveEvents[card.event]) || null));
-      }
-      boss && (ui.markSeen(["boss_" + boss.id]), ui.bossCard(boss.id, w.biomeFor(w.wave)));
-      // the biome card stays for the first 1.6 s of its wave (game time), the boss card for the
-      // camera pan; then they fade. An event of the biome's first wave is announced after the card.
-      const h = ui.cardHold;
-      if (h && (h.kind === "boss" ? !game.intro : w.wave !== cardWave || w.state !== "fight" || w.waveT >= 1.6)) {
-        ui.releaseTitleCard();
-        const ev = h.kind === "biome" && w.wave === cardWave && w.state === "fight" && cardEvent;
-        const n = cardWave;
-        ev &&
-          setTimeout(
-            () =>
-              game.world === w &&
-              !game.paused &&
-              w.state === "fight" &&
-              w.wave === n &&
-              ui.banner(ev.name, `Wave ${n} \xB7 ${ev.desc}`, "good", 2600),
-            450,
-          );
-        h.kind === "biome" && (cardEvent = null);
-      }
-    } catch (e) {
-      logError("titlecard", e);
-    }
-    return r;
-  };
-})();
 
 export { ui, store, game, safeAreaInsets, input, renderer };
