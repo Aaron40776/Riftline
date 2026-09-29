@@ -1,6 +1,6 @@
 // Determinism ("golden") test: proves that a refactor did not change game behaviour.
 //
-// Runs fixed-seed simulations directly on the world class (window.__riftTest.Aa, no rendering,
+// Runs fixed-seed simulations directly on the world class (window.__riftTest.World, no rendering,
 // no UI loop) with a deterministic bot, plus cheap checks of pure functions (stat computation,
 // arena layouts, wave planner, upgrade offers, data tables). Every case yields a compact record;
 // the record is hashed (FNV-1a over canonical JSON) into one digest per case and compared with
@@ -81,7 +81,7 @@ const SIMS = [
   { name: 'sim-flame-t2', seed: 707, weapon: 'flame', threat: 2, ws: { hull: 5, power: 5, droneBay: 2, insight: 1, reroll: 2 }, to: 12 },
   // through the Rift Core (wave 20), the victory state and continueEndless() into Endless
   { name: 'sim-pulse-t2-endless', seed: 0x2201, weapon: 'pulse', threat: 2, ws: { hull: 5, power: 5, droneBay: 2 }, to: 22 },
-  // save/restore: snapshot() at the wave-6 choice, sanitize (sr), new world from the snapshot
+  // save/restore: snapshot() at the wave-6 choice, sanitize (cleanRun), new world from the snapshot
   { name: 'sim-scatter-t1-resume', seed: 818, weapon: 'scatter', threat: 1, ws: WS_MID, to: 10, resumeAt: 6 },
   // no god mode: real damage, death (or survival) with the armour and revive modules
   { name: 'sim-rocket-t5-mortal', seed: 919, weapon: 'rocket', threat: 5, ws: { revive: 1, armorCore: 2 }, to: 12, mortal: true },
@@ -123,7 +123,7 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
       performance.now = perf0;
     }
   };
-  const wsOf = (ws) => (ws === 'max' ? Object.fromEntries(T.ai.map((m) => [m.id, m.costs.length])) : { ...ws });
+  const wsOf = (ws) => (ws === 'max' ? Object.fromEntries(T.workshopModules.map((m) => [m.id, m.costs.length])) : { ...ws });
   const r3 = (x) => Math.round(x * 1000) / 1000;
   // Full-precision state fingerprint of a world.
   const snap = (w) => ({
@@ -154,7 +154,7 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
   };
   const sim = (c) => {
     const ws = wsOf(c.ws);
-    let w = new T.Aa({ seed: c.seed, weapon: c.weapon, threat: c.threat, ws });
+    let w = new T.World({ seed: c.seed, weapon: c.weapon, threat: c.threat, ws });
     const fx = {}, trace = [], salt = c.seed % 7;
     let steps = 0, waveSteps = 0, breaks = 0, resumed = null, rerolls = 0;
     const MAX_WAVE_STEPS = 60 * 180; // stuck breaker (deterministic): clears the wave after 180 s
@@ -165,9 +165,9 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
         trace.push(H(snap(w)));
         if (w.wave >= c.to) break;
         if (c.resumeAt && w.wave === c.resumeAt && !resumed) {
-          const s = D.sr(JSON.parse(JSON.stringify(w.snapshot())));
+          const s = D.cleanRun(JSON.parse(JSON.stringify(w.snapshot())));
           resumed = H(s);
-          w = new T.Aa({ snap: s, ws });
+          w = new T.World({ snap: s, ws });
           w.god = !c.mortal;
           trace.push(H(snap(w)));
         }
@@ -201,40 +201,42 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
     };
   };
   const data = () => {
-    const tables = { ue: T.ue, Ae: T.Ae, ri: T.ri, ai: T.ai, ii: T.ii, Zi: D.Zi, En: D.En, lu: D.lu, Ip: D.Ip, ec: D.ec, Mu: D.Mu, Dp: D.Dp, cu: D.cu, _i: D._i, si: D.si, en: D.en, Kl: D.Kl, uu: D.uu, $i: D.$i, Qf: D.Qf, tp: D.tp, Oh: D.Oh, hazard: D.RL_BIOME_HAZARD, kiters: D.RL_KITERS, events: D.RL_EVENT_KINDS };
+    // The keys keep the old short names on purpose: they are part of the hashed record, so renaming
+    // them would change the data-tables hash in tests/fixtures/determinism.json.
+    const tables = { ue: T.weaponDefs, Ae: T.enemyDefs, ri: T.upgradesById, ai: T.workshopModules, ii: T.biomeList, Zi: D.upgradeList, En: D.weaponOrder, lu: D.enemyOrder, Ip: D.spawnWeights, ec: D.heavyEnemies, Mu: D.obstacleShapes, Dp: D.mapTemplates, cu: D.biomeVariants, _i: D.milestones, si: D.threatLevels, en: D.bossDefs, Kl: D.bossOrder, uu: D.bossByWave, $i: D.waveEvents, Qf: D.musicChords, tp: D.musicVoices, Oh: D.defaultSettings, hazard: D.RL_BIOME_HAZARD, kiters: D.RL_KITERS, events: D.RL_EVENT_KINDS };
     const out = {};
     for (const k of Object.keys(tables)) out[k] = H(tables[k]);
-    out.threat = H([0, 1, 2, 3, 4, 5].map(D.Ma));
-    out.range = H(D.En.map((id) => D.tc(T.ue[id])));
+    out.threat = H([0, 1, 2, 3, 4, 5].map(D.threatMods));
+    out.range = H(D.weaponOrder.map((id) => D.weaponRange(T.weaponDefs[id])));
     return out;
   };
   const stats = () => {
-    const ids = D.Zi.map((u) => u.id), maxOf = Object.fromEntries(D.Zi.map((u) => [u.id, u.max || 1]));
+    const ids = D.upgradeList.map((u) => u.id), maxOf = Object.fromEntries(D.upgradeList.map((u) => [u.id, u.max || 1]));
     const upSets = [{}, Object.fromEntries(ids.map((id) => [id, maxOf[id]])),
       { dmg: 3, glasscore: 2, crit: 2, resonance: 1, hp: 2, speed: 1, skates: 1, reactive: 1 },
       { vector: 6, hazmat: 4, velocity: 2, echo: 1, siphon: 1, overcharge: 4, heatsink: 2, slipstream: 1 }];
     for (const id of ids) upSets.push({ [id]: 1 });
     const wsSets = [{}, wsOf(WS_MID), wsOf('max')];
     const out = {};
-    for (const wid of D.En) {
+    for (const wid of D.weaponOrder) {
       const rows = [];
-      for (const up of upSets) for (const ws of wsSets) rows.push(T.nr(wid, up, ws));
+      for (const up of upSets) for (const ws of wsSets) rows.push(T.computeStats(wid, up, ws));
       out[wid] = H(rows);
     }
-    out.n = D.En.length * upSets.length * wsSets.length;
+    out.n = D.weaponOrder.length * upSets.length * wsSets.length;
     return out;
   };
   const layouts = () => {
     const out = {}, seeds = [1, 7, 4242, 0xdeadbeef], waves = [1, 2, 3, 4, 6, 7, 9, 12, 13, 17, 21, 28, 33];
-    const w0 = new T.Aa({ seed: 1, weapon: 'pulse', threat: 0, ws: {} });
+    const w0 = new T.World({ seed: 1, weapon: 'pulse', threat: 0, ws: {} });
     let n = 0;
-    for (const b of T.ii) {
+    for (const b of T.biomeList) {
       const rows = [];
       for (const s of seeds) for (const wave of waves) {
-        rows.push(T.Su(b, s, wave, wave === 1 || !!w0.bossFor(wave)));
+        rows.push(T.buildLayout(b, s, wave, wave === 1 || !!w0.bossFor(wave)));
         n++;
       }
-      rows.push(T.Su(b, 99, 10, true));
+      rows.push(T.buildLayout(b, 99, 10, true));
       out[b.id] = H(rows);
     }
     out.n = n;
@@ -243,7 +245,7 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
   const planner = () => {
     const out = {};
     for (const seed of [3, 1234, 0x51f7]) for (const threat of [0, 2, 5]) {
-      const w = new T.Aa({ seed, weapon: 'pulse', threat, ws: { fieldSupply: 1 } }), rows = [];
+      const w = new T.World({ seed, weapon: 'pulse', threat, ws: { fieldSupply: 1 } }), rows = [];
       rows.push(w.route);
       for (let wave = 1; wave <= 40; wave++) {
         if (wave > 1) w.startWave(wave);
@@ -279,7 +281,7 @@ const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(PAGE_URL);
-await page.waitForFunction(() => window.__riftTest && window.__riftTest.Aa, null, { timeout: 60000 });
+await page.waitForFunction(() => window.__riftTest && window.__riftTest.World, null, { timeout: 60000 });
 await page.evaluate(installLib, { FNV_SRC, CANON_SRC, WS_MID });
 
 const golden = fs.existsSync(GOLDEN) ? JSON.parse(fs.readFileSync(GOLDEN, 'utf8')) : { cases: {} };

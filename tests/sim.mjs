@@ -11,7 +11,7 @@ await page.waitForFunction(() => window.__riftTest, null, { timeout: 60000 });
 for (const wpn of weapons) {
   const r = await page.evaluate(({ wpn, maxWave }) => {
     const T = window.__riftTest, out = { weapon: wpn, errors: [], nonfinite: [], waves: [], evKinds: {} };
-    const w = new T.Aa({ seed: T.Yi ? 1 : (wpn.length * 7919) >>> 0, weapon: wpn, threat: 2, ws: { hull: 5, power: 5, droneBay: 2 } });
+    const w = new T.World({ seed: T.Yi ? 1 : (wpn.length * 7919) >>> 0, weapon: wpn, threat: 2, ws: { hull: 5, power: 5, droneBay: 2 } });
     w.god = true;
     let steps = 0, waveSteps = 0, maxEnemies = 0, maxEb = 0, maxPb = 0, maxPick = 0;
     const t0 = performance.now();

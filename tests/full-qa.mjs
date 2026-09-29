@@ -134,7 +134,7 @@ await section('saves', async L => {
   };
   // 2.1 no save at all
   { const P = await open('desktop'); await P.boot();
-    const d = await P.ev(() => { const T = window.__riftTest, s = T.store.data; return { shards: s.shards, run: s.run, hist: s.history, set: JSON.stringify(s.settings) === JSON.stringify(T.data.Oh) }; });
+    const d = await P.ev(() => { const T = window.__riftTest, s = T.store.data; return { shards: s.shards, run: s.run, hist: s.history, set: JSON.stringify(s.settings) === JSON.stringify(T.data.defaultSettings) }; });
     check(L, 'fresh: default profile', d.shards === 0 && d.run === null && Array.isArray(d.hist) && d.hist.length === 0 && d.set, JSON.stringify(d));
     check(L, 'fresh: no Continue button', !(await P.vis('continueBtn')));
     await common(P, 'fresh'); await P.close(); }
@@ -144,7 +144,7 @@ await section('saves', async L => {
     const src = JSON.parse(raw);
     const told = await P.page.waitForFunction(() => document.body.innerText.includes('The arsenal is down to 7 weapons'), null, { timeout: 6000 }).then(() => true, () => false);
     check(L, `${label}: a toast says which retired weapon was converted`, told);
-    const d = await P.ev(() => { const g = window.__riftTest.game, s = window.__riftTest.store.data; return { shards: s.shards, hull: s.workshop.hull, ion: s.weapons.ion, tesla: s.weapons.tesla, teslaCost: window.__riftTest.ue.tesla.cost, weapon: s.weapon, set: s.settings, runs: s.stats.runs, best: s.stats.bestWave, run: !!s.run, hist: s.history, vol: g.sound.sfxVol, zoom: window.__riftTest.renderer.zoom, contrast: window.__riftTest.renderer.contrast }; });
+    const d = await P.ev(() => { const g = window.__riftTest.game, s = window.__riftTest.store.data; return { shards: s.shards, hull: s.workshop.hull, ion: s.weapons.ion, tesla: s.weapons.tesla, teslaCost: window.__riftTest.weaponDefs.tesla.cost, weapon: s.weapon, set: s.settings, runs: s.stats.runs, best: s.stats.bestWave, run: !!s.run, hist: s.history, vol: g.sound.sfxVol, zoom: window.__riftTest.renderer.zoom, contrast: window.__riftTest.renderer.contrast }; });
     check(L, `${label}: progress kept (shards, workshop, stats)`, d.hull === 2 && d.runs === src.stats.runs && d.best === src.stats.bestWave, JSON.stringify({ hull: d.hull, runs: d.runs }));
     // 2.4.0: Ion Repeater was retired; it becomes Arc Caster (its original) plus the price difference
     check(L, `${label}: retired Ion Repeater → Arc Caster selected, +${1250 - d.teslaCost} shards`, d.ion === undefined && d.tesla === true && d.weapon === 'tesla' && d.shards === src.shards + 1250 - d.teslaCost, JSON.stringify({ shards: d.shards, weapon: d.weapon, ion: d.ion, tesla: d.tesla }));
@@ -211,9 +211,9 @@ await section('saves', async L => {
 await section('workshop', async L => {
   const P = await open('desktop'); await P.boot();
   const r = await P.ev(() => {
-    const T = window.__riftTest, max = id => T.ai.find(a => a.id === id).costs.length;
-    const S = (ws, up = {}) => T.nr('pulse', up, ws), b = S({});
-    const W = ws => new T.Aa({ weapon: 'pulse', threat: 0, ws, seed: 7 });
+    const T = window.__riftTest, max = id => T.workshopModules.find(a => a.id === id).costs.length;
+    const S = (ws, up = {}) => T.computeStats('pulse', up, ws), b = S({});
+    const W = ws => new T.World({ weapon: 'pulse', threat: 0, ws, seed: 7 });
     const res = {}, near = (a, x) => Math.abs(a - x) < 1e-6;
     const L = id => max(id);
     res.hull = near(S({ hull: L('hull') }).maxHp, b.maxHp + 10 * L('hull'));
@@ -243,8 +243,8 @@ await section('workshop', async L => {
     res.fieldSupply = c0.n >= 0 && cf.n === c0.n + 2 * nb && cf.v > 2 * c0.v && cf.odd === 0 && near(S({ fieldSupply: 2 }).cacheValue, 2) && near(b.cacheValue, 1);
     // 2.5.0 B: Starter Kit — one distinct common upgrade per level on a new run, none on a resumed one
     const kit = W({ starterKit: L('starterKit') }), kitIds = Object.keys(kit.up);
-    const resumed = new T.Aa({ snap: T.data.sr({ v: 1, seed: 4, weapon: 'pulse', wave: 6, hp: 50, nova: 0, up: {} }), ws: { starterKit: 3 } });
-    res.starterKit = kitIds.length === L('starterKit') && kitIds.every(id => T.ri[id].rarity === 1 && kit.up[id] === 1) && kit.player.hp === kit.stats.maxHp && !Object.keys(W({}).up).length && !Object.keys(resumed.up).length;
+    const resumed = new T.World({ snap: T.data.cleanRun({ v: 1, seed: 4, weapon: 'pulse', wave: 6, hp: 50, nova: 0, up: {} }), ws: { starterKit: 3 } });
+    res.starterKit = kitIds.length === L('starterKit') && kitIds.every(id => T.upgradesById[id].rarity === 1 && kit.up[id] === 1) && kit.player.hp === kit.stats.maxHp && !Object.keys(W({}).up).length && !Object.keys(resumed.up).length;
     // 2.5.0 B: Hazard Attunement — +10 % damage and +0.5 HP/s per level, only within 2 m of a hazard
     const ha = L('hazardAttune'), aw = W({ hazardAttune: ha }); aw.startWave(2); aw.hold = true;
     let dmgIn = 0; const baseStepDmg = aw.stats.dmgMul; aw.arena.vents.push({ x: aw.player.x + 3.3, y: aw.player.y, r: 1.5, phase: 0, period: 999 });
@@ -260,14 +260,14 @@ await section('workshop', async L => {
     const dv = W({}); dv.state = 'fight'; dv.player.iT = 0; dv.player.shield = false; dv.hurtPlayer(99999, null, null, 'grunt', true);
     res.revive = rv.player.alive && rv.player.hp === Math.round(rv.stats.maxHp * .5) && !dv.player.alive;
     res.salvage = true; // payout formula is verified by the post-run audit ("payout") after every run
-    const untested = T.ai.map(a => a.id).filter(id => !(id in res));
+    const untested = T.workshopModules.map(a => a.id).filter(id => !(id in res));
     return { res, untested };
   });
   for (const [id, ok] of Object.entries(r.res)) check(L, `module ${id} works as described`, ok);
   // every run upgrade changes at least one stat for every weapon ("heal" is an instant repair)
-  const dead = await P.ev(() => { const T = window.__riftTest, out = []; for (const w of Object.keys(T.ue)) { const b = JSON.stringify(T.nr(w, {}, {})); for (const u of T.data.Zi) if (u.id !== 'heal' && JSON.stringify(T.nr(w, { [u.id]: 1 }, {})) === b) out.push(`${u.id}@${w}`); } return out; });
+  const dead = await P.ev(() => { const T = window.__riftTest, out = []; for (const w of Object.keys(T.weaponDefs)) { const b = JSON.stringify(T.computeStats(w, {}, {})); for (const u of T.data.upgradeList) if (u.id !== 'heal' && JSON.stringify(T.computeStats(w, { [u.id]: 1 }, {})) === b) out.push(`${u.id}@${w}`); } return out; });
   check(L, 'every upgrade has an effect with every weapon', !dead.length, dead.slice(0, 12).join(', '));
-  const heal = await P.ev(() => { const T = window.__riftTest, w = new T.Aa({ weapon: 'pulse', threat: 0, ws: {}, seed: 3 }); w.player.hp = 10; w.state = 'choose'; w.offer = ['heal']; w.choose('heal'); return w.player.hp; });
+  const heal = await P.ev(() => { const T = window.__riftTest, w = new T.World({ weapon: 'pulse', threat: 0, ws: {}, seed: 3 }); w.player.hp = 10; w.state = 'choose'; w.offer = ['heal']; w.choose('heal'); return w.player.hp; });
   check(L, 'Field Repair heals 45 % of max HP', heal === 10 + 45, 'hp ' + heal);
   check(L, 'every workshop module has an effect test', !r.untested.length, r.untested.join(', '));
   check(L, 'no page errors', !P.errors.length, P.errors.join(' | '));
@@ -290,7 +290,7 @@ await section('workshop-merge', async L => {
     check(L, `${profName}: full price refunded (+${refund}), kept modules keep their levels`, d.shards === 300 + refund && JSON.stringify(d.ws) === JSON.stringify({ hull: 2, nova: 2, fieldSupply: 1 }), JSON.stringify({ shards: d.shards, ws: d.ws }));
     check(L, `${profName}: converted save stored at once`, d.stored.shards === d.shards && !('riftBattery' in d.stored.workshop) && !('routeScanner' in d.stored.workshop));
     await P.nav('workshop');
-    const rows = await P.ev(() => [...document.querySelectorAll('#wsList .row b')].map(b => b.textContent)), nMods = await P.ev(() => window.__riftTest.ai.length);
+    const rows = await P.ev(() => [...document.querySelectorAll('#wsList .row b')].map(b => b.textContent)), nMods = await P.ev(() => window.__riftTest.workshopModules.length);
     check(L, `${profName}: workshop lists every module once, none of the removed ones`, rows.length === nMods && new Set(rows).size === nMods && !rows.some(n => /Rift Battery|Reactor Core|Route Scanner/.test(n)) && ['Starter Kit', 'Hazard Attunement', 'Emergency Shield'].every(n => rows.includes(n)), rows.join(', '));
     const pips = await P.ev(() => [...document.querySelectorAll('#wsList .row')].map(r => [r.querySelector('b').textContent, r.querySelectorAll('.pips i.on').length]).filter(([n]) => n === 'Nova Cell' || n === 'Field Supply'));
     check(L, `${profName}: Nova Cell and Field Supply show their kept levels`, JSON.stringify(pips) === JSON.stringify([['Nova Cell', 2], ['Field Supply', 1]]), JSON.stringify(pips));
@@ -341,11 +341,11 @@ for (const profName of ['desktop', 'phone']) await section(`ui-${profName}`, asy
   await P.nav('workshop');
   let buys = 0;
   for (let guard = 0; guard < 60; guard++) { const b = await P.page.$('#wsList [data-buy]:not([disabled])'); if (!b) break; await P.tap(b); buys++; }
-  const ws = await P.ev(() => { const T = window.__riftTest, d = T.store.data; return { shards: d.shards, all: T.ai.every(a => d.workshop[a.id] === a.costs.length), total: T.ai.reduce((s, a) => s + a.costs.reduce((x, y) => x + y, 0), 0), levels: T.ai.reduce((s, a) => s + a.costs.length, 0), maxBtns: document.querySelectorAll('#wsList button[disabled]').length, stored: JSON.stringify(JSON.parse(localStorage.getItem('riftline.save.v1')).workshop) === JSON.stringify(d.workshop) }; });
-  check(L, 'workshop: every level purchasable, exact cost, all MAX, saved', ws.all && buys === ws.levels && ws.shards === 100000 - ws.total && ws.maxBtns === (await P.ev(() => window.__riftTest.ai.length)) && ws.stored, `${buys}/${ws.levels} buys, spent ${100000 - ws.shards}/${ws.total}`);
+  const ws = await P.ev(() => { const T = window.__riftTest, d = T.store.data; return { shards: d.shards, all: T.workshopModules.every(a => d.workshop[a.id] === a.costs.length), total: T.workshopModules.reduce((s, a) => s + a.costs.reduce((x, y) => x + y, 0), 0), levels: T.workshopModules.reduce((s, a) => s + a.costs.length, 0), maxBtns: document.querySelectorAll('#wsList button[disabled]').length, stored: JSON.stringify(JSON.parse(localStorage.getItem('riftline.save.v1')).workshop) === JSON.stringify(d.workshop) }; });
+  check(L, 'workshop: every level purchasable, exact cost, all MAX, saved', ws.all && buys === ws.levels && ws.shards === 100000 - ws.total && ws.maxBtns === (await P.ev(() => window.__riftTest.workshopModules.length)) && ws.stored, `${buys}/${ws.levels} buys, spent ${100000 - ws.shards}/${ws.total}`);
   await P.back('workshop');
   // --- weapons: locked weapon cannot be bought without shards, can with
-  const locked = await P.ev(() => { const T = window.__riftTest, d = T.store.data, En = T.data.En; const i = En.findIndex(id => !d.weapons[id]); return { i, id: En[i], cost: T.ue[En[i]].cost }; });
+  const locked = await P.ev(() => { const T = window.__riftTest, d = T.store.data, order = T.data.weaponOrder; const i = order.findIndex(id => !d.weapons[id]); return { i, id: order[i], cost: T.weaponDefs[order[i]].cost }; });
   await P.ev(() => { const T = window.__riftTest; T.store.data.shards = 0; T.ui.homeInit = false; T.ui.renderHome && T.ui.renderHome(); });
   for (let k = 0; k < locked.i; k++) await P.tap('#wNext');
   await P.tap('#wBuy').catch(() => {});
@@ -374,7 +374,7 @@ for (const profName of ['desktop', 'phone']) await section(`ui-${profName}`, asy
   // --- import: a real 2.2.2 export is accepted
   const imp = JSON.parse(fs.readFileSync(FIX + 'save-v222.json', 'utf8')); imp.shards = 4321;
   await P.tap('#restoreBtn'); await P.page.fill('#saveImport', JSON.stringify(imp)); await P.dlg('Restore'); await P.dlg('Restore');
-  const im = await P.ev(() => ({ shards: window.__riftTest.store.data.shards, st: JSON.parse(localStorage.getItem('riftline.save.v1')).shards, home: !document.getElementById('home').hidden, hist: Array.isArray(window.__riftTest.store.data.history), weapon: window.__riftTest.store.data.weapon, refund: 1250 - window.__riftTest.ue.tesla.cost }));
+  const im = await P.ev(() => ({ shards: window.__riftTest.store.data.shards, st: JSON.parse(localStorage.getItem('riftline.save.v1')).shards, home: !document.getElementById('home').hidden, hist: Array.isArray(window.__riftTest.store.data.history), weapon: window.__riftTest.store.data.weapon, refund: 1250 - window.__riftTest.weaponDefs.tesla.cost }));
   // 2.4.0: the export owns the retired Ion Repeater -> Arc Caster plus the price difference, on import too
   check(L, 'import: old (2.2.2) export restores progress (Ion Repeater → Arc Caster + refund) and returns home', im.shards === 4321 + im.refund && im.st === im.shards && im.weapon === 'tesla' && im.home && im.hist, JSON.stringify(im));
   // --- reset keeps settings, wipes progress (two confirmations)
@@ -480,7 +480,7 @@ for (const profName of ['desktop', 'phone']) await section(`run-${profName}`, as
   if (await P.vis('over')) await P.tap('#homeBtn');
   // records & history
   await P.nav('records');
-  const hs = await P.ev(() => ({ n: window.__riftTest.store.data.history.length, rows: document.querySelectorAll('#runHist > *').length, ms: document.querySelectorAll('#msList .row').length, msWant: window.__riftTest.data._i.length }));
+  const hs = await P.ev(() => ({ n: window.__riftTest.store.data.history.length, rows: document.querySelectorAll('#runHist > *').length, ms: document.querySelectorAll('#msList .row').length, msWant: window.__riftTest.data.milestones.length }));
   check(L, 'records: recent runs listed', hs.n >= 3 && hs.rows >= Math.min(hs.n, 3), JSON.stringify(hs));
   check(L, 'records: every milestone rendered', hs.ms === hs.msWant, `${hs.ms}/${hs.msWant}`);
   // claim a milestone through the UI
@@ -488,7 +488,7 @@ for (const profName of ['desktop', 'phone']) await section(`run-${profName}`, as
   if (claim) {
     const b0 = await P.ev(() => window.__riftTest.store.data.shards);
     const id = await claim.getAttribute('data-claim'); await P.tap(claim);
-    const c = await P.ev(id => { const d = window.__riftTest.store.data, m = window.__riftTest.data._i.find(x => x.id === id); return { done: d.milestones[id], gain: d.shards, reward: m.reward }; }, id);
+    const c = await P.ev(id => { const d = window.__riftTest.store.data, m = window.__riftTest.data.milestones.find(x => x.id === id); return { done: d.milestones[id], gain: d.shards, reward: m.reward }; }, id);
     check(L, 'milestone claim pays its reward once', c.done === true && c.gain - b0 === c.reward, JSON.stringify({ ...c, b0 }));
   } else L('INFO', 'milestone claim', 'nothing claimable in this run');
   const aud = await P.ev(() => window.__riftTest.lastRunAudit);
@@ -651,7 +651,7 @@ await section('qol', async L => {
   const hud = await P.ev(() => ({ t: document.getElementById('hudInfo').textContent, shown: !document.getElementById('hudInfo').hidden }));
   check(L, 'run timer and FPS counter show in the HUD', hud.shown && /^\d+:\d\d · \d+ FPS$/.test(hud.t), hud.t);
   // Last Stand never raises a hit (a 0.4 acid tick stays below 1)
-  const ls = await P.ev(() => { const T = window.__riftTest, w = new T.Aa({ weapon: 'pulse', threat: 0, ws: {}, seed: 5 }); w.up.laststand = 2; w.stats = T.nr('pulse', w.up, {}); w.state = 'fight'; w.player.hp = 20; const a = w.player.hp; w.hurtPlayer(0.4, null, null, 'acid', true); const b = w.player.hp; w.hurtPlayer(10, null, null, 'grunt', true); return [a - b, b - w.player.hp]; });
+  const ls = await P.ev(() => { const T = window.__riftTest, w = new T.World({ weapon: 'pulse', threat: 0, ws: {}, seed: 5 }); w.up.laststand = 2; w.stats = T.computeStats('pulse', w.up, {}); w.state = 'fight'; w.player.hp = 20; const a = w.player.hp; w.hurtPlayer(0.4, null, null, 'acid', true); const b = w.player.hp; w.hurtPlayer(10, null, null, 'grunt', true); return [a - b, b - w.player.hp]; });
   check(L, 'Last Stand lowers hits and never raises small ones', ls[0] === 0 && ls[1] === Math.round(10 * (1 - 0.36)), JSON.stringify(ls));
   // menu pages: Esc goes back
   await P.ev(() => { const g = window.__riftTest.game; g.abandon(); g.goHome(); }); await P.page.waitForTimeout(300);
@@ -749,7 +749,7 @@ await section('upgrades250A', async L => {
     const live = await P.ev(async () => {
       const T = window.__riftTest, w = T.game.world;
       Object.assign(w.up, { skates: 2, acidcoat: 2, heatsink: 2, slipstream: 2, surge: 2, reactive: 2 });
-      w.stats = T.nr(w.weapon, w.up, w.ws);
+      w.stats = T.computeStats(w.weapon, w.up, w.ws);
       w.god = true; w.player.heatT = 3; w.player.slipT = 1.3;
       await new Promise(r => setTimeout(r, 400));
       const chips = [...document.querySelectorAll('#buffs [data-b]')].map(b => b.dataset.b);
@@ -787,7 +787,7 @@ for (const profName of ['desktop', 'phone']) await section(`biome-events-${profN
       normalFog = await P.ev(() => window.__riftTest.renderer.scene.fog.far);
     }
     await P.ev((n) => { const g = window.__riftTest.game, w = g.world; w.god = true; w.startWave(n); g.intro = null; window.__riftTest.renderer.focusOn(null); }, at);
-    const name = await P.ev((n) => window.__riftTest.data.$i[n].name, want[biome]);
+    const name = await P.ev((n) => window.__riftTest.data.waveEvents[n].name, want[biome]);
     await P.page.waitForFunction((n) => window.__qaBanners.some((b) => b.big === n) && document.querySelector('#buffs [data-b="event"]')?.textContent === n, name, { timeout: 15000 }).catch(() => {});
     await P.page.screenshot({ path: new URL(`./shots/qa-event-${profName}-${want[biome]}-banner.png`, import.meta.url).pathname });
     const r = await P.ev((n) => { const w = window.__riftTest.game.world, chip = document.querySelector('#buffs [data-b="event"]'), bn = window.__qaBanners.find((b) => b.big === n);
@@ -821,7 +821,7 @@ for (const profName of ['desktop', 'phone', 'land']) await section(`codex-${prof
   // Records → Codex tab
   await P.nav('records');
   await P.tap('[data-rtab="codex"]');
-  const cx = await P.ev(() => { const d = window.__riftTest, rows = [...document.querySelectorAll('#codexList .row')], txt = (k) => { const r = document.querySelector(`#codexList [data-cx="${k}"]`); return r ? r.textContent : ''; }; return { shown: !document.getElementById('codexList').hidden && document.getElementById('recStats').hidden, rows: rows.length, want: Object.keys(d.Ae).length + Object.keys(d.data.en).length + d.data.Zi.length, unseen: rows.filter(r => r.classList.contains('unseen')).length, grunt: txt('enemy_grunt'), warden: txt('boss_warden'), dmg: txt('up_dmg'), sniper: txt('enemy_sniper'), core: txt('boss_core'), audit: window.__riftLayoutAudit() }; });
+  const cx = await P.ev(() => { const d = window.__riftTest, rows = [...document.querySelectorAll('#codexList .row')], txt = (k) => { const r = document.querySelector(`#codexList [data-cx="${k}"]`); return r ? r.textContent : ''; }; return { shown: !document.getElementById('codexList').hidden && document.getElementById('recStats').hidden, rows: rows.length, want: Object.keys(d.enemyDefs).length + Object.keys(d.data.bossDefs).length + d.data.upgradeList.length, unseen: rows.filter(r => r.classList.contains('unseen')).length, grunt: txt('enemy_grunt'), warden: txt('boss_warden'), dmg: txt('up_dmg'), sniper: txt('enemy_sniper'), core: txt('boss_core'), audit: window.__riftLayoutAudit() }; });
   check(L, 'codex: tab shows one row per enemy, boss and upgrade', cx.shown && cx.rows === cx.want, `${cx.rows}/${cx.want}`);
   check(L, 'codex: old save — seen tip, defeated boss and history build are known, the rest is "???"', cx.unseen === cx.want - 3 && /Grunt/.test(cx.grunt) && /WARDEN/.test(cx.warden) && /Defeated ×2/.test(cx.warden) && /High-Yield|damage/i.test(cx.dmg) && /\?\?\?/.test(cx.sniper) && /\?\?\?/.test(cx.core), JSON.stringify({ unseen: cx.unseen, grunt: cx.grunt.slice(0, 30), warden: cx.warden.slice(0, 40), sniper: cx.sniper }));
   check(L, 'codex: layout audit clean', cx.audit.ok, cx.audit.findings.join(', '));
@@ -865,7 +865,7 @@ for (const profName of ['desktop', 'phone', 'land']) await section(`codex-${prof
   await P.page.waitForFunction(() => !document.getElementById('choose').hidden, null, { timeout: 60000 });
   await P.ev(() => { const g = window.__riftTest.game; g.choose(g.world.offer[0]); });
   const c3 = await cardOn('#titleCard .tcard.biome');
-  const want = await P.ev(() => { const w = window.__riftTest.game.world, b = w.biomeFor(6); return { wave: w.wave, name: b.name, boss: window.__riftTest.data.en[{ yard: 'warden', works: 'forge', vault: 'prism', marsh: 'queen', void: 'core' }[b.id]].name }; });
+  const want = await P.ev(() => { const w = window.__riftTest.game.world, b = w.biomeFor(6); return { wave: w.wave, name: b.name, boss: window.__riftTest.data.bossDefs[{ yard: 'warden', works: 'forge', vault: 'prism', marsh: 'queen', void: 'core' }[b.id]].name }; });
   const v3 = await inView();
   check(L, 'biome change (wave 6): card of the new biome with its boss', c3 && want.wave === 6 && v3 && v3.text.includes(want.name) && v3.text.includes(want.boss), JSON.stringify({ want, text: v3 && v3.text }));
   // the pause menu hides a card

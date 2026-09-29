@@ -6,9 +6,9 @@ await page.goto(process.argv[2] || 'http://localhost:8124/index.html');
 await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 60000 });
 const r = await page.evaluate(() => {
   const T = window.__riftTest, issues = {}, cnt = {}, add = (k, m) => { (issues[k] ||= []).length < 6 && issues[k].push(m); cnt[k] = (cnt[k] || 0) + 1; };
-  const Eu = T.Eu, stats = { waves: 0, spawns: 0, pickups: 0, bosses: 0 };
+  const hitsObstacle = T.hitsObstacle, stats = { waves: 0, spawns: 0, pickups: 0, bosses: 0 };
   for (const seed of [1, 2, 3, 4, 5, 6]) {
-    const w = new T.Aa({ seed, weapon: 'pulse', threat: seed % 6, ws: { fieldSupply: 3 } });
+    const w = new T.World({ seed, weapon: 'pulse', threat: seed % 6, ws: { fieldSupply: 3 } });
     const seen = new Set();
     for (let wave = 1; wave <= 40; wave++) {
       if (wave > 1) w.startWave(wave);
@@ -30,15 +30,15 @@ const r = await page.evaluate(() => {
       for (const o of A.obs) {
         const ex = o.t === 'c' ? o.r : Math.max(o.w, o.h);
         if (Math.abs(o.x) + (o.t === 'c' ? o.r : o.w) > A.W - 1 || Math.abs(o.y) + (o.t === 'c' ? o.r : o.h) > A.H - 1) add('wall-outside', `${b.id} w${wave}`);
-        if (Eu([o], 0, 2, 1.5)) add('wall-on-start', `${b.id} w${wave} ${JSON.stringify(o)}`);
+        if (hitsObstacle([o], 0, 2, 1.5)) add('wall-on-start', `${b.id} w${wave} ${JSON.stringify(o)}`);
       }
-      for (let i = 0; i < A.obs.length; i++) for (let j = i + 1; j < A.obs.length; j++) { const a = A.obs[i], c = A.obs[j]; if (Eu([a], c.x, c.y, 0.01)) add('wall-overlap', `${b.id} w${wave}`); }
-      if (!T.kp(A.obs, A.W, A.H)) add('wall-connectivity', `${b.id} w${wave}`);
+      for (let i = 0; i < A.obs.length; i++) for (let j = i + 1; j < A.obs.length; j++) { const a = A.obs[i], c = A.obs[j]; if (hitsObstacle([a], c.x, c.y, 0.01)) add('wall-overlap', `${b.id} w${wave}`); }
+      if (!T.isConnected(A.obs, A.W, A.H)) add('wall-connectivity', `${b.id} w${wave}`);
       // features vs walls
-      for (const k of ['vents', 'ice', 'acid']) for (const q of A[k]) if (Eu(A.obs, q.x, q.y, q.r * 0.5)) add('feature-in-wall', `${k} ${b.id} w${wave}`);
+      for (const k of ['vents', 'ice', 'acid']) for (const q of A[k]) if (hitsObstacle(A.obs, q.x, q.y, q.r * 0.5)) add('feature-in-wall', `${k} ${b.id} w${wave}`);
       const theme = { yard: '', works: 'vents', vault: 'ice', void: 'portals', marsh: 'acid' }[b.id];
       for (const k of ['vents','ice','acid','portals']) if (A[k].length && k !== theme) add('hazard-off-theme', `${k} in ${b.id} w${wave}`);
-      for (const p of A.portals) for (const [x, y] of [[p.ax, p.ay], [p.bx, p.by]]) if (Eu(A.obs, x, y, 1) || A.outside(x, y, 1)) add('portal-bad', `${b.id} w${wave}`);
+      for (const p of A.portals) for (const [x, y] of [[p.ax, p.ay], [p.bx, p.by]]) if (hitsObstacle(A.obs, x, y, 1) || A.outside(x, y, 1)) add('portal-bad', `${b.id} w${wave}`);
       // pickups / caches
       for (const q of w.pickups) { stats.pickups++; if (A.blocked(q.x, q.y, 0.3) || A.outside(q.x, q.y, 0.5)) add('pickup-in-wall', `${b.id} w${wave}`); }
       // enemy plan: 'from' respected (2.5.0 C: a biome's signature enemies from its first wave, World.enemyFrom)
