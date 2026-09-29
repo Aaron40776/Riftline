@@ -1,75 +1,131 @@
 // Systematic world-consistency audit over many seeds and waves.
-import { chromium } from 'playwright';
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader'] });
+import { chromium } from "playwright";
+const browser = await chromium.launch({ args: ["--use-angle=swiftshader"] });
 const page = await browser.newPage();
-await page.goto(process.argv[2] || 'http://localhost:8124/index.html');
+await page.goto(process.argv[2] || "http://localhost:8124/index.html");
 await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 60000 });
 const r = await page.evaluate(() => {
-  const T = window.__riftTest, issues = {}, cnt = {}, add = (k, m) => { (issues[k] ||= []).length < 6 && issues[k].push(m); cnt[k] = (cnt[k] || 0) + 1; };
-  const hitsObstacle = T.hitsObstacle, stats = { waves: 0, spawns: 0, pickups: 0, bosses: 0 };
+  const T = window.__riftTest,
+    issues = {},
+    cnt = {},
+    add = (k, m) => {
+      (issues[k] ||= []).length < 6 && issues[k].push(m);
+      cnt[k] = (cnt[k] || 0) + 1;
+    };
+  const hitsObstacle = T.hitsObstacle,
+    stats = { waves: 0, spawns: 0, pickups: 0, bosses: 0 };
   for (const seed of [1, 2, 3, 4, 5, 6]) {
-    const w = new T.World({ seed, weapon: 'pulse', threat: seed % 6, ws: { fieldSupply: 3 } });
+    const w = new T.World({ seed, weapon: "pulse", threat: seed % 6, ws: { fieldSupply: 3 } });
     const seen = new Set();
     for (let wave = 1; wave <= 40; wave++) {
       if (wave > 1) w.startWave(wave);
       stats.waves++;
-      const A = w.arena, b = A.biome;
+      const A = w.arena,
+        b = A.biome;
       if (wave <= 21) seen.add(b.id);
       // 2.4.0: one biome per boss cycle — the biome changes right after each boss wave and only then
-      if (wave > 1 && (w.biomeFor(wave - 1).id === b.id) !== ((wave - 1) % 5 !== 0)) add('route-cycle', `seed ${seed} wave ${wave} ${b.id}`);
-      if (wave <= 5 && b.id !== 'yard') add('route-start', `seed ${seed} wave ${wave} ${b.id}`);
-      if (b.id !== w.biomeFor(wave).id) add('route-mismatch', `wave ${wave}`);
+      if (wave > 1 && (w.biomeFor(wave - 1).id === b.id) !== ((wave - 1) % 5 !== 0))
+        add("route-cycle", `seed ${seed} wave ${wave} ${b.id}`);
+      if (wave <= 5 && b.id !== "yard") add("route-start", `seed ${seed} wave ${wave} ${b.id}`);
+      if (b.id !== w.biomeFor(wave).id) add("route-mismatch", `wave ${wave}`);
       // 2.4.6: Void Core is always waves 16–20; every boss wave has the boss of its biome
-      if (wave >= 16 && wave <= 20 && b.id !== 'void') add('route-void-last', `seed ${seed} wave ${wave} ${b.id}`);
+      if (wave >= 16 && wave <= 20 && b.id !== "void") add("route-void-last", `seed ${seed} wave ${wave} ${b.id}`);
       if (wave % 5 === 0) {
-        const want = { yard: 'warden', works: 'forge', vault: 'prism', marsh: 'queen', void: 'core' }[b.id];
-        if ((w.bossPending || (w.boss && w.boss.type)) !== want) add('boss-biome', `seed ${seed} wave ${wave} ${b.id}: ${w.bossPending}`);
+        const want = { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core" }[b.id];
+        if ((w.bossPending || (w.boss && w.boss.type)) !== want)
+          add("boss-biome", `seed ${seed} wave ${wave} ${b.id}: ${w.bossPending}`);
       }
-      if (!A.key.startsWith(b.id + ':')) add('layout-key', `${A.key} vs ${b.id}`);
+      if (!A.key.startsWith(b.id + ":")) add("layout-key", `${A.key} vs ${b.id}`);
       // walls
       for (const o of A.obs) {
-        const ex = o.t === 'c' ? o.r : Math.max(o.w, o.h);
-        if (Math.abs(o.x) + (o.t === 'c' ? o.r : o.w) > A.W - 1 || Math.abs(o.y) + (o.t === 'c' ? o.r : o.h) > A.H - 1) add('wall-outside', `${b.id} w${wave}`);
-        if (hitsObstacle([o], 0, 2, 1.5)) add('wall-on-start', `${b.id} w${wave} ${JSON.stringify(o)}`);
+        const ex = o.t === "c" ? o.r : Math.max(o.w, o.h);
+        if (Math.abs(o.x) + (o.t === "c" ? o.r : o.w) > A.W - 1 || Math.abs(o.y) + (o.t === "c" ? o.r : o.h) > A.H - 1)
+          add("wall-outside", `${b.id} w${wave}`);
+        if (hitsObstacle([o], 0, 2, 1.5)) add("wall-on-start", `${b.id} w${wave} ${JSON.stringify(o)}`);
       }
-      for (let i = 0; i < A.obs.length; i++) for (let j = i + 1; j < A.obs.length; j++) { const a = A.obs[i], c = A.obs[j]; if (hitsObstacle([a], c.x, c.y, 0.01)) add('wall-overlap', `${b.id} w${wave}`); }
-      if (!T.isConnected(A.obs, A.W, A.H)) add('wall-connectivity', `${b.id} w${wave}`);
+      for (let i = 0; i < A.obs.length; i++)
+        for (let j = i + 1; j < A.obs.length; j++) {
+          const a = A.obs[i],
+            c = A.obs[j];
+          if (hitsObstacle([a], c.x, c.y, 0.01)) add("wall-overlap", `${b.id} w${wave}`);
+        }
+      if (!T.isConnected(A.obs, A.W, A.H)) add("wall-connectivity", `${b.id} w${wave}`);
       // features vs walls
-      for (const k of ['vents', 'ice', 'acid']) for (const q of A[k]) if (hitsObstacle(A.obs, q.x, q.y, q.r * 0.5)) add('feature-in-wall', `${k} ${b.id} w${wave}`);
-      const theme = { yard: '', works: 'vents', vault: 'ice', void: 'portals', marsh: 'acid' }[b.id];
-      for (const k of ['vents','ice','acid','portals']) if (A[k].length && k !== theme) add('hazard-off-theme', `${k} in ${b.id} w${wave}`);
-      for (const p of A.portals) for (const [x, y] of [[p.ax, p.ay], [p.bx, p.by]]) if (hitsObstacle(A.obs, x, y, 1) || A.outside(x, y, 1)) add('portal-bad', `${b.id} w${wave}`);
+      for (const k of ["vents", "ice", "acid"])
+        for (const q of A[k])
+          if (hitsObstacle(A.obs, q.x, q.y, q.r * 0.5)) add("feature-in-wall", `${k} ${b.id} w${wave}`);
+      const theme = { yard: "", works: "vents", vault: "ice", void: "portals", marsh: "acid" }[b.id];
+      for (const k of ["vents", "ice", "acid", "portals"])
+        if (A[k].length && k !== theme) add("hazard-off-theme", `${k} in ${b.id} w${wave}`);
+      for (const p of A.portals)
+        for (const [x, y] of [
+          [p.ax, p.ay],
+          [p.bx, p.by],
+        ])
+          if (hitsObstacle(A.obs, x, y, 1) || A.outside(x, y, 1)) add("portal-bad", `${b.id} w${wave}`);
       // pickups / caches
-      for (const q of w.pickups) { stats.pickups++; if (A.blocked(q.x, q.y, 0.3) || A.outside(q.x, q.y, 0.5)) add('pickup-in-wall', `${b.id} w${wave}`); }
+      for (const q of w.pickups) {
+        stats.pickups++;
+        if (A.blocked(q.x, q.y, 0.3) || A.outside(q.x, q.y, 0.5)) add("pickup-in-wall", `${b.id} w${wave}`);
+      }
       // enemy plan: 'from' respected (2.5.0 C: a biome's signature enemies from its first wave, World.enemyFrom)
-      for (const g of w.plan) for (const m of g.members) if (w.enemyFrom(m.type, wave) > wave) add('enemy-too-early', `${m.type} (from ${w.enemyFrom(m.type, wave)}) in wave ${wave} ${b.id}`);
+      for (const g of w.plan)
+        for (const m of g.members)
+          if (w.enemyFrom(m.type, wave) > wave)
+            add("enemy-too-early", `${m.type} (from ${w.enemyFrom(m.type, wave)}) in wave ${wave} ${b.id}`);
       // simulate spawns: run until plan exhausted or 90 s, check marker & enemy positions
-      w.god = true; let t = 0;
+      w.god = true;
+      let t = 0;
       const boss = w.bossPending;
       while (t < 90 && (w.planIdx < w.plan.length || w.markers.length || w.bossPending)) {
         const before = w.markers.length;
-        w.step(1 / 30, { mx: Math.sin(t), my: Math.cos(t * .7), fire: false, auto: false }); t += 1 / 30;
-        for (const mk of w.markers) if (mk.t === 0 || mk.t < 1 / 30 + 1e-6) {
-          if (mk.fake) continue; stats.spawns++;
-          if (A.blocked(mk.x, mk.y, 0.3)) add('spawn-in-wall', `${mk.type} ${b.id} w${wave}`);
-          if (A.outside(mk.x, mk.y, 0.5)) add('spawn-outside', `${mk.type} ${b.id} w${wave}`);
-          if (A.featureBlocked(mk.x, mk.y, 0)) add('spawn-on-hazard', `${mk.type} ${b.id} w${wave}`);
-          if (Math.hypot(mk.x - w.player.x, mk.y - w.player.y) < 4) add('spawn-near-player', `${mk.type} d=${Math.hypot(mk.x - w.player.x, mk.y - w.player.y).toFixed(1)} ${b.id} w${wave}`);
+        w.step(1 / 30, { mx: Math.sin(t), my: Math.cos(t * 0.7), fire: false, auto: false });
+        t += 1 / 30;
+        for (const mk of w.markers)
+          if (mk.t === 0 || mk.t < 1 / 30 + 1e-6) {
+            if (mk.fake) continue;
+            stats.spawns++;
+            if (A.blocked(mk.x, mk.y, 0.3)) add("spawn-in-wall", `${mk.type} ${b.id} w${wave}`);
+            if (A.outside(mk.x, mk.y, 0.5)) add("spawn-outside", `${mk.type} ${b.id} w${wave}`);
+            if (A.featureBlocked(mk.x, mk.y, 0)) add("spawn-on-hazard", `${mk.type} ${b.id} w${wave}`);
+            if (Math.hypot(mk.x - w.player.x, mk.y - w.player.y) < 4)
+              add(
+                "spawn-near-player",
+                `${mk.type} d=${Math.hypot(mk.x - w.player.x, mk.y - w.player.y).toFixed(1)} ${b.id} w${wave}`,
+              );
+          }
+        for (const e of w.enemies)
+          if (A.blocked(e.x, e.y, -Math.min(0.3, e.r * 0.5))) {
+            add(
+              "enemy-inside-wall",
+              `${e.type} ${b.id} w${wave} pl=${w.player.x.toFixed(1)},${w.player.y.toFixed(1)} e=${e.x.toFixed(1)},${e.y.toFixed(1)}`,
+            );
+            break;
+          }
+        if (w.boss && !stats._b) {
+          stats.bosses++;
+          const B = w.boss;
+          if (A.blocked(B.x, B.y, 0) || A.outside(B.x, B.y, 1)) add("boss-spawn-bad", `${B.type} ${b.id} w${wave}`);
+          stats._b = 1;
         }
-        for (const e of w.enemies) if (A.blocked(e.x, e.y, -Math.min(0.3, e.r * 0.5)) ) { add('enemy-inside-wall', `${e.type} ${b.id} w${wave} pl=${w.player.x.toFixed(1)},${w.player.y.toFixed(1)} e=${e.x.toFixed(1)},${e.y.toFixed(1)}`); break; }
-        if (w.boss && !stats._b) { stats.bosses++; const B = w.boss; if (A.blocked(B.x, B.y, 0) || A.outside(B.x, B.y, 1)) add('boss-spawn-bad', `${B.type} ${b.id} w${wave}`); stats._b = 1; }
       }
       stats._b = 0;
-      if (boss && !w.boss && !w.bossKills.length && wave % 5 === 0) {}
-      w.enemies = []; w.markers = []; w.planIdx = w.plan.length; w.bossPending = null; w.boss = null; w.championPending = null;
+      if (boss && !w.boss && !w.bossKills.length && wave % 5 === 0) {
+      }
+      w.enemies = [];
+      w.markers = [];
+      w.planIdx = w.plan.length;
+      w.bossPending = null;
+      w.boss = null;
+      w.championPending = null;
     }
-    if (seen.size !== 5) add('route-coverage', `seed ${seed}: ${seen.size}/5 biomes in waves 1–21`);
+    if (seen.size !== 5) add("route-coverage", `seed ${seed}: ${seen.size}/5 biomes in waves 1–21`);
   }
   return { stats, issues, cnt };
 });
 console.log(JSON.stringify(r.stats));
-for (const [k, v] of Object.entries(r.issues)) console.log(`${k} ×${r.cnt[k]}: ${v.join(' | ')}`);
+for (const [k, v] of Object.entries(r.issues)) console.log(`${k} ×${r.cnt[k]}: ${v.join(" | ")}`);
 const nIssues = Object.keys(r.issues).length;
-console.log(nIssues ? `WORLD AUDIT: ${nIssues} issue type(s)` : 'WORLD AUDIT: no issues');
+console.log(nIssues ? `WORLD AUDIT: ${nIssues} issue type(s)` : "WORLD AUDIT: no issues");
 await browser.close();
 process.exitCode = nIssues ? 1 : 0;
