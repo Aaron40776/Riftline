@@ -641,7 +641,7 @@ function updateBoss(game, boss, dt) {
             beam = {
               x: boss.x,
               y: boss.y,
-              rot: rot,
+              rot,
               warn: 0.95,
               dur: 2.2,
               w: 0.85,
@@ -796,7 +796,7 @@ function updateBoss(game, boss, dt) {
                 : ["brute", "bulwark", "striker", "mortar"];
           for (let type of types) {
             let spot = game.arena.freePoint(game.rng, player.x, player.y, 7, 1);
-            game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1, type: type, elite: !1, done: !1 });
+            game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1, type, elite: !1, done: !1 });
           }
           game.emit("portal", { x: boss.x, y: boss.y, n: types.length });
         }
@@ -826,7 +826,7 @@ function updateBoss(game, boss, dt) {
               x: boss.x,
               y: boss.y,
               a: aim + 0.6 + (k / count) * TAU,
-              rot: rot,
+              rot,
               warn: 1.2,
               dur: 3.2,
               w: 0.9,
