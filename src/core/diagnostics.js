@@ -57,24 +57,31 @@ var errorLog = [],
   };
 function saveErrorLog() {
   try {
-    globalThis.localStorage && localStorage.setItem(LOG_KEY, JSON.stringify(errorLog));
+    if (globalThis.localStorage) {
+      localStorage.setItem(LOG_KEY, JSON.stringify(errorLog));
+    }
   } catch {}
 }
 try {
   let saved = globalThis.localStorage && localStorage.getItem(LOG_KEY);
   if (saved) {
     let entries = JSON.parse(saved);
-    Array.isArray(entries) &&
+    if (Array.isArray(entries)) {
       entries.slice(-30).forEach((entry) => {
-        entry && entry.v === RL_LOG_VERSION && errorLog.push(entry);
+        if (entry && entry.v === RL_LOG_VERSION) {
+          errorLog.push(entry);
+        }
       });
+    }
   }
 } catch {}
 try {
   if (globalThis.localStorage)
     for (let i = localStorage.length - 1; i >= 0; i--) {
       let key = localStorage.key(i);
-      key && (key.startsWith("riftline.log.v2.") || key === "riftline.log.v3") && localStorage.removeItem(key);
+      if (key && (key.startsWith("riftline.log.v2.") || key === "riftline.log.v3")) {
+        localStorage.removeItem(key);
+      }
     }
 } catch {}
 function setLogContext(context) {
@@ -105,8 +112,10 @@ function logError(where, error) {
       (item) =>
         item.msg === msg && item.where === where && item.file === file && item.line === line && item.col === col,
     );
-  if (existing) (existing.n++, (existing.last = now));
-  else {
+  if (existing) {
+    existing.n++;
+    existing.last = now;
+  } else {
     for (
       errorLog.push({
         where: where,
@@ -123,7 +132,9 @@ function logError(where, error) {
       errorLog.length > 30;
     )
       errorLog.shift();
-    typeof console < "u" && console.error("[riftline]", where, error);
+    if (typeof console < "u") {
+      console.error("[riftline]", where, error);
+    }
   }
   saveErrorLog();
   for (let listener of logListeners)
@@ -135,10 +146,12 @@ function getErrorLog() {
   return errorLog;
 }
 function onLogChange(listener) {
-  return (logListeners.add(listener), () => logListeners.delete(listener));
+  logListeners.add(listener);
+  return () => logListeners.delete(listener);
 }
 function clearErrorLog() {
-  ((errorLog.length = 0), saveErrorLog());
+  errorLog.length = 0;
+  saveErrorLog();
   for (let listener of logListeners) listener();
 }
 function buildReport() {
@@ -177,22 +190,25 @@ function buildReport() {
       " · ui-dedupes " +
       RL_RT.uiGuardDrops,
   );
-  errorLog.length || lines.push("", "Errors: none recorded.");
+  if (!errorLog.length) {
+    lines.push("", "Errors: none recorded.");
+  }
   for (let item of errorLog) {
     let location = item.file ? ` @ ${item.file}:${item.line || 0}:${item.col || 0}` : "";
-    (lines.push(
+    lines.push(
       `[${item.where}] ${item.msg}  (x${item.n}, v${item.v}${location}, first ${item.first}, last ${item.last})`,
-    ),
-      item.stack &&
-        lines.push(
-          item.stack
-            .split(
-              `
+    );
+    if (item.stack) {
+      lines.push(
+        item.stack
+          .split(
+            `
 `,
-            )
-            .map((line) => "    " + line.trim()).join(`
+          )
+          .map((line) => "    " + line.trim()).join(`
 `),
-        ));
+      );
+    }
   }
   return lines.join(`
 `);
@@ -604,7 +620,7 @@ function selfTestBase() {
           6,
           0.45,
         ),
-        enemy = point && world.spawnEnemy("turret", point.x, point.y, { elite: !0 });
+        enemy = point && world.spawnEnemy("turret", point.x, point.y, { elite: true });
       if (!enemy) bad("upgrade-runtime", "could not spawn elite turret probe");
       else {
         const shardBefore = world.pickups
@@ -1015,7 +1031,9 @@ function rlMonStep(world, fxStart, dash0, sh0, killsStart, dt) {
     if (!RL_EVENT_KINDS.has(kind)) rlMonIssue("WARN", "events", `"${kind}" has no consumer`);
     {
       const payloadError = rlEventPayloadError(event);
-      payloadError && rlMonIssue("FAIL", "events", payloadError);
+      if (payloadError) {
+        rlMonIssue("FAIL", "events", payloadError);
+      }
     }
     if (RL_BOSS_EVENTS.has(kind) && !world.boss)
       rlMonIssue("FAIL", "events", `boss event "${kind}" emitted without an active boss`);
@@ -1130,8 +1148,12 @@ function rlMonFrame(workMs) {
       if (dt < 1000) {
         mon.frames++;
         mon.dtSum += dt;
-        dt > 50 && mon.slow++;
-        dt > mon.worst && (mon.worst = dt);
+        if (dt > 50) {
+          mon.slow++;
+        }
+        if (dt > mon.worst) {
+          mon.worst = dt;
+        }
         mon.workSum += workMs;
       }
     }
@@ -1140,16 +1162,19 @@ function rlMonFrame(workMs) {
   // What is drawn must be the wave's own biome and layout (no mixed palettes / stale walls).
   if (mon && renderer && game.world === mon.w && game.mode === "game" && renderer.biome && (mon.frames & 15) === 0) {
     const arena = mon.w.arena;
-    renderer.biome.id !== arena.biome.id &&
+    if (renderer.biome.id !== arena.biome.id) {
       rlMonIssue("FAIL", "render", `renderer shows biome ${renderer.biome.id} during a ${arena.biome.id} wave`);
-    renderer.arena.layKey !== arena.key &&
+    }
+    if (renderer.arena.layKey !== arena.key) {
       rlMonIssue(
         "FAIL",
         "render",
         `renderer walls (${renderer.arena.layKey}) differ from the wave layout (${arena.key})`,
       );
-    renderer.arena.biomeId !== arena.biome.id &&
+    }
+    if (renderer.arena.biomeId !== arena.biome.id) {
       rlMonIssue("FAIL", "render", `floor palette from ${renderer.arena.biomeId} during a ${arena.biome.id} wave`);
+    }
   }
   // 2.3.2: while the run is being played the HUD (HP, pause, touch buttons) must be
   // on screen — Endless used to leave it hidden. 1.5 s of grace for transitions.
@@ -1165,9 +1190,12 @@ function rlMonFrame(workMs) {
     const hud = document.getElementById("hud");
     if (hud && (hud.hidden || hud.style.visibility === "hidden")) {
       const now = performance.now();
-      mon.hudOff || (mon.hudOff = now);
-      now - mon.hudOff > 1500 &&
+      if (!mon.hudOff) {
+        mon.hudOff = now;
+      }
+      if (now - mon.hudOff > 1500) {
         rlMonIssue("FAIL", "hud", `HUD hidden during wave ${mon.w.wave}${mon.w.endless ? " (endless)" : ""}`);
+      }
     } else mon.hudOff = 0;
   }
   // Every wave start writes a resumable snapshot; verify it with the real loader
@@ -1180,9 +1208,12 @@ function rlMonFrame(workMs) {
       mon.pendingSnap = 0;
       try {
         const snap = cleanRun(run);
-        snap
-          ? (mon.snaps.ok++, (mon.lastSnap = snap))
-          : rlMonIssue("FAIL", "save", `wave ${wave} snapshot is rejected by the loader`);
+        if (snap) {
+          mon.snaps.ok++;
+          mon.lastSnap = snap;
+        } else {
+          rlMonIssue("FAIL", "save", `wave ${wave} snapshot is rejected by the loader`);
+        }
       } catch (err) {
         rlMonIssue("FAIL", "save", `wave ${wave} snapshot check threw: ${err.message}`);
       }
@@ -1278,10 +1309,13 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
       try {
         const snap = mon.lastSnap,
           restored = new World({ snap: snap, ws: store.data.workshop });
-        (restored.wave !== snap.wave ||
+        if (
+          restored.wave !== snap.wave ||
           restored.weapon !== snap.weapon ||
-          JSON.stringify(restored.up) !== JSON.stringify(snap.up)) &&
+          JSON.stringify(restored.up) !== JSON.stringify(snap.up)
+        ) {
           rlMonIssue("FAIL", "save", `wave ${snap.wave} snapshot restores a different run`);
+        }
       } catch (err) {
         rlMonIssue("FAIL", "save", `wave ${mon.lastSnap.wave} snapshot restore threw: ${err.message}`);
       }
@@ -1325,20 +1359,32 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
     );
     const stats = data.stats,
       rec = [];
-    stats.kills - pre.kills !== pre.runKills && rec.push(`kills +${stats.kills - pre.kills} (run had ${pre.runKills})`);
-    stats.bestWave < (win ? 20 : pre.wave) && rec.push(`best wave ${stats.bestWave} < reached ${win ? 20 : pre.wave}`);
-    win && !pre.endless && stats.clears !== pre.clears + 1 && rec.push("clear not counted");
-    !win && !abandoned && stats.deaths !== pre.deaths + 1 && rec.push("death not counted");
+    if (stats.kills - pre.kills !== pre.runKills) {
+      rec.push(`kills +${stats.kills - pre.kills} (run had ${pre.runKills})`);
+    }
+    if (stats.bestWave < (win ? 20 : pre.wave)) {
+      rec.push(`best wave ${stats.bestWave} < reached ${win ? 20 : pre.wave}`);
+    }
+    if (win && !pre.endless && stats.clears !== pre.clears + 1) {
+      rec.push("clear not counted");
+    }
+    if (!win && !abandoned && stats.deaths !== pre.deaths + 1) {
+      rec.push("death not counted");
+    }
     addCheck(
       rec.length ? "FAIL" : "OK",
       "records",
       rec.length ? rec.join(" | ") : `kills +${pre.runKills} · best wave ${stats.bestWave}`,
     );
     const per = [];
-    data.run !== null && per.push("finished run is still stored as resumable");
+    if (data.run !== null) {
+      per.push("finished run is still stored as resumable");
+    }
     try {
       const parsed = store.parse(JSON.stringify(data));
-      parsed.ok || per.push("save does not round-trip");
+      if (!parsed.ok) {
+        per.push("save does not round-trip");
+      }
     } catch (err) {
       per.push("save round-trip threw: " + err.message);
     }
@@ -1348,8 +1394,9 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
     } catch {}
     if (!store.storageOk) addCheck("WARN", "persistence", "storage is blocked — progress only lives in memory");
     else {
-      (stored && stored.savedAt === data.savedAt && stored.shards === data.shards) ||
+      if (!(stored && stored.savedAt === data.savedAt && stored.shards === data.shards)) {
         per.push("localStorage does not match the in-memory save");
+      }
       addCheck(
         per.length ? "FAIL" : "OK",
         "persistence",
@@ -1385,9 +1432,15 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
             hud = document.getElementById("hud"),
             layout = window.__riftLayoutAudit?.(),
             probs = [];
-          over.hidden && probs.push("run summary not shown");
-          hud.hidden || probs.push("HUD still visible");
-          layout && !layout.ok && probs.push(...layout.findings.slice(0, 3));
+          if (over.hidden) {
+            probs.push("run summary not shown");
+          }
+          if (!hud.hidden) {
+            probs.push("HUD still visible");
+          }
+          if (layout && !layout.ok) {
+            probs.push(...layout.findings.slice(0, 3));
+          }
           const status = probs.length ? "FAIL" : "OK";
           audit.checks.push({
             st: status,
@@ -1395,18 +1448,19 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
             msg: probs.length ? probs.join(" | ") : `${layout ? layout.checked : 0} controls reachable`,
           });
           if (probs.length) {
-            audit.ok = !1;
+            audit.ok = false;
             audit.fail.push("end-screen: " + probs.join(" | "));
           }
         } catch (err) {
           audit.checks.push({ st: "WARN", id: "end-screen", msg: err.message });
         }
-        audit.fail.length &&
+        if (audit.fail.length) {
           ui.toast(
             `Diagnostics: ${audit.fail.length} problem${audit.fail.length === 1 ? "" : "s"} in this run — Settings › Diagnostics`,
             "warn",
             6000,
           );
+        }
         rlRunHealth({ context: "post-run" }).catch((err) => logError("health", err));
       }),
     );
@@ -1416,7 +1470,9 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
 function rlMonCrashed() {
   try {
     const world = RL_MON && RL_MON.w;
-    world && rlMonFinish(world, rlMonPreEnd(world), !1, !1, !0, !0);
+    if (world) {
+      rlMonFinish(world, rlMonPreEnd(world), false, false, true, true);
+    }
   } catch {}
 }
 function rlAuditReportLines(out) {
@@ -1446,7 +1502,9 @@ function rlUiButtonGuardSelfTest() {
   const make = (key = "") => {
     const button = document.createElement("button");
     button.type = "button";
-    key && (button.dataset.buy = key);
+    if (key) {
+      button.dataset.buy = key;
+    }
     host.appendChild(button);
     testUi.click.call(testUi, button, () => count++);
     return button;
@@ -1949,7 +2007,9 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     localStorage.setItem(key, "1");
     localStorage.removeItem(key);
     ok("storage", true, "write/remove test passed");
-    old !== null && localStorage.setItem(key, old);
+    if (old !== null) {
+      localStorage.setItem(key, old);
+    }
   } catch (err) {
     warn("storage", "localStorage unavailable or restricted");
   }
@@ -1982,9 +2042,11 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     if (document.fonts && typeof document.fonts.check === "function") {
       let chakra = document.fonts.check('16px "Chakra Petch"'),
         barlow = document.fonts.check('16px "Barlow Semi Condensed"');
-      chakra && barlow
-        ? ok("fonts", true, "declared game fonts available")
-        : warn("fonts", `font check: Chakra ${chakra ? "OK" : "WARN"}, Barlow ${barlow ? "OK" : "WARN"}`);
+      if (chakra && barlow) {
+        ok("fonts", true, "declared game fonts available");
+      } else {
+        warn("fonts", `font check: Chakra ${chakra ? "OK" : "WARN"}, Barlow ${barlow ? "OK" : "WARN"}`);
+      }
     } else warn("fonts", "FontFaceSet API unavailable");
   } catch (err) {
     warn("fonts", err.message);
@@ -2081,9 +2143,14 @@ function selfTestExpansion23(result) {
     cats = new Map();
   const bad = (cat, example) => {
     const entry = cats.get(cat);
-    entry
-      ? (entry.n++, entry.all.length < 8 && entry.all.push(example))
-      : cats.set(cat, { n: 1, ex: example, all: [example] });
+    if (entry) {
+      entry.n++;
+      if (entry.all.length < 8) {
+        entry.all.push(example);
+      }
+    } else {
+      cats.set(cat, { n: 1, ex: example, all: [example] });
+    }
   };
   const section = (cat, fn) => {
     try {
@@ -2129,8 +2196,8 @@ function selfTestExpansion23(result) {
     for (const id of Object.keys(enemyDefs)) {
       const world = new World({ seed: hashString("ev:" + id), weapon: "pulse", threat: 0, ws: {} });
       world.startWave(41);
-      world.god = !0;
-      world.hold = !0;
+      world.god = true;
+      world.hold = true;
       world.plan = [];
       world.bossPending = null;
       world.championPending = null;
@@ -2139,24 +2206,34 @@ function selfTestExpansion23(result) {
       for (let step = 0; step < 12 && !point; step++) {
         const x = world.player.x + Math.cos(step * 0.52) * 7,
           y = world.player.y + Math.sin(step * 0.52) * 7;
-        world.arena.blocked(x, y, 1) || world.arena.outside(x, y, 1) || (point = { x, y });
+        if (!(world.arena.blocked(x, y, 1) || world.arena.outside(x, y, 1))) {
+          point = { x, y };
+        }
       }
       point = point || world.arena.freePoint(world.rng, world.player.x, world.player.y, 5, 0.6);
       world.spawnEnemy(id, point.x, point.y, {}).spawnT = 0;
       for (let frame = 0; frame < 420; frame++) {
         const dash0 = world.player.dashId,
           fxStart = world.fx.length;
-        world.step(1 / 60, { mx: 0, my: 0, aim: !1, fire: !1, auto: !1 });
+        world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, auto: false });
         for (let i = fxStart; i < world.fx.length; i++) {
           const kind = world.fx[i].k;
           eventKinds.add(kind);
-          RL_EVENT_KINDS.has(kind) || bad("event-unconsumed", `"${kind}" from ${id}`);
+          if (!RL_EVENT_KINDS.has(kind)) {
+            bad("event-unconsumed", `"${kind}" from ${id}`);
+          }
           {
             const payloadError = rlEventPayloadError(world.fx[i]);
-            payloadError && bad("event-payload", `${payloadError} (${id})`);
+            if (payloadError) {
+              bad("event-payload", `${payloadError} (${id})`);
+            }
           }
-          RL_BOSS_EVENTS.has(kind) && !world.boss && bad("event-boss-only", `"${kind}" from ${id}`);
-          kind === "dash" && world.player.dashId === dash0 && bad("event-player-dash", `"dash" from ${id}`);
+          if (RL_BOSS_EVENTS.has(kind) && !world.boss) {
+            bad("event-boss-only", `"${kind}" from ${id}`);
+          }
+          if (kind === "dash" && world.player.dashId === dash0) {
+            bad("event-player-dash", `"dash" from ${id}`);
+          }
         }
         world.fx.length = 0;
       }
@@ -2171,20 +2248,31 @@ function selfTestExpansion23(result) {
     for (const id of Object.keys(weaponDefs)) {
       heard.length = 0;
       sound.consume([{ k: "shot", w: id }]);
-      RL_SFX_VOICES.includes(heard[0]) || bad("sfx-silent-weapon", id);
+      if (!RL_SFX_VOICES.includes(heard[0])) {
+        bad("sfx-silent-weapon", id);
+      }
     }
   });
   // 2e. every biome has one coherent palette and valid champion variants
   section("palette", () => {
     for (const biome of biomeList) {
       const issues = rlPaletteIssues(biome);
-      issues.length && bad("biome-palette", `${biome.id}: ${issues.join(", ")}`);
+      if (issues.length) {
+        bad("biome-palette", `${biome.id}: ${issues.join(", ")}`);
+      }
     }
     for (const issue of rlBiomeDistinct()) bad("biome-lookalike", issue);
+    for (const [biomeId, variant] of Object.entries(biomeVariants)) {
+      if (!["scorch", "frost", "phase", "toxic"].includes(variant.id)) {
+        bad("variant-dead", `${biomeId} → ${variant.id}`);
+      }
+    }
     for (const [biomeId, variant] of Object.entries(biomeVariants))
-      ["scorch", "frost", "phase", "toxic"].includes(variant.id) || bad("variant-dead", `${biomeId} → ${variant.id}`);
-    for (const [biomeId, variant] of Object.entries(biomeVariants))
-      for (const type of variant.types) enemyDefs[type] || bad("variant-type", `${biomeId}: ${type}`);
+      for (const type of variant.types) {
+        if (!enemyDefs[type]) {
+          bad("variant-type", `${biomeId}: ${type}`);
+        }
+      }
   });
   // 2c. music: every biome has its own theme and every step of fight/boss/menu music schedules cleanly
   section("music", () => {
@@ -2223,8 +2311,8 @@ function selfTestExpansion23(result) {
       if (id === "mite" || id === "hive") continue;
       const world = new World({ seed: hashString("hunt:" + id), weapon: "pulse", threat: 0, ws: {} });
       world.startWave(41);
-      world.god = !0;
-      world.hold = !0;
+      world.god = true;
+      world.hold = true;
       world.plan = [];
       world.bossPending = null;
       world.championPending = null;
@@ -2232,22 +2320,25 @@ function selfTestExpansion23(result) {
       for (let step = 0; step < 24 && !point; step++) {
         const x = world.player.x + Math.cos(step * 0.26) * 12,
           y = world.player.y + Math.sin(step * 0.26) * 12;
-        world.arena.blocked(x, y, 1.2) || world.arena.outside(x, y, 1.2) || (point = { x, y });
+        if (!(world.arena.blocked(x, y, 1.2) || world.arena.outside(x, y, 1.2))) {
+          point = { x, y };
+        }
       }
       point = point || world.arena.freePoint(world.rng, world.player.x, world.player.y, 9, 0.6);
       const enemy = world.spawnEnemy(id, point.x, point.y, {});
       enemy.spawnT = 0;
-      enemy.hunt = !0;
+      enemy.hunt = true;
       enemy.hp = enemy.maxHp = 1e9;
       const dist0 = Math.hypot(enemy.x - world.player.x, enemy.y - world.player.y);
       let dmin = dist0;
       for (let frame = 0; frame < 480; frame++) {
-        world.step(1 / 60, { mx: 0, my: 0, fire: !1, auto: !1 });
-        enemy.hunt = !0;
+        world.step(1 / 60, { mx: 0, my: 0, fire: false, auto: false });
+        enemy.hunt = true;
         dmin = Math.min(dmin, Math.hypot(enemy.x - world.player.x, enemy.y - world.player.y));
       }
-      dmin > 6 &&
+      if (dmin > 6) {
         bad("straggler-kites", `${id} stayed ${dmin.toFixed(1)} m away (start ${dist0.toFixed(1)}) while hunting`);
+      }
     }
   });
   // 3. save loader: live snapshots must pass cleanRun() and restore the same run
@@ -2268,18 +2359,25 @@ function selfTestExpansion23(result) {
   section("desc", () => {
     for (const upgrade of upgradeList) {
       const text = upgrade.desc(0);
-      /(^|[^\d.])[+\-]?0(%|\s|\))/.test(text) && bad("desc-zero", `${upgrade.id}: “${text}”`);
+      if (/(^|[^\d.])[+\-]?0(%|\s|\))/.test(text)) {
+        bad("desc-zero", `${upgrade.id}: “${text}”`);
+      }
     }
   });
   // 5. every weapon has a firing voice; every enemy has a mesh pool
   section("coverage", () => {
-    if (renderer) for (const id of Object.keys(enemyDefs)) renderer.enemyPools[id] || bad("mesh", id);
+    if (renderer)
+      for (const id of Object.keys(enemyDefs)) {
+        if (!renderer.enemyPools[id]) {
+          bad("mesh", id);
+        }
+      }
   });
   // 6. arena features (vents, ice, acid, portals) of every biome, waves 21–60: no overlap with obstacles, portals valid
   section("features", () => {
     for (const biome of biomeList)
       for (const wave of [21, 33, 47, 58]) {
-        const lay = buildLayout(biome, 0x33 + wave, wave, !1),
+        const lay = buildLayout(biome, 0x33 + wave, wave, false),
           hazards = lay.features || {};
         featureLayouts++;
         for (const kind of ["vents", "ice", "acid"])
@@ -2308,10 +2406,11 @@ function selfTestExpansion23(result) {
         }
         if ("pads" in hazards) bad("pads-removed", `${biome.id} still generates jump pads`);
         const theme = RL_BIOME_HAZARD[biome.id] ?? "";
-        for (const kind of ["vents", "ice", "acid", "portals"])
-          (hazards[kind] || []).length &&
-            kind !== theme &&
+        for (const kind of ["vents", "ice", "acid", "portals"]) {
+          if ((hazards[kind] || []).length && kind !== theme) {
             bad("hazard-theme", `${kind} in ${biome.id} (theme: ${theme || "none"})`);
+          }
+        }
       }
   });
   const fail = [...cats].map(([cat, entry]) => `${cat}${entry.n > 1 ? ` ×${entry.n}` : ""} (${entry.all.join("; ")})`);
@@ -2337,13 +2436,27 @@ function rlLum(color) {
 function rlPaletteIssues(biome) {
   const lum = rlLum,
     out = [];
-  lum(biome.floor) > 0.1 && out.push(`floor too bright (${lum(biome.floor).toFixed(2)})`);
-  lum(biome.fog) > 0.08 && out.push(`fog too bright (${lum(biome.fog).toFixed(2)})`);
-  lum(biome.ground) > 0.1 && out.push(`ground light too bright (${lum(biome.ground).toFixed(2)})`);
-  lum(biome.wall) > 0.2 && out.push(`walls too bright (${lum(biome.wall).toFixed(2)})`);
-  lum(biome.grid) < 0.4 && out.push(`grid too dark (${lum(biome.grid).toFixed(2)})`);
-  lum(biome.accent) < 0.35 && out.push(`accent too dark (${lum(biome.accent).toFixed(2)})`);
-  (lum(biome.sky) < 0.12 || lum(biome.sky) > 0.55) && out.push(`sky light out of range (${lum(biome.sky).toFixed(2)})`);
+  if (lum(biome.floor) > 0.1) {
+    out.push(`floor too bright (${lum(biome.floor).toFixed(2)})`);
+  }
+  if (lum(biome.fog) > 0.08) {
+    out.push(`fog too bright (${lum(biome.fog).toFixed(2)})`);
+  }
+  if (lum(biome.ground) > 0.1) {
+    out.push(`ground light too bright (${lum(biome.ground).toFixed(2)})`);
+  }
+  if (lum(biome.wall) > 0.2) {
+    out.push(`walls too bright (${lum(biome.wall).toFixed(2)})`);
+  }
+  if (lum(biome.grid) < 0.4) {
+    out.push(`grid too dark (${lum(biome.grid).toFixed(2)})`);
+  }
+  if (lum(biome.accent) < 0.35) {
+    out.push(`accent too dark (${lum(biome.accent).toFixed(2)})`);
+  }
+  if (lum(biome.sky) < 0.12 || lum(biome.sky) > 0.55) {
+    out.push(`sky light out of range (${lum(biome.sky).toFixed(2)})`);
+  }
   return out;
 }
 /* 2.3.3: biomes must be told apart at a glance. The floor is near-black in every
@@ -2367,7 +2480,9 @@ function rlBiomeDistinct(min = 30) {
       const labA = rlLab(biomeList[i].grid),
         labB = rlLab(biomeList[j].grid),
         dist = Math.hypot(labA[0] - labB[0], labA[1] - labB[1], labA[2] - labB[2]);
-      dist < min && out.push(`${biomeList[i].id}/${biomeList[j].id} ΔE ${dist.toFixed(0)}`);
+      if (dist < min) {
+        out.push(`${biomeList[i].id}/${biomeList[j].id} ΔE ${dist.toFixed(0)}`);
+      }
     }
   return out;
 }
@@ -2436,7 +2551,9 @@ function selfTestExpansion22(result) {
     world.startWave(wave);
     const caches = world.pickups.filter((pickup) => pickup.cache).length;
     if (world.bossPending) {
-      caches && fail.push("cache-in-boss-wave:" + wave);
+      if (caches) {
+        fail.push("cache-in-boss-wave:" + wave);
+      }
       continue;
     }
     minCache = Math.min(minCache, caches);
@@ -2513,12 +2630,18 @@ function selfTestV240(result) {
       seen = new Set();
     for (let wave = 1; wave <= 30; wave++) {
       const biome = world.biomeFor(wave).id;
-      wave <= 21 && seen.add(biome);
-      wave <= 5 && biome !== "yard" && fail.push(`route-start:${seed}:${wave}`);
+      if (wave <= 21) {
+        seen.add(biome);
+      }
+      if (wave <= 5 && biome !== "yard") {
+        fail.push(`route-start:${seed}:${wave}`);
+      }
       if (wave > 1 && (biome === world.biomeFor(wave - 1).id) !== ((wave - 1) % 5 !== 0))
         fail.push(`route-cycle:${seed}:${wave}`);
     }
-    seen.size !== 5 && fail.push(`route-coverage:${seed}:${seen.size}`);
+    if (seen.size !== 5) {
+      fail.push(`route-coverage:${seed}:${seen.size}`);
+    }
   }
   // every hazard biome has its hazard in a normal wave, and only that one
   const want = { works: "vents", vault: "ice", marsh: "acid", void: "portals" };
@@ -2528,8 +2651,11 @@ function selfTestV240(result) {
     world.startWave(wave);
     if (world.arena.biome.id !== id) fail.push("hazard-biome:" + id);
     if (!world.arena[kind].length) fail.push("hazard-missing:" + id);
-    for (const other of ["vents", "ice", "acid", "portals"])
-      other !== kind && world.arena[other].length && fail.push(`hazard-foreign:${id}:${other}`);
+    for (const other of ["vents", "ice", "acid", "portals"]) {
+      if (other !== kind && world.arena[other].length) {
+        fail.push(`hazard-foreign:${id}:${other}`);
+      }
+    }
   }
   // Cryo Vault: the drone drifts (lower grip than anywhere else)
   const drift = (id) => {
@@ -2551,7 +2677,7 @@ function selfTestV240(result) {
         set_RL_BIOME_MIX_CUR(mix);
         try {
           for (let i = 1; i <= 12; i++)
-            for (const group of planWave(makeRng(hashString("mix:" + i)), 30, threatMods(0), !1, {}))
+            for (const group of planWave(makeRng(hashString("mix:" + i)), 30, threatMods(0), false, {}))
               hits += group.members.filter((member) => own.includes(member.type)).length;
         } finally {
           set_RL_BIOME_MIX_CUR(null);
@@ -2680,7 +2806,9 @@ function selfTestV250A(result) {
   const foe = (world, x, y) => {
     const enemy = world.spawnEnemy("brute", x, y, {});
     enemy.spawnT = 0;
-    world.enemies.includes(enemy) || world.enemies.push(enemy);
+    if (!world.enemies.includes(enemy)) {
+      world.enemies.push(enemy);
+    }
     world.hash.build(world.enemies);
     return enemy;
   };
@@ -2837,7 +2965,9 @@ function selfTestV250C(result) {
         ]) {
           if (hitsObstacle(arena.obs, x, y, 1.5) || Math.abs(x) > arena.W - 3.6 || Math.abs(y) > arena.H - 3.6)
             bad("portal-bad:" + tag);
-          ends.some((end) => Math.hypot(end[0] - x, end[1] - y) < 4) && bad("portal-cluster:" + tag);
+          if (ends.some((end) => Math.hypot(end[0] - x, end[1] - y) < 4)) {
+            bad("portal-cluster:" + tag);
+          }
           ends.push([x, y]);
         }
       }
@@ -2858,15 +2988,25 @@ function selfTestV250C(result) {
       if (kind) {
         count[kind][0] += arena[kind].length;
         count[kind][1]++;
-        for (const hazard of arena[kind])
-          (hazard.r < RL_HAZARD_SIZE_250[kind][0] - 1e-9 || hazard.r > RL_HAZARD_SIZE_250[kind][1] + 1e-9) &&
+        for (const hazard of arena[kind]) {
+          if (hazard.r < RL_HAZARD_SIZE_250[kind][0] - 1e-9 || hazard.r > RL_HAZARD_SIZE_250[kind][1] + 1e-9) {
             bad("hazard-size:" + kind);
-      } else if (id === "void") ((pairs[0] += arena.portals.length >= 2 ? 1 : 0), pairs[1]++);
+          }
+        }
+      } else if (id === "void") {
+        pairs[0] += arena.portals.length >= 2 ? 1 : 0;
+        pairs[1]++;
+      }
     }
   }
-  for (const [kind, [total, waves]] of Object.entries(count))
-    waves && total / waves < 4.3 && bad(`hazard-count:${kind}:${(total / waves).toFixed(2)}`);
-  pairs[1] && pairs[0] / pairs[1] < 0.7 && bad("portal-pairs:" + (pairs[0] / pairs[1]).toFixed(2));
+  for (const [kind, [total, waves]] of Object.entries(count)) {
+    if (waves && total / waves < 4.3) {
+      bad(`hazard-count:${kind}:${(total / waves).toFixed(2)}`);
+    }
+  }
+  if (pairs[1] && pairs[0] / pairs[1] < 0.7) {
+    bad("portal-pairs:" + (pairs[0] / pairs[1]).toFixed(2));
+  }
   // 2. biome events: one per visit of a hazard biome, in wave 2–4 of the visit, only there, never
   // next to another event
   for (let seed = 1; seed <= 30; seed++) {
@@ -2880,11 +3020,17 @@ function selfTestV250C(result) {
       if (want ? got.length !== 1 || got[0] !== want : got.length) bad(`biome-event:${seed}:${start}:${got}`);
       if (evs[start] || evs[start + 4]) bad(`event-first-or-boss:${seed}:${start}`);
     }
-    for (let wave = 2; wave <= 40; wave++) evs[wave] && evs[wave - 1] && bad(`event-adjacent:${seed}:${wave}`);
+    for (let wave = 2; wave <= 40; wave++) {
+      if (evs[wave] && evs[wave - 1]) {
+        bad(`event-adjacent:${seed}:${wave}`);
+      }
+    }
   }
-  for (const [id, event] of Object.entries(RL_BIOME_EVENT))
-    (!waveEvents[event] || waveEvents[event].biome !== id || !waveEvents[event].name || !waveEvents[event].desc) &&
+  for (const [id, event] of Object.entries(RL_BIOME_EVENT)) {
+    if (!waveEvents[event] || waveEvents[event].biome !== id || !waveEvents[event].name || !waveEvents[event].desc) {
       bad("event-def:" + event);
+    }
+  }
   // 3. what the events do (run in the world with a god-mode player standing still)
   const eventWorld = (biome, seed = 0x25e0) => {
     for (let worldSeed = seed; worldSeed < seed + 40; worldSeed++) {
@@ -2893,7 +3039,7 @@ function selfTestV250C(result) {
       if (i < 0 || i > 3) continue;
       const eventWave = world.biomeEventWave(1 + 5 * i);
       if (!eventWave) continue;
-      world.god = !0;
+      world.god = true;
       world.startWave(eventWave);
       return world;
     }
@@ -2906,17 +3052,25 @@ function selfTestV250C(result) {
   if (!melt || melt.event !== "meltdown") bad("meltdown-missing");
   else {
     const vents = melt.arena.vents;
-    vents.length < 6 && bad("meltdown-vents:" + vents.length);
-    vents.some((vent) => vent.period !== vents[0].period || vent.phase !== vents[0].phase) && bad("meltdown-sync");
+    if (vents.length < 6) {
+      bad("meltdown-vents:" + vents.length);
+    }
+    if (vents.some((vent) => vent.period !== vents[0].period || vent.phase !== vents[0].phase)) {
+      bad("meltdown-sync");
+    }
     fair(melt.arena, "meltdown");
     run(melt, 2.5);
-    vents.every((vent) => melt.arena.ventState(vent, melt.waveT) === "erupt") || bad("meltdown-erupt-together");
+    if (!vents.every((vent) => melt.arena.ventState(vent, melt.waveT) === "erupt")) {
+      bad("meltdown-erupt-together");
+    }
   }
   const white = eventWorld("vault");
   if (!white || white.event !== "whiteout") bad("whiteout-missing");
   else {
-    const lay = buildLayout(white.arena.biome, white.seed, white.wave, !1);
-    white.arena.ice.length > (lay.features?.ice || []).length || bad("whiteout-ice");
+    const lay = buildLayout(white.arena.biome, white.seed, white.wave, false);
+    if (!(white.arena.ice.length > (lay.features?.ice || []).length)) {
+      bad("whiteout-ice");
+    }
     fair(white.arena, "whiteout");
   }
   const bloom = eventWorld("marsh");
@@ -2926,21 +3080,30 @@ function selfTestV250C(result) {
       radius0 = bloom.arena.acid.reduce((sum, pool) => sum + pool.r, 0);
     run(bloom, 20);
     const own = bloom.arena.acid.filter((pool) => pool.life == null);
-    own.length > pools0 || bad("bloom-no-sprout");
-    own.slice(0, pools0).reduce((sum, pool) => sum + pool.r, 0) > radius0 + 0.5 || bad("bloom-no-growth");
+    if (!(own.length > pools0)) {
+      bad("bloom-no-sprout");
+    }
+    if (!(own.slice(0, pools0).reduce((sum, pool) => sum + pool.r, 0) > radius0 + 0.5)) {
+      bad("bloom-no-growth");
+    }
     fair(bloom.arena, "bloom");
     // a pool never sprouts under the player
-    own.some((pool) => Math.hypot(pool.x - bloom.player.x, pool.y - bloom.player.y) < pool.r) && bad("bloom-on-player");
+    if (own.some((pool) => Math.hypot(pool.x - bloom.player.x, pool.y - bloom.player.y) < pool.r)) {
+      bad("bloom-on-player");
+    }
   }
   const storm = eventWorld("void");
   if (!storm || storm.event !== "riftstorm") bad("riftstorm-missing");
   else {
     const at0 = storm.arena.portals.map((portal) => [portal.ax, portal.ay]);
     run(storm, 5);
-    storm.arena.portals.every((portal) => portal.next) || bad("riftstorm-no-telegraph");
+    if (!storm.arena.portals.every((portal) => portal.next)) {
+      bad("riftstorm-no-telegraph");
+    }
     run(storm, 1.2);
-    storm.arena.portals.some((portal, i) => portal.ax !== at0[i][0] || portal.ay !== at0[i][1]) ||
+    if (!storm.arena.portals.some((portal, i) => portal.ax !== at0[i][0] || portal.ay !== at0[i][1])) {
       bad("riftstorm-no-move");
+    }
     fair(storm.arena, "riftstorm");
   }
   // 4. signature enemies: every mix enemy of a biome can spawn from the biome's first wave; the
@@ -2956,17 +3119,27 @@ function selfTestV250C(result) {
       for (const group of world.plan)
         for (const member of group.members) {
           (seen[id] || (seen[id] = new Set())).add(member.type);
-          id === "yard" && enemyDefs[member.type].from > wave && bad(`yard-early:${member.type}:${wave}`);
-          world.enemyFrom(member.type, wave) > wave && bad(`too-early:${member.type}:${wave}`);
+          if (id === "yard" && enemyDefs[member.type].from > wave) {
+            bad(`yard-early:${member.type}:${wave}`);
+          }
+          if (world.enemyFrom(member.type, wave) > wave) {
+            bad(`too-early:${member.type}:${wave}`);
+          }
         }
     }
   }
-  JSON.stringify(Object.values(enemyDefs).map((def) => def.from)) !== before && bad("enemy-from-mutated");
+  if (JSON.stringify(Object.values(enemyDefs).map((def) => def.from)) !== before) {
+    bad("enemy-from-mutated");
+  }
   for (const [id, info] of Object.entries(RL_BIOME_INFO))
     for (const [type, weight] of Object.entries(info.mix || {})) {
       if (!(weight >= 1)) continue;
-      rlEnemyFrom(type, id, 6) > 6 && bad(`from:${id}:${type}`);
-      seen[id] && !seen[id].has(type) && bad(`never-seen:${id}:${type}`);
+      if (rlEnemyFrom(type, id, 6) > 6) {
+        bad(`from:${id}:${type}`);
+      }
+      if (seen[id] && !seen[id].has(type)) {
+        bad(`never-seen:${id}:${type}`);
+      }
     }
   // 5. an old saved run (2.4.6 snapshot, no event fields) in an event wave loads and plays it
   const probe = eventWorld("void");
@@ -2977,14 +3150,14 @@ function selfTestV250C(result) {
       weapon: "pulse",
       threat: 0,
       wave: probe.wave,
-      endless: !1,
+      endless: false,
       up: { dmg: 2 },
       hp: 80,
       shards: 30,
       kills: 50,
       time: 300,
       rerolls: 1,
-      revived: !1,
+      revived: false,
       nova: 20,
       bossKills: ["warden"],
     });
@@ -2992,10 +3165,14 @@ function selfTestV250C(result) {
     if (!world || world.event !== "riftstorm" || !world.bioEv) bad("old-save-event");
     else {
       run(world, 7);
-      world.state === "fight" || world.state === "choose" || bad("old-save-state:" + world.state);
+      if (!(world.state === "fight" || world.state === "choose")) {
+        bad("old-save-state:" + world.state);
+      }
       const snap = world.snapshot(),
         reloaded = new World({ snap, ws: {} });
-      reloaded.event !== "riftstorm" && bad("resave-event");
+      if (reloaded.event !== "riftstorm") {
+        bad("resave-event");
+      }
     }
   }
   return { ...result, ok: result.ok && fail.length === 0, v250C: { ok: fail.length === 0, fail } };
@@ -3024,11 +3201,11 @@ function selfTestV250D(result) {
     if (flat(none).some((entry) => entry.seen)) fail.push("codex-unseen");
     const keys = flat(none).map((entry) => entry.key);
     if (new Set(keys).size !== keys.length) fail.push("codex-keys");
-    const all = rlCodexEntries({ seen: Object.fromEntries(keys.map((key) => [key, !0])) });
+    const all = rlCodexEntries({ seen: Object.fromEntries(keys.map((key) => [key, true])) });
     for (const entry of flat(all)) if (!entry.seen || !entry.name || !entry.desc) fail.push("codex-entry:" + entry.key);
     // an old save: no Codex keys, but a defeated boss, a build in the history and a saved run
     const old = rlCodexEntries({
-        seen: { tutorial: !0 },
+        seen: { tutorial: true },
         stats: { bosses: { warden: 1 } },
         history: [{ build: [upgradeList[0].id] }],
         run: { up: { [upgradeList[1].id]: 1 }, offer: [upgradeList[2].id] },
@@ -3050,8 +3227,11 @@ function selfTestV250D(result) {
       "renderCodex",
       "recordsTab",
       "markSeen",
-    ])
-      typeof GameUI.prototype[method] !== "function" && fail.push("ui:" + method);
+    ]) {
+      if (typeof GameUI.prototype[method] !== "function") {
+        fail.push("ui:" + method);
+      }
+    }
   } catch (err) {
     fail.push("exception:" + (err && err.message));
   }
@@ -3100,8 +3280,11 @@ function selfTestV250B(result) {
     if (ids.includes(id) || modulesById[id]) fail.push("retired-listed:" + id);
     if (!modulesById[RL_RETIRED_MODULES[id].to]) fail.push("retired-target:" + id);
   }
-  for (const id of ["nova", "fieldSupply", "starterKit", "hazardAttune", "emergencyShield"])
-    modulesById[id] || fail.push("module-missing:" + id);
+  for (const id of ["nova", "fieldSupply", "starterKit", "hazardAttune", "emergencyShield"]) {
+    if (!modulesById[id]) {
+      fail.push("module-missing:" + id);
+    }
+  }
   // old save: every bought level of a removed module is refunded at full price, kept modules keep
   // their levels, over-range levels are capped, the run is left alone; a second pass changes nothing
   const note = RL_MODULE_NOTE,
@@ -3148,7 +3331,7 @@ function selfTestV250B(result) {
   // Hazard Attunement: close to a pool (edge within 2 m) raises damage and repair only while there
   const attuneWorld = new World({ seed: 0x250c, weapon: "pulse", threat: 0, ws: { hazardAttune: 2 } });
   attuneWorld.startWave(2);
-  attuneWorld.hold = !0;
+  attuneWorld.hold = true;
   const dmg0 = attuneWorld.stats.dmgMul;
   attuneWorld.arena.acid.push({ x: attuneWorld.player.x + 3.2, y: attuneWorld.player.y, r: 1.5 });
   attuneWorld.step(1 / 60, {});
@@ -3161,13 +3344,13 @@ function selfTestV250B(result) {
     player = shieldWorld.player;
   shieldWorld.state = "fight";
   player.iT = 0;
-  player.shield = !1;
-  shieldWorld.hurtPlayer(player.hp - 20, null, null, "grunt", !0);
+  player.shield = false;
+  shieldWorld.hurtPlayer(player.hp - 20, null, null, "grunt", true);
   const healed = player.hp,
-    blocked = shieldWorld.hurtPlayer(5, null, null, "grunt", !0) === !1;
+    blocked = shieldWorld.hurtPlayer(5, null, null, "grunt", true) === false;
   shieldWorld.barrierT = 0;
   const hpNow = player.hp;
-  shieldWorld.hurtPlayer(2, null, null, "grunt", !0);
+  shieldWorld.hurtPlayer(2, null, null, "grunt", true);
   if (
     healed !== 20 + Math.round(shieldWorld.stats.maxHp * 0.08) ||
     !blocked ||

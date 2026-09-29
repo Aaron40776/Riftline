@@ -21,7 +21,11 @@ var RL_PALETTES = {
   },
 };
 function rlApplyBiomeFixes() {
-  for (const [id, palette] of Object.entries(RL_PALETTES)) biomesById[id] && Object.assign(biomesById[id], palette);
+  for (const [id, palette] of Object.entries(RL_PALETTES)) {
+    if (biomesById[id]) {
+      Object.assign(biomesById[id], palette);
+    }
+  }
 }
 
 /* ---- one hazard theme per biome (2.3.1). The wave director used to drop a
@@ -179,7 +183,13 @@ var RL_BIOME_INFO = {
     mix: { striker: 2.2, phantom: 2.4, weaver: 2.2, leaper: 1.8, drone: 1.8, sniper: 0.6 },
   },
 };
-for (const [id, info] of Object.entries(RL_BIOME_INFO))
-  biomesById[id] && ((biomesById[id].tag = info.tag), info.grip && (biomesById[id].grip = info.grip));
+for (const [id, info] of Object.entries(RL_BIOME_INFO)) {
+  if (biomesById[id]) {
+    biomesById[id].tag = info.tag;
+    if (info.grip) {
+      biomesById[id].grip = info.grip;
+    }
+  }
+}
 
 export { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList, rlApplyBiomeFixes };

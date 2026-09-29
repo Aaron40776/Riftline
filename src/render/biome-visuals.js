@@ -88,40 +88,37 @@ void main() {
 }`,
   ArenaView = class {
     constructor(scene) {
-      ((this.scene = scene),
-        (this.group = new Group()),
-        scene.add(this.group),
-        (this.uniforms = UniformsUtils.merge([
-          UniformsLib.fog,
-          {
-            uBase: { value: new Color() },
-            uGrid: { value: new Color() },
-            uAccent: { value: new Color() },
-            uHalf: { value: new Vector2(18, 18) },
-            uPlayer: { value: new Vector2() },
-            uTime: { value: 0 },
-            uPulse: { value: 0 },
-            uDeco: { value: 0 },
-            uL: { value: Array.from({ length: 6 }, () => new Vector4()) },
-            uLC: { value: Array.from({ length: 6 }, () => new Color()) },
-          },
-        ])),
-        (this.floorMat = new ShaderMaterial({
-          uniforms: this.uniforms,
-          vertexShader: floorVertexShader,
-          fragmentShader: floorFragmentShader,
-          fog: !0,
-        })),
-        (this.biomeId = null));
+      this.scene = scene;
+      this.group = new Group();
+      scene.add(this.group);
+      this.uniforms = UniformsUtils.merge([
+        UniformsLib.fog,
+        {
+          uBase: { value: new Color() },
+          uGrid: { value: new Color() },
+          uAccent: { value: new Color() },
+          uHalf: { value: new Vector2(18, 18) },
+          uPlayer: { value: new Vector2() },
+          uTime: { value: 0 },
+          uPulse: { value: 0 },
+          uDeco: { value: 0 },
+          uL: { value: Array.from({ length: 6 }, () => new Vector4()) },
+          uLC: { value: Array.from({ length: 6 }, () => new Color()) },
+        },
+      ]);
+      this.floorMat = new ShaderMaterial({
+        uniforms: this.uniforms,
+        vertexShader: floorVertexShader,
+        fragmentShader: floorFragmentShader,
+        fog: true,
+      });
+      this.biomeId = null;
     }
     // 2.4.0: the arena is rebuilt from scratch for every layout (as before); build() asks the biome
     // for its border and props and switches the floor shader's style
-    build(biome, layout, animate = !1) {
-      if (
-        ((layout = layout || { key: biome.id + ":classic", W: biome.W, H: biome.H, obs: biome.obstacles, deco: 0 }),
-        this.layKey === layout.key)
-      )
-        return;
+    build(biome, layout, animate = false) {
+      layout = layout || { key: biome.id + ":classic", W: biome.W, H: biome.H, obs: biome.obstacles, deco: 0 };
+      if (this.layKey === layout.key) return;
       const first = this.layKey == null;
       if (!this.rlFloor) {
         // same uniforms, new fragment shader with one branch per biome style
@@ -131,28 +128,35 @@ void main() {
           uniforms: this.uniforms,
           vertexShader: floorVertexShader,
           fragmentShader: RL_FLOOR_FRAG,
-          fog: !0,
+          fog: true,
         });
-        this.rlFloor = !0;
+        this.rlFloor = true;
       }
-      ((this.layKey = layout.key), (this.biomeId = biome.id));
+      this.layKey = layout.key;
+      this.biomeId = biome.id;
       this.group.traverse((obj) => {
-        (obj.geometry && obj.geometry.dispose(),
-          obj.material && obj.material !== this.floorMat && obj.material.dispose());
+        if (obj.geometry) {
+          obj.geometry.dispose();
+        }
+        if (obj.material && obj.material !== this.floorMat) {
+          obj.material.dispose();
+        }
       });
       this.group.clear();
       const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.yard,
         uniforms = this.uniforms;
-      (uniforms.uBase.value.setHex(biome.floor),
-        uniforms.uGrid.value.setHex(biome.grid),
-        uniforms.uAccent.value.setHex(biome.accent),
-        uniforms.uHalf.value.set(layout.W, layout.H),
-        (uniforms.uDeco.value = look.style === 0 ? layout.deco || 0 : 0),
-        (uniforms.uStyle.value = look.style));
+      uniforms.uBase.value.setHex(biome.floor);
+      uniforms.uGrid.value.setHex(biome.grid);
+      uniforms.uAccent.value.setHex(biome.accent);
+      uniforms.uHalf.value.set(layout.W, layout.H);
+      uniforms.uDeco.value = look.style === 0 ? layout.deco || 0 : 0;
+      uniforms.uStyle.value = look.style;
       const floor = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
-      ((floor.rotation.x = -Math.PI / 2), this.group.add(floor));
+      floor.rotation.x = -Math.PI / 2;
+      this.group.add(floor);
       const props = new Group();
-      (this.group.add(props), (this.obsGroup = props));
+      this.group.add(props);
+      this.obsGroup = props;
       this.rlAnim = [];
       this.rlEmit = [];
       (RL_BIOME_BUILD[biome.id] || RL_BIOME_BUILD.yard)(
@@ -163,7 +167,8 @@ void main() {
         layout.obs,
         makeRng(hashString(layout.key + ":look")),
       );
-      ((this.rise = animate && !first ? 0 : 1), (props.position.y = this.rise < 1 ? -2.6 : 0));
+      this.rise = animate && !first ? 0 : 1;
+      props.position.y = this.rise < 1 ? -2.6 : 0;
     }
     update(dt, px, pz, pulse) {
       if (this.obsGroup && this.rise < 1) {
@@ -171,9 +176,9 @@ void main() {
         let ease = 1 - Math.pow(1 - this.rise, 3);
         this.obsGroup.position.y = -2.6 * (1 - ease);
       }
-      ((this.uniforms.uTime.value += dt),
-        this.uniforms.uPlayer.value.set(px, pz),
-        (this.uniforms.uPulse.value = pulse));
+      this.uniforms.uTime.value += dt;
+      this.uniforms.uPlayer.value.set(px, pz);
+      this.uniforms.uPulse.value = pulse;
       // 2.4.0: animated props (spinning and bobbing)
       const time = this.uniforms.uTime.value;
       for (const anim of this.rlAnim || []) {
@@ -353,9 +358,11 @@ function rlInst(group, geo, mat, list) {
     dummy.scale.set(item.sx ?? 1, item.sy ?? 1, item.sz ?? 1);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
-    item.c != null && mesh.setColorAt(i, hexColor(item.c));
+    if (item.c != null) {
+      mesh.setColorAt(i, hexColor(item.c));
+    }
   });
-  mesh.frustumCulled = !1;
+  mesh.frustumCulled = false;
   group.add(mesh);
   return mesh;
 }
@@ -384,7 +391,7 @@ const rlMesh = (group, geo, mat, x, y, z, ry = 0) => {
   return mesh;
 };
 const rlGlow = (color, opacity = 1) =>
-  new MeshBasicMaterial({ color, toneMapped: !1, transparent: opacity < 1, opacity });
+  new MeshBasicMaterial({ color, toneMapped: false, transparent: opacity < 1, opacity });
 // A thin ring on the floor at the collision radius, so the footprint reads in every biome.
 const rlFootRing = (group, x, z, radius, mat) => {
   const ring = rlMesh(group, new TorusGeometry(radius, 0.04, 4, 32), mat, x, 0.05, z);
@@ -400,8 +407,8 @@ var RL_BIOME_BUILD = {
     const group = view.group,
       props = view.obsGroup,
       wallMat = new MeshLambertMaterial({ color: biome.wall }),
-      gridMat = new MeshBasicMaterial({ color: biome.grid, toneMapped: !1 }),
-      accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: !1 }),
+      gridMat = new MeshBasicMaterial({ color: biome.grid, toneMapped: false }),
+      accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false }),
       wallW = 0.5,
       wallH = 0.7;
     for (const [bx, bz, sx, sz] of [
@@ -439,7 +446,7 @@ var RL_BIOME_BUILD = {
         );
         rlMesh(
           props,
-          new CylinderGeometry(obstacle.r * 1.02, obstacle.r * 1.02, 0.08, 20, 1, !0),
+          new CylinderGeometry(obstacle.r * 1.02, obstacle.r * 1.02, 0.08, 20, 1, true),
           gridMat,
           obstacle.x,
           height * 0.75,
@@ -489,9 +496,9 @@ var RL_BIOME_BUILD = {
   works(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      steel = new MeshLambertMaterial({ color: 0x2b2420, flatShading: !0 }),
-      dark = new MeshLambertMaterial({ color: biome.wall, flatShading: !0 }),
-      pipe = new MeshLambertMaterial({ color: 0x3d3129, flatShading: !0 }),
+      steel = new MeshLambertMaterial({ color: 0x2b2420, flatShading: true }),
+      dark = new MeshLambertMaterial({ color: biome.wall, flatShading: true }),
+      pipe = new MeshLambertMaterial({ color: 0x3d3129, flatShading: true }),
       glow = rlGlow(biome.grid),
       hot = rlGlow(biome.accent),
       wallW = 0.6,
@@ -513,7 +520,11 @@ var RL_BIOME_BUILD = {
           0.45,
           bz + (along ? -Math.sign(bz) * 0.38 : 0),
         );
-      along ? (pipeMesh.rotation.z = Math.PI / 2) : (pipeMesh.rotation.x = Math.PI / 2);
+      if (along) {
+        pipeMesh.rotation.z = Math.PI / 2;
+      } else {
+        pipeMesh.rotation.x = Math.PI / 2;
+      }
     }
     // hazard stripes on top of the wall: one instanced mesh, orange and black
     const stripes = [];
@@ -530,7 +541,7 @@ var RL_BIOME_BUILD = {
         c: stripe++ % 2 ? 0x141210 : biome.grid,
       }),
     );
-    rlInst(group, new BoxGeometry(1, 1, 1), new MeshBasicMaterial({ toneMapped: !1 }), stripes);
+    rlInst(group, new BoxGeometry(1, 1, 1), new MeshBasicMaterial({ toneMapped: false }), stripes);
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
         const cx = sx * (W + 0.55),
@@ -599,24 +610,27 @@ var RL_BIOME_BUILD = {
           height + 0.04,
           obstacle.y,
         );
-        for (const side of [-1, 1])
-          longX
-            ? rlMesh(
-                props,
-                new BoxGeometry(obstacle.w * 2 + 0.02, 0.08, 0.04),
-                glow,
-                obstacle.x,
-                height * 0.55,
-                obstacle.y + side * obstacle.h,
-              )
-            : rlMesh(
-                props,
-                new BoxGeometry(0.04, 0.08, obstacle.h * 2 + 0.02),
-                glow,
-                obstacle.x + side * obstacle.w,
-                height * 0.55,
-                obstacle.y,
-              );
+        for (const side of [-1, 1]) {
+          if (longX) {
+            rlMesh(
+              props,
+              new BoxGeometry(obstacle.w * 2 + 0.02, 0.08, 0.04),
+              glow,
+              obstacle.x,
+              height * 0.55,
+              obstacle.y + side * obstacle.h,
+            );
+          } else {
+            rlMesh(
+              props,
+              new BoxGeometry(0.04, 0.08, obstacle.h * 2 + 0.02),
+              glow,
+              obstacle.x + side * obstacle.w,
+              height * 0.55,
+              obstacle.y,
+            );
+          }
+        }
         const vents = Math.max(1, Math.min(4, Math.floor(Math.max(obstacle.w, obstacle.h) / 0.6)));
         for (let j = 0; j < vents; j++) {
           const pos = (j + 0.5) / vents - 0.5;
@@ -639,12 +653,12 @@ var RL_BIOME_BUILD = {
       ice = new MeshLambertMaterial({
         color: 0x9fd8f0,
         emissive: 0x0c2a44,
-        transparent: !0,
+        transparent: true,
         opacity: 0.84,
-        flatShading: !0,
+        flatShading: true,
       }),
-      core = new MeshLambertMaterial({ color: 0x2a5a78, emissive: 0x061624, flatShading: !0 }),
-      snow = new MeshLambertMaterial({ color: 0xe8f4ff, emissive: 0x1a2a38, flatShading: !0 }),
+      core = new MeshLambertMaterial({ color: 0x2a5a78, emissive: 0x061624, flatShading: true }),
+      snow = new MeshLambertMaterial({ color: 0xe8f4ff, emissive: 0x1a2a38, flatShading: true }),
       glow = rlGlow(biome.grid, 0.8),
       wallW = 0.6,
       wallH = 0.45;
@@ -677,7 +691,7 @@ var RL_BIOME_BUILD = {
     rlInst(
       group,
       new ConeGeometry(0.28, 1, 6),
-      new MeshLambertMaterial({ emissive: 0x0c2a44, transparent: !0, opacity: 0.88, flatShading: !0 }),
+      new MeshLambertMaterial({ emissive: 0x0c2a44, transparent: true, opacity: 0.88, flatShading: true }),
       spikes,
     );
     for (const obstacle of obs)
@@ -737,14 +751,14 @@ var RL_BIOME_BUILD = {
   marsh(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      bark = new MeshLambertMaterial({ color: 0x2e2a1c, flatShading: !0 }),
-      moss = new MeshLambertMaterial({ color: 0x2f5a22, emissive: 0x0a1a06, flatShading: !0 }),
-      stem = new MeshLambertMaterial({ color: 0xcfc8a8, flatShading: !0 }),
-      cap = new MeshLambertMaterial({ color: 0x6a3a8a, emissive: 0x1a0826, flatShading: !0 }),
+      bark = new MeshLambertMaterial({ color: 0x2e2a1c, flatShading: true }),
+      moss = new MeshLambertMaterial({ color: 0x2f5a22, emissive: 0x0a1a06, flatShading: true }),
+      stem = new MeshLambertMaterial({ color: 0xcfc8a8, flatShading: true }),
+      cap = new MeshLambertMaterial({ color: 0x6a3a8a, emissive: 0x1a0826, flatShading: true }),
       gill = new MeshLambertMaterial({ color: 0x1c1024 }),
       spot = rlGlow(biome.accent),
       ring = rlGlow(biome.grid, 0.55),
-      wood = new MeshLambertMaterial({ color: 0x6a5a3a, flatShading: !0 }),
+      wood = new MeshLambertMaterial({ color: 0x6a5a3a, flatShading: true }),
       wallW = 1.2;
     for (const [bx, bz, sx, sz] of [
       [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
@@ -755,7 +769,7 @@ var RL_BIOME_BUILD = {
       rlMesh(
         group,
         new BoxGeometry(sx, 0.22, sz),
-        new MeshLambertMaterial({ color: 0x1a2414, flatShading: !0 }),
+        new MeshLambertMaterial({ color: 0x1a2414, flatShading: true }),
         bx,
         0.11,
         bz,
@@ -792,8 +806,8 @@ var RL_BIOME_BUILD = {
         c: rng.pick([0x2a3328, 0x333a2c, 0x262e24]),
       });
     });
-    rlInst(group, new CylinderGeometry(0.03, 0.05, 1, 4), new MeshLambertMaterial({ flatShading: !0 }), reeds);
-    rlInst(group, new DodecahedronGeometry(0.6), new MeshLambertMaterial({ flatShading: !0 }), rocks);
+    rlInst(group, new CylinderGeometry(0.03, 0.05, 1, 4), new MeshLambertMaterial({ flatShading: true }), reeds);
+    rlInst(group, new DodecahedronGeometry(0.6), new MeshLambertMaterial({ flatShading: true }), rocks);
     for (const obstacle of obs)
       if (obstacle.t === "c") {
         if (rng.chance(0.55)) {
@@ -882,7 +896,11 @@ var RL_BIOME_BUILD = {
           len = Math.max(obstacle.w, obstacle.h) * 2,
           rad = Math.max(0.3, Math.min(obstacle.w, obstacle.h) * 0.9),
           log = rlMesh(props, new CylinderGeometry(rad, rad * 1.05, len, 10), bark, obstacle.x, rad, obstacle.y);
-        longX ? (log.rotation.z = Math.PI / 2) : (log.rotation.x = Math.PI / 2);
+        if (longX) {
+          log.rotation.z = Math.PI / 2;
+        } else {
+          log.rotation.x = Math.PI / 2;
+        }
         rlMesh(
           props,
           new BoxGeometry(longX ? len * 0.8 : rad * 1.1, 0.1, longX ? rad * 1.1 : len * 0.8),
@@ -900,7 +918,11 @@ var RL_BIOME_BUILD = {
             rad,
             obstacle.y + (longX ? 0 : (side * len) / 2 + side * 0.02),
           );
-          longX ? (endCap.rotation.y = (side * Math.PI) / 2) : (endCap.rotation.y = side > 0 ? 0 : Math.PI);
+          if (longX) {
+            endCap.rotation.y = (side * Math.PI) / 2;
+          } else {
+            endCap.rotation.y = side > 0 ? 0 : Math.PI;
+          }
         }
         for (let j = 0; j < 2; j++) {
           const pos = rng.range(-0.3, 0.3) * len,
@@ -916,7 +938,7 @@ var RL_BIOME_BUILD = {
   void(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      obsid = new MeshLambertMaterial({ color: 0x2a1a4a, emissive: 0x12072a, flatShading: !0 }),
+      obsid = new MeshLambertMaterial({ color: 0x2a1a4a, emissive: 0x12072a, flatShading: true }),
       rim = rlGlow(biome.grid),
       hot = rlGlow(biome.accent),
       wall = additiveMaterial(null, { color: biome.grid, opacity: 0.13, side: DoubleSide }),
@@ -963,7 +985,7 @@ var RL_BIOME_BUILD = {
     rlInst(
       drift,
       new DodecahedronGeometry(0.8),
-      new MeshLambertMaterial({ emissive: 0x0a0418, flatShading: !0 }),
+      new MeshLambertMaterial({ emissive: 0x0a0418, flatShading: true }),
       rocks,
     );
     view.rlAnim.push({ o: drift, k: "bob", b: 0, ph: 0, a: 0.25, s: 0.35 });
@@ -1137,8 +1159,8 @@ function rlAmbient(renderer, dt, world, opt) {
   if (!(arena.rise >= 1) || !arena.rlEmit) return;
   for (const src of arena.rlEmit) {
     if (Math.abs(src.x - cx) > 22 || Math.abs(src.z - cz) > 18) continue;
-    if (src.k === "spark")
-      count(5) &&
+    if (src.k === "spark") {
+      if (count(5)) {
         renderer.emit(
           src.x + (Math.random() - 0.5) * 0.4,
           src.y,
@@ -1151,8 +1173,9 @@ function rlAmbient(renderer, dt, world, opt) {
           RL_C.ember,
           { drag: 0.6, grow: 1.2 },
         );
-    else if (src.k === "glint")
-      count(1.5) &&
+      }
+    } else if (src.k === "glint") {
+      if (count(1.5)) {
         renderer.emit(
           src.x + (Math.random() - 0.5),
           src.y * Math.random(),
@@ -1163,10 +1186,11 @@ function rlAmbient(renderer, dt, world, opt) {
           0.6,
           0.2,
           RL_C.white,
-          { spark: !0, drag: 0 },
+          { spark: true, drag: 0 },
         );
-    else if (src.k === "spore")
-      count(2.5) &&
+      }
+    } else if (src.k === "spore") {
+      if (count(2.5)) {
         renderer.emit(
           src.x + (Math.random() - 0.5),
           src.y,
@@ -1179,7 +1203,8 @@ function rlAmbient(renderer, dt, world, opt) {
           acc,
           { drag: 0.1 },
         );
-    else if (src.k === "mote") {
+      }
+    } else if (src.k === "mote") {
       if (count(3)) {
         const angle = Math.random() * TAU;
         renderer.emit(
@@ -1284,14 +1309,14 @@ function rlSkinMaterial(mat, flash) {
       );
   };
   mat.customProgramCacheKey = () => (flash ? "flashLambertSkin" : "lambertSkin");
-  mat.needsUpdate = !0;
-  mat.rlSkin = !0;
+  mat.needsUpdate = true;
+  mat.rlSkin = true;
 }
 const RL_SKIN_FX = {
-  1: { c: new Color(0xff8a30), vy: 1.4, grav: 0, life: 0.7, size: 0.15, spark: !1 },
-  2: { c: new Color(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: !0 },
-  3: { c: new Color(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: !1 },
-  4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: !1 },
+  1: { c: new Color(0xff8a30), vy: 1.4, grav: 0, life: 0.7, size: 0.15, spark: false },
+  2: { c: new Color(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: true },
+  3: { c: new Color(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: false },
+  4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: false },
 };
 function rlSkinParticles(renderer, dt, world) {
   const fx = RL_SKIN_FX[RL_SKIN.uSkin.value];

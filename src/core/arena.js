@@ -8,19 +8,19 @@ var Arena = class {
   constructor(biome, layout) {
     this.biome = biome;
     let lay = layout || { key: biome.id + ":classic", W: biome.W, H: biome.H, obstacles: biome.obstacles, deco: 0 };
-    ((this.key = lay.key),
-      (this.director = lay.director || null),
-      (this.deco = lay.deco || 0),
-      (this.template = lay.template || "classic"),
-      (this.W = lay.W),
-      (this.H = lay.H),
-      (this.obs = lay.obstacles.map((ob) => ({ ...ob }))));
+    this.key = lay.key;
+    this.director = lay.director || null;
+    this.deco = lay.deco || 0;
+    this.template = lay.template || "classic";
+    this.W = lay.W;
+    this.H = lay.H;
+    this.obs = lay.obstacles.map((ob) => ({ ...ob }));
     let features = lay.features || {};
-    ((this.vents = (features.vents || []).map((vent) => ({ ...vent }))),
-      (this.ice = (features.ice || []).map((patch) => ({ ...patch }))),
-      (this.portals = (features.portals || []).map((portal) => ({ ...portal }))),
-      (this.acid = (features.acid || []).map((puddle) => ({ ...puddle }))),
-      (this.flow = new FlowField(this)));
+    this.vents = (features.vents || []).map((vent) => ({ ...vent }));
+    this.ice = (features.ice || []).map((patch) => ({ ...patch }));
+    this.portals = (features.portals || []).map((portal) => ({ ...portal }));
+    this.acid = (features.acid || []).map((puddle) => ({ ...puddle }));
+    this.flow = new FlowField(this);
   }
   ventState(vent, time) {
     let cycle = (time + vent.phase) % vent.period,
@@ -32,17 +32,17 @@ var Arena = class {
     for (let puddle of this.acid) {
       let dx = x - puddle.x,
         dy = y - puddle.y;
-      if (dx * dx + dy * dy < puddle.r * puddle.r) return !0;
+      if (dx * dx + dy * dy < puddle.r * puddle.r) return true;
     }
-    return !1;
+    return false;
   }
   onIce(x, y) {
     for (let patch of this.ice) {
       let dx = x - patch.x,
         dy = y - patch.y;
-      if (dx * dx + dy * dy < patch.r * patch.r) return !0;
+      if (dx * dx + dy * dy < patch.r * patch.r) return true;
     }
-    return !1;
+    return false;
   }
   blocked(x, y, pad = 0) {
     for (let ob of this.obs)
@@ -50,15 +50,15 @@ var Arena = class {
         let dx = x - ob.x,
           dy = y - ob.y,
           rad = ob.r + pad;
-        if (dx * dx + dy * dy < rad * rad) return !0;
-      } else if (Math.abs(x - ob.x) < ob.w + pad && Math.abs(y - ob.y) < ob.h + pad) return !0;
-    return !1;
+        if (dx * dx + dy * dy < rad * rad) return true;
+      } else if (Math.abs(x - ob.x) < ob.w + pad && Math.abs(y - ob.y) < ob.h + pad) return true;
+    return false;
   }
   outside(x, y, pad = 0) {
     return x < -this.W + pad || x > this.W - pad || y < -this.H + pad || y > this.H - pad;
   }
   resolve(ent, rad) {
-    let moved = !1;
+    let moved = false;
     for (let ob of this.obs)
       if (ob.t === "c") {
         let dx = ent.x - ob.x,
@@ -67,11 +67,14 @@ var Arena = class {
           d2 = dx * dx + dy * dy;
         if (d2 < minDist * minDist) {
           if (d2 < 1e-10) {
-            ((ent.x = ob.x + minDist), (moved = !0));
+            ent.x = ob.x + minDist;
+            moved = true;
             continue;
           }
           let dist = Math.sqrt(d2);
-          ((ent.x = ob.x + (dx / dist) * minDist), (ent.y = ob.y + (dy / dist) * minDist), (moved = !0));
+          ent.x = ob.x + (dx / dist) * minDist;
+          ent.y = ob.y + (dy / dist) * minDist;
+          moved = true;
         }
       } else {
         let nearX = clamp(ent.x, ob.x - ob.w, ob.x + ob.w),
@@ -82,24 +85,41 @@ var Arena = class {
         if (d2 < rad * rad) {
           if (d2 > 1e-8) {
             let dist = Math.sqrt(d2);
-            ((ent.x = nearX + (dx / dist) * rad), (ent.y = nearY + (dy / dist) * rad));
+            ent.x = nearX + (dx / dist) * rad;
+            ent.y = nearY + (dy / dist) * rad;
           } else {
             let overX = ob.w + rad - Math.abs(ent.x - ob.x),
               overY = ob.h + rad - Math.abs(ent.y - ob.y);
-            overX < overY
-              ? (ent.x = ob.x + Math.sign(ent.x - ob.x || 1) * (ob.w + rad))
-              : (ent.y = ob.y + Math.sign(ent.y - ob.y || 1) * (ob.h + rad));
+            if (overX < overY) {
+              ent.x = ob.x + Math.sign(ent.x - ob.x || 1) * (ob.w + rad);
+            } else {
+              ent.y = ob.y + Math.sign(ent.y - ob.y || 1) * (ob.h + rad);
+            }
           }
-          moved = !0;
+          moved = true;
         }
       }
     let maxX = this.W - rad,
       maxY = this.H - rad;
-    return (
-      ent.x < -maxX ? ((ent.x = -maxX), (moved = !0)) : ent.x > maxX && ((ent.x = maxX), (moved = !0)),
-      ent.y < -maxY ? ((ent.y = -maxY), (moved = !0)) : ent.y > maxY && ((ent.y = maxY), (moved = !0)),
-      moved
-    );
+    if (ent.x < -maxX) {
+      ent.x = -maxX;
+      moved = true;
+    } else {
+      if (ent.x > maxX) {
+        ent.x = maxX;
+        moved = true;
+      }
+    }
+    if (ent.y < -maxY) {
+      ent.y = -maxY;
+      moved = true;
+    } else {
+      if (ent.y > maxY) {
+        ent.y = maxY;
+        moved = true;
+      }
+    }
+    return moved;
   }
   los(x0, y0, x1, y1, pad = 0) {
     for (let ob of this.obs)
@@ -112,12 +132,12 @@ var Arena = class {
         along = clamp(along, 0, 1);
         let offX = x0 + dx * along - ob.x,
           offY = y0 + dy * along - ob.y;
-        if (offX * offX + offY * offY < rad * rad) return !1;
+        if (offX * offX + offY * offY < rad * rad) return false;
       } else if (
         segmentHitsBox(x0, y0, x1, y1, ob.x - ob.w - pad, ob.y - ob.h - pad, ob.x + ob.w + pad, ob.y + ob.h + pad)
       )
-        return !1;
-    return !0;
+        return false;
+    return true;
   }
   rayLen(x, y, angle, maxLen) {
     let dirX = Math.cos(angle),
@@ -136,12 +156,12 @@ var Arena = class {
         lim = fr + margin + pad;
       return dx * dx + dy * dy < lim * lim;
     };
-    for (let vent of this.vents) if (near(vent.x, vent.y, vent.r, 0.7)) return !0;
-    for (let patch of this.ice) if (near(patch.x, patch.y, patch.r, 0.45)) return !0;
-    for (let puddle of this.acid) if (near(puddle.x, puddle.y, puddle.r, 0.55)) return !0;
+    for (let vent of this.vents) if (near(vent.x, vent.y, vent.r, 0.7)) return true;
+    for (let patch of this.ice) if (near(patch.x, patch.y, patch.r, 0.45)) return true;
+    for (let puddle of this.acid) if (near(puddle.x, puddle.y, puddle.r, 0.55)) return true;
     for (let portal of this.portals)
-      if (near(portal.ax, portal.ay, 1, 0.45) || near(portal.bx, portal.by, 1, 0.45)) return !0;
-    return !1;
+      if (near(portal.ax, portal.ay, 1, 0.45) || near(portal.bx, portal.by, 1, 0.45)) return true;
+    return false;
   }
   freePoint(rng, x, y, minDist, rad = 1) {
     let best = null,
@@ -156,11 +176,17 @@ var Arena = class {
         dy = py - y,
         d2 = dx * dx + dy * dy,
         dist = Math.sqrt(d2);
-      dist > farDist && ((farDist = dist), (far = { x: px, y: py }));
+      if (dist > farDist) {
+        farDist = dist;
+        far = { x: px, y: py };
+      }
       if (d2 < minDist * minDist) continue;
       let wallRoom = Math.min(this.W - Math.abs(px), this.H - Math.abs(py)),
         score = dist + Math.min(5, wallRoom) * 0.35 + rng.next() * 0.7;
-      score > bestScore && ((bestScore = score), (best = { x: px, y: py }));
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x: px, y: py };
+      }
     }
     if (best) return best;
     for (let corner of [
@@ -177,7 +203,10 @@ var Arena = class {
         continue;
       let dist = Math.hypot(corner[0] - x, corner[1] - y);
       if (dist >= minDist) return { x: corner[0], y: corner[1] };
-      dist > farDist && ((farDist = dist), (far = { x: corner[0], y: corner[1] }));
+      if (dist > farDist) {
+        farDist = dist;
+        far = { x: corner[0], y: corner[1] };
+      }
     }
     if (far) return far;
     const px = x > 0 ? -this.W + 2 : this.W - 2,
@@ -196,34 +225,38 @@ function segmentHitsBox(x0, y0, x1, y1, minX, minY, maxX, maxY) {
     dists = [x0 - minX, maxX - x0, y0 - minY, maxY - y0];
   for (let k = 0; k < 4; k++) {
     if (dirs[k] === 0) {
-      if (dists[k] < 0) return !1;
+      if (dists[k] < 0) return false;
       continue;
     }
     let ratio = dists[k] / dirs[k];
     if (dirs[k] < 0) {
-      if (ratio > tMax) return !1;
-      ratio > tMin && (tMin = ratio);
+      if (ratio > tMax) return false;
+      if (ratio > tMin) {
+        tMin = ratio;
+      }
     } else {
-      if (ratio < tMin) return !1;
-      ratio < tMax && (tMax = ratio);
+      if (ratio < tMin) return false;
+      if (ratio < tMax) {
+        tMax = ratio;
+      }
     }
   }
-  return !0;
+  return true;
 }
 var SpatialHash = class {
     constructor(halfW, halfH, cellSize = 2.5) {
-      ((this.cell = cellSize),
-        (this.ox = -halfW - 2),
-        (this.oy = -halfH - 2),
-        (this.cols = Math.ceil((2 * halfW + 4) / cellSize)),
-        (this.rows = Math.ceil((2 * halfH + 4) / cellSize)));
+      this.cell = cellSize;
+      this.ox = -halfW - 2;
+      this.oy = -halfH - 2;
+      this.cols = Math.ceil((2 * halfW + 4) / cellSize);
+      this.rows = Math.ceil((2 * halfH + 4) / cellSize);
       let cells = this.cols * this.rows;
-      ((this.start = new Int32Array(cells + 1)),
-        (this.count = new Int32Array(cells)),
-        (this.items = []),
-        (this.cellOf = new Int32Array(0)),
-        (this.list = null),
-        (this.maxR = 1));
+      this.start = new Int32Array(cells + 1);
+      this.count = new Int32Array(cells);
+      this.items = [];
+      this.cellOf = new Int32Array(0);
+      this.list = null;
+      this.maxR = 1;
     }
     _cell(x, y) {
       let col = clamp(Math.floor((x - this.ox) / this.cell), 0, this.cols - 1);
@@ -232,20 +265,30 @@ var SpatialHash = class {
     build(list) {
       this.list = list;
       let len = list.length;
-      (this.cellOf.length < len && (this.cellOf = new Int32Array(Math.max(len, this.cellOf.length * 2, 64))),
-        this.count.fill(0));
+      if (this.cellOf.length < len) {
+        this.cellOf = new Int32Array(Math.max(len, this.cellOf.length * 2, 64));
+      }
+      this.count.fill(0);
       let maxR = 0.5;
       for (let k = 0; k < len; k++) {
         let item = list[k],
           cell = this._cell(item.x, item.y);
-        ((this.cellOf[k] = cell), this.count[cell]++, item.r > maxR && (maxR = item.r));
+        this.cellOf[k] = cell;
+        this.count[cell]++;
+        if (item.r > maxR) {
+          maxR = item.r;
+        }
       }
       this.maxR = maxR;
       let offset = 0;
-      for (let k = 0; k < this.count.length; k++) ((this.start[k] = offset), (offset += this.count[k]));
+      for (let k = 0; k < this.count.length; k++) {
+        this.start[k] = offset;
+        offset += this.count[k];
+      }
       this.start[this.count.length] = offset;
       let fill = this.count;
-      (fill.fill(0), (this.items.length = len));
+      fill.fill(0);
+      this.items.length = len;
       for (let k = 0; k < len; k++) {
         let cell = this.cellOf[k];
         this.items[this.start[cell] + fill[cell]++] = list[k];
@@ -266,14 +309,17 @@ var SpatialHash = class {
   },
   FlowField = class {
     constructor(arena) {
-      ((this.a = arena), (this.cs = 1), (this.cols = Math.ceil(arena.W * 2)), (this.rows = Math.ceil(arena.H * 2)));
+      this.a = arena;
+      this.cs = 1;
+      this.cols = Math.ceil(arena.W * 2);
+      this.rows = Math.ceil(arena.H * 2);
       let cells = this.cols * this.rows;
-      ((this.block = new Uint8Array(cells)),
-        (this.dist = new Int32Array(cells)),
-        (this.dx = new Float32Array(cells)),
-        (this.dy = new Float32Array(cells)),
-        (this.queue = new Int32Array(cells)),
-        (this.target = -1));
+      this.block = new Uint8Array(cells);
+      this.dist = new Int32Array(cells);
+      this.dx = new Float32Array(cells);
+      this.dy = new Float32Array(cells);
+      this.queue = new Int32Array(cells);
+      this.target = -1;
       for (let row = 0; row < this.rows; row++)
         for (let col = 0; col < this.cols; col++) {
           let x = -arena.W + (col + 0.5) * this.cs,
@@ -299,10 +345,22 @@ var SpatialHash = class {
           row = (cell / cols) | 0,
           nd = dist[cell] + 1,
           nb;
-        (col > 0 && !block[(nb = cell - 1)] && dist[nb] > nd && ((dist[nb] = nd), (queue[tail++] = nb)),
-          col < cols - 1 && !block[(nb = cell + 1)] && dist[nb] > nd && ((dist[nb] = nd), (queue[tail++] = nb)),
-          row > 0 && !block[(nb = cell - cols)] && dist[nb] > nd && ((dist[nb] = nd), (queue[tail++] = nb)),
-          row < rows - 1 && !block[(nb = cell + cols)] && dist[nb] > nd && ((dist[nb] = nd), (queue[tail++] = nb)));
+        if (col > 0 && !block[(nb = cell - 1)] && dist[nb] > nd) {
+          dist[nb] = nd;
+          queue[tail++] = nb;
+        }
+        if (col < cols - 1 && !block[(nb = cell + 1)] && dist[nb] > nd) {
+          dist[nb] = nd;
+          queue[tail++] = nb;
+        }
+        if (row > 0 && !block[(nb = cell - cols)] && dist[nb] > nd) {
+          dist[nb] = nd;
+          queue[tail++] = nb;
+        }
+        if (row < rows - 1 && !block[(nb = cell + cols)] && dist[nb] > nd) {
+          dist[nb] = nd;
+          queue[tail++] = nb;
+        }
       }
       for (let row = 0; row < rows; row++)
         for (let col = 0; col < cols; col++) {
@@ -317,11 +375,17 @@ var SpatialHash = class {
                 nr = row + oy;
               if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
               let ncell = nr * cols + nc;
-              (ox && oy && (block[row * cols + nc] || block[nr * cols + col])) ||
-                (dist[ncell] < best && ((best = dist[ncell]), (bestX = ox), (bestY = oy)));
+              if (!(ox && oy && (block[row * cols + nc] || block[nr * cols + col]))) {
+                if (dist[ncell] < best) {
+                  best = dist[ncell];
+                  bestX = ox;
+                  bestY = oy;
+                }
+              }
             }
           let len = Math.hypot(bestX, bestY) || 1;
-          ((this.dx[cell] = bestX / len), (this.dy[cell] = bestY / len));
+          this.dx[cell] = bestX / len;
+          this.dy[cell] = bestY / len;
         }
     }
   };
@@ -413,7 +477,11 @@ function mapScore(obs, W, H, template) {
     let obArea = ob.t === "c" ? Math.PI * ob.r * ob.r : 4 * ob.w * ob.h;
     area += obArea;
     let ang = Math.atan2(ob.y, ob.x);
-    (ang < 0 && (ang += TAU), sectors[Math.min(7, Math.floor((ang / TAU) * 8))]++, radii.push(Math.hypot(ob.x, ob.y)));
+    if (ang < 0) {
+      ang += TAU;
+    }
+    sectors[Math.min(7, Math.floor((ang / TAU) * 8))]++;
+    radii.push(Math.hypot(ob.x, ob.y));
   }
   cover = area / (4 * W * H);
   let filled = sectors.filter((count) => count > 0).length,
@@ -450,7 +518,10 @@ function mapLayout(biome, seed, wave, boss) {
       obs = placeObstacles(rng, biome.id, template, w, h);
     if (obs.length < 4 || !isConnected(obs, w, h)) continue;
     let score = mapScore(obs, w, h, template);
-    score > bestScore && ((bestScore = score), (best = { W: w, H: h, obstacles: obs, template }));
+    if (score > bestScore) {
+      bestScore = score;
+      best = { W: w, H: h, obstacles: obs, template };
+    }
   }
   if (!best) return classicLayout(biome);
   return {
@@ -474,7 +545,9 @@ function buildLayout(biome, seed, wave, boss) {
     features = { vents: [], ice: [], portals: [], acid: [] };
   for (let k = 0; k < 12 && features.vents.length < 3; k++) {
     const spot = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 1.2, RL_HAZARD_SIZE.vents);
-    spot && features.vents.push({ ...spot, phase: rng.next() * 6, period: 3.2 + rng.next() * 1.2, st: "idle" });
+    if (spot) {
+      features.vents.push({ ...spot, phase: rng.next() * 6, period: 3.2 + rng.next() * 1.2, st: "idle" });
+    }
   }
   return { ...layout, key: `${layout.key}:crucible:${seed}:${wave}`, features };
 }
@@ -544,7 +617,9 @@ function rlAddDynamicFeatures(layout, biome, seed, wave, boss, mode = "standard"
     const rng250 = makeRng(hashString(seed + ":director-features-v250:" + wave + ":" + mode));
     if (features.portals.length < 2 && rng250.chance(0.8)) {
       const pair = rlPortalPair250(rng250, layout.obstacles, layout.W, layout.H, features);
-      pair && features.portals.push(pair);
+      if (pair) {
+        features.portals.push(pair);
+      }
     }
   }
   return features;
@@ -655,7 +730,10 @@ function randomObstacle(rng, biomeId) {
     total = 0;
   for (let [weight] of shapes) total += weight;
   let roll = rng.next() * total;
-  for (let [weight, make] of shapes) if (((roll -= weight), roll <= 0)) return make(rng);
+  for (let [weight, make] of shapes) {
+    roll -= weight;
+    if (roll <= 0) return make(rng);
+  }
   return shapes[0][1](rng);
 }
 function mirrorObstacle(sym, ob) {
@@ -669,7 +747,7 @@ function mirrorObstacle(sym, ob) {
     case "rot2":
       return [copy(x, y), copy(-x, -y)];
     case "rot4":
-      return [copy(x, y), copy(-y, x, !0), copy(-x, -y), copy(y, -x, !0)];
+      return [copy(x, y), copy(-y, x, true), copy(-x, -y), copy(y, -x, true)];
     default:
       return [copy(x, y)];
   }
@@ -677,11 +755,13 @@ function mirrorObstacle(sym, ob) {
 function placeObstacles(rng, biomeId, template, W, H) {
   let placed = [],
     tryAdd = (group) => {
-      if (placed.length + group.length > 12) return !1;
-      for (let ob of group) if (!canPlaceObstacle(ob, placed, W, H)) return !1;
+      if (placed.length + group.length > 12) return false;
+      for (let ob of group) if (!canPlaceObstacle(ob, placed, W, H)) return false;
       for (let j = 0; j < group.length; j++)
-        for (let k = j + 1; k < group.length; k++) if (obstacleDistance(group[j], group[k]) < OBSTACLE_GAP) return !1;
-      return (placed.push(...group), !0);
+        for (let k = j + 1; k < group.length; k++)
+          if (obstacleDistance(group[j], group[k]) < OBSTACLE_GAP) return false;
+      placed.push(...group);
+      return true;
     },
     unused;
   if (template === "scatter") {
@@ -728,12 +808,9 @@ function placeSymmetric(rng, biomeId, sym, W, H, tryAdd, count) {
   for (let k = 0; k < count; k++)
     for (let tries = 0; tries < 14; tries++) {
       let ob = randomObstacle(rng, biomeId);
-      if (
-        ((ob.x = rng.range(sym === "rot2" ? -W + 2 : 1.5, W - 2)),
-        (ob.y = rng.range(sym === "mirror4" ? 1.5 : -H + 2, H - 2)),
-        tryAdd(mirrorObstacle(sym, ob)))
-      )
-        break;
+      ob.x = rng.range(sym === "rot2" ? -W + 2 : 1.5, W - 2);
+      ob.y = rng.range(sym === "mirror4" ? 1.5 : -H + 2, H - 2);
+      if (tryAdd(mirrorObstacle(sym, ob))) break;
     }
 }
 function halfSize(ob) {
@@ -754,25 +831,25 @@ function obstacleDistance(a, b) {
 }
 function canPlaceObstacle(ob, obs, W, H) {
   let { hx, hy } = halfSize(ob);
-  if (Math.abs(ob.x) + hx > W - OBSTACLE_GAP || Math.abs(ob.y) + hy > H - OBSTACLE_GAP) return !1;
+  if (Math.abs(ob.x) + hx > W - OBSTACLE_GAP || Math.abs(ob.y) + hy > H - OBSTACLE_GAP) return false;
   let gapX = Math.max(0, Math.abs(ob.x - spawnZone.x) - hx),
     gapY = Math.max(0, Math.abs(ob.y - spawnZone.y) - hy),
     minGap = Math.max(5.4, spawnZone.r + Math.max(hx, hy) + 3.8);
-  if (Math.hypot(gapX, gapY) < minGap) return !1;
-  for (let other of obs) if (obstacleDistance(ob, other) < OBSTACLE_GAP) return !1;
-  return !0;
+  if (Math.hypot(gapX, gapY) < minGap) return false;
+  for (let other of obs) if (obstacleDistance(ob, other) < OBSTACLE_GAP) return false;
+  return true;
 }
 function hitsObstacle(obs, x, y, pad) {
   for (let ob of obs)
     if (ob.t === "c") {
-      if (Math.hypot(x - ob.x, y - ob.y) < ob.r + pad) return !0;
-    } else if (Math.abs(x - ob.x) < ob.w + pad && Math.abs(y - ob.y) < ob.h + pad) return !0;
-  return !1;
+      if (Math.hypot(x - ob.x, y - ob.y) < ob.r + pad) return true;
+    } else if (Math.abs(x - ob.x) < ob.w + pad && Math.abs(y - ob.y) < ob.h + pad) return true;
+  return false;
 }
 function isConnected(obs, W, H) {
   let area = 0;
   for (let ob of obs) area += ob.t === "c" ? Math.PI * ob.r * ob.r : 4 * ob.w * ob.h;
-  if (area > 4 * W * H * 0.13) return !1;
+  if (area > 4 * W * H * 0.13) return false;
   let cell = 0.5,
     cols = Math.ceil((2 * W) / cell),
     rows = Math.ceil((2 * H) / cell),
@@ -783,13 +860,13 @@ function isConnected(obs, W, H) {
     for (let col = 0; col < cols; col++) {
       let px = -W + (col + 0.5) * cell,
         py = -H + (row + 0.5) * cell;
-      Math.abs(px) > W - pad ||
-        Math.abs(py) > H - pad ||
-        hitsObstacle(obs, px, py, pad) ||
-        ((open[row * cols + col] = 1), openCount++);
+      if (!(Math.abs(px) > W - pad || Math.abs(py) > H - pad || hitsObstacle(obs, px, py, pad))) {
+        open[row * cols + col] = 1;
+        openCount++;
+      }
     }
   let start = Math.floor((spawnZone.y + H) / cell) * cols + Math.floor((spawnZone.x + W) / cell);
-  if (!open[start]) return !1;
+  if (!open[start]) return false;
   let seen = new Uint8Array(cols * rows),
     stack = [start];
   seen[start] = 1;
@@ -809,7 +886,10 @@ function isConnected(obs, W, H) {
         nr = row + dr;
       if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
       let next = nr * cols + nc;
-      open[next] && !seen[next] && ((seen[next] = 1), stack.push(next));
+      if (open[next] && !seen[next]) {
+        seen[next] = 1;
+        stack.push(next);
+      }
     }
   }
   return reached >= openCount * 0.995;
@@ -822,13 +902,13 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         dy = y1 - y0,
         len2 = dx * dx + dy * dy;
       if (Math.abs(x0) > W - 2.7 || Math.abs(y0) > H - 2.7 || Math.abs(x1) > W - 2.7 || Math.abs(y1) > H - 2.7)
-        return !1;
+        return false;
       for (let ob of obs)
         if (ob.t === "c") {
           let along = len2 ? clamp(((ob.x - x0) * dx + (ob.y - y0) * dy) / len2, 0, 1) : 0,
             px = x0 + dx * along,
             py = y0 + dy * along;
-          if ((px - ob.x) * (px - ob.x) + (py - ob.y) * (py - ob.y) < (ob.r + clear) * (ob.r + clear)) return !1;
+          if ((px - ob.x) * (px - ob.x) + (py - ob.y) * (py - ob.y) < (ob.r + clear) * (ob.r + clear)) return false;
         } else {
           let minX = ob.x - ob.w - clear,
             maxX = ob.x + ob.w + clear,
@@ -841,8 +921,11 @@ function placeFeatures(rng, biomeId, obs, W, H) {
           } else {
             let ta = (minX - x0) / dx,
               tb = (maxX - x0) / dx;
-            ta > tb && ([ta, tb] = [tb, ta]);
-            ((t0 = Math.max(t0, ta)), (t1 = Math.min(t1, tb)));
+            if (ta > tb) {
+              [ta, tb] = [tb, ta];
+            }
+            t0 = Math.max(t0, ta);
+            t1 = Math.min(t1, tb);
             if (t0 > t1) continue;
           }
           if (Math.abs(dy) < 1e-9) {
@@ -850,13 +933,16 @@ function placeFeatures(rng, biomeId, obs, W, H) {
           } else {
             let ta = (minY - y0) / dy,
               tb = (maxY - y0) / dy;
-            ta > tb && ([ta, tb] = [tb, ta]);
-            ((t0 = Math.max(t0, ta)), (t1 = Math.min(t1, tb)));
+            if (ta > tb) {
+              [ta, tb] = [tb, ta];
+            }
+            t0 = Math.max(t0, ta);
+            t1 = Math.min(t1, tb);
             if (t0 > t1) continue;
           }
-          if (t0 <= t1 && t1 >= 0 && t0 <= 1) return !1;
+          if (t0 <= t1 && t1 >= 0 && t0 <= 1) return false;
         }
-      return !0;
+      return true;
     },
     findSpot = (rad, obsPad, list, gap, opt = {}) => {
       let best = null,
@@ -872,14 +958,16 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         if (opt.anchor) {
           let angle = rng.next() * TAU,
             dist = rng.range(opt.minDist ?? 6, opt.maxDist ?? 9);
-          ((px = opt.anchor.x + Math.cos(angle) * dist), (py = opt.anchor.y + Math.sin(angle) * dist));
+          px = opt.anchor.x + Math.cos(angle) * dist;
+          py = opt.anchor.y + Math.sin(angle) * dist;
         } else {
           let angle =
               opt.angleCenter != null
                 ? opt.angleCenter + rng.range(-(opt.angleSpan ?? 0.5), opt.angleSpan ?? 0.5)
                 : rng.next() * TAU,
             dist = rng.range(opt.minRadius ?? minR, opt.maxRadius ?? maxR);
-          ((px = spawnZone.x + Math.cos(angle) * dist), (py = spawnZone.y + Math.sin(angle) * dist));
+          px = spawnZone.x + Math.cos(angle) * dist;
+          py = spawnZone.y + Math.sin(angle) * dist;
         }
         if (
           Math.abs(px) > W - wallPad ||
@@ -889,14 +977,14 @@ function placeFeatures(rng, biomeId, obs, W, H) {
           hitsObstacle(obs, px, py, rad + obsPad)
         )
           continue;
-        let free = !0,
+        let free = true,
           nearest = 999;
         for (let other of list) {
           let dist = Math.hypot(other.x - px, other.y - py),
             clearance = dist - (other.r || 0) - rad;
           nearest = Math.min(nearest, clearance);
           if (dist < (other.r || 0) + rad + gap) {
-            free = !1;
+            free = false;
             break;
           }
         }
@@ -915,7 +1003,10 @@ function placeFeatures(rng, biomeId, obs, W, H) {
           minAngle = Math.min(minAngle, Math.abs(angleDiff(angA, angB)));
         }
         let score = wallRoom * 1.35 + clearance * 0.75 - minAngle * 0.85 - radiusOff * 1.15 + rng.next() * 1.1;
-        score > bestScore && ((bestScore = score), (best = { x: px, y: py }));
+        if (score > bestScore) {
+          bestScore = score;
+          best = { x: px, y: py };
+        }
       }
       return best;
     };
@@ -925,22 +1016,27 @@ function placeFeatures(rng, biomeId, obs, W, H) {
     for (let k = 0; k < count; k++) {
       let rad = rng.range(1.5, 2), // 2.4.6: was 1.1–1.5
         spot = findSpot(rad, 0.6, features.vents, 3, { minRadius: 6.5, maxRadius: 9.2, preferRadius: 7.8 });
-      spot &&
+      if (spot) {
         features.vents.push({ x: spot.x, y: spot.y, r: rad, period, phase: (k / count) * period + rng.range(0, 0.8) });
+      }
     }
   } else if (biomeId === "vault") {
     let count = rng.int(3, 5);
     for (let k = 0; k < count; k++) {
       let rad = rng.range(3, 4.4), // 2.4.6: was 2.2–3.4
         spot = findSpot(rad, 0.45, features.ice, 1.5, { minRadius: 6, maxRadius: 8.8, preferRadius: 7.2 });
-      spot && features.ice.push({ x: spot.x, y: spot.y, r: rad });
+      if (spot) {
+        features.ice.push({ x: spot.x, y: spot.y, r: rad });
+      }
     }
   } else if (biomeId === "marsh") {
     let count = rng.int(3, 4);
     for (let k = 0; k < count; k++) {
       let rad = rng.range(2.4, 3.5), // 2.4.6: was 1.8–2.8
         spot = findSpot(rad, 0.55, features.acid, 1.8, { minRadius: 5.8, maxRadius: 8.8, preferRadius: 7 });
-      spot && features.acid.push({ x: spot.x, y: spot.y, r: rad });
+      if (spot) {
+        features.acid.push({ x: spot.x, y: spot.y, r: rad });
+      }
     }
   } else if (biomeId === "void") {
     let pairs = rng.chance(0.4) ? 2 : 1,
@@ -958,7 +1054,9 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         let dist = rng.range(7.8, 9.8),
           angle = rng.next() * TAU,
           cand = { x: spawnZone.x + Math.cos(angle) * dist, y: spawnZone.y + Math.sin(angle) * dist };
-        clearPoint(cand) && (endA = cand);
+        if (clearPoint(cand)) {
+          endA = cand;
+        }
       }
       if (!endA) continue;
       let endB = null,
@@ -967,10 +1065,13 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         let dist = rng.range(7.8, 9.8),
           angle = back + rng.range(-0.55, 0.55),
           cand = { x: spawnZone.x + Math.cos(angle) * dist, y: spawnZone.y + Math.sin(angle) * dist };
-        clearPoint(cand) && Math.hypot(cand.x - endA.x, cand.y - endA.y) > Math.max(W, H) * 0.78 && (endB = cand);
+        if (clearPoint(cand) && Math.hypot(cand.x - endA.x, cand.y - endA.y) > Math.max(W, H) * 0.78) {
+          endB = cand;
+        }
       }
       if (!endB) continue;
-      (features.portals.push({ ax: endA.x, ay: endA.y, bx: endB.x, by: endB.y, hue: pair }), used.push(endA, endB));
+      features.portals.push({ ax: endA.x, ay: endA.y, bx: endB.x, by: endB.y, hue: pair });
+      used.push(endA, endB);
     }
   }
   return features;
@@ -1057,7 +1158,9 @@ function rlPortalPair250(rng, obs, W, H, features, opt = {}) {
     const dist = rng.range(7.4, 10.5),
       angle = rng.next() * TAU,
       cand = { x: spawnZone.x + Math.cos(angle) * dist, y: spawnZone.y + Math.sin(angle) * dist };
-    ok(cand) && (endA = cand);
+    if (ok(cand)) {
+      endA = cand;
+    }
   }
   if (!endA) return null;
   const back = Math.atan2(endA.y - spawnZone.y, endA.x - spawnZone.x) + Math.PI;

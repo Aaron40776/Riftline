@@ -15,7 +15,13 @@ var TAU = Math.PI * 2,
   clamp = (value, min, max) => (value < min ? min : value > max ? max : value);
 function angleDiff(from, to) {
   let diff = (to - from) % TAU;
-  return (diff > Math.PI && (diff -= TAU), diff < -Math.PI && (diff += TAU), diff);
+  if (diff > Math.PI) {
+    diff -= TAU;
+  }
+  if (diff < -Math.PI) {
+    diff += TAU;
+  }
+  return diff;
 }
 function turnToward(angle, target, maxStep) {
   let diff = angleDiff(angle, target);
@@ -27,11 +33,9 @@ function makeRng(seed) {
     next = () => {
       state = (state + 1831565813) >>> 0;
       let x = state;
-      return (
-        (x = Math.imul(x ^ (x >>> 15), x | 1)),
-        (x ^= x + Math.imul(x ^ (x >>> 7), x | 61)),
-        ((x ^ (x >>> 14)) >>> 0) / 4294967296
-      );
+      x = Math.imul(x ^ (x >>> 15), x | 1);
+      x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
     };
   return {
     next,
@@ -49,12 +53,18 @@ function weightedPick(rng, items, weights) {
   for (let weight of weights) total += weight;
   if (total <= 0) return items[0];
   let roll = rng.next() * total;
-  for (let i = 0; i < items.length; i++) if (((roll -= weights[i]), roll <= 0)) return items[i];
+  for (let i = 0; i < items.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return items[i];
+  }
   return items[items.length - 1];
 }
 function hashString(str) {
   let hash = 2166136261;
-  for (let i = 0; i < str.length; i++) ((hash ^= str.charCodeAt(i)), (hash = Math.imul(hash, 16777619)));
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
   return hash >>> 0;
 }
 function formatTime(secs) {
@@ -64,11 +74,13 @@ function formatTime(secs) {
   return mins + ":" + String(rest).padStart(2, "0");
 }
 function formatCount(n) {
-  return ((n = Math.floor(n)), n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + "k" : String(n));
+  n = Math.floor(n);
+  return n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + "k" : String(n);
 }
 var GAME_VERSION = __RL_VERSION__;
 function smoothstep(x) {
-  return ((x = clamp(x, 0, 1)), x * x * (3 - 2 * x));
+  x = clamp(x, 0, 1);
+  return x * x * (3 - 2 * x);
 }
 function easeOutBack(x) {
   return 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);

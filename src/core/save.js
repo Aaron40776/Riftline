@@ -126,7 +126,10 @@ function rlMigrateRetired(raw) {
     const retired = RL_RETIRED_WEAPONS[id];
     delete weapons[id];
     if (weapons[retired.to] === true) refund += retired.cost;
-    else ((weapons[retired.to] = true), (refund += Math.max(0, retired.cost - weaponDefs[retired.to].cost)));
+    else {
+      weapons[retired.to] = true;
+      refund += Math.max(0, retired.cost - weaponDefs[retired.to].cost);
+    }
   }
   out.weapons = weapons;
   if (sel) out.weapon = sel.to;
@@ -139,18 +142,18 @@ var SAVE_KEY = "riftline.save.v1",
   defaultSettings = {
     sfx: 0.8,
     music: 0.45,
-    autoFire: !0,
-    assist: !0,
-    shake: !0,
-    numbers: !0,
+    autoFire: true,
+    assist: true,
+    shake: true,
+    numbers: true,
     quality: "auto",
-    swap: !1,
+    swap: false,
     zoom: 1,
-    contrast: !1,
-    calm: !1,
+    contrast: false,
+    calm: false,
     // 2.4.2: optional HUD readouts
-    timer: !1,
-    fps: !1,
+    timer: false,
+    fps: false,
   };
 function newSave() {
   return {
@@ -160,7 +163,7 @@ function newSave() {
     savedAt: 0,
     shards: 0,
     weapon: "pulse",
-    weapons: { pulse: !0 },
+    weapons: { pulse: true },
     threat: 0,
     threatMax: 0,
     workshop: {},
@@ -239,15 +242,18 @@ function cleanRun(raw) {
   const rawBoss = Array.isArray(raw.bossKills) ? raw.bossKills : [];
   run.bossKills = [...new Set(rawBoss.filter((id) => typeof id === "string" && bossOrder.includes(id)))];
   const rawStats = asObject(raw.runStats);
-  ((run.runStats.dmgTaken = Math.floor(cleanNumber(rawStats.dmgTaken, 0, 0, 1e12))),
-    (run.runStats.dashes = Math.floor(cleanNumber(rawStats.dashes, 0, 0, 1e7))),
-    (run.runStats.critHits = Math.floor(cleanNumber(rawStats.critHits, 0, 0, 1e9))));
+  run.runStats.dmgTaken = Math.floor(cleanNumber(rawStats.dmgTaken, 0, 0, 1e12));
+  run.runStats.dashes = Math.floor(cleanNumber(rawStats.dashes, 0, 0, 1e7));
+  run.runStats.critHits = Math.floor(cleanNumber(rawStats.critHits, 0, 0, 1e9));
   const src = asObject(raw.dmgSrc);
   for (const key in src)
     if (/^[A-Za-z0-9_-]{1,18}$/.test(key)) run.dmgSrc[key] = Math.floor(cleanNumber(src[key], 0, 0, 1e12));
   if (Array.isArray(raw.offer)) {
     const offer = [...new Set(raw.offer.filter((id) => typeof id === "string" && !!upgradesById[id]))].slice(0, 4);
-    if (offer.length) ((run.offer = offer), (run.offerBoss = !!raw.offerBoss));
+    if (offer.length) {
+      run.offer = offer;
+      run.offerBoss = !!raw.offerBoss;
+    }
   }
   return run;
 }
@@ -257,20 +263,29 @@ function cleanSave(input) {
   let fresh = newSave(),
     raw = asObject(input),
     save = fresh;
-  ((save.created = cleanNumber(raw.created, fresh.created)),
-    (save.savedAt = cleanNumber(raw.savedAt, 0)),
-    (save.shards = Math.floor(cleanNumber(raw.shards, 0, 0, 1e9))));
-  for (let id in weaponDefs) asObject(raw.weapons)[id] === !0 && (save.weapons[id] = !0);
-  ((save.weapons.pulse = !0),
-    (save.weapon = weaponDefs[raw.weapon] && save.weapons[raw.weapon] ? raw.weapon : "pulse"),
-    (save.threatMax = Math.floor(cleanNumber(raw.threatMax, 0, 0, 5))),
-    (save.threat = Math.floor(cleanNumber(raw.threat, 0, 0, save.threatMax))));
+  save.created = cleanNumber(raw.created, fresh.created);
+  save.savedAt = cleanNumber(raw.savedAt, 0);
+  save.shards = Math.floor(cleanNumber(raw.shards, 0, 0, 1e9));
+  for (let id in weaponDefs) {
+    if (asObject(raw.weapons)[id] === true) {
+      save.weapons[id] = true;
+    }
+  }
+  save.weapons.pulse = true;
+  save.weapon = weaponDefs[raw.weapon] && save.weapons[raw.weapon] ? raw.weapon : "pulse";
+  save.threatMax = Math.floor(cleanNumber(raw.threatMax, 0, 0, 5));
+  save.threat = Math.floor(cleanNumber(raw.threat, 0, 0, save.threatMax));
   for (let mod of workshopModules) {
     let level = Math.floor(cleanNumber(asObject(raw.workshop)[mod.id], 0, 0, mod.costs.length));
-    level && (save.workshop[mod.id] = level);
+    if (level) {
+      save.workshop[mod.id] = level;
+    }
   }
-  for (let milestone of milestones)
-    asObject(raw.milestones)[milestone.id] === !0 && (save.milestones[milestone.id] = !0);
+  for (let milestone of milestones) {
+    if (asObject(raw.milestones)[milestone.id] === true) {
+      save.milestones[milestone.id] = true;
+    }
+  }
   let rawStats = asObject(raw.stats),
     stats = fresh.stats;
   for (let key of [
@@ -291,21 +306,33 @@ function cleanSave(input) {
   stats.bestClearThreat = Math.floor(cleanNumber(rawStats.bestClearThreat, -1, -1, 5));
   for (let key of ["bosses", "clearsBy", "bestBy"]) {
     let rawMap = asObject(rawStats[key]);
-    for (let id in rawMap) /^[a-z]{2,12}$/.test(id) && (stats[key][id] = cleanNumber(rawMap[id], 0, 0, 1e9));
+    for (let id in rawMap) {
+      if (/^[a-z]{2,12}$/.test(id)) {
+        stats[key][id] = cleanNumber(rawMap[id], 0, 0, 1e9);
+      }
+    }
   }
   let rawSettings = asObject(raw.settings);
   for (let key in defaultSettings) {
     let def = defaultSettings[key];
-    typeof def == "boolean"
-      ? (save.settings[key] = cleanBool(rawSettings[key], def))
-      : typeof def == "number"
-        ? (save.settings[key] = rlSettingNum(key, rawSettings[key], def))
-        : (save.settings[key] = ["auto", "high", "battery"].includes(rawSettings[key]) ? rawSettings[key] : def);
+    if (typeof def == "boolean") {
+      save.settings[key] = cleanBool(rawSettings[key], def);
+    } else {
+      if (typeof def == "number") {
+        save.settings[key] = rlSettingNum(key, rawSettings[key], def);
+      } else {
+        save.settings[key] = ["auto", "high", "battery"].includes(rawSettings[key]) ? rawSettings[key] : def;
+      }
+    }
   }
   save.run = cleanRun(raw.run);
   save.history = rlSanitizeHistory(raw.history);
   let rawSeen = asObject(raw.seen);
-  for (let id in rawSeen) rawSeen[id] === !0 && (save.seen[id] = !0);
+  for (let id in rawSeen) {
+    if (rawSeen[id] === true) {
+      save.seen[id] = true;
+    }
+  }
   return save;
 }
 var safeStorage = {
@@ -314,14 +341,21 @@ var safeStorage = {
       try {
         return globalThis.localStorage ? localStorage.getItem(key) : null;
       } catch {
-        return ((this.ok = !1), null);
+        this.ok = false;
+        return null;
       }
     },
     set(key, value) {
       try {
-        return (localStorage.setItem(key, value), (this.ok = !0), !0);
+        localStorage.setItem(key, value);
+        this.ok = true;
+        return true;
       } catch (err) {
-        return (this.ok !== !1 && logError("storage", err), (this.ok = !1), !1);
+        if (this.ok !== false) {
+          logError("storage", err);
+        }
+        this.ok = false;
+        return false;
       }
     },
     del(key) {
@@ -341,13 +375,15 @@ var safeStorage = {
         } catch (err) {
           logError("load", err);
         }
-      text && (!data || typeof data != "object") && rlBackupSave(text);
-      ((this.data = data && typeof data == "object" ? rlLoadSave(data) : newSave()),
-        (this.persistent = safeStorage.get(SAVE_KEY) !== null || safeStorage.set("riftline.probe", "1")),
-        safeStorage.del("riftline.probe"));
+      if (text && (!data || typeof data != "object")) {
+        rlBackupSave(text);
+      }
+      this.data = data && typeof data == "object" ? rlLoadSave(data) : newSave();
+      this.persistent = safeStorage.get(SAVE_KEY) !== null || safeStorage.set("riftline.probe", "1");
+      safeStorage.del("riftline.probe");
     }
     get storageOk() {
-      return safeStorage.ok !== !1;
+      return safeStorage.ok !== false;
     }
     onChange(listener) {
       this.listeners.add(listener);
@@ -366,17 +402,19 @@ var safeStorage = {
     parse(text) {
       let data,
         str = String(text ?? "").trim();
-      if (!str || str.length > 262144) return { ok: !1 };
+      if (!str || str.length > 262144) return { ok: false };
       try {
         data = JSON.parse(str);
       } catch {
-        return { ok: !1 };
+        return { ok: false };
       }
-      return !data || data.game !== "riftline" || data.v !== 1 ? { ok: !1 } : { ok: !0, data: cleanSave(data) };
+      return !data || data.game !== "riftline" || data.v !== 1 ? { ok: false } : { ok: true, data: cleanSave(data) };
     }
     reset() {
       let settings = this.data.settings;
-      ((this.data = newSave()), (this.data.settings = settings), this.save("reset"));
+      this.data = newSave();
+      this.data.settings = settings;
+      this.save("reset");
     }
   };
 
@@ -418,14 +456,18 @@ function rlMigrateUpgrades(run) {
         !picked.includes(upgrade.id);
     for (const id of offer) {
       if (!rlRetiredUpgrade(id)) {
-        typeof id === "string" && upgradesById[id] && picked.push(id);
+        if (typeof id === "string" && upgradesById[id]) {
+          picked.push(id);
+        }
         continue;
       }
       const to = upgradesById[rlRetiredUpgrade(id).to],
         rarity = run.offerBoss ? Math.max(2, to.rarity) : to.rarity,
         upgrade =
           to.rarity === rarity && free(to) ? to : upgradeList.find((other) => other.rarity === rarity && free(other));
-      upgrade && picked.push(upgrade.id);
+      if (upgrade) {
+        picked.push(upgrade.id);
+      }
     }
     out.offer = picked;
   }
@@ -474,7 +516,9 @@ function rlMigrateModules(raw) {
     delete workshop[id];
     if (lv > 0) {
       names.push(retired.name);
-      into.includes(to) || into.push(to);
+      if (!into.includes(to)) {
+        into.push(to);
+      }
       refund += retired.costs.slice(0, lv).reduce((sum, cost) => sum + cost, 0);
     }
   }

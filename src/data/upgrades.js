@@ -32,7 +32,7 @@ var upgradeList = [
     max: 99,
     icon: "heart",
     desc: () => "Repair 45% of max HP",
-    repeat: !0,
+    repeat: true,
   },
   { id: "multishot", name: "Split Chamber", rarity: 2, max: 4, icon: "fan", desc: () => "+1 projectile per shot" },
   {

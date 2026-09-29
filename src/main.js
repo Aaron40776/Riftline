@@ -81,8 +81,10 @@ function rlIntroEvents(world) {
   if (RL_INTRO.queue.length && now - RL_INTRO.last > 6500 && world.state === "fight") {
     const type = RL_INTRO.queue.shift(),
       seen = store.data.seen;
-    seen["enemy_" + type] = !0;
-    type === "mender" && (seen.tip_mender = !0);
+    seen["enemy_" + type] = true;
+    if (type === "mender") {
+      seen.tip_mender = true;
+    }
     store.save("intro");
     RL_INTRO.last = now;
     ui.toast(`NEW · ${enemyDefs[type].name.toUpperCase()} — ${RL_ENEMY_TIPS[type]}`, "intro", 6200);
@@ -108,74 +110,101 @@ function rlApplyDataFixes() {
   iconPaths.map = '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>';
   rlApplyBiomeFixes();
 }
-var isStandaloneBuild = !0;
+var isStandaloneBuild = true;
 var isIOSDevice =
   typeof navigator < "u" &&
   (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 var isInstalledPwa =
   typeof window < "u" &&
   ((window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
-    window.navigator.standalone === !0);
+    window.navigator.standalone === true);
 function registerServiceWorker(onUpdate) {
-  !isStandaloneBuild ||
-    !("serviceWorker" in navigator) ||
-    (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") ||
-    (navigator.serviceWorker
+  if (
+    !(
+      !isStandaloneBuild ||
+      !("serviceWorker" in navigator) ||
+      (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1")
+    )
+  ) {
+    navigator.serviceWorker
       .register("./sw.js", { scope: "./", updateViaCache: "none" })
       .then((registration) => {
         let hadController = !!navigator.serviceWorker.controller,
           offer = (worker) => {
-            !worker ||
-              !navigator.serviceWorker.controller ||
+            if (!(!worker || !navigator.serviceWorker.controller)) {
               onUpdate(() => {
-                let reloaded = !1,
+                let reloaded = false,
                   reload = () => {
-                    reloaded || ((reloaded = !0), location.reload());
+                    if (!reloaded) {
+                      reloaded = true;
+                      location.reload();
+                    }
                   };
-                (navigator.serviceWorker.addEventListener("controllerchange", reload),
-                  worker.postMessage("skipWaiting"),
-                  setTimeout(reload, 4e3));
+                navigator.serviceWorker.addEventListener("controllerchange", reload);
+                worker.postMessage("skipWaiting");
+                setTimeout(reload, 4e3);
               });
+            }
           };
-        (registration.waiting && hadController && offer(registration.waiting),
-          registration.addEventListener("updatefound", () => {
-            let worker = registration.installing;
-            worker &&
-              worker.addEventListener("statechange", () => {
-                worker.state === "installed" && offer(worker);
-              });
-          }));
+        if (registration.waiting && hadController) {
+          offer(registration.waiting);
+        }
+        registration.addEventListener("updatefound", () => {
+          let worker = registration.installing;
+          if (worker) {
+            worker.addEventListener("statechange", () => {
+              if (worker.state === "installed") {
+                offer(worker);
+              }
+            });
+          }
+        });
         let checkForUpdate = () => registration.update().catch(() => {});
-        (document.addEventListener("visibilitychange", () => {
-          document.visibilityState === "visible" && checkForUpdate();
-        }),
-          window.addEventListener("online", checkForUpdate),
-          setInterval(checkForUpdate, 900 * 1e3));
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") {
+            checkForUpdate();
+          }
+        });
+        window.addEventListener("online", checkForUpdate);
+        setInterval(checkForUpdate, 900 * 1e3);
       })
-      .catch((err) => logError("sw", err)),
-    navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}));
+      .catch((err) => logError("sw", err));
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+  }
 }
 var wakeLockSentinel = null,
-  wakeLockWanted = !1;
+  wakeLockWanted = false;
 async function setWakeLock(on) {
   wakeLockWanted = on;
   try {
-    on && !wakeLockSentinel && navigator.wakeLock && document.visibilityState === "visible"
-      ? ((wakeLockSentinel = await navigator.wakeLock.request("screen")),
-        wakeLockSentinel.addEventListener("release", () => {
-          wakeLockSentinel = null;
-        }))
-      : !on && wakeLockSentinel && (await wakeLockSentinel.release(), (wakeLockSentinel = null));
+    if (on && !wakeLockSentinel && navigator.wakeLock && document.visibilityState === "visible") {
+      wakeLockSentinel = await navigator.wakeLock.request("screen");
+      wakeLockSentinel.addEventListener("release", () => {
+        wakeLockSentinel = null;
+      });
+    } else {
+      if (!on && wakeLockSentinel) {
+        await wakeLockSentinel.release();
+        wakeLockSentinel = null;
+      }
+    }
   } catch {
     wakeLockSentinel = null;
   }
 }
-typeof document < "u" &&
+if (typeof document < "u") {
   document.addEventListener("visibilitychange", () => {
-    document.visibilityState === "visible" && wakeLockWanted && setWakeLock(!0);
+    if (document.visibilityState === "visible" && wakeLockWanted) {
+      setWakeLock(true);
+    }
   });
+}
 var noJsNotice = document.getElementById("nojs");
-noJsNotice && noJsNotice.remove();
+if (noJsNotice) {
+  noJsNotice.remove();
+}
 setLogContext({ version: GAME_VERSION, build: BUILD_ID, mode: isStandaloneBuild ? "standalone" : "artifact" });
 var qualityPresets = {
     high: { dpr: 2, particles: 1400, fps: 0 },
@@ -201,50 +230,59 @@ let _resizeRaf = 0,
   _resizeFollowTimer = 0;
 function _resetInputForViewportChange() {
   try {
-    input && (input.move.active || input.aim.active) && input.reset();
+    if (input && (input.move.active || input.aim.active)) {
+      input.reset();
+    }
   } catch (err) {
     logError("input-reset", err);
   }
 }
 function _scheduleResize(why) {
-  ((_resizeWhy = why),
-    _resizeRaf ||
-      (_resizeRaf = requestAnimationFrame(() => {
-        _resizeRaf = 0;
-        try {
-          renderer && renderer.resize(!0);
-        } catch (err) {
-          logError(_resizeWhy, err);
+  _resizeWhy = why;
+  if (!_resizeRaf) {
+    _resizeRaf = requestAnimationFrame(() => {
+      _resizeRaf = 0;
+      try {
+        if (renderer) {
+          renderer.resize(true);
         }
-      })));
+      } catch (err) {
+        logError(_resizeWhy, err);
+      }
+    });
+  }
 }
 window.addEventListener(
   "resize",
   () => {
-    (_resetInputForViewportChange(), _scheduleResize("resize"));
+    _resetInputForViewportChange();
+    _scheduleResize("resize");
   },
-  { passive: !0 },
+  { passive: true },
 );
 window.addEventListener(
   "orientationchange",
   () => {
-    (_resetInputForViewportChange(),
-      _scheduleResize("orientation"),
-      clearTimeout(_resizeFollowTimer),
-      (_resizeFollowTimer = setTimeout(() => {
-        ((_resizeFollowTimer = 0), _scheduleResize("orientation-follow"));
-      }, 120)));
+    _resetInputForViewportChange();
+    _scheduleResize("orientation");
+    clearTimeout(_resizeFollowTimer);
+    _resizeFollowTimer = setTimeout(() => {
+      _resizeFollowTimer = 0;
+      _scheduleResize("orientation-follow");
+    }, 120);
   },
-  { passive: !0 },
+  { passive: true },
 );
-window.visualViewport &&
+if (window.visualViewport) {
   window.visualViewport.addEventListener(
     "resize",
     () => {
-      (_resetInputForViewportChange(), _scheduleResize("viewport"));
+      _resetInputForViewportChange();
+      _scheduleResize("viewport");
     },
-    { passive: !0 },
+    { passive: true },
   );
+}
 var overlay = new Overlay(elementById("ov")),
   input = new Input(elementById("touch"), renderer),
   game = {
@@ -254,11 +292,11 @@ var overlay = new Overlay(elementById("ov")),
     renderer: renderer,
     mode: "menu",
     world: null,
-    paused: !1,
+    paused: false,
     previewW: store.data.weapon,
     buildId: BUILD_ID,
-    chooseShown: !1,
-    overShown: !1,
+    chooseShown: false,
+    overShown: false,
     slowMo: 0,
     pendingUpdate: null,
     cloud: null,
@@ -266,8 +304,10 @@ var overlay = new Overlay(elementById("ov")),
       const { resume } = options;
       let save = store.data,
         snap = resume ? save.run : null;
-      resume || save.stats.runs++;
-      let started = !0;
+      if (!resume) {
+        save.stats.runs++;
+      }
+      let started = true;
       try {
         this.world = new World({
           seed: (Math.random() * 4294967296) >>> 0,
@@ -277,134 +317,169 @@ var overlay = new Overlay(elementById("ov")),
           snap: snap,
         });
       } catch (err) {
-        (logError("start", err),
-          (save.run = null),
-          store.save("bad-run"),
-          ui.alert("Could not start", "The saved run could not be restored and was discarded."));
-        started = !1;
+        logError("start", err);
+        save.run = null;
+        store.save("bad-run");
+        ui.alert("Could not start", "The saved run could not be restored and was discarded.");
+        started = false;
       }
-      started &&
-        ((this.mode = "game"),
-        (this.paused = !1),
-        (this.chooseShown = !1),
-        (this.overShown = !1),
-        (this.acc = 0),
-        (this.slowMo = 0),
-        (this.intro = null),
-        (RL_RT.runStartMs = Date.now()),
-        (RL_RT.runErrorSnapshot = errorLog.map((entry) => `${entry.where}|${entry.msg}|${entry.n}`)),
-        renderer && renderer.focusOn(null),
-        (this.hintT = 0),
-        ui.hideMenus(),
-        ui.hideOver(),
-        ui.hideChoose(),
-        ui.hidePause(),
-        ui.hideCrash(),
-        ui.showHud(!0),
-        input.reset(),
-        (input.enabled = !0),
-        (game.freeze = 0),
-        (game.tut =
+      if (started) {
+        this.mode = "game";
+        this.paused = false;
+        this.chooseShown = false;
+        this.overShown = false;
+        this.acc = 0;
+        this.slowMo = 0;
+        this.intro = null;
+        RL_RT.runStartMs = Date.now();
+        RL_RT.runErrorSnapshot = errorLog.map((entry) => `${entry.where}|${entry.msg}|${entry.n}`);
+        if (renderer) {
+          renderer.focusOn(null);
+        }
+        this.hintT = 0;
+        ui.hideMenus();
+        ui.hideOver();
+        ui.hideChoose();
+        ui.hidePause();
+        ui.hideCrash();
+        ui.showHud(true);
+        input.reset();
+        input.enabled = true;
+        game.freeze = 0;
+        game.tut =
           !store.data.seen.tutorial && !resume && this.world.wave === 1
-            ? { step: 0, t: 0, moved: 0, kills: 0, dashed: !1 }
-            : null),
-        game.tut && (this.world.hold = !0),
-        ui.coach(null),
-        renderer && renderer.resetCamera(),
-        sound.setMusic("fight", this.world.biomeFor(this.world.wave).id),
-        setWakeLock(!0));
+            ? { step: 0, t: 0, moved: 0, kills: 0, dashed: false }
+            : null;
+        if (game.tut) {
+          this.world.hold = true;
+        }
+        ui.coach(null);
+        if (renderer) {
+          renderer.resetCamera();
+        }
+        sound.setMusic("fight", this.world.biomeFor(this.world.wave).id);
+        setWakeLock(true);
+      }
       // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
       // worlds are ignored by identity). Also runs when the world could not be built.
       try {
-        this.world && this.mode === "game" && rlMonStart(this.world, !!(options && options.resume));
+        if (this.world && this.mode === "game") {
+          rlMonStart(this.world, !!(options && options.resume));
+        }
       } catch (err) {
         logError("monitor", err);
       }
     },
     choose(index) {
       let world = this.world;
-      !world || !world.choose(index) || ((this.chooseShown = !1), ui.hideChoose(), input.reset());
+      if (!(!world || !world.choose(index))) {
+        this.chooseShown = false;
+        ui.hideChoose();
+        input.reset();
+      }
     },
     reroll() {
       let world = this.world;
-      world &&
-        world.reroll() &&
-        (ui.renderCards(world), sound.play("pick"), (store.data.run = world.snapshot()), store.save("reroll"));
+      if (world && world.reroll()) {
+        ui.renderCards(world);
+        sound.play("pick");
+        store.data.run = world.snapshot();
+        store.save("reroll");
+      }
     },
     pause() {
       let world = this.world;
-      this.mode !== "game" ||
-        !world ||
-        this.paused ||
-        this.overShown ||
-        (world.state !== "fight" && world.state !== "cleared") ||
-        ((this.paused = !0),
-        input.reset(),
-        ui.showPause(world),
-        sound.setMusic("menu"),
-        store.save("pause"),
-        setWakeLock(!1));
+      if (
+        !(
+          this.mode !== "game" ||
+          !world ||
+          this.paused ||
+          this.overShown ||
+          (world.state !== "fight" && world.state !== "cleared")
+        )
+      ) {
+        this.paused = true;
+        input.reset();
+        ui.showPause(world);
+        sound.setMusic("menu");
+        store.save("pause");
+        setWakeLock(false);
+      }
     },
     resume() {
-      this.paused &&
-        ((this.paused = !1),
-        ui.hidePause(),
-        input.reset(),
-        (this.last = performance.now()),
-        setWakeLock(!0),
-        this.world && sound.setMusic(this.world.boss ? "boss" : "fight", this.world.biomeFor(this.world.wave).id));
+      if (this.paused) {
+        this.paused = false;
+        ui.hidePause();
+        input.reset();
+        this.last = performance.now();
+        setWakeLock(true);
+        if (this.world) {
+          sound.setMusic(this.world.boss ? "boss" : "fight", this.world.biomeFor(this.world.wave).id);
+        }
+      }
     },
     restart() {
-      (ui.hidePause(), (this.paused = !1), this.endRun(!1, !0, !0), this.startRun({}));
+      ui.hidePause();
+      this.paused = false;
+      this.endRun(false, true, true);
+      this.startRun({});
     },
     abandon() {
-      (ui.hidePause(), (this.paused = !1), this.endRun(!1, !0));
+      ui.hidePause();
+      this.paused = false;
+      this.endRun(false, true);
     },
     endless() {
       let world = this.world;
-      !world ||
-        world.state !== "victory" ||
-        (ui.hideOver(),
-        (this.overShown = !1),
-        (world.shards = 0),
-        (world.kills = 0),
-        (world.bossKills = []),
-        (world.legendaries = 0),
-        (world.flawless = 0),
-        (world.time = 0),
-        (world.evolved = 0),
-        (world.dmgSrc = {}),
-        world.continueEndless(),
-        ui.showHud(!0),
-        (this.chooseShown = !1));
+      if (!(!world || world.state !== "victory")) {
+        ui.hideOver();
+        this.overShown = false;
+        world.shards = 0;
+        world.kills = 0;
+        world.bossKills = [];
+        world.legendaries = 0;
+        world.flawless = 0;
+        world.time = 0;
+        world.evolved = 0;
+        world.dmgSrc = {};
+        world.continueEndless();
+        ui.showHud(true);
+        this.chooseShown = false;
+      }
       // 2.2.3: the endless part is monitored as a new run
       try {
-        this.world && this.world.endless && rlMonStart(this.world, !0);
+        if (this.world && this.world.endless) {
+          rlMonStart(this.world, true);
+        }
       } catch (err) {
         logError("monitor", err);
       }
     },
     goHome() {
-      ((this.mode = "menu"),
-        (this.world = null),
-        (this.paused = !1),
-        ui.hideOver(),
-        ui.hideChoose(),
-        ui.hidePause(),
-        ui.showHud(!1),
-        (ui.homeInit = !1),
-        ui.show("home"),
-        sound.setMusic("menu"),
-        setWakeLock(!1),
-        rlApplyUpdateWhenIdle("home"));
+      this.mode = "menu";
+      this.world = null;
+      this.paused = false;
+      ui.hideOver();
+      ui.hideChoose();
+      ui.hidePause();
+      ui.showHud(false);
+      ui.homeInit = false;
+      ui.show("home");
+      sound.setMusic("menu");
+      setWakeLock(false);
+      rlApplyUpdateWhenIdle("home");
     },
     discardRun() {
-      ((store.data.run = null), store.save("discard"));
+      store.data.run = null;
+      store.save("discard");
     },
     recover() {
-      (ui.hideCrash(), (this.crashed = !1), this.goHome(), startLoop());
+      ui.hideCrash();
+      this.crashed = false;
+      this.goHome();
+      startLoop();
     },
-    endRun(win, abandoned = !1, silent = !1) {
+    endRun(win, abandoned = false, silent = false) {
       // 2.2.3: run monitor, read before the run is settled
       const world = this.world,
         pre = world && !this.overShown ? rlMonPreEnd(world) : null;
@@ -421,7 +496,7 @@ var overlay = new Overlay(elementById("ov")),
       let save = store.data,
         stats = save.stats;
       if (!world || this.overShown) return;
-      this.overShown = !0;
+      this.overShown = true;
       rlRunAudit(world, win, abandoned);
       let mods = threatMods(world.threat),
         salvage = 1 + 0.1 * (save.workshop.salvage || 0),
@@ -429,73 +504,87 @@ var overlay = new Overlay(elementById("ov")),
         bonus = win ? Math.round(collected * 0.25) : 0,
         total = Math.round((collected + bonus) * mods.shards * salvage),
         rows = [["Collected", collected]];
-      (bonus && rows.push(["Clear bonus +25%", "+" + bonus]),
-        world.threat > 0 && rows.push([`${threatLevels[world.threat].name} \xD7${mods.shards.toFixed(2)}`, "\xD7"]),
-        salvage > 1 && rows.push([`Salvager \xD7${salvage.toFixed(1)}`, "\xD7"]));
+      if (bonus) {
+        rows.push(["Clear bonus +25%", "+" + bonus]);
+      }
+      if (world.threat > 0) {
+        rows.push([`${threatLevels[world.threat].name} \xD7${mods.shards.toFixed(2)}`, "\xD7"]);
+      }
+      if (salvage > 1) {
+        rows.push([`Salvager \xD7${salvage.toFixed(1)}`, "\xD7"]);
+      }
       let claimedBefore = new Set(this.claimable()),
         unlocks = [],
         wave = win ? 20 : world.wave,
         best = wave > stats.bestWave,
         fastest = win && !world.endless && world.time > 0 && (stats.bestTime <= 0 || world.time < stats.bestTime);
-      ((stats.bestWave = Math.max(stats.bestWave, wave)),
-        fastest && (stats.bestTime = world.time),
-        (stats.bestBy[world.weapon] = Math.max(stats.bestBy[world.weapon] || 0, wave)),
-        (stats.kills += world.kills),
-        (stats.playTime += world.time),
-        (stats.shardsEarned += total),
-        (stats.legendaries += world.legendaries),
-        (stats.flawless += world.flawless),
-        (stats.evolved += world.evolved),
-        (stats.bestCombo = Math.max(stats.bestCombo, world.bestCombo)));
+      stats.bestWave = Math.max(stats.bestWave, wave);
+      if (fastest) {
+        stats.bestTime = world.time;
+      }
+      stats.bestBy[world.weapon] = Math.max(stats.bestBy[world.weapon] || 0, wave);
+      stats.kills += world.kills;
+      stats.playTime += world.time;
+      stats.shardsEarned += total;
+      stats.legendaries += world.legendaries;
+      stats.flawless += world.flawless;
+      stats.evolved += world.evolved;
+      stats.bestCombo = Math.max(stats.bestCombo, world.bestCombo);
       for (let bossId of world.bossKills) stats.bosses[bossId] = (stats.bosses[bossId] || 0) + 1;
-      (win && !world.endless
-        ? (stats.clears++,
-          (stats.clearsBy[world.weapon] = (stats.clearsBy[world.weapon] || 0) + 1),
-          (stats.bestClearThreat = Math.max(stats.bestClearThreat, world.threat)),
-          world.threat >= save.threatMax &&
-            save.threatMax < 5 &&
-            ((save.threatMax = world.threat + 1), unlocks.push(`${threatLevels[save.threatMax].name} unlocked`)))
-        : (stats.deaths += abandoned ? 0 : 1),
-        (save.shards += total),
-        (save.run = null),
-        store.save("run-end"));
+      if (win && !world.endless) {
+        stats.clears++;
+        stats.clearsBy[world.weapon] = (stats.clearsBy[world.weapon] || 0) + 1;
+        stats.bestClearThreat = Math.max(stats.bestClearThreat, world.threat);
+        if (world.threat >= save.threatMax && save.threatMax < 5) {
+          save.threatMax = world.threat + 1;
+          unlocks.push(`${threatLevels[save.threatMax].name} unlocked`);
+        }
+      } else {
+        stats.deaths += abandoned ? 0 : 1;
+      }
+      save.shards += total;
+      save.run = null;
+      store.save("run-end");
       let newMilestones = this.claimable()
         .filter((id) => !claimedBefore.has(id))
         .map((id) => milestones.find((milestone) => milestone.id === id).name);
-      if (
-        (game.tut && ((store.data.seen.tutorial = !0), (game.tut = null), ui.coach(null), store.save("tutorial")),
-        silent)
-      )
-        this.overShown = !1;
-      else
-        (ui.showHud(!1),
-          ui.hideChoose(),
-          ui.showOver({
-            win: win,
-            abandoned: abandoned,
-            wave: wave,
-            time: world.time,
-            kills: world.kills,
-            bosses: world.bossKills.length,
-            weapon: world.weapon,
-            threat: world.threat,
-            rows: rows,
-            total: total,
-            best: best,
-            milestones: newMilestones,
-            unlocks: unlocks,
-            canEndless: win && !world.endless,
-            killer: win || abandoned ? null : world.lastHit,
-            dmgSrc: world.dmgSrc,
-            weaponName: weaponDefs[world.weapon].name,
-            fastest: fastest,
-          }),
-          sound.setMusic("menu"),
-          setWakeLock(!1));
+      if (game.tut) {
+        store.data.seen.tutorial = true;
+        game.tut = null;
+        ui.coach(null);
+        store.save("tutorial");
+      }
+      if (silent) this.overShown = false;
+      else {
+        ui.showHud(false);
+        ui.hideChoose();
+        ui.showOver({
+          win: win,
+          abandoned: abandoned,
+          wave: wave,
+          time: world.time,
+          kills: world.kills,
+          bosses: world.bossKills.length,
+          weapon: world.weapon,
+          threat: world.threat,
+          rows: rows,
+          total: total,
+          best: best,
+          milestones: newMilestones,
+          unlocks: unlocks,
+          canEndless: win && !world.endless,
+          killer: win || abandoned ? null : world.lastHit,
+          dmgSrc: world.dmgSrc,
+          weaponName: weaponDefs[world.weapon].name,
+          fastest: fastest,
+        });
+        sound.setMusic("menu");
+        setWakeLock(false);
+      }
       // 2.2.3: run audit and run history (a silent end is recorded too)
       if (pre)
         try {
-          rlMonFinish(world, pre, !!win, !!abandoned, !!silent, !1);
+          rlMonFinish(world, pre, !!win, !!abandoned, !!silent, false);
         } catch (err) {
           logError("audit", err);
         }
@@ -507,10 +596,14 @@ var overlay = new Overlay(elementById("ov")),
         }
     },
     settingsChanged(quiet) {
-      (applySettings(), quiet || store.save("settings"));
+      applySettings();
+      if (!quiet) {
+        store.save("settings");
+      }
     },
     resetProgress() {
-      (store.reset(), afterProgressReset("Progress reset"));
+      store.reset();
+      afterProgressReset("Progress reset");
     },
     claimable() {
       let save = store.data;
@@ -532,12 +625,19 @@ game.qualityNote = () => {
       : `Sharpest (${dpr}\xD7)`;
 };
 function afterProgressReset(message) {
-  ((ui.homeInit = !1), applySettings(), ui.screen === "settings" && ui.renderSettings(), ui.toast(message));
+  ui.homeInit = false;
+  applySettings();
+  if (ui.screen === "settings") {
+    ui.renderSettings();
+  }
+  ui.toast(message);
 }
 var ui = new GameUI(game);
 game.ui = ui;
 input.onBlur = () => {
-  game.mode === "game" && game.pause();
+  if (game.mode === "game") {
+    game.pause();
+  }
 };
 input.isPlaying = () => game.mode === "game" && !game.paused && !game.chooseShown && !game.overShown;
 input.onPause = () => {
@@ -548,25 +648,32 @@ input.onPause = () => {
   // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
   if (ui.rlFromPause) return ui.back();
   if (game.mode === "menu") {
-    input._rlKey === "escape" && ["workshop", "records", "settings"].includes(ui.screen) && ui.back();
+    if (input._rlKey === "escape" && ["workshop", "records", "settings"].includes(ui.screen)) {
+      ui.back();
+    }
     return;
   }
-  game.mode === "game" && (game.paused ? game.resume() : game.pause());
+  if (game.mode === "game") {
+    if (game.paused) {
+      game.resume();
+    } else {
+      game.pause();
+    }
+  }
 };
 var qualityPreset = qualityPresets.auto,
   autoDpr = 1.5;
 function applySettings() {
   let settings = store.data.settings;
-  if (
-    (sound.setVolumes(settings.sfx, settings.music),
-    (input.swap = settings.swap),
-    ui.setSwap(settings.swap),
-    (qualityPreset = qualityPresets[settings.quality] || qualityPresets.auto),
-    (overlay.contrast = settings.contrast),
-    (ui.calm = settings.calm),
-    renderer)
-  ) {
-    (renderer.setAccess(settings.contrast, settings.calm), (renderer.zoom = settings.zoom || 1));
+  sound.setVolumes(settings.sfx, settings.music);
+  input.swap = settings.swap;
+  ui.setSwap(settings.swap);
+  qualityPreset = qualityPresets[settings.quality] || qualityPresets.auto;
+  overlay.contrast = settings.contrast;
+  ui.calm = settings.calm;
+  if (renderer) {
+    renderer.setAccess(settings.contrast, settings.calm);
+    renderer.zoom = settings.zoom || 1;
     let dpr = settings.quality === "auto" ? autoDpr : qualityPreset.dpr;
     renderer.setQuality(dpr, qualityPreset.particles);
   }
@@ -579,30 +686,36 @@ var loopFrameId = 0,
   dimFrameCounter = 0,
   menuFrame = 0;
 function startLoop() {
-  loopFrameId || ((game.last = performance.now()), (loopFrameId = requestAnimationFrame(loopTick)));
+  if (!loopFrameId) {
+    game.last = performance.now();
+    loopFrameId = requestAnimationFrame(loopTick);
+  }
 }
 function loopTick(now) {
   loopFrameId = requestAnimationFrame(loopTick);
   let dt = (now - (game.last || now)) / 1e3;
   if (!(qualityPreset.fps && dt < 1 / qualityPreset.fps - 0.004)) {
-    ((game.last = now), (dt = Math.min(0.1, Math.max(0, dt))));
+    game.last = now;
+    dt = Math.min(0.1, Math.max(0, dt));
     try {
       const frameStart = performance.now();
-      (runFrame(dt), (frameErrorCount = 0));
+      runFrame(dt);
+      frameErrorCount = 0;
       if (RL_MON)
         try {
           rlMonFrame(performance.now() - frameStart);
         } catch {}
     } catch (err) {
-      (frameErrorCount++,
-        logError("frame", err),
-        frameErrorCount >= 3 &&
-          (cancelAnimationFrame(loopFrameId),
-          (loopFrameId = 0),
-          (game.crashed = !0),
-          setWakeLock(!1),
-          rlMonCrashed(),
-          ui.showCrash(buildReport())));
+      frameErrorCount++;
+      logError("frame", err);
+      if (frameErrorCount >= 3) {
+        cancelAnimationFrame(loopFrameId);
+        loopFrameId = 0;
+        game.crashed = true;
+        setWakeLock(false);
+        rlMonCrashed();
+        ui.showCrash(buildReport());
+      }
     }
   }
 }
@@ -614,51 +727,77 @@ function runFrame(dt) {
       let slow = game.slowMo > 0 ? 0.35 : 1;
       game.slowMo = Math.max(0, game.slowMo - dt);
       let speed = game.speed || 1;
-      game.intro ? updateBossIntro(dt, world) : game.freeze > 0 ? (game.freeze -= dt) : (game.acc += dt * slow * speed);
+      if (game.intro) {
+        updateBossIntro(dt, world);
+      } else {
+        if (game.freeze > 0) {
+          game.freeze -= dt;
+        } else {
+          game.acc += dt * slow * speed;
+        }
+      }
       let steps = 0,
         maxSteps = 5 * speed;
-      for (; game.acc >= rlStep && steps < maxSteps; )
-        (world.step(rlStep, input.sample(world, settings)), (game.acc -= rlStep), steps++);
-      (steps >= maxSteps && (game.acc = 0),
-        handleWorldEvents(world),
-        rlIntroEvents(world),
-        updateTutorial(dt, world),
-        updateHeartbeat(dt, world),
-        sound.setIntensity(
-          world.state === "fight"
-            ? world.enemies.length / 34 +
-                world.eb.length / 90 +
-                (world.boss ? 0.4 : 0) +
-                (world.player.hp / world.stats.maxHp < 0.3 ? 0.2 : 0)
-            : 0,
-        ),
-        updateAutoQuality(dt, settings));
+      for (; game.acc >= rlStep && steps < maxSteps; ) {
+        world.step(rlStep, input.sample(world, settings));
+        game.acc -= rlStep;
+        steps++;
+      }
+      if (steps >= maxSteps) {
+        game.acc = 0;
+      }
+      handleWorldEvents(world);
+      rlIntroEvents(world);
+      updateTutorial(dt, world);
+      updateHeartbeat(dt, world);
+      sound.setIntensity(
+        world.state === "fight"
+          ? world.enemies.length / 34 +
+              world.eb.length / 90 +
+              (world.boss ? 0.4 : 0) +
+              (world.player.hp / world.stats.maxHp < 0.3 ? 0.2 : 0)
+          : 0,
+      );
+      updateAutoQuality(dt, settings);
     }
     if (game.paused) return;
     if (renderer) {
-      (renderer.consume(world.fx, world, settings),
-        renderer.mapChanged && ((renderer.mapChanged = !1), sound.play("rumble")));
+      renderer.consume(world.fx, world, settings);
+      if (renderer.mapChanged) {
+        renderer.mapChanged = false;
+        sound.play("rumble");
+      }
       let dimmed = game.chooseShown || game.overShown;
-      (!dimmed || (dimFrameCounter = (dimFrameCounter + 1) % 3) === 0) && renderer.frame(dimmed ? dt * 3 : dt, world);
+      if (!dimmed || (dimFrameCounter = (dimFrameCounter + 1) % 3) === 0) {
+        renderer.frame(dimmed ? dt * 3 : dt, world);
+      }
     }
-    if ((sound.consume(world.fx), (world.fx.length = 0), renderer && !(game.chooseShown || game.overShown))) {
+    sound.consume(world.fx);
+    world.fx.length = 0;
+    if (renderer && !(game.chooseShown || game.overShown)) {
       // 2.3.6: the "DRAG HERE TO MOVE" hints follow the input in use (like the coach texts since
       // 2.3.4); on a laptop with a touch screen they showed while playing with keys and mouse.
       let hints = !!game.tut && game.tut.step <= 1 && RL_INPUT.touch;
       overlay.draw(renderer, world, input, { hints: hints, dt: dt, safe: safeAreaInsets() });
     } else overlay.clear();
-    (ui.hud(world),
-      world.state === "choose" &&
-        !game.chooseShown &&
-        !game.overShown &&
-        ((game.chooseShown = !0), input.reset(), ui.showChoose(world)),
-      world.state === "dead" && world.stateT > 1.5 && !game.overShown && game.endRun(!1),
-      world.state === "victory" && world.stateT > 0.8 && !game.overShown && game.endRun(!0));
-  } else
-    (renderer &&
-      (menuFrame = (menuFrame + 1) & 1) === 0 &&
-      renderer.frame(dt, null, { menu: !0, weapon: game.previewW, biome: biomeList[menuBiomeIndex()] }),
-      overlay.clear());
+    ui.hud(world);
+    if (world.state === "choose" && !game.chooseShown && !game.overShown) {
+      game.chooseShown = true;
+      input.reset();
+      ui.showChoose(world);
+    }
+    if (world.state === "dead" && world.stateT > 1.5 && !game.overShown) {
+      game.endRun(false);
+    }
+    if (world.state === "victory" && world.stateT > 0.8 && !game.overShown) {
+      game.endRun(true);
+    }
+  } else {
+    if (renderer && (menuFrame = (menuFrame + 1) & 1) === 0) {
+      renderer.frame(dt, null, { menu: true, weapon: game.previewW, biome: biomeList[menuBiomeIndex()] });
+    }
+    overlay.clear();
+  }
 }
 function menuBiomeIndex() {
   let bestWave = store.data.stats.bestWave;
@@ -675,25 +814,39 @@ function handleWorldEvents(world) {
   // 2.5.0 D: find the title cards of this frame before the banners are shown
   let card = null,
     boss = null;
-  for (const ev of world.fx)
-    ev.k === "wave" && !ev.boss && (ev.n === 1 || world.biomeFor(ev.n - 1).id !== world.biomeFor(ev.n).id)
-      ? (card = ev)
-      : ev.k === "boss" && bossDefs[ev.id] && (boss = ev);
+  for (const ev of world.fx) {
+    if (ev.k === "wave" && !ev.boss && (ev.n === 1 || world.biomeFor(ev.n - 1).id !== world.biomeFor(ev.n).id)) {
+      card = ev;
+    } else {
+      if (ev.k === "boss" && bossDefs[ev.id]) {
+        boss = ev;
+      }
+    }
+  }
   // 2.5.0 B: the events of the new modules
-  for (const ev of world.fx)
-    ev.k === "kit"
-      ? ui.toast(`STARTER KIT · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good", 3200)
-      : ev.k === "barrier" && ui.banner("EMERGENCY SHIELD", "Hull critical — barrier up", "good", 1400);
+  for (const ev of world.fx) {
+    if (ev.k === "kit") {
+      ui.toast(`STARTER KIT · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good", 3200);
+    } else {
+      if (ev.k === "barrier") {
+        ui.banner("EMERGENCY SHIELD", "Hull critical — barrier up", "good", 1400);
+      }
+    }
+  }
   for (let ev of world.fx)
     switch (ev.k) {
       case "wave": {
-        ((store.data.run = world.snapshot()), store.save("wave"));
+        store.data.run = world.snapshot();
+        store.save("wave");
         let biome = world.biomeFor(ev.n);
-        renderer && renderer.resetCamera();
+        if (renderer) {
+          renderer.resetCamera();
+        }
         let newBiome = ev.n === 1 || world.biomeFor(ev.n - 1).id !== biome.id;
         if (ev.event) {
           let event = waveEvents[ev.event];
-          (ui.banner(event.name, `Wave ${ev.n} \xB7 ${event.desc}`, "good", 2600), sound.play("event"));
+          ui.banner(event.name, `Wave ${ev.n} \xB7 ${event.desc}`, "good", 2600);
+          sound.play("event");
         } else
           ui.banner(
             ev.boss ? "WARNING" : `WAVE ${ev.n}`,
@@ -701,47 +854,48 @@ function handleWorldEvents(world) {
             ev.boss ? "boss" : "",
             2e3,
           );
-        (!ev.boss &&
-          world.arena.vents.length &&
-          showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too."),
-          !ev.boss &&
-            world.arena.ice.length &&
-            showTipOnce(
-              "ice",
-              "Cryo Vault: the whole floor is slick, the ice sheets even more \u2014 enemies slide on them too.",
-            ),
-          !ev.boss &&
-            world.arena.acid.length &&
-            showTipOnce(
-              "acid",
-              "Acid pools eat at your hull \u2014 but enemies standing in them take 25% more damage.",
-            ),
-          !ev.boss &&
-            world.arena.portals.length &&
-            showTipOnce("portal", "Portals move you across the arena. Shots fly through them too."),
-          sound.setMusic(ev.boss ? "boss" : "fight", biome.id),
-          ev.n === 2 &&
-            showTipOnce(
-              "dash",
-              rlKeys()
-                ? "Tip: SPACE dashes \u2014 it makes you untouchable for a moment."
-                : "Tip: DASH makes you untouchable for a moment.",
-            ),
-          ev.n === 3 &&
-            showTipOnce(
-              "aim",
-              rlKeys()
-                ? "Tip: hold the left mouse button to aim and fire at the cursor."
-                : `Tip: drag the ${touchSides().aim} side to aim yourself. Holding it fires at the nearest enemy.`,
-            ));
+        if (!ev.boss && world.arena.vents.length) {
+          showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too.");
+        }
+        if (!ev.boss && world.arena.ice.length) {
+          showTipOnce(
+            "ice",
+            "Cryo Vault: the whole floor is slick, the ice sheets even more \u2014 enemies slide on them too.",
+          );
+        }
+        if (!ev.boss && world.arena.acid.length) {
+          showTipOnce("acid", "Acid pools eat at your hull \u2014 but enemies standing in them take 25% more damage.");
+        }
+        if (!ev.boss && world.arena.portals.length) {
+          showTipOnce("portal", "Portals move you across the arena. Shots fly through them too.");
+        }
+        sound.setMusic(ev.boss ? "boss" : "fight", biome.id);
+        if (ev.n === 2) {
+          showTipOnce(
+            "dash",
+            rlKeys()
+              ? "Tip: SPACE dashes \u2014 it makes you untouchable for a moment."
+              : "Tip: DASH makes you untouchable for a moment.",
+          );
+        }
+        if (ev.n === 3) {
+          showTipOnce(
+            "aim",
+            rlKeys()
+              ? "Tip: hold the left mouse button to aim and fire at the cursor."
+              : `Tip: drag the ${touchSides().aim} side to aim yourself. Holding it fires at the nearest enemy.`,
+          );
+        }
         break;
       }
       case "boss":
-        (ui.banner(ev.name, ev.title, "boss", 2600),
-          showTipOnce("boss", "Bosses telegraph every attack. Marked zones and lines hit hard \u2014 move out."),
-          world.boss &&
-            renderer &&
-            ((game.intro = { t: 0 }), renderer.focusOn(world.boss.x, world.boss.y), input.settle()));
+        ui.banner(ev.name, ev.title, "boss", 2600);
+        showTipOnce("boss", "Bosses telegraph every attack. Marked zones and lines hit hard \u2014 move out.");
+        if (world.boss && renderer) {
+          game.intro = { t: 0 };
+          renderer.focusOn(world.boss.x, world.boss.y);
+          input.settle();
+        }
         break;
       case "novaReady":
         showTipOnce(
@@ -752,31 +906,39 @@ function handleWorldEvents(world) {
         );
         break;
       case "cleared":
-        (ui.banner(ev.boss ? "BOSS DOWN" : "CLEARED", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500),
-          ev.boss || (game.slowMo = Math.max(game.slowMo, 0.45)));
+        ui.banner(ev.boss ? "BOSS DOWN" : "CLEARED", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
+        if (!ev.boss) {
+          game.slowMo = Math.max(game.slowMo, 0.45);
+        }
         break;
       case "hurt":
-        ev.chip || (ui.hurtFlash(), overlay.addHurt(world, ev.sx, ev.sy), hitStop(0.06));
+        if (!ev.chip) {
+          ui.hurtFlash();
+          overlay.addHurt(world, ev.sx, ev.sy);
+          hitStop(0.06);
+        }
         break;
       case "champion":
-        (ui.banner(
+        ui.banner(
           "CHAMPION",
           `A ${enemyDefs[ev.type].name} leads the pack \u2014 its allies move faster`,
           "warn",
           2200,
-        ),
-          showTipOnce("champion", "Champions rally nearby enemies. Take one down and the pack is stunned."));
+        );
+        showTipOnce("champion", "Champions rally nearby enemies. Take one down and the pack is stunned.");
         break;
       case "championDown":
-        (ui.banner("CHAMPION DOWN", "The pack is stunned", "good", 1400),
-          (game.slowMo = Math.max(game.slowMo, 0.5)),
-          hitStop(0.08));
+        ui.banner("CHAMPION DOWN", "The pack is stunned", "good", 1400);
+        game.slowMo = Math.max(game.slowMo, 0.5);
+        hitStop(0.08);
         break;
       case "mend":
         showTipOnce("mender", "Menders heal other enemies. Kill them first.");
         break;
       case "kill":
-        (ev.elite || ev.r >= 0.8) && hitStop(ev.elite ? 0.05 : 0.025);
+        if (ev.elite || ev.r >= 0.8) {
+          hitStop(ev.elite ? 0.05 : 0.025);
+        }
         break;
       case "nova":
         hitStop(0.08);
@@ -788,7 +950,8 @@ function handleWorldEvents(world) {
         overlay.callout(ev.atk);
         break;
       case "offer":
-        ((store.data.run = world.snapshot()), store.save("offer"));
+        store.data.run = world.snapshot();
+        store.save("offer");
         break;
       case "combo":
         ui.comboPop(ev.n, ev.bonus);
@@ -797,10 +960,14 @@ function handleWorldEvents(world) {
         ui.toast(`BOUNTY · +${ev.amount} shards`, "good", 1500);
         break;
       case "pick":
-        ev.evo && ui.banner("EVOLVED", upgradesById[ev.id].name, "good", 1800);
+        if (ev.evo) {
+          ui.banner("EVOLVED", upgradesById[ev.id].name, "good", 1800);
+        }
         break;
       case "dash":
-        game.tut && (game.tut.dashed = !0);
+        if (game.tut) {
+          game.tut.dashed = true;
+        }
         break;
       case "enrage":
         ui.banner("ENRAGED", "", "warn", 1400);
@@ -825,9 +992,13 @@ function handleWorldEvents(world) {
   try {
     if (card) {
       ui.biomeCard(world.biomeFor(card.n), card.n);
-      ((cardWave = card.n), (cardEvent = (card.event && waveEvents[card.event]) || null));
+      cardWave = card.n;
+      cardEvent = (card.event && waveEvents[card.event]) || null;
     }
-    boss && (ui.markSeen(["boss_" + boss.id]), ui.bossCard(boss.id, world.biomeFor(world.wave)));
+    if (boss) {
+      ui.markSeen(["boss_" + boss.id]);
+      ui.bossCard(boss.id, world.biomeFor(world.wave));
+    }
     // the biome card stays for the first 1.6 s of its wave (game time), the boss card for the
     // camera pan; then they fade. An event of the biome's first wave is announced after the card.
     const hold = ui.cardHold;
@@ -838,7 +1009,7 @@ function handleWorldEvents(world) {
       ui.releaseTitleCard();
       const ev = hold.kind === "biome" && world.wave === cardWave && world.state === "fight" && cardEvent;
       const wave = cardWave;
-      ev &&
+      if (ev) {
         setTimeout(
           () =>
             game.world === world &&
@@ -848,7 +1019,10 @@ function handleWorldEvents(world) {
             ui.banner(ev.name, `Wave ${wave} \xB7 ${ev.desc}`, "good", 2600),
           450,
         );
-      hold.kind === "biome" && (cardEvent = null);
+      }
+      if (hold.kind === "biome") {
+        cardEvent = null;
+      }
     }
   } catch (err) {
     logError("titlecard", err);
@@ -857,18 +1031,28 @@ function handleWorldEvents(world) {
 var BOSS_INTRO_TIME = 1.5;
 function updateBossIntro(dt, world) {
   let intro = game.intro;
-  ((intro.t += dt),
-    renderer && (renderer.focusK = intro.t / BOSS_INTRO_TIME),
-    (intro.t >= BOSS_INTRO_TIME || !world.boss) &&
-      ((game.intro = null),
-      renderer && renderer.focusOn(null),
-      world.boss && (world.boss.spawnT = Math.min(world.boss.spawnT, 0.1)),
-      input.settle(),
-      (game.acc = 0)));
+  intro.t += dt;
+  if (renderer) {
+    renderer.focusK = intro.t / BOSS_INTRO_TIME;
+  }
+  if (intro.t >= BOSS_INTRO_TIME || !world.boss) {
+    game.intro = null;
+    if (renderer) {
+      renderer.focusOn(null);
+    }
+    if (world.boss) {
+      world.boss.spawnT = Math.min(world.boss.spawnT, 0.1);
+    }
+    input.settle();
+    game.acc = 0;
+  }
 }
 function hitStop(duration) {
   let now = performance.now();
-  now - (game.lastStop || 0) < 180 || ((game.lastStop = now), (game.freeze = Math.max(game.freeze || 0, duration)));
+  if (!(now - (game.lastStop || 0) < 180)) {
+    game.lastStop = now;
+    game.freeze = Math.max(game.freeze || 0, duration);
+  }
 }
 var heartbeatTimer = 0;
 function updateHeartbeat(dt, world) {
@@ -877,7 +1061,11 @@ function updateHeartbeat(dt, world) {
     heartbeatTimer = 0;
     return;
   }
-  ((heartbeatTimer -= dt), heartbeatTimer <= 0 && ((heartbeatTimer = 0.95), sound.play("heart")));
+  heartbeatTimer -= dt;
+  if (heartbeatTimer <= 0) {
+    heartbeatTimer = 0.95;
+    sound.play("heart");
+  }
 }
 var touchSides = () => (store.data.settings.swap ? { move: "right", aim: "left" } : { move: "left", aim: "right" }),
   // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"), which do nothing
@@ -897,21 +1085,46 @@ var touchSides = () => (store.data.settings.swap ? { move: "right", aim: "left" 
 function updateTutorial(dt, world) {
   let tut = game.tut;
   if (tut) {
-    if (
-      ((tut.t += dt),
-      tut.step === 0
-        ? (Math.hypot(world.player.vx, world.player.vy) > 2 && (tut.moved += dt),
-          (tut.moved > 1.1 || tut.t > 12) && ((tut.step = 1), (tut.t = 0), (world.hold = !1), (tut.k0 = world.kills)))
-        : tut.step === 1
-          ? (world.kills - tut.k0 >= 4 || tut.t > 20) && ((tut.step = 2), (tut.t = 0), (tut.dashed = !1))
-          : tut.step === 2
-            ? (tut.dashed || tut.t > 14) && ((tut.step = 3), (tut.t = 0))
-            : tut.step === 3 && tut.t > 5 && (tut.step = 4),
-      tut.step >= 4 || world.state !== "fight")
-    ) {
-      ((game.tut = null), (world.hold = !1), ui.coach(null));
+    tut.t += dt;
+    if (tut.step === 0) {
+      if (Math.hypot(world.player.vx, world.player.vy) > 2) {
+        tut.moved += dt;
+      }
+      if (tut.moved > 1.1 || tut.t > 12) {
+        tut.step = 1;
+        tut.t = 0;
+        world.hold = false;
+        tut.k0 = world.kills;
+      }
+    } else {
+      if (tut.step === 1) {
+        if (world.kills - tut.k0 >= 4 || tut.t > 20) {
+          tut.step = 2;
+          tut.t = 0;
+          tut.dashed = false;
+        }
+      } else {
+        if (tut.step === 2) {
+          if (tut.dashed || tut.t > 14) {
+            tut.step = 3;
+            tut.t = 0;
+          }
+        } else {
+          if (tut.step === 3 && tut.t > 5) {
+            tut.step = 4;
+          }
+        }
+      }
+    }
+    if (tut.step >= 4 || world.state !== "fight") {
+      game.tut = null;
+      world.hold = false;
+      ui.coach(null);
       let seen = store.data.seen;
-      ((seen.tutorial = !0), (seen.tip_dash = !0), (seen.tip_aim = !0), store.save("tutorial"));
+      seen.tutorial = true;
+      seen.tip_dash = true;
+      seen.tip_aim = true;
+      store.save("tutorial");
       return;
     }
     ui.coach(tut.step, tutorialTexts.length, tutorialTexts[tut.step]());
@@ -919,7 +1132,11 @@ function updateTutorial(dt, world) {
 }
 function showTipOnce(key, text) {
   let seen = store.data.seen;
-  seen["tip_" + key] || ((seen["tip_" + key] = !0), store.save("tip"), ui.toast(text, "", 5200));
+  if (!seen["tip_" + key]) {
+    seen["tip_" + key] = true;
+    store.save("tip");
+    ui.toast(text, "", 5200);
+  }
 }
 // 2.4.2: Auto quality also steps back up. Before, two slow windows (a stutter at the start of
 // a run is enough) lowered the resolution until the next reload. It now rises again one step
@@ -933,18 +1150,28 @@ function updateAutoQuality(dt, settings) {
   if (settings.quality !== "auto" || !renderer || ((fpsWindowTime += dt), fpsWindowFrames++, fpsWindowTime < 2.5))
     return;
   let fps = fpsWindowFrames / fpsWindowTime;
-  ((fpsWindowTime = 0),
-    (fpsWindowFrames = 0),
-    fps < 48 ? slowWindowCount++ : (slowWindowCount = Math.max(0, slowWindowCount - 1)),
-    (rlQUp = fps >= 57 ? rlQUp + 1 : 0));
+  fpsWindowTime = 0;
+  fpsWindowFrames = 0;
+  if (fps < 48) {
+    slowWindowCount++;
+  } else {
+    slowWindowCount = Math.max(0, slowWindowCount - 1);
+  }
+  rlQUp = fps >= 57 ? rlQUp + 1 : 0;
   if (slowWindowCount >= 2 && autoDpr > 1) {
-    (rlQLeft[autoDpr] && (rlQCeil = Math.min(rlQCeil, autoDpr - 0.25)), (rlQLeft[autoDpr] = !0));
-    ((autoDpr = Math.max(1, autoDpr - 0.25)),
-      (slowWindowCount = 0),
-      (rlQUp = 0),
-      renderer.setQuality(autoDpr, rlQParticles(autoDpr)));
+    if (rlQLeft[autoDpr]) {
+      rlQCeil = Math.min(rlQCeil, autoDpr - 0.25);
+    }
+    rlQLeft[autoDpr] = true;
+    autoDpr = Math.max(1, autoDpr - 0.25);
+    slowWindowCount = 0;
+    rlQUp = 0;
+    renderer.setQuality(autoDpr, rlQParticles(autoDpr));
   } else if (rlQUp >= 8 && autoDpr + 0.25 <= rlQCeil) {
-    ((autoDpr += 0.25), (rlQUp = 0), (slowWindowCount = 0), renderer.setQuality(autoDpr, rlQParticles(autoDpr)));
+    autoDpr += 0.25;
+    rlQUp = 0;
+    slowWindowCount = 0;
+    renderer.setQuality(autoDpr, rlQParticles(autoDpr));
   }
 }
 function safeAreaInsets() {
@@ -953,31 +1180,44 @@ function safeAreaInsets() {
   return { t: read("--st"), b: read("--sb"), l: read("--sl"), r: read("--sr") };
 }
 document.addEventListener("visibilitychange", () => {
-  document.visibilityState === "hidden"
-    ? (game.mode === "game" && game.pause(), store.save("hidden"), sound.suspend())
-    : (sound.resume(), (game.last = performance.now()));
+  if (document.visibilityState === "hidden") {
+    if (game.mode === "game") {
+      game.pause();
+    }
+    store.save("hidden");
+    sound.suspend();
+  } else {
+    sound.resume();
+    game.last = performance.now();
+  }
 });
 window.addEventListener("pagehide", () => {
-  (input.reset(!0), store.save("pagehide"));
+  input.reset(true);
+  store.save("pagehide");
 });
 window.addEventListener("pageshow", () => {
-  (input.reset(!0), _scheduleResize("pageshow"));
+  input.reset(true);
+  _scheduleResize("pageshow");
 });
 var unlockAudio = () => {
-  (sound.unlock(), sound.mode === "off" && game.mode === "menu" && sound.setMusic("menu"));
+  sound.unlock();
+  if (sound.mode === "off" && game.mode === "menu") {
+    sound.setMusic("menu");
+  }
 };
 for (let type of ["pointerdown", "keydown", "click"])
-  document.addEventListener(type, unlockAudio, { capture: !0, passive: !0 });
+  document.addEventListener(type, unlockAudio, { capture: true, passive: true });
 document.addEventListener("gesturestart", (ev) => ev.preventDefault());
-document.addEventListener("dblclick", (ev) => ev.preventDefault(), { passive: !1 });
+document.addEventListener("dblclick", (ev) => ev.preventDefault(), { passive: false });
 document.addEventListener(
   "touchmove",
   (ev) => {
     let target = ev.target;
-    (target && target.closest && target.closest(".scroll, .cards, .center-col, textarea, input, .log")) ||
+    if (!(target && target.closest && target.closest(".scroll, .cards, .center-col, textarea, input, .log"))) {
       ev.preventDefault();
+    }
   },
-  { passive: !1 },
+  { passive: false },
 );
 
 /* v1.6.0 merged polish: save backup + tutorial replay (the run metrics are in GameUI.renderRunExtra) */
@@ -1054,9 +1294,11 @@ document.addEventListener(
   var shareBtn = getById("shareBtn");
   var restoreBtn = getById("restoreBtn");
   var replayTutBtn = getById("replayTutBtn");
-  backupBtn && backupBtn.addEventListener("click", exportSave);
+  if (backupBtn) {
+    backupBtn.addEventListener("click", exportSave);
+  }
   if (shareBtn && !navigator.share) shareBtn.hidden = true;
-  shareBtn &&
+  if (shareBtn) {
     shareBtn.addEventListener("click", async function () {
       var value = makeBackup();
       try {
@@ -1066,8 +1308,11 @@ document.addEventListener(
         if (err && err.name !== "AbortError") ui.toast("Share failed — use Export instead");
       }
     });
-  restoreBtn && restoreBtn.addEventListener("click", importSave);
-  replayTutBtn &&
+  }
+  if (restoreBtn) {
+    restoreBtn.addEventListener("click", importSave);
+  }
+  if (replayTutBtn) {
     replayTutBtn.addEventListener("click", async function () {
       var ok = await ui.confirm(
         "Replay tutorial?",
@@ -1079,6 +1324,7 @@ document.addEventListener(
       store.save("tutorial-replay");
       ui.toast("Tutorial queued for your next fresh run", "good", 2800);
     });
+  }
 })();
 // 2.4.0: say once that the retired weapons of an old save were converted.
 function rlRetireToast() {
@@ -1119,7 +1365,7 @@ function rlRetireToast() {
         ev.stopImmediatePropagation();
       }
     },
-    !0,
+    true,
   );
 })();
 /* ==========================================================================
@@ -1138,14 +1384,14 @@ function rlRetireToast() {
   // ---- settle a lost or won run before the page goes away
   const settle = () => {
     const world = game.world;
-    game.mode !== "game" ||
-      !world ||
-      game.overShown ||
-      (world.state !== "dead" && world.state !== "victory") ||
+    if (!(game.mode !== "game" || !world || game.overShown || (world.state !== "dead" && world.state !== "victory"))) {
       game.endRun(world.state === "victory");
+    }
   };
   document.addEventListener("visibilitychange", () => {
-    document.visibilityState === "hidden" && settle();
+    if (document.visibilityState === "hidden") {
+      settle();
+    }
   });
   window.addEventListener("pagehide", settle);
 
@@ -1176,24 +1422,27 @@ function rlRetireToast() {
     ["setFps", "fps"],
   ])
     getById(id).addEventListener("change", () => {
-      ((store.data.settings[key] = getById(id).checked), game.settingsChanged());
+      store.data.settings[key] = getById(id).checked;
+      game.settingsChanged();
     });
 })();
 applySettings();
 ui.show("home");
 setTimeout(rlRetireToast, 700);
 setTimeout(() => rlRunHealth({ context: "startup" }).catch((err) => logError("health", err)), 900);
-renderer
-  ? startLoop()
-  : ((elementById("playBtn").disabled = !0),
-    (elementById("continueBtn").disabled = !0),
-    (elementById("playBtn").title = "3D graphics unavailable — enable hardware acceleration and reload to play."),
-    (elementById("continueBtn").title = "3D graphics unavailable — enable hardware acceleration and reload to play."),
-    ui.toast(
-      "3D graphics unavailable. The menu remains usable; enable hardware acceleration and reload to play.",
-      "warn",
-      9000,
-    ));
+if (renderer) {
+  startLoop();
+} else {
+  elementById("playBtn").disabled = true;
+  elementById("continueBtn").disabled = true;
+  elementById("playBtn").title = "3D graphics unavailable — enable hardware acceleration and reload to play.";
+  elementById("continueBtn").title = "3D graphics unavailable — enable hardware acceleration and reload to play.";
+  ui.toast(
+    "3D graphics unavailable. The menu remains usable; enable hardware acceleration and reload to play.",
+    "warn",
+    9000,
+  );
+}
 // 2.4.6: no "New version ready" bar any more. A downloaded update is applied on its own when no run
 // is going on: right away while the game is still starting (that is the next opening), otherwise
 // as soon as the player is back in the menu after a run or hides the page while in the menu. A
@@ -1203,13 +1452,18 @@ function rlApplyUpdateWhenIdle(why) {
   if (!game.pendingUpdate || game.mode !== "menu" || game.world) return;
   if (why === "found" && performance.now() - rlBootAt > 10e3) return; // not while someone is looking
   const apply = game.pendingUpdate;
-  ((game.pendingUpdate = null), store.save("update"), apply());
+  game.pendingUpdate = null;
+  store.save("update");
+  apply();
 }
 registerServiceWorker((apply) => {
-  ((game.pendingUpdate = apply), rlApplyUpdateWhenIdle("found"));
+  game.pendingUpdate = apply;
+  rlApplyUpdateWhenIdle("found");
 });
 document.addEventListener("visibilitychange", () => {
-  document.visibilityState === "hidden" && rlApplyUpdateWhenIdle("hidden");
+  if (document.visibilityState === "hidden") {
+    rlApplyUpdateWhenIdle("hidden");
+  }
 });
 // The keys keep the short names of the original bundle (Aa, nr, ue, data.Zi …) because the test
 // scripts in tests/ read them; the values are the renamed bindings (2.4.5).
@@ -1308,7 +1562,9 @@ function rlModuleToast() {
 }
 setTimeout(rlModuleToast, 1100);
 store.onChange((json, why) => {
-  why === "import" && RL_MODULE_NOTE && setTimeout(rlModuleToast, 300);
+  if (why === "import" && RL_MODULE_NOTE) {
+    setTimeout(rlModuleToast, 300);
+  }
 });
 window.__riftTest.v250B = { migrateModules: rlMigrateModules };
 

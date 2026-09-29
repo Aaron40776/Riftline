@@ -10,45 +10,52 @@ import { getById } from "./ui.js";
 var RL_INPUT = { touch: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches };
 var Input = class {
   constructor(layer, renderer) {
-    ((this.layer = layer),
-      (this.r = renderer),
-      (this.move = newStick()),
-      (this.aim = newStick()),
-      (this.keys = new Set()),
-      (this.mouse = { x: 0, y: 0, down: !1, active: !1, t: 0 }),
-      (this.pending = { dash: !1, nova: !1 }),
-      (this.swap = !1),
-      (this.R = 56),
-      (this.enabled = !0),
-      (this.onPause = null),
-      (this.isPlaying = null),
-      (this.usedMove = !1),
-      (this.usedAim = !1),
-      this.bind());
+    this.layer = layer;
+    this.r = renderer;
+    this.move = newStick();
+    this.aim = newStick();
+    this.keys = new Set();
+    this.mouse = { x: 0, y: 0, down: false, active: false, t: 0 };
+    this.pending = { dash: false, nova: false };
+    this.swap = false;
+    this.R = 56;
+    this.enabled = true;
+    this.onPause = null;
+    this.isPlaying = null;
+    this.usedMove = false;
+    this.usedAim = false;
+    this.bind();
   }
   bind() {
     let layer = this.layer;
-    (layer.addEventListener("pointerdown", (ev) => this.down(ev)),
-      layer.addEventListener("onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove", (ev) =>
-        this.moveEv(ev),
-      ),
-      layer.addEventListener("pointerup", (ev) => this.up(ev)),
-      layer.addEventListener("pointercancel", (ev) => this.cancel(ev)),
-      layer.addEventListener("lostpointercapture", (ev) => this.cancel(ev)),
-      layer.addEventListener("contextmenu", (ev) => ev.preventDefault()),
-      window.addEventListener("keydown", (ev) => this.key(ev, !0)),
-      window.addEventListener("keyup", (ev) => this.key(ev, !1)),
-      window.addEventListener("blur", () => {
-        (this.reset(!0), this.onBlur && this.onBlur());
-      }),
-      window.addEventListener("mousemove", (ev) => {
-        (Number.isFinite(ev.clientX) && (this.mouse.x = ev.clientX),
-          Number.isFinite(ev.clientY) && (this.mouse.y = ev.clientY),
-          (this.mouse.t = performance.now()));
-      }),
-      window.addEventListener("mouseup", () => {
-        this.mouse.down = !1;
-      }));
+    layer.addEventListener("pointerdown", (ev) => this.down(ev));
+    layer.addEventListener("onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove", (ev) =>
+      this.moveEv(ev),
+    );
+    layer.addEventListener("pointerup", (ev) => this.up(ev));
+    layer.addEventListener("pointercancel", (ev) => this.cancel(ev));
+    layer.addEventListener("lostpointercapture", (ev) => this.cancel(ev));
+    layer.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    window.addEventListener("keydown", (ev) => this.key(ev, true));
+    window.addEventListener("keyup", (ev) => this.key(ev, false));
+    window.addEventListener("blur", () => {
+      this.reset(true);
+      if (this.onBlur) {
+        this.onBlur();
+      }
+    });
+    window.addEventListener("mousemove", (ev) => {
+      if (Number.isFinite(ev.clientX)) {
+        this.mouse.x = ev.clientX;
+      }
+      if (Number.isFinite(ev.clientY)) {
+        this.mouse.y = ev.clientY;
+      }
+      this.mouse.t = performance.now();
+    });
+    window.addEventListener("mouseup", () => {
+      this.mouse.down = false;
+    });
   }
   zoneIsMove(x) {
     let rect = this.layer.getBoundingClientRect(),
@@ -60,10 +67,14 @@ var Input = class {
     RL_RT.pointerdown++;
     RL_INPUT.touch = ev.pointerType !== "mouse";
     if (!this.enabled) return;
-    if ((ev.preventDefault(), ev.pointerType === "mouse")) {
-      (ev.button === 0 && ((this.mouse.down = !0), (this.mouse.active = !0)),
-        (this.mouse.x = ev.clientX),
-        (this.mouse.y = ev.clientY));
+    ev.preventDefault();
+    if (ev.pointerType === "mouse") {
+      if (ev.button === 0) {
+        this.mouse.down = true;
+        this.mouse.active = true;
+      }
+      this.mouse.x = ev.clientX;
+      this.mouse.y = ev.clientY;
       return;
     }
     let isMove = this.zoneIsMove(ev.clientX),
@@ -77,13 +88,13 @@ var Input = class {
     // 2.4.0: a double tap on the move side no longer dashes; the DASH button (and Space or
     // Shift on a keyboard) does.
     let now = performance.now();
-    ((stick.active = !0),
-      (stick.id = ev.pointerId),
-      (stick.moved = 0),
-      (stick.lastEv = now),
-      (stick.ox = stick.x = ev.clientX),
-      (stick.oy = stick.y = ev.clientY),
-      (stick.t = performance.now()));
+    stick.active = true;
+    stick.id = ev.pointerId;
+    stick.moved = 0;
+    stick.lastEv = now;
+    stick.ox = stick.x = ev.clientX;
+    stick.oy = stick.y = ev.clientY;
+    stick.t = performance.now();
     try {
       this.layer.setPointerCapture(ev.pointerId);
     } catch {}
@@ -91,11 +102,15 @@ var Input = class {
   moveEv(ev) {
     RL_RT.pointermove++;
     if (ev.pointerType === "mouse") {
-      (Number.isFinite(ev.clientX) && (this.mouse.x = ev.clientX),
-        Number.isFinite(ev.clientY) && (this.mouse.y = ev.clientY),
-        (this.mouse.active = !0),
-        (this.mouse.t = performance.now()),
-        (RL_INPUT.touch = !1));
+      if (Number.isFinite(ev.clientX)) {
+        this.mouse.x = ev.clientX;
+      }
+      if (Number.isFinite(ev.clientY)) {
+        this.mouse.y = ev.clientY;
+      }
+      this.mouse.active = true;
+      this.mouse.t = performance.now();
+      RL_INPUT.touch = false;
       return;
     }
     let coalesced = ev.getCoalescedEvents ? ev.getCoalescedEvents() : null,
@@ -105,32 +120,44 @@ var Input = class {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     for (let stick of [this.move, this.aim]) {
       if (!stick.active || stick.id !== last.pointerId) continue;
-      ((stick.lastEv = performance.now()),
-        (stick.x = x),
-        (stick.y = y),
-        (stick.moved = Math.max(stick.moved || 0, Math.hypot(stick.x - stick.ox, stick.y - stick.oy))));
+      stick.lastEv = performance.now();
+      stick.x = x;
+      stick.y = y;
+      stick.moved = Math.max(stick.moved || 0, Math.hypot(stick.x - stick.ox, stick.y - stick.oy));
       let dx = stick.x - stick.ox,
         dy = stick.y - stick.oy,
         dist = Math.hypot(dx, dy),
         maxDist = this.R * 1.25;
-      dist > maxDist && ((stick.ox = stick.x - (dx / dist) * maxDist), (stick.oy = stick.y - (dy / dist) * maxDist));
+      if (dist > maxDist) {
+        stick.ox = stick.x - (dx / dist) * maxDist;
+        stick.oy = stick.y - (dy / dist) * maxDist;
+      }
     }
   }
   up(ev) {
     RL_RT.pointerup++;
     if (ev.pointerType === "mouse") {
-      this.mouse.down = !1;
+      this.mouse.down = false;
       return;
     }
-    for (let stick of [this.move, this.aim]) !stick.active || stick.id !== ev.pointerId || (stick.active = !1);
+    for (let stick of [this.move, this.aim]) {
+      if (!(!stick.active || stick.id !== ev.pointerId)) {
+        stick.active = false;
+      }
+    }
   }
   cancel(ev) {
     RL_RT.pointercancel++;
     if (ev.pointerType === "mouse") {
-      ((this.mouse.down = !1), (this.mouse.active = !1));
+      this.mouse.down = false;
+      this.mouse.active = false;
       return;
     }
-    for (let stick of [this.move, this.aim]) !stick.active || stick.id !== ev.pointerId || (stick.active = !1);
+    for (let stick of [this.move, this.aim]) {
+      if (!(!stick.active || stick.id !== ev.pointerId)) {
+        stick.active = false;
+      }
+    }
   }
   key(ev, down) {
     // 2.4.2: letters are read by their position on the keyboard (ev.code), so W A S D, E, Q and F
@@ -149,32 +176,59 @@ var Input = class {
       tag === "INPUT" &&
       /^(checkbox|range|radio)$/.test(ev.target.type)
     ) {
-      (ev.target.blur(), this.onPause && this.onPause());
+      ev.target.blur();
+      if (this.onPause) {
+        this.onPause();
+      }
       return;
     }
-    down ? RL_RT.keydown++ : RL_RT.keyup++;
+    if (down) {
+      RL_RT.keydown++;
+    } else {
+      RL_RT.keyup++;
+    }
     const name = this._rlKey;
     if (!name) return;
     // 2.3.6: a released key always counts as released, even when a text field has focus.
-    down || this.keys.delete(name);
+    if (!down) {
+      this.keys.delete(name);
+    }
     if (!(tag === "INPUT" || tag === "TEXTAREA")) {
-      down && (RL_INPUT.touch = !1);
+      if (down) {
+        RL_INPUT.touch = false;
+      }
       if (down && (name === "escape" || name === "p")) {
-        !ev.repeat && this.onPause && this.onPause();
+        if (!ev.repeat && this.onPause) {
+          this.onPause();
+        }
         return;
       }
-      (name === " " && this.isPlaying && this.isPlaying() && ev.preventDefault(),
-        down && !ev.repeat && (name === " " || name === "shift") && (this.pending.dash = !0),
-        down &&
-          !ev.repeat &&
-          (name === "e" || name === "q" || name === "f") &&
-          ((this.pending.nova = !0), ev.preventDefault()),
-        ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(name) &&
-          (down ? this.keys.add(name) : this.keys.delete(name), down && ev.preventDefault()));
+      if (name === " " && this.isPlaying && this.isPlaying()) {
+        ev.preventDefault();
+      }
+      if (down && !ev.repeat && (name === " " || name === "shift")) {
+        this.pending.dash = true;
+      }
+      if (down && !ev.repeat && (name === "e" || name === "q" || name === "f")) {
+        this.pending.nova = true;
+        ev.preventDefault();
+      }
+      if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(name)) {
+        if (down) {
+          this.keys.add(name);
+        } else {
+          this.keys.delete(name);
+        }
+        if (down) {
+          ev.preventDefault();
+        }
+      }
     }
   }
   press(action) {
-    this.enabled && (this.pending[action] = !0);
+    if (this.enabled) {
+      this.pending[action] = true;
+    }
   }
   // 2.3.6: held keys survive a reset (pause, upgrade pick, resize): keyup events keep arriving,
   // so W A S D stay correct. Before, holding W+D through a reset left only the key that
@@ -187,19 +241,22 @@ var Input = class {
         try {
           this.layer.releasePointerCapture(stick.id);
         } catch {}
-    ((this.move.active = !1),
-      (this.aim.active = !1),
-      all && this.keys.clear(),
-      (this.mouse.down = !1),
-      (this.mouse.active = !1),
-      (this.pending.dash = !1),
-      (this.pending.nova = !1));
+    this.move.active = false;
+    this.aim.active = false;
+    if (all) {
+      this.keys.clear();
+    }
+    this.mouse.down = false;
+    this.mouse.active = false;
+    this.pending.dash = false;
+    this.pending.nova = false;
   }
   // 2.3.6: for the camera pan to a new boss. It dropped every input, so a finger held on the
   // move side did nothing after the pan until it was lifted, and held keys stopped. Now only
   // one-shot presses made during the pan (dash, nova) are dropped.
   settle() {
-    ((this.pending.dash = !1), (this.pending.nova = !1));
+    this.pending.dash = false;
+    this.pending.nova = false;
   }
   sample(world, settings) {
     let radius = (this.R = clamp(Math.min(window.innerWidth, window.innerHeight) * 0.14, 44, 72)),
@@ -212,23 +269,39 @@ var Input = class {
         dead = radius * 0.12;
       if (dist > dead) {
         let k = clamp((dist - dead) / (radius - dead), 0, 1);
-        ((mx = (dx / dist) * k), (my = (dy / dist) * k), (this.usedMove = !0));
+        mx = (dx / dist) * k;
+        my = (dy / dist) * k;
+        this.usedMove = true;
       }
     }
     let keys = this.keys;
-    ((keys.has("a") || keys.has("arrowleft")) && (mx -= 1),
-      (keys.has("d") || keys.has("arrowright")) && (mx += 1),
-      (keys.has("w") || keys.has("arrowup")) && (my -= 1),
-      (keys.has("s") || keys.has("arrowdown")) && (my += 1));
+    if (keys.has("a") || keys.has("arrowleft")) {
+      mx -= 1;
+    }
+    if (keys.has("d") || keys.has("arrowright")) {
+      mx += 1;
+    }
+    if (keys.has("w") || keys.has("arrowup")) {
+      my -= 1;
+    }
+    if (keys.has("s") || keys.has("arrowdown")) {
+      my += 1;
+    }
     let ax = 0,
       ay = 0,
-      aim = !1,
-      fire = !1;
+      aim = false,
+      fire = false;
     if (this.aim.active) {
       let dx = this.aim.x - this.aim.ox,
         dy = this.aim.y - this.aim.oy,
         dist = Math.hypot(dx, dy);
-      ((fire = !0), dist > radius * 0.22 && ((ax = dx / dist), (ay = dy / dist), (aim = !0), (this.usedAim = !0)));
+      fire = true;
+      if (dist > radius * 0.22) {
+        ax = dx / dist;
+        ay = dy / dist;
+        aim = true;
+        this.usedAim = true;
+      }
     }
     let mouseRecent = performance.now() - this.mouse.t < 2500;
     if (
@@ -242,9 +315,16 @@ var Input = class {
         let dx = ground.x - world.player.x,
           dy = ground.y - world.player.y,
           dist = Math.hypot(dx, dy);
-        dist > 0.3 && ((ax = dx / dist), (ay = dy / dist), (aim = !0));
+        if (dist > 0.3) {
+          ax = dx / dist;
+          ay = dy / dist;
+          aim = true;
+        }
       }
-      ((fire = this.mouse.down), fire || (aim = !1));
+      fire = this.mouse.down;
+      if (!fire) {
+        aim = false;
+      }
     }
     let out = {
       mx,
@@ -253,31 +333,37 @@ var Input = class {
       ay,
       aim,
       fire,
-      auto: settings.autoFire !== !1,
-      assist: settings.assist !== !1,
+      auto: settings.autoFire !== false,
+      assist: settings.assist !== false,
       dash: this.pending.dash,
       nova: this.pending.nova,
     };
-    return ((this.pending.dash = !1), (this.pending.nova = !1), out);
+    this.pending.dash = false;
+    this.pending.nova = false;
+    return out;
   }
 };
 // 2.4.2: keys 1–4 pick an upgrade card and R rerolls while the upgrade choice is open
 function chooseKey(code, key) {
-  if (!game.chooseShown || game.overShown || !getById("dialog").hidden || getById("choose").hidden) return !1;
+  if (!game.chooseShown || game.overShown || !getById("dialog").hidden || getById("choose").hidden) return false;
   const match = /^(?:Digit|Numpad)([1-4])$/.exec(code) || /^([1-4])$/.exec(key);
   if (match) {
     const card = getById("cards").querySelectorAll("[data-pick]")[+match[1] - 1];
-    card && !getById("cards").classList.contains("locked") && game.choose(card.dataset.pick);
-    return !0;
+    if (card && !getById("cards").classList.contains("locked")) {
+      game.choose(card.dataset.pick);
+    }
+    return true;
   }
   if (key === "r") {
-    getById("rerollBtn").disabled || game.reroll();
-    return !0;
+    if (!getById("rerollBtn").disabled) {
+      game.reroll();
+    }
+    return true;
   }
-  return !1;
+  return false;
 }
 function newStick() {
-  return { active: !1, id: -1, ox: 0, oy: 0, x: 0, y: 0, t: 0 };
+  return { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, t: 0 };
 }
 
 export { Input, RL_INPUT };

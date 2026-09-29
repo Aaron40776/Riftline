@@ -305,7 +305,7 @@ var RL_MESH_TYPES = [
   "beacon",
   "weaver",
 ];
-function mergeGeometries(geometries, useGroups = !1) {
+function mergeGeometries(geometries, useGroups = false) {
   let isIndexed = geometries[0].index !== null,
     attributesUsed = new Set(Object.keys(geometries[0].attributes)),
     morphAttributesUsed = new Set(Object.keys(geometries[0].morphAttributes)),
@@ -317,76 +317,75 @@ function mergeGeometries(geometries, useGroups = !1) {
   for (let i = 0; i < geometries.length; ++i) {
     let geometry = geometries[i],
       attributesCount = 0;
-    if (isIndexed !== (geometry.index !== null))
-      return (
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-            i +
-            ". All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.",
-        ),
-        null
+    if (isIndexed !== (geometry.index !== null)) {
+      console.error(
+        "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+          i +
+          ". All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.",
       );
-    for (let name in geometry.attributes) {
-      if (!attributesUsed.has(name))
-        return (
-          console.error(
-            "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-              i +
-              '. All geometries must have compatible attributes; make sure "' +
-              name +
-              '" attribute exists among all geometries, or in none of them.',
-          ),
-          null
-        );
-      (attributes[name] === void 0 && (attributes[name] = []),
-        attributes[name].push(geometry.attributes[name]),
-        attributesCount++);
+      return null;
     }
-    if (attributesCount !== attributesUsed.size)
-      return (
+    for (let name in geometry.attributes) {
+      if (!attributesUsed.has(name)) {
         console.error(
           "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
             i +
-            ". Make sure all geometries have the same number of attributes.",
-        ),
-        null
-      );
-    if (morphTargetsRelative !== geometry.morphTargetsRelative)
-      return (
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-            i +
-            ". .morphTargetsRelative must be consistent throughout all geometries.",
-        ),
-        null
-      );
-    for (let name in geometry.morphAttributes) {
-      if (!morphAttributesUsed.has(name))
-        return (
-          console.error(
-            "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-              i +
-              ".  .morphAttributes must be consistent throughout all geometries.",
-          ),
-          null
+            '. All geometries must have compatible attributes; make sure "' +
+            name +
+            '" attribute exists among all geometries, or in none of them.',
         );
-      (morphAttributes[name] === void 0 && (morphAttributes[name] = []),
-        morphAttributes[name].push(geometry.morphAttributes[name]));
+        return null;
+      }
+      if (attributes[name] === undefined) {
+        attributes[name] = [];
+      }
+      attributes[name].push(geometry.attributes[name]);
+      attributesCount++;
+    }
+    if (attributesCount !== attributesUsed.size) {
+      console.error(
+        "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+          i +
+          ". Make sure all geometries have the same number of attributes.",
+      );
+      return null;
+    }
+    if (morphTargetsRelative !== geometry.morphTargetsRelative) {
+      console.error(
+        "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+          i +
+          ". .morphTargetsRelative must be consistent throughout all geometries.",
+      );
+      return null;
+    }
+    for (let name in geometry.morphAttributes) {
+      if (!morphAttributesUsed.has(name)) {
+        console.error(
+          "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+            i +
+            ".  .morphAttributes must be consistent throughout all geometries.",
+        );
+        return null;
+      }
+      if (morphAttributes[name] === undefined) {
+        morphAttributes[name] = [];
+      }
+      morphAttributes[name].push(geometry.morphAttributes[name]);
     }
     if (useGroups) {
       let count;
       if (isIndexed) count = geometry.index.count;
-      else if (geometry.attributes.position !== void 0) count = geometry.attributes.position.count;
-      else
-        return (
-          console.error(
-            "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-              i +
-              ". The geometry must have either an index or a position attribute",
-          ),
-          null
+      else if (geometry.attributes.position !== undefined) count = geometry.attributes.position.count;
+      else {
+        console.error(
+          "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+            i +
+            ". The geometry must have either an index or a position attribute",
         );
-      (merged.addGroup(offset, count, i), (offset += count));
+        return null;
+      }
+      merged.addGroup(offset, count, i);
+      offset += count;
     }
   }
   if (isIndexed) {
@@ -401,32 +400,31 @@ function mergeGeometries(geometries, useGroups = !1) {
   }
   for (let name in attributes) {
     let mergedAttribute = mergeAttributes(attributes[name]);
-    if (!mergedAttribute)
-      return (
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " + name + " attribute.",
-        ),
-        null
+    if (!mergedAttribute) {
+      console.error(
+        "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " + name + " attribute.",
       );
+      return null;
+    }
     merged.setAttribute(name, mergedAttribute);
   }
   for (let name in morphAttributes) {
     let numMorphTargets = morphAttributes[name][0].length;
     if (numMorphTargets !== 0) {
-      ((merged.morphAttributes = merged.morphAttributes || {}), (merged.morphAttributes[name] = []));
+      merged.morphAttributes = merged.morphAttributes || {};
+      merged.morphAttributes[name] = [];
       for (let i = 0; i < numMorphTargets; ++i) {
         let toMerge = [];
         for (let j = 0; j < morphAttributes[name].length; ++j) toMerge.push(morphAttributes[name][j][i]);
         let mergedMorph = mergeAttributes(toMerge);
-        if (!mergedMorph)
-          return (
-            console.error(
-              "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " +
-                name +
-                " morphAttribute.",
-            ),
-            null
+        if (!mergedMorph) {
+          console.error(
+            "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " +
+              name +
+              " morphAttribute.",
           );
+          return null;
+        }
         merged.morphAttributes[name].push(mergedMorph);
       }
     }
@@ -441,36 +439,42 @@ function mergeAttributes(attributes) {
     arrayLength = 0;
   for (let i = 0; i < attributes.length; ++i) {
     let attribute = attributes[i];
-    if (
-      (TypedArray === void 0 && (TypedArray = attribute.array.constructor), TypedArray !== attribute.array.constructor)
-    )
-      return (
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.",
-        ),
-        null
+    if (TypedArray === undefined) {
+      TypedArray = attribute.array.constructor;
+    }
+    if (TypedArray !== attribute.array.constructor) {
+      console.error(
+        "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.",
       );
-    if ((itemSize === void 0 && (itemSize = attribute.itemSize), itemSize !== attribute.itemSize))
-      return (
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.",
-        ),
-        null
+      return null;
+    }
+    if (itemSize === undefined) {
+      itemSize = attribute.itemSize;
+    }
+    if (itemSize !== attribute.itemSize) {
+      console.error(
+        "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.",
       );
-    if ((normalized === void 0 && (normalized = attribute.normalized), normalized !== attribute.normalized))
-      return (
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.",
-        ),
-        null
+      return null;
+    }
+    if (normalized === undefined) {
+      normalized = attribute.normalized;
+    }
+    if (normalized !== attribute.normalized) {
+      console.error(
+        "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.",
       );
-    if ((gpuType === -1 && (gpuType = attribute.gpuType), gpuType !== attribute.gpuType))
-      return (
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.",
-        ),
-        null
+      return null;
+    }
+    if (gpuType === -1) {
+      gpuType = attribute.gpuType;
+    }
+    if (gpuType !== attribute.gpuType) {
+      console.error(
+        "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.",
       );
+      return null;
+    }
     arrayLength += attribute.count * itemSize;
   }
   let array = new TypedArray(arrayLength),
@@ -488,7 +492,10 @@ function mergeAttributes(attributes) {
     } else array.set(attribute.array, offset);
     offset += attribute.count * itemSize;
   }
-  return (gpuType !== void 0 && (result.gpuType = gpuType), result);
+  if (gpuType !== undefined) {
+    result.gpuType = gpuType;
+  }
+  return result;
 }
 var partMatrix = new Matrix4(),
   partQuat = new Quaternion(),
@@ -497,20 +504,26 @@ var partMatrix = new Matrix4(),
   partPos = new Vector3();
 function meshPart(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1 } = {}) {
   let part = geo.index ? geo.toNonIndexed() : geo;
-  (partEuler.set(rx, ry, rz),
-    partQuat.setFromEuler(partEuler),
-    partMatrix.compose(partPos.set(x, y, z), partQuat, partScale.set(sx, sy, sz)),
-    part.applyMatrix4(partMatrix),
-    part.deleteAttribute("uv"));
+  partEuler.set(rx, ry, rz);
+  partQuat.setFromEuler(partEuler);
+  partMatrix.compose(partPos.set(x, y, z), partQuat, partScale.set(sx, sy, sz));
+  part.applyMatrix4(partMatrix);
+  part.deleteAttribute("uv");
   let col = new Color(color),
     count = part.attributes.position.count,
     colors = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) ((colors[i * 3] = col.r), (colors[i * 3 + 1] = col.g), (colors[i * 3 + 2] = col.b));
-  return (part.setAttribute("color", new BufferAttribute(colors, 3)), part);
+  for (let i = 0; i < count; i++) {
+    colors[i * 3] = col.r;
+    colors[i * 3 + 1] = col.g;
+    colors[i * 3 + 2] = col.b;
+  }
+  part.setAttribute("color", new BufferAttribute(colors, 3));
+  return part;
 }
 function mergeParts(parts) {
-  let merged = mergeGeometries(parts, !1);
-  return (merged.computeBoundingSphere(), merged);
+  let merged = mergeGeometries(parts, false);
+  merged.computeBoundingSphere();
+  return merged;
 }
 var darken = (color, factor = 0.5) => new Color(color).multiplyScalar(factor).getHex();
 function enemyGeometry(type, color) {
@@ -610,16 +623,14 @@ function enemyGeometry(type, color) {
           }),
         );
       }
-      return (
-        glows.push(meshPart(new OctahedronGeometry(0.28), 16777215, { y: 2.2 })),
-        {
-          body: mergeParts([
-            meshPart(new IcosahedronGeometry(1.05, 0), mid, { y: 1.15 }),
-            meshPart(new CylinderGeometry(0.7, 1, 0.35, 8), dark, { y: 0.18 }),
-          ]),
-          glow: mergeParts(glows),
-        }
-      );
+      glows.push(meshPart(new OctahedronGeometry(0.28), 16777215, { y: 2.2 }));
+      return {
+        body: mergeParts([
+          meshPart(new IcosahedronGeometry(1.05, 0), mid, { y: 1.15 }),
+          meshPart(new CylinderGeometry(0.7, 1, 0.35, 8), dark, { y: 0.18 }),
+        ]),
+        glow: mergeParts(glows),
+      };
     }
     case "bulwark":
       return {
@@ -676,8 +687,10 @@ function enemyGeometry(type, color) {
   return rlM || enemyGeometry("grunt", color);
 }
 function shieldArcGeometry() {
-  let geo = new CylinderGeometry(1.35, 1.35, 1.5, 20, 1, !0, -Math.PI / 2.9, (Math.PI * 2) / 2.9);
-  return (geo.rotateY(Math.PI / 2), geo.translate(0, 0.8, 0), geo);
+  let geo = new CylinderGeometry(1.35, 1.35, 1.5, 20, 1, true, -Math.PI / 2.9, (Math.PI * 2) / 2.9);
+  geo.rotateY(Math.PI / 2);
+  geo.translate(0, 0.8, 0);
+  return geo;
 }
 function discGeometry() {
   return mergeParts([
@@ -693,106 +706,123 @@ function buildPlayerModel(weapon, color) {
   let group = new Group(),
     hullMat = new MeshLambertMaterial({ color: 2898514, emissive: 0 }),
     trimMat = new MeshLambertMaterial({ color: 9348036, emissive: 0 }),
-    glowMat = new MeshBasicMaterial({ color, toneMapped: !1 }),
+    glowMat = new MeshBasicMaterial({ color, toneMapped: false }),
     base = new Group(),
     body = new Mesh(new CylinderGeometry(0.5, 0.62, 0.34, 6), hullMat);
   body.position.y = 0.52;
   let skirt = new Mesh(new CylinderGeometry(0.64, 0.5, 0.14, 6), trimMat);
   skirt.position.y = 0.3;
   let ring = new Mesh(new TorusGeometry(0.6, 0.045, 5, 24), glowMat);
-  ((ring.rotation.x = Math.PI / 2), (ring.position.y = 0.52));
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.52;
   let fin = new Mesh(new BoxGeometry(0.16, 0.12, 0.5), glowMat);
-  (fin.position.set(-0.55, 0.42, 0), base.add(body, skirt, ring, fin), group.add(base));
+  fin.position.set(-0.55, 0.42, 0);
+  base.add(body, skirt, ring, fin);
+  group.add(base);
   let turret = new Group();
   turret.position.y = 0.78;
   let dome = new Mesh(new SphereGeometry(0.3, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), trimMat);
   turret.add(dome);
   let sight = new Mesh(new BoxGeometry(0.08, 0.08, 0.3), glowMat);
-  (sight.position.set(0.24, 0.12, 0), turret.add(sight));
+  sight.position.set(0.24, 0.12, 0);
+  turret.add(sight);
   let addBarrel = (len, thick, z = 0, y = 0.02) => {
     let tube = new Mesh(new BoxGeometry(len, thick, thick), hullMat);
     tube.position.set(len / 2 + 0.12, y, z);
     let tip = new Mesh(new BoxGeometry(0.08, thick * 1.2, thick * 1.2), glowMat);
-    (tip.position.set(len + 0.14, y, z), turret.add(tube, tip));
+    tip.position.set(len + 0.14, y, z);
+    turret.add(tube, tip);
   };
-  if (weapon === "scatter") (addBarrel(0.5, 0.13, 0.1), addBarrel(0.5, 0.13, -0.1));
-  else if (weapon === "rail") {
+  if (weapon === "scatter") {
+    addBarrel(0.5, 0.13, 0.1);
+    addBarrel(0.5, 0.13, -0.1);
+  } else if (weapon === "rail") {
     addBarrel(0.95, 0.1);
     let rail = new Mesh(new BoxGeometry(0.8, 0.04, 0.26), trimMat);
-    (rail.position.set(0.55, 0.02, 0), turret.add(rail));
+    rail.position.set(0.55, 0.02, 0);
+    turret.add(rail);
   } else if (weapon === "rocket") {
     let pod = new Mesh(new BoxGeometry(0.46, 0.26, 0.36), hullMat);
-    (pod.position.set(0.3, 0.05, 0), turret.add(pod));
+    pod.position.set(0.3, 0.05, 0);
+    turret.add(pod);
     for (let z of [-0.09, 0.09])
       for (let y of [-0.03, 0.12]) {
         let tube = new Mesh(new BoxGeometry(0.05, 0.08, 0.08), glowMat);
-        (tube.position.set(0.55, y, z), turret.add(tube));
+        tube.position.set(0.55, y, z);
+        turret.add(tube);
       }
   } else if (weapon === "tesla") {
     addBarrel(0.55, 0.12);
     let coil = new Mesh(new TorusGeometry(0.12, 0.03, 5, 14), glowMat);
-    ((coil.rotation.y = Math.PI / 2), coil.position.set(0.45, 0.02, 0));
+    coil.rotation.y = Math.PI / 2;
+    coil.position.set(0.45, 0.02, 0);
     let coil2 = coil.clone();
-    ((coil2.position.x = 0.3), turret.add(coil, coil2));
+    coil2.position.x = 0.3;
+    turret.add(coil, coil2);
   } else if (weapon === "disc") {
     let mount = new Mesh(new BoxGeometry(0.62, 0.08, 0.34), hullMat);
     mount.position.set(0.35, 0, 0);
     let disc = new Mesh(new CylinderGeometry(0.2, 0.2, 0.05, 16), glowMat);
-    (disc.position.set(0.42, 0.08, 0), turret.add(mount, disc));
+    disc.position.set(0.42, 0.08, 0);
+    turret.add(mount, disc);
   } else if (weapon === "flame") {
     let tank = new Mesh(new CylinderGeometry(0.12, 0.12, 0.5, 10), trimMat);
-    ((tank.rotation.x = Math.PI / 2), tank.position.set(-0.05, 0.1, 0));
+    tank.rotation.x = Math.PI / 2;
+    tank.position.set(-0.05, 0.1, 0);
     let nozzle = new Mesh(new CylinderGeometry(0.07, 0.12, 0.55, 10), hullMat);
-    ((nozzle.rotation.z = -Math.PI / 2), nozzle.position.set(0.42, 0.02, 0));
+    nozzle.rotation.z = -Math.PI / 2;
+    nozzle.position.set(0.42, 0.02, 0);
     let pilot = new Mesh(new SphereGeometry(0.06, 8, 6), glowMat);
-    (pilot.position.set(0.72, 0.02, 0), turret.add(tank, nozzle, pilot));
+    pilot.position.set(0.72, 0.02, 0);
+    turret.add(tank, nozzle, pilot);
   } else addBarrel(0.62, 0.13);
   group.add(turret);
   let shield = new Mesh(
     new IcosahedronGeometry(1, 2),
     new MeshBasicMaterial({
       color,
-      transparent: !0,
+      transparent: true,
       opacity: 0.16,
       blending: AdditiveBlending,
-      depthWrite: !1,
-      toneMapped: !1,
+      depthWrite: false,
+      toneMapped: false,
     }),
   );
-  return (
-    (shield.position.y = 0.6),
-    group.add(shield),
-    { group, base, turret, shield, mats: [hullMat, trimMat], glowMat }
-  );
+  shield.position.y = 0.6;
+  group.add(shield);
+  return { group, base, turret, shield, mats: [hullMat, trimMat], glowMat };
 }
 function buildBossModel(type, color) {
   let group = new Group(),
-    hullMat = new MeshLambertMaterial({ color: darken(color, 0.35), emissive: 0, flatShading: !0 }),
-    darkMat = new MeshLambertMaterial({ color: 2435898, emissive: 0, flatShading: !0 }),
-    glowMat = new MeshBasicMaterial({ color, toneMapped: !1, transparent: !0 }),
+    hullMat = new MeshLambertMaterial({ color: darken(color, 0.35), emissive: 0, flatShading: true }),
+    darkMat = new MeshLambertMaterial({ color: 2435898, emissive: 0, flatShading: true }),
+    glowMat = new MeshBasicMaterial({ color, toneMapped: false, transparent: true }),
     spin = [],
     addMesh = (geo, mat, x, y, z, parent = group) => {
       let mesh = new Mesh(geo, mat);
-      return (mesh.position.set(x, y, z), parent.add(mesh), mesh);
+      mesh.position.set(x, y, z);
+      parent.add(mesh);
+      return mesh;
     };
   if (type === "warden") {
-    (addMesh(new CylinderGeometry(1.8, 2.05, 1.5, 6), hullMat, 0, 0.9, 0),
-      addMesh(new BoxGeometry(1.8, 0.9, 1.6), darkMat, -0.2, 2, 0),
-      addMesh(new BoxGeometry(0.9, 1.1, 0.9), darkMat, 0, 1.2, 1.9),
-      addMesh(new BoxGeometry(0.9, 1.1, 0.9), darkMat, 0, 1.2, -1.9),
-      addMesh(new BoxGeometry(0.12, 0.28, 1.3), glowMat, 0.72, 2.05, 0),
-      addMesh(new BoxGeometry(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, 1.9),
-      addMesh(new BoxGeometry(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, -1.9));
+    addMesh(new CylinderGeometry(1.8, 2.05, 1.5, 6), hullMat, 0, 0.9, 0);
+    addMesh(new BoxGeometry(1.8, 0.9, 1.6), darkMat, -0.2, 2, 0);
+    addMesh(new BoxGeometry(0.9, 1.1, 0.9), darkMat, 0, 1.2, 1.9);
+    addMesh(new BoxGeometry(0.9, 1.1, 0.9), darkMat, 0, 1.2, -1.9);
+    addMesh(new BoxGeometry(0.12, 0.28, 1.3), glowMat, 0.72, 2.05, 0);
+    addMesh(new BoxGeometry(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, 1.9);
+    addMesh(new BoxGeometry(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, -1.9);
     let ring = addMesh(new TorusGeometry(1.95, 0.07, 5, 36), glowMat, 0, 0.35, 0);
     ring.rotation.x = Math.PI / 2;
   } else if (type === "queen") {
-    (addMesh(new SphereGeometry(1.35, 16, 10), hullMat, 0.3, 1.9, 0).scale.set(1.1, 0.8, 1),
-      addMesh(new SphereGeometry(1.1, 14, 9), darkMat, -1.3, 1.6, 0).scale.set(1.3, 0.85, 0.9),
-      addMesh(new SphereGeometry(0.2, 8, 6), glowMat, 1.5, 2.1, 0.45),
-      addMesh(new SphereGeometry(0.2, 8, 6), glowMat, 1.5, 2.1, -0.45),
-      addMesh(new SphereGeometry(0.34, 10, 8), glowMat, -2.4, 1.6, 0));
+    addMesh(new SphereGeometry(1.35, 16, 10), hullMat, 0.3, 1.9, 0).scale.set(1.1, 0.8, 1);
+    addMesh(new SphereGeometry(1.1, 14, 9), darkMat, -1.3, 1.6, 0).scale.set(1.3, 0.85, 0.9);
+    addMesh(new SphereGeometry(0.2, 8, 6), glowMat, 1.5, 2.1, 0.45);
+    addMesh(new SphereGeometry(0.2, 8, 6), glowMat, 1.5, 2.1, -0.45);
+    addMesh(new SphereGeometry(0.34, 10, 8), glowMat, -2.4, 1.6, 0);
     let halo = addMesh(new TorusGeometry(2.1, 0.09, 5, 40), glowMat, 0, 2.2, 0);
-    ((halo.rotation.x = Math.PI / 2 - 0.25), spin.push({ m: halo, ax: "z", v: 0.8 }));
+    halo.rotation.x = Math.PI / 2 - 0.25;
+    spin.push({ m: halo, ax: "z", v: 0.8 });
     for (let i = 0; i < 6; i++) {
       let angle = (i / 6) * Math.PI * 2;
       addMesh(
@@ -812,24 +842,26 @@ function buildBossModel(type, color) {
       const mat = new MeshLambertMaterial({
         color,
         emissive,
-        flatShading: !0,
-        transparent: !0,
+        flatShading: true,
+        transparent: true,
         opacity,
-        depthWrite: !1,
+        depthWrite: false,
       });
-      return ((mat.userData.opacity = opacity), mat);
+      mat.userData.opacity = opacity;
+      return mat;
     };
     let iceMat = ice(13431295, 1716822, 0.8),
       paleIceMat = ice(14745599, 2771583, 0.5);
-    (hullMat.color.setHex(10934000),
-      (hullMat.transparent = !0),
-      darkMat.color.setHex(2837350),
-      (darkMat.transparent = !0));
+    hullMat.color.setHex(10934000);
+    hullMat.transparent = true;
+    darkMat.color.setHex(2837350);
+    darkMat.transparent = true;
     let body = addMesh(new OctahedronGeometry(1.35, 0), iceMat, 0, 2.3, 0);
-    (body.scale.set(1, 1.5, 1), spin.push({ m: body, ax: "y", v: 0.35 }));
+    body.scale.set(1, 1.5, 1);
+    spin.push({ m: body, ax: "y", v: 0.35 });
     // glow core seen through the ice, and a visor slit on the facing side (+x)
-    (addMesh(new OctahedronGeometry(0.55, 0), glowMat, 0, 2.3, 0).scale.set(1, 1.35, 1),
-      addMesh(new BoxGeometry(0.1, 0.12, 0.72), glowMat, 0.98, 2.62, 0));
+    addMesh(new OctahedronGeometry(0.55, 0), glowMat, 0, 2.3, 0).scale.set(1, 1.35, 1);
+    addMesh(new BoxGeometry(0.1, 0.12, 0.72), glowMat, 0.98, 2.62, 0);
     // shoulders: crystal clusters leaning outwards on dark rock
     for (const z of [-1, 1]) {
       addMesh(new DodecahedronGeometry(0.42, 0), darkMat, -0.05, 2.35, z * 1.2);
@@ -868,46 +900,50 @@ function buildBossModel(type, color) {
           Math.sin(angle) * 2.15,
           orbit,
         );
-      ((shard.scale.y = 1.7), (shard.rotation.z = i % 2 ? 0.35 : -0.2));
+      shard.scale.y = 1.7;
+      shard.rotation.z = i % 2 ? 0.35 : -0.2;
     }
-    (group.add(orbit), spin.push({ m: orbit, ax: "y", v: -1.4 }));
+    group.add(orbit);
+    spin.push({ m: orbit, ax: "y", v: -1.4 });
     // frozen ring on the ground
     const ring = addMesh(new TorusGeometry(1.9, 0.07, 4, 40), glowMat, 0, 0.12, 0);
-    ((ring.rotation.x = Math.PI / 2), (group.userData.fadeMats = [iceMat, paleIceMat, hullMat, darkMat, glowMat]));
+    ring.rotation.x = Math.PI / 2;
+    group.userData.fadeMats = [iceMat, paleIceMat, hullMat, darkMat, glowMat];
   } else if (type === "forge") {
     // 2.4.6: THE CRUCIBLE, a furnace golem: an iron crucible on stubby legs with molten metal inside
     // a heavy rim, a head with a glowing visor and a furnace mouth at the front (+x), hammer fists,
     // two chimneys and a flywheel on its back. The renderer lets the chimneys throw embers
     // (userData.chimneys).
-    let ironMat = new MeshLambertMaterial({ color: 2366244, emissive: 0, flatShading: !0 });
-    (addMesh(new BoxGeometry(1, 1, 0.9), darkMat, -0.1, 0.5, 0.95),
-      addMesh(new BoxGeometry(1, 1, 0.9), darkMat, -0.1, 0.5, -0.95),
-      addMesh(new CylinderGeometry(1.55, 1.15, 2, 8), ironMat, 0, 2, 0),
-      addMesh(new CylinderGeometry(0.95, 0.95, 0.1, 12), glowMat, -0.25, 3.02, 0),
-      addMesh(new BoxGeometry(0.75, 0.6, 1.05), darkMat, 1.05, 3.1, 0),
-      addMesh(new BoxGeometry(0.1, 0.14, 0.75), glowMat, 1.44, 3.14, 0),
-      addMesh(new BoxGeometry(0.3, 0.55, 1.1), glowMat, 1.3, 1.85, 0).rotation.set(0, 0, 0.2));
+    let ironMat = new MeshLambertMaterial({ color: 2366244, emissive: 0, flatShading: true });
+    addMesh(new BoxGeometry(1, 1, 0.9), darkMat, -0.1, 0.5, 0.95);
+    addMesh(new BoxGeometry(1, 1, 0.9), darkMat, -0.1, 0.5, -0.95);
+    addMesh(new CylinderGeometry(1.55, 1.15, 2, 8), ironMat, 0, 2, 0);
+    addMesh(new CylinderGeometry(0.95, 0.95, 0.1, 12), glowMat, -0.25, 3.02, 0);
+    addMesh(new BoxGeometry(0.75, 0.6, 1.05), darkMat, 1.05, 3.1, 0);
+    addMesh(new BoxGeometry(0.1, 0.14, 0.75), glowMat, 1.44, 3.14, 0);
+    addMesh(new BoxGeometry(0.3, 0.55, 1.1), glowMat, 1.3, 1.85, 0).rotation.set(0, 0, 0.2);
     let rim = addMesh(new TorusGeometry(1.3, 0.26, 5, 16), hullMat, 0, 3, 0);
     rim.rotation.x = Math.PI / 2;
-    for (let side of [1, -1])
-      (addMesh(new BoxGeometry(0.85, 0.85, 0.85), hullMat, 0, 2.35, side * 1.75),
-        addMesh(new BoxGeometry(1.2, 0.95, 0.95), darkMat, 0.55, 1.35, side * 1.95),
-        addMesh(new CylinderGeometry(0.26, 0.34, 1.7, 6), darkMat, -1.05, 3.1, side * 0.55),
-        addMesh(new CylinderGeometry(0.2, 0.2, 0.08, 6), glowMat, -1.05, 3.97, side * 0.55));
+    for (let side of [1, -1]) {
+      addMesh(new BoxGeometry(0.85, 0.85, 0.85), hullMat, 0, 2.35, side * 1.75);
+      addMesh(new BoxGeometry(1.2, 0.95, 0.95), darkMat, 0.55, 1.35, side * 1.95);
+      addMesh(new CylinderGeometry(0.26, 0.34, 1.7, 6), darkMat, -1.05, 3.1, side * 0.55);
+      addMesh(new CylinderGeometry(0.2, 0.2, 0.08, 6), glowMat, -1.05, 3.97, side * 0.55);
+    }
     let wheel = addMesh(new TorusGeometry(0.6, 0.14, 4, 8), hullMat, -1.62, 1.9, 0);
-    ((wheel.rotation.y = Math.PI / 2),
-      spin.push({ m: wheel, ax: "z", v: 1.4 }),
-      (group.userData.chimneys = [
-        [-1.05, 4.05, 0.55],
-        [-1.05, 4.05, -0.55],
-      ]),
-      (group.userData.mats = [ironMat]));
+    wheel.rotation.y = Math.PI / 2;
+    spin.push({ m: wheel, ax: "z", v: 1.4 });
+    group.userData.chimneys = [
+      [-1.05, 4.05, 0.55],
+      [-1.05, 4.05, -0.55],
+    ];
+    group.userData.mats = [ironMat];
   } else {
     addMesh(new SphereGeometry(1.15, 18, 12), glowMat, 0, 2.4, 0);
     for (let i = 0; i < 3; i++) {
       let band = addMesh(new TorusGeometry(1.75 + i * 0.35, 0.16, 6, 36), i === 1 ? darkMat : hullMat, 0, 2.4, 0);
-      (band.rotation.set(i * 1.1, i * 0.6, 0),
-        spin.push({ m: band, ax: i === 0 ? "x" : i === 1 ? "y" : "z", v: 0.6 + i * 0.35 }));
+      band.rotation.set(i * 1.1, i * 0.6, 0);
+      spin.push({ m: band, ax: i === 0 ? "x" : i === 1 ? "y" : "z", v: 0.6 + i * 0.35 });
     }
     let base = addMesh(new CylinderGeometry(1.2, 1.8, 0.5, 8), darkMat, 0, 0.25, 0);
     base.rotation.y = 0.3;
@@ -924,17 +960,20 @@ function wingDroneGeometry() {
 }
 function orbitBladeGeometry() {
   let shape = new Shape();
-  (shape.moveTo(0.42, 0),
-    shape.lineTo(-0.1, 0.16),
-    shape.lineTo(-0.22, 0),
-    shape.lineTo(-0.1, -0.16),
-    shape.closePath());
-  let geo = new ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: !1 });
-  return (geo.rotateX(Math.PI / 2), geo.translate(0, 0.62, 0), geo);
+  shape.moveTo(0.42, 0);
+  shape.lineTo(-0.1, 0.16);
+  shape.lineTo(-0.22, 0);
+  shape.lineTo(-0.1, -0.16);
+  shape.closePath();
+  let geo = new ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: false });
+  geo.rotateX(Math.PI / 2);
+  geo.translate(0, 0.62, 0);
+  return geo;
 }
 function shardGeometry() {
   let geo = new OctahedronGeometry(0.2, 0);
-  return (geo.scale(1, 1.5, 1), geo);
+  geo.scale(1, 1.5, 1);
+  return geo;
 }
 function healCrossGeometry() {
   return mergeParts([

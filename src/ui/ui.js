@@ -179,20 +179,24 @@ var getById = (id) => document.getElementById(id),
     ),
   GameUI = class {
     constructor(game) {
-      ((this.g = game),
-        (this.screen = "home"),
-        (this.stack = []),
-        (this.viewWeapon = 0),
-        (this.viewThreat = 0),
-        (this.hudCache = {}),
-        (this.dlgResolve = null),
-        this.fillIcons(document),
-        (getById("pauseBtn").innerHTML = iconSvg("pause")),
-        this.bind());
+      this.g = game;
+      this.screen = "home";
+      this.stack = [];
+      this.viewWeapon = 0;
+      this.viewThreat = 0;
+      this.hudCache = {};
+      this.dlgResolve = null;
+      this.fillIcons(document);
+      getById("pauseBtn").innerHTML = iconSvg("pause");
+      this.bind();
     }
     fillIcons(root) {
-      for (let el of root.querySelectorAll("[data-icon]"))
-        el.dataset.filled || ((el.dataset.filled = "1"), el.insertAdjacentHTML("afterbegin", iconSvg(el.dataset.icon)));
+      for (let el of root.querySelectorAll("[data-icon]")) {
+        if (!el.dataset.filled) {
+          el.dataset.filled = "1";
+          el.insertAdjacentHTML("afterbegin", iconSvg(el.dataset.icon));
+        }
+      }
     }
     get save() {
       return this.g.store.data;
@@ -204,18 +208,22 @@ var getById = (id) => document.getElementById(id),
         startY = 0,
         pointerId = 0,
         activate = () => {
-          if (el.disabled || el.hidden) return !1;
-          (this.g.sound.play("click"), action());
-          return !0;
+          if (el.disabled || el.hidden) return false;
+          this.g.sound.play("click");
+          action();
+          return true;
         };
       el.addEventListener(
         "pointerdown",
         (ev) => {
-          if ((ev.pointerType === "touch" || ev.pointerType === "pen") && ev.isPrimary !== !1) {
-            ((startX = ev.clientX), (startY = ev.clientY), (pointerId = ev.pointerId), (touchDown = 1));
+          if ((ev.pointerType === "touch" || ev.pointerType === "pen") && ev.isPrimary !== false) {
+            startX = ev.clientX;
+            startY = ev.clientY;
+            pointerId = ev.pointerId;
+            touchDown = 1;
           }
         },
-        { passive: !1 },
+        { passive: false },
       );
       el.addEventListener(
         "pointerup",
@@ -224,22 +232,26 @@ var getById = (id) => document.getElementById(id),
             return;
           let dx = ev.clientX - startX,
             dy = ev.clientY - startY;
-          if (((touchDown = 0), Math.hypot(dx, dy) > 14 || !activate())) return;
-          (ev.preventDefault(), ev.stopPropagation());
+          touchDown = 0;
+          if (Math.hypot(dx, dy) > 14 || !activate()) return;
+          ev.preventDefault();
+          ev.stopPropagation();
           const now = performance.now();
-          ((RL_TOUCH_CLICK_GUARD.until = now + 800),
-            (RL_TOUCH_CLICK_GUARD.x = ev.clientX),
-            (RL_TOUCH_CLICK_GUARD.y = ev.clientY),
-            (RL_TOUCH_CLICK_GUARD.key = rlUiClickKey(el)));
+          RL_TOUCH_CLICK_GUARD.until = now + 800;
+          RL_TOUCH_CLICK_GUARD.x = ev.clientX;
+          RL_TOUCH_CLICK_GUARD.y = ev.clientY;
+          RL_TOUCH_CLICK_GUARD.key = rlUiClickKey(el);
         },
-        { passive: !1 },
+        { passive: false },
       );
       el.addEventListener(
         "pointercancel",
         (ev) => {
-          ev.pointerId === pointerId && (touchDown = 0);
+          if (ev.pointerId === pointerId) {
+            touchDown = 0;
+          }
         },
-        { passive: !0 },
+        { passive: true },
       );
       el.addEventListener("click", (ev) => {
         const now = performance.now(),
@@ -250,169 +262,224 @@ var getById = (id) => document.getElementById(id),
           key = rlUiClickKey(el),
           same = !!(guard.key && key && guard.key === key) || near;
         if (now < guard.until && same) {
-          ((guard.until = 0), (guard.key = ""), RL_RT.uiGuardDrops++, ev.preventDefault(), ev.stopPropagation());
+          guard.until = 0;
+          guard.key = "";
+          RL_RT.uiGuardDrops++;
+          ev.preventDefault();
+          ev.stopPropagation();
           return;
         }
-        ((guard.until = 0), (guard.key = ""), activate());
+        guard.until = 0;
+        guard.key = "";
+        activate();
       });
     }
     bind() {
       for (let el of document.querySelectorAll("[data-go]")) this.click(el, () => this.show(el.dataset.go));
       for (let el of document.querySelectorAll("[data-back]")) this.click(el, () => this.back());
-      (this.click(getById("wPrev"), () => this.stepWeapon(-1)),
-        this.click(getById("wNext"), () => this.stepWeapon(1)),
-        this.click(getById("tPrev"), () => this.stepThreat(-1)),
-        this.click(getById("tNext"), () => this.stepThreat(1)),
-        this.click(getById("wBuy"), () => this.buyWeapon()),
-        this.click(getById("playBtn"), () => this.play()),
-        this.click(getById("continueBtn"), () => this.g.startRun({ resume: !0 })));
+      this.click(getById("wPrev"), () => this.stepWeapon(-1));
+      this.click(getById("wNext"), () => this.stepWeapon(1));
+      this.click(getById("tPrev"), () => this.stepThreat(-1));
+      this.click(getById("tNext"), () => this.stepThreat(1));
+      this.click(getById("wBuy"), () => this.buyWeapon());
+      this.click(getById("playBtn"), () => this.play());
+      this.click(getById("continueBtn"), () => this.g.startRun({ resume: true }));
       let onPress = (el, action) =>
         el.addEventListener("pointerdown", (ev) => {
-          (ev.preventDefault(), ev.stopPropagation(), action());
+          ev.preventDefault();
+          ev.stopPropagation();
+          action();
         });
-      (onPress(getById("dashBtn"), () => {
+      onPress(getById("dashBtn"), () => {
         this.g.input.press("dash");
         let world = this.g.world,
           btn = getById("dashBtn");
-        world &&
-          world.player.dashCdT > 0.08 &&
-          (btn.classList.remove("deny"), btn.offsetWidth, btn.classList.add("deny"), this.g.sound.play("deny"));
-      }),
-        onPress(getById("novaBtn"), () => {
-          this.g.input.press("nova");
-          let world = this.g.world,
-            btn = getById("novaBtn");
-          world &&
-            world.player.nova < 100 &&
-            (btn.classList.remove("deny"), btn.offsetWidth, btn.classList.add("deny"), this.g.sound.play("deny"));
-        }),
-        this.click(getById("pauseBtn"), () => this.g.pause()),
-        this.click(getById("resumeBtn"), () => this.g.resume()),
-        this.click(getById("abandonBtn"), async () => {
-          (await this.confirm(
-            "Abandon run?",
-            "You keep the shards collected so far, but the run ends here.",
-            "Abandon",
-          )) && this.g.abandon();
-        }),
-        this.click(getById("rerollBtn"), () => this.g.reroll()),
-        this.click(getById("restartBtn"), async () => {
-          (await this.confirm(
+        if (world && world.player.dashCdT > 0.08) {
+          btn.classList.remove("deny");
+          btn.offsetWidth;
+          btn.classList.add("deny");
+          this.g.sound.play("deny");
+        }
+      });
+      onPress(getById("novaBtn"), () => {
+        this.g.input.press("nova");
+        let world = this.g.world,
+          btn = getById("novaBtn");
+        if (world && world.player.nova < 100) {
+          btn.classList.remove("deny");
+          btn.offsetWidth;
+          btn.classList.add("deny");
+          this.g.sound.play("deny");
+        }
+      });
+      this.click(getById("pauseBtn"), () => this.g.pause());
+      this.click(getById("resumeBtn"), () => this.g.resume());
+      this.click(getById("abandonBtn"), async () => {
+        if (
+          await this.confirm("Abandon run?", "You keep the shards collected so far, but the run ends here.", "Abandon")
+        ) {
+          this.g.abandon();
+        }
+      });
+      this.click(getById("rerollBtn"), () => this.g.reroll());
+      this.click(getById("restartBtn"), async () => {
+        if (
+          await this.confirm(
             "Restart run?",
             "Shards collected so far are kept. A fresh run starts with the same weapon and threat.",
             "Restart",
-          )) && this.g.restart();
-        }),
-        this.click(getById("retryBtn"), () => this.g.startRun({})),
-        this.click(getById("homeBtn"), () => this.g.goHome()),
-        this.click(getById("endlessBtn"), () => this.g.endless()),
-        this.click(getById("crashHome"), () => this.g.recover()),
-        this.click(getById("crashCopy"), () => this.copy(getById("crashLog").value)));
+          )
+        ) {
+          this.g.restart();
+        }
+      });
+      this.click(getById("retryBtn"), () => this.g.startRun({}));
+      this.click(getById("homeBtn"), () => this.g.goHome());
+      this.click(getById("endlessBtn"), () => this.g.endless());
+      this.click(getById("crashHome"), () => this.g.recover());
+      this.click(getById("crashCopy"), () => this.copy(getById("crashLog").value));
       let settings = () => this.save.settings,
         bindToggle = (id, key) => {
           let input = getById(id);
           input.addEventListener("change", () => {
-            ((settings()[key] = input.checked), this.g.settingsChanged());
+            settings()[key] = input.checked;
+            this.g.settingsChanged();
           });
         };
-      (bindToggle("setAuto", "autoFire"),
-        bindToggle("setAssist", "assist"),
-        bindToggle("setSwap", "swap"),
-        bindToggle("setShake", "shake"),
-        bindToggle("setNumbers", "numbers"),
-        bindToggle("setContrast", "contrast"),
-        bindToggle("setCalm", "calm"));
+      bindToggle("setAuto", "autoFire");
+      bindToggle("setAssist", "assist");
+      bindToggle("setSwap", "swap");
+      bindToggle("setShake", "shake");
+      bindToggle("setNumbers", "numbers");
+      bindToggle("setContrast", "contrast");
+      bindToggle("setCalm", "calm");
       for (let [id, key] of [
         ["setSfx", "sfx"],
         ["setMusic", "music"],
       ]) {
         let input = getById(id);
-        (input.addEventListener("input", () => {
-          ((settings()[key] = +input.value), this.g.settingsChanged(!0));
-        }),
-          input.addEventListener("change", () => {
-            (this.g.settingsChanged(), key === "sfx" && this.g.sound.play("pick"));
-          }));
+        input.addEventListener("input", () => {
+          settings()[key] = +input.value;
+          this.g.settingsChanged(true);
+        });
+        input.addEventListener("change", () => {
+          this.g.settingsChanged();
+          if (key === "sfx") {
+            this.g.sound.play("pick");
+          }
+        });
       }
       for (let [id, key, numeric] of [
-        ["setQuality", "quality", !1],
-        ["setZoom", "zoom", !0],
+        ["setQuality", "quality", false],
+        ["setZoom", "zoom", true],
       ])
         for (let btn of getById(id).querySelectorAll("button"))
           this.click(btn, () => {
-            ((settings()[key] = numeric ? +btn.dataset.v : btn.dataset.v),
-              this.renderSettings(),
-              this.g.settingsChanged());
+            settings()[key] = numeric ? +btn.dataset.v : btn.dataset.v;
+            this.renderSettings();
+            this.g.settingsChanged();
           });
-      (this.click(getById("resetBtn"), async () => {
-        (await this.confirm(
-          "Reset all progress?",
-          "Shards, workshop, weapons, records and milestones are wiped. Settings stay.",
-          "Continue",
-        )) &&
-          (await this.confirm("Really reset?", "This cannot be undone.", "Reset everything", !0)) &&
+      this.click(getById("resetBtn"), async () => {
+        if (
+          (await this.confirm(
+            "Reset all progress?",
+            "Shards, workshop, weapons, records and milestones are wiped. Settings stay.",
+            "Continue",
+          )) &&
+          (await this.confirm("Really reset?", "This cannot be undone.", "Reset everything", true))
+        ) {
           this.g.resetProgress();
-      }),
-        this.click(getById("logBtn"), () => this.showLog()),
-        onLogChange(() => {
-          this.screen === "settings" && this.renderLog();
-        }),
-        getById("dialog").addEventListener("click", (ev) => {
-          ev.target === getById("dialog") && this.closeDialog(null);
-        }));
+        }
+      });
+      this.click(getById("logBtn"), () => this.showLog());
+      onLogChange(() => {
+        if (this.screen === "settings") {
+          this.renderLog();
+        }
+      });
+      getById("dialog").addEventListener("click", (ev) => {
+        if (ev.target === getById("dialog")) {
+          this.closeDialog(null);
+        }
+      });
     }
     show(screen) {
-      (menuScreens.includes(this.screen) && this.screen !== screen && this.stack.push(this.screen), this._show(screen));
+      if (menuScreens.includes(this.screen) && this.screen !== screen) {
+        this.stack.push(this.screen);
+      }
+      this._show(screen);
     }
     _show(screen) {
       // 2.3.6: the renderer re-measures the free space of the home screen for the drone preview
       markHomeViewDirty();
       // 2.5.0 D: Records opened from another screen start on the stats
-      screen === "records" && this.screen !== "records" && (this.recTab = "stats");
+      if (screen === "records" && this.screen !== "records") {
+        this.recTab = "stats";
+      }
       for (let id of menuScreens) getById(id).hidden = id !== screen;
-      ((this.screen = screen),
-        screen === "home" && ((this.stack = []), this.renderHome()),
-        screen === "workshop" && this.renderWorkshop(),
-        screen === "records" && this.renderRecords(),
-        screen === "settings" && this.renderSettings());
+      this.screen = screen;
+      if (screen === "home") {
+        this.stack = [];
+        this.renderHome();
+      }
+      if (screen === "workshop") {
+        this.renderWorkshop();
+      }
+      if (screen === "records") {
+        this.renderRecords();
+      }
+      if (screen === "settings") {
+        this.renderSettings();
+      }
       requestAnimationFrame(() => window.__riftLayoutAudit?.());
     }
     back() {
       // 2.4.2: from settings opened in the pause menu back to the pause menu
       if (this.rlFromPause) {
-        (closePauseSettings(this), (getById("pause").hidden = !1), (this.screen = "pause"));
+        closePauseSettings(this);
+        getById("pause").hidden = false;
+        this.screen = "pause";
         return;
       }
       this._show(this.stack.pop() || "home");
     }
     hideMenus() {
-      for (let id of menuScreens) getById(id).hidden = !0;
+      for (let id of menuScreens) getById(id).hidden = true;
       this.screen = "game";
     }
     renderHome() {
       let save = this.save;
       getById("bank").textContent = formatCount(save.shards);
       for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
-      ((this.viewWeapon == null || !weaponOrder[this.viewWeapon]) && (this.viewWeapon = 0),
-        this.homeInit ||
-          ((this.viewWeapon = weaponOrder.indexOf(save.weapon)), (this.viewThreat = save.threat), (this.homeInit = !0)),
-        this.renderWeapon(),
-        this.renderThreat());
+      if (this.viewWeapon == null || !weaponOrder[this.viewWeapon]) {
+        this.viewWeapon = 0;
+      }
+      if (!this.homeInit) {
+        this.viewWeapon = weaponOrder.indexOf(save.weapon);
+        this.viewThreat = save.threat;
+        this.homeInit = true;
+      }
+      this.renderWeapon();
+      this.renderThreat();
       let run = save.run,
         btn = getById("continueBtn");
-      (run
-        ? ((btn.hidden = !1),
-          (btn.innerHTML = `${iconSvg("play")}CONTINUE \xB7 WAVE ${run.wave + (run.offer ? 1 : 0)} \xB7 ${escapeHtml(weaponDefs[run.weapon].name)}`),
-          getById("playBtn").classList.remove("primary"))
-        : ((btn.hidden = !0), getById("playBtn").classList.add("primary")),
-        this.updatePlayState(),
-        (getById("recBadge").hidden = !this.g.claimable().length));
+      if (run) {
+        btn.hidden = false;
+        btn.innerHTML = `${iconSvg("play")}CONTINUE \xB7 WAVE ${run.wave + (run.offer ? 1 : 0)} \xB7 ${escapeHtml(weaponDefs[run.weapon].name)}`;
+        getById("playBtn").classList.remove("primary");
+      } else {
+        btn.hidden = true;
+        getById("playBtn").classList.add("primary");
+      }
+      this.updatePlayState();
+      getById("recBadge").hidden = !this.g.claimable().length;
       let stats = save.stats;
-      ((getById("bestLine").hidden = !stats.runs),
-        stats.runs &&
-          (getById("bestLine").textContent =
-            `Best wave ${stats.bestWave}` +
-            (stats.clears ? ` \xB7 ${stats.clears} clear${stats.clears > 1 ? "s" : ""}` : "")));
+      getById("bestLine").hidden = !stats.runs;
+      if (stats.runs) {
+        getById("bestLine").textContent =
+          `Best wave ${stats.bestWave}` +
+          (stats.clears ? ` \xB7 ${stats.clears} clear${stats.clears > 1 ? "s" : ""}` : "");
+      }
     }
     renderWeapon() {
       let save = this.save,
@@ -420,14 +487,15 @@ var getById = (id) => document.getElementById(id),
         weapon = weaponDefs[id],
         owned = !!save.weapons[id],
         card = document.querySelector(".weapon-card");
-      (card.classList.toggle("locked", !owned),
-        card.style.setProperty("--wc", "#" + weapon.color.toString(16).padStart(6, "0")),
-        (getById("wIndex").textContent = `${this.viewWeapon + 1}/${weaponOrder.length}`),
-        (getById("wName").innerHTML = (owned ? "" : iconSvg("lock", "inline")) + escapeHtml(weapon.name)),
-        getById("wName").querySelector(".ico") &&
-          (getById("wName").querySelector(".ico").style.cssText =
-            "display:inline-block;vertical-align:-3px;margin-right:6px;width:18px;height:18px"),
-        (getById("wBlurb").textContent = weapon.blurb));
+      card.classList.toggle("locked", !owned);
+      card.style.setProperty("--wc", "#" + weapon.color.toString(16).padStart(6, "0"));
+      getById("wIndex").textContent = `${this.viewWeapon + 1}/${weaponOrder.length}`;
+      getById("wName").innerHTML = (owned ? "" : iconSvg("lock", "inline")) + escapeHtml(weapon.name);
+      if (getById("wName").querySelector(".ico")) {
+        getById("wName").querySelector(".ico").style.cssText =
+          "display:inline-block;vertical-align:-3px;margin-right:6px;width:18px;height:18px";
+      }
+      getById("wBlurb").textContent = weapon.blurb;
       let burst = weapon.dmg * weapon.count + (weapon.explodeDmg || 0),
         range = weaponRange(weapon),
         segs = (value) => {
@@ -449,53 +517,61 @@ var getById = (id) => document.getElementById(id),
     <div class="stat"><span class="k">RATE</span><span class="v">${weapon.rate.toFixed(1)}/s</span>${segs((weapon.rate / 6.5) * 8)}</div>
     <div class="stat"><span class="k">RANGE</span><span class="v">${Math.round(range)} m</span>${segs((range / 28) * 8)}</div>`;
       let buyBtn = getById("wBuy");
-      ((buyBtn.hidden = owned),
-        owned ||
-          ((buyBtn.innerHTML = `UNLOCK \xB7 <span class="shard-ico"></span>${weapon.cost}`),
-          (buyBtn.disabled = save.shards < weapon.cost)),
-        (getById("wPrev").disabled = this.viewWeapon <= 0),
-        (getById("wNext").disabled = this.viewWeapon >= weaponOrder.length - 1),
-        this.updatePlayState(),
-        this.g.previewWeapon(owned ? id : save.weapon));
+      buyBtn.hidden = owned;
+      if (!owned) {
+        buyBtn.innerHTML = `UNLOCK \xB7 <span class="shard-ico"></span>${weapon.cost}`;
+        buyBtn.disabled = save.shards < weapon.cost;
+      }
+      getById("wPrev").disabled = this.viewWeapon <= 0;
+      getById("wNext").disabled = this.viewWeapon >= weaponOrder.length - 1;
+      this.updatePlayState();
+      this.g.previewWeapon(owned ? id : save.weapon);
     }
     renderThreat() {
       let save = this.save,
         threat = threatLevels[this.viewThreat],
         locked = this.viewThreat > save.threatMax;
-      ((getById("tName").textContent = threat.name),
-        getById("tName").classList.toggle("hot", this.viewThreat > 0),
-        (getById("tDesc").textContent = locked
-          ? `Clear all ${20} waves on ${threatLevels[this.viewThreat - 1].name} to unlock`
-          : this.viewThreat > 0
-            ? `${threat.desc} Shards \xD7${(1 + 0.25 * this.viewThreat).toFixed(2)}`
-            : threat.desc),
-        (getById("tPrev").disabled = this.viewThreat <= 0),
-        (getById("tNext").disabled = this.viewThreat >= Math.min(5, save.threatMax + 1)),
-        this.updatePlayState());
+      getById("tName").textContent = threat.name;
+      getById("tName").classList.toggle("hot", this.viewThreat > 0);
+      getById("tDesc").textContent = locked
+        ? `Clear all ${20} waves on ${threatLevels[this.viewThreat - 1].name} to unlock`
+        : this.viewThreat > 0
+          ? `${threat.desc} Shards \xD7${(1 + 0.25 * this.viewThreat).toFixed(2)}`
+          : threat.desc;
+      getById("tPrev").disabled = this.viewThreat <= 0;
+      getById("tNext").disabled = this.viewThreat >= Math.min(5, save.threatMax + 1);
+      this.updatePlayState();
     }
     updatePlayState() {
       let save = this.save,
         id = weaponOrder[this.viewWeapon],
         playable = !!save.weapons[id] && this.viewThreat <= save.threatMax,
         btn = getById("playBtn");
-      ((btn.disabled = !playable),
-        (btn.textContent = playable
-          ? save.run
-            ? "NEW RUN"
-            : "START RUN"
-          : save.weapons[id]
-            ? "THREAT LOCKED"
-            : "WEAPON LOCKED"));
+      btn.disabled = !playable;
+      btn.textContent = playable
+        ? save.run
+          ? "NEW RUN"
+          : "START RUN"
+        : save.weapons[id]
+          ? "THREAT LOCKED"
+          : "WEAPON LOCKED";
     }
     stepWeapon(dir) {
       this.viewWeapon = clamp(this.viewWeapon + dir, 0, weaponOrder.length - 1);
       let id = weaponOrder[this.viewWeapon];
-      (this.save.weapons[id] && ((this.save.weapon = id), this.g.store.save("weapon")), this.renderWeapon());
+      if (this.save.weapons[id]) {
+        this.save.weapon = id;
+        this.g.store.save("weapon");
+      }
+      this.renderWeapon();
     }
     stepThreat(dir) {
-      ((this.viewThreat = clamp(this.viewThreat + dir, 0, Math.min(5, this.save.threatMax + 1))),
-        this.viewThreat <= this.save.threatMax && ((this.save.threat = this.viewThreat), this.g.store.save("threat")),
-        this.renderThreat());
+      this.viewThreat = clamp(this.viewThreat + dir, 0, Math.min(5, this.save.threatMax + 1));
+      if (this.viewThreat <= this.save.threatMax) {
+        this.save.threat = this.viewThreat;
+        this.g.store.save("threat");
+      }
+      this.renderThreat();
     }
     buyWeapon() {
       let save = this.save,
@@ -505,19 +581,27 @@ var getById = (id) => document.getElementById(id),
         this.g.sound.play("deny");
         return;
       }
-      ((save.shards -= weapon.cost),
-        (save.weapons[id] = !0),
-        (save.weapon = id),
-        this.g.store.save("buy"),
-        this.g.sound.play("buy"),
-        this.toast(`${weapon.name} unlocked`, "gold"),
-        this.renderHome());
+      save.shards -= weapon.cost;
+      save.weapons[id] = true;
+      save.weapon = id;
+      this.g.store.save("buy");
+      this.g.sound.play("buy");
+      this.toast(`${weapon.name} unlocked`, "gold");
+      this.renderHome();
     }
     async play() {
       let save = this.save;
-      (save.run &&
-        !(await this.confirm("Start a new run?", `Your run at wave ${save.run.wave} will be abandoned.`, "New run"))) ||
-        (save.run && this.g.discardRun(), this.g.startRun({}));
+      if (
+        !(
+          save.run &&
+          !(await this.confirm("Start a new run?", `Your run at wave ${save.run.wave} will be abandoned.`, "New run"))
+        )
+      ) {
+        if (save.run) {
+          this.g.discardRun();
+        }
+        this.g.startRun({});
+      }
     }
     renderWorkshop() {
       let save = this.save;
@@ -547,11 +631,11 @@ var getById = (id) => document.getElementById(id),
         this.g.sound.play("deny");
         return;
       }
-      ((save.shards -= cost),
-        (save.workshop[id] = level + 1),
-        this.g.store.save("workshop"),
-        this.g.sound.play("buy"),
-        this.renderWorkshop());
+      save.shards -= cost;
+      save.workshop[id] = level + 1;
+      this.g.store.save("workshop");
+      this.g.sound.play("buy");
+      this.renderWorkshop();
     }
     renderRecords() {
       let save = this.save,
@@ -605,44 +689,46 @@ var getById = (id) => document.getElementById(id),
     claim(id) {
       let save = this.save,
         ms = milestones.find((milestone) => milestone.id === id);
-      !ms ||
-        save.milestones[id] ||
-        !ms.test(save) ||
-        ((save.milestones[id] = !0),
-        (save.shards += ms.reward),
-        this.g.store.save("claim"),
-        this.g.sound.play("buy"),
-        this.toast(`${ms.name}: +${ms.reward} shards`, "gold"),
-        this.renderRecords());
+      if (!(!ms || save.milestones[id] || !ms.test(save))) {
+        save.milestones[id] = true;
+        save.shards += ms.reward;
+        this.g.store.save("claim");
+        this.g.sound.play("buy");
+        this.toast(`${ms.name}: +${ms.reward} shards`, "gold");
+        this.renderRecords();
+      }
     }
     renderSettings() {
       let settings = this.save.settings;
-      ((getById("setAuto").checked = settings.autoFire),
-        (getById("setAssist").checked = settings.assist),
-        (getById("setSwap").checked = settings.swap),
-        (getById("setShake").checked = settings.shake),
-        (getById("setNumbers").checked = settings.numbers),
-        (getById("setContrast").checked = settings.contrast),
-        (getById("setCalm").checked = settings.calm),
-        (getById("setSfx").value = settings.sfx),
-        (getById("setMusic").value = settings.music));
+      getById("setAuto").checked = settings.autoFire;
+      getById("setAssist").checked = settings.assist;
+      getById("setSwap").checked = settings.swap;
+      getById("setShake").checked = settings.shake;
+      getById("setNumbers").checked = settings.numbers;
+      getById("setContrast").checked = settings.contrast;
+      getById("setCalm").checked = settings.calm;
+      getById("setSfx").value = settings.sfx;
+      getById("setMusic").value = settings.music;
       for (let btn of getById("setQuality").querySelectorAll("button"))
         btn.classList.toggle("on", btn.dataset.v === settings.quality);
       for (let btn of getById("setZoom").querySelectorAll("button"))
         btn.classList.toggle("on", Math.abs(+btn.dataset.v - settings.zoom) < 0.01);
-      ((getById("qualityNote").textContent = this.g.qualityNote()),
-        (getById("storageWarn").hidden = this.g.store.storageOk),
-        (getById("verText").textContent = `v${GAME_VERSION}`),
-        this.renderLog());
+      getById("qualityNote").textContent = this.g.qualityNote();
+      getById("storageWarn").hidden = this.g.store.storageOk;
+      getById("verText").textContent = `v${GAME_VERSION}`;
+      this.renderLog();
       // 2.4.2: run timer and FPS counter
-      ((getById("setTimer").checked = !!settings.timer), (getById("setFps").checked = !!settings.fps));
+      getById("setTimer").checked = !!settings.timer;
+      getById("setFps").checked = !!settings.fps;
     }
     renderLog() {
       let count = getErrorLog().length;
       getById("logCount").textContent = count ? String(count) : "0";
     }
     async showLog(skipHealth) {
-      skipHealth || (await rlRunHealth({ context: "diagnostics" }));
+      if (!skipHealth) {
+        await rlRunHealth({ context: "diagnostics" });
+      }
       let choice = await this.dialog({
         title: "Diagnostics",
         body: `<p>Build ${escapeHtml(this.g.buildId)}. “Deep test” runs the full simulation self-test (a few seconds). Copy this text when reporting a problem.</p><textarea readonly spellcheck="false">${escapeHtml(buildReport())}</textarea>`,
@@ -653,65 +739,82 @@ var getById = (id) => document.getElementById(id),
           { label: "Close", value: null, cls: "primary" },
         ],
       });
-      (choice === "copy" && this.copy(buildReport()),
-        choice === "clear" &&
-          (clearErrorLog(), set_RL_LAST_RUN_AUDIT(null), this.renderLog(), this.toast("Log cleared")),
-        choice === "deep" &&
-          (this.toast("Running deep self-test…", "", 2600),
-          setTimeout(async () => {
-            await rlRunHealth({ context: "diagnostics", deep: !0 });
-            this.showLog(!0);
-          }, 80)));
+      if (choice === "copy") {
+        this.copy(buildReport());
+      }
+      if (choice === "clear") {
+        clearErrorLog();
+        set_RL_LAST_RUN_AUDIT(null);
+        this.renderLog();
+        this.toast("Log cleared");
+      }
+      if (choice === "deep") {
+        this.toast("Running deep self-test…", "", 2600);
+        setTimeout(async () => {
+          await rlRunHealth({ context: "diagnostics", deep: true });
+          this.showLog(true);
+        }, 80);
+      }
     }
     async copy(text) {
-      let ok = !1;
+      let ok = false;
       try {
-        navigator.clipboard && window.isSecureContext && (await navigator.clipboard.writeText(text), (ok = !0));
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          ok = true;
+        }
       } catch {}
       if (!ok) {
         let area = document.createElement("textarea");
-        ((area.value = text),
-          area.setAttribute("readonly", ""),
-          (area.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0"),
-          document.body.appendChild(area),
-          area.select(),
-          area.setSelectionRange(0, text.length));
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+        document.body.appendChild(area);
+        area.select();
+        area.setSelectionRange(0, text.length);
         try {
           ok = document.execCommand("copy");
         } catch {
-          ok = !1;
+          ok = false;
         }
         area.remove();
       }
-      return (this.toast(ok ? "Copied" : "Copy failed \u2014 select the text and copy it by hand"), ok);
+      this.toast(ok ? "Copied" : "Copy failed \u2014 select the text and copy it by hand");
+      return ok;
     }
     dialog({ title, body, buttons, onOpen, read }) {
-      (this.dlgResolve && this.closeDialog(null),
-        (getById("dlgTitle").textContent = title),
-        (getById("dlgBody").innerHTML = body));
+      if (this.dlgResolve) {
+        this.closeDialog(null);
+      }
+      getById("dlgTitle").textContent = title;
+      getById("dlgBody").innerHTML = body;
       let row = getById("dlgBtns");
-      return (
-        (row.innerHTML = ""),
-        new Promise((resolve) => {
-          ((this.dlgResolve = resolve), (this.dlgRead = read || null));
-          for (let spec of buttons) {
-            let btn = document.createElement("button");
-            ((btn.className = "btn " + (spec.cls || "")),
-              (btn.textContent = spec.label),
-              this.click(btn, () => this.closeDialog(spec.value)),
-              row.appendChild(btn));
-          }
-          ((getById("dialog").hidden = !1), onOpen && onOpen());
-        })
-      );
+      row.innerHTML = "";
+      return new Promise((resolve) => {
+        this.dlgResolve = resolve;
+        this.dlgRead = read || null;
+        for (let spec of buttons) {
+          let btn = document.createElement("button");
+          btn.className = "btn " + (spec.cls || "");
+          btn.textContent = spec.label;
+          this.click(btn, () => this.closeDialog(spec.value));
+          row.appendChild(btn);
+        }
+        getById("dialog").hidden = false;
+        if (onOpen) {
+          onOpen();
+        }
+      });
     }
     closeDialog(value) {
       let resolve = this.dlgResolve,
-        text = this.dlgRead ? this.dlgRead() : void 0;
-      ((this.dlgResolve = null),
-        (getById("dialog").hidden = !0),
-        resolve && resolve(this.dlgRead ? { value, text } : value),
-        (this.dlgRead = null));
+        text = this.dlgRead ? this.dlgRead() : undefined;
+      this.dlgResolve = null;
+      getById("dialog").hidden = true;
+      if (resolve) {
+        resolve(this.dlgRead ? { value, text } : value);
+      }
+      this.dlgRead = null;
     }
     async confirm(title, text, okLabel, danger) {
       return (
@@ -719,17 +822,17 @@ var getById = (id) => document.getElementById(id),
           title,
           body: `<p>${escapeHtml(text)}</p>`,
           buttons: [
-            { label: "Cancel", value: !1, cls: "ghost" },
-            { label: okLabel, value: !0, cls: danger ? "danger" : "primary" },
+            { label: "Cancel", value: false, cls: "ghost" },
+            { label: okLabel, value: true, cls: danger ? "danger" : "primary" },
           ],
-        })) === !0
+        })) === true
       );
     }
     alert(title, text) {
       return this.dialog({
         title,
         body: `<p>${escapeHtml(text)}</p>`,
-        buttons: [{ label: "OK", value: !0, cls: "primary" }],
+        buttons: [{ label: "OK", value: true, cls: "primary" }],
       });
     }
     toast(text, cls = "", ms = 2900) {
@@ -747,45 +850,49 @@ var getById = (id) => document.getElementById(id),
     }
     banner(big, small, cls = "", ms = 2200) {
       let el = getById("banner");
-      ((el.innerHTML = `<div class="bn ${cls}" style="animation-duration:${ms}ms"><div class="small">${escapeHtml(small || "")}</div><div class="big">${escapeHtml(big)}</div></div>`),
-        clearTimeout(this.bannerT),
-        (this.bannerT = setTimeout(() => {
-          el.innerHTML = "";
-        }, ms + 50)));
+      el.innerHTML = `<div class="bn ${cls}" style="animation-duration:${ms}ms"><div class="small">${escapeHtml(small || "")}</div><div class="big">${escapeHtml(big)}</div></div>`;
+      clearTimeout(this.bannerT);
+      this.bannerT = setTimeout(() => {
+        el.innerHTML = "";
+      }, ms + 50);
     }
     comboPop(combo, bonus) {
       let el = document.createElement("div");
-      ((el.className = "combo-pop"),
-        (el.textContent = `\xD7${combo} COMBO  +${bonus}`),
-        getById("hud").appendChild(el),
-        setTimeout(() => el.remove(), 1250));
+      el.className = "combo-pop";
+      el.textContent = `\xD7${combo} COMBO  +${bonus}`;
+      getById("hud").appendChild(el);
+      setTimeout(() => el.remove(), 1250);
     }
     coach(step, steps, text) {
       let box = getById("coach");
       if (step == null) {
-        ((box.hidden = !0), (this.coachKey = null));
+        box.hidden = true;
+        this.coachKey = null;
         return;
       }
       let key = step + text;
-      this.coachKey !== key &&
-        ((this.coachKey = key),
-        (getById("coachDots").innerHTML = Array.from(
+      if (this.coachKey !== key) {
+        this.coachKey = key;
+        getById("coachDots").innerHTML = Array.from(
           { length: steps },
           (_, i) => `<i class="${i <= step ? "on" : ""}"></i>`,
-        ).join("")),
-        (getById("coachText").textContent = text),
-        (box.hidden = !1));
+        ).join("");
+        getById("coachText").textContent = text;
+        box.hidden = false;
+      }
     }
     setSwap(on) {
       getById("hud").classList.toggle("swap", !!on);
     }
     showHud(on) {
-      ((getById("hud").hidden = !on),
-        (getById("hud").style.visibility = ""),
-        getById("vignette").classList.remove("low"),
-        (getById("touch").hidden = !on),
-        on || (getById("bossBar").hidden = !0),
-        (this.hudCache = {}));
+      getById("hud").hidden = !on;
+      getById("hud").style.visibility = "";
+      getById("vignette").classList.remove("low");
+      getById("touch").hidden = !on;
+      if (!on) {
+        getById("bossBar").hidden = true;
+      }
+      this.hudCache = {};
       // 2.5.0 D: the end of a run hides the title cards like the banner
       this.clearTitleCard();
     }
@@ -794,43 +901,51 @@ var getById = (id) => document.getElementById(id),
         player = world.player,
         stats = world.stats,
         update = (key, value, apply) => {
-          cache[key] !== value && ((cache[key] = value), apply(value));
+          if (cache[key] !== value) {
+            cache[key] = value;
+            apply(value);
+          }
         },
         hp = Math.max(0, Math.ceil(player.hp));
       update("hp", hp + "/" + stats.maxHp, (text) => {
         getById("hpNum").textContent = text;
       });
       let hpFrac = clamp(player.hp / stats.maxHp, 0, 1);
-      if (
-        (update("hpf", Math.round(hpFrac * 200), () => {
-          ((getById("hpFill").style.transform = `scaleX(${hpFrac})`),
-            (getById("hpLag").style.transform = `scaleX(${hpFrac})`),
-            getById("hpFill").parentElement.classList.toggle("low", hpFrac < 0.3));
-        }),
-        update("shieldOn", stats.shieldCd > 0, (on) => {
-          getById("shieldPip").hidden = !on;
-        }),
-        stats.shieldCd > 0 &&
-          update("shield", player.shield ? 100 : Math.round((player.shieldT / stats.shieldCd) * 20) * 5, (pct) => {
-            (getById("shieldPip").style.setProperty("--p", pct + "%"),
-              getById("shieldPip").classList.toggle("ready", pct >= 100));
-          }),
-        cache.hpVal != null && player.hp > cache.hpVal + 0.5)
-      ) {
-        let bar = getById("hpFill").parentElement;
-        (bar.classList.remove("heal"), bar.offsetWidth, bar.classList.add("heal"));
+      update("hpf", Math.round(hpFrac * 200), () => {
+        getById("hpFill").style.transform = `scaleX(${hpFrac})`;
+        getById("hpLag").style.transform = `scaleX(${hpFrac})`;
+        getById("hpFill").parentElement.classList.toggle("low", hpFrac < 0.3);
+      });
+      update("shieldOn", stats.shieldCd > 0, (on) => {
+        getById("shieldPip").hidden = !on;
+      });
+      if (stats.shieldCd > 0) {
+        update("shield", player.shield ? 100 : Math.round((player.shieldT / stats.shieldCd) * 20) * 5, (pct) => {
+          getById("shieldPip").style.setProperty("--p", pct + "%");
+          getById("shieldPip").classList.toggle("ready", pct >= 100);
+        });
       }
-      ((cache.hpVal = player.hp),
-        this.buffs(world),
-        update("low", player.alive && hpFrac < 0.25, (low) => {
-          getById("vignette").classList.toggle("low", low);
-        }),
-        update("shards", world.shards, (shards) => {
-          getById("runShards").textContent = formatCount(shards);
-          let chip = getById("shardChip");
-          (cache.shardsSeen && (chip.classList.remove("bump"), chip.offsetWidth, chip.classList.add("bump")),
-            (cache.shardsSeen = !0));
-        }));
+      if (cache.hpVal != null && player.hp > cache.hpVal + 0.5) {
+        let bar = getById("hpFill").parentElement;
+        bar.classList.remove("heal");
+        bar.offsetWidth;
+        bar.classList.add("heal");
+      }
+      cache.hpVal = player.hp;
+      this.buffs(world);
+      update("low", player.alive && hpFrac < 0.25, (low) => {
+        getById("vignette").classList.toggle("low", low);
+      });
+      update("shards", world.shards, (shards) => {
+        getById("runShards").textContent = formatCount(shards);
+        let chip = getById("shardChip");
+        if (cache.shardsSeen) {
+          chip.classList.remove("bump");
+          chip.offsetWidth;
+          chip.classList.add("bump");
+        }
+        cache.shardsSeen = true;
+      });
       let waveMax = world.endless ? "" : "/" + 20;
       update("wave", world.wave + waveMax, () => {
         getById("waveLabel").textContent = `WAVE ${world.wave}${waveMax}`;
@@ -843,17 +958,21 @@ var getById = (id) => document.getElementById(id),
           for (let i = world.planIdx; i < world.plan.length; i++) left += world.plan[i].members.length;
           sub = left + " LEFT";
         }
-      else world.state === "cleared" ? (sub = "CLEARED") : (sub = "\xA0");
+      else {
+        if (world.state === "cleared") {
+          sub = "CLEARED";
+        } else {
+          sub = "\xA0";
+        }
+      }
       update("sub", sub, (text) => {
         getById("waveSub").textContent = text;
       });
       let showProg = world.state === "fight" && !world.boss && !world.bossPending && world.planTotal > 0;
-      if (
-        (update("progOn", showProg, (on) => {
-          getById("waveProg").hidden = !on;
-        }),
-        showProg)
-      ) {
+      update("progOn", showProg, (on) => {
+        getById("waveProg").hidden = !on;
+      });
+      if (showProg) {
         let left = world.enemies.length + world.markers.length;
         for (let i = world.planIdx; i < world.plan.length; i++) left += world.plan[i].members.length;
         let progress = clamp(1 - left / Math.max(world.planTotal, left), 0, 1);
@@ -862,113 +981,153 @@ var getById = (id) => document.getElementById(id),
         });
       }
       let boss = world.boss || (world.champion && !world.champion.dead ? world.champion : null);
-      (update("bossOn", !!boss, (on) => {
+      update("bossOn", !!boss, (on) => {
         getById("bossBar").hidden = !on;
-      }),
-        boss &&
-          (update("bossName", boss.type + (boss.enraged ? "!" : "") + (boss.champion ? "c" : ""), () => {
-            ((getById("bossName").textContent = boss.champion
-              ? `${enemyDefs[boss.type].name.toUpperCase()} CHAMPION`
-              : bossDefs[boss.type].name),
-              (getById("bossPhase").textContent = boss.enraged ? "ENRAGED" : boss.champion ? "RALLYING" : ""));
-          }),
-          update("bossF", Math.round((boss.hp / boss.maxHp) * 300), (value) => {
-            ((getById("bossFill").style.transform = `scaleX(${clamp(value / 300, 0, 1)})`),
-              (getById("bossLag").style.transform = `scaleX(${clamp(value / 300, 0, 1)})`));
-          }),
-          update("bossTicks", boss.type, (type) => {
-            getById("bossTicks").innerHTML = type === "core" ? '<s style="left:66%"></s><s style="left:33%"></s>' : "";
-          })));
+      });
+      if (boss) {
+        update("bossName", boss.type + (boss.enraged ? "!" : "") + (boss.champion ? "c" : ""), () => {
+          getById("bossName").textContent = boss.champion
+            ? `${enemyDefs[boss.type].name.toUpperCase()} CHAMPION`
+            : bossDefs[boss.type].name;
+          getById("bossPhase").textContent = boss.enraged ? "ENRAGED" : boss.champion ? "RALLYING" : "";
+        });
+        update("bossF", Math.round((boss.hp / boss.maxHp) * 300), (value) => {
+          getById("bossFill").style.transform = `scaleX(${clamp(value / 300, 0, 1)})`;
+          getById("bossLag").style.transform = `scaleX(${clamp(value / 300, 0, 1)})`;
+        });
+        update("bossTicks", boss.type, (type) => {
+          getById("bossTicks").innerHTML = type === "core" ? '<s style="left:66%"></s><s style="left:33%"></s>' : "";
+        });
+      }
       let combo = world.combo >= 5 ? world.combo : 0;
-      (update("combo", combo, (combo) => {
-        ((getById("combo").hidden = !combo),
-          combo &&
-            ((getById("comboN").textContent = "\xD7" + combo), getById("combo").classList.toggle("hot", combo >= 25)));
-      }),
-        combo &&
-          update("comboT", Math.round(world.comboT * 20), (value) => {
-            getById("comboBar").style.transform = `scaleX(${clamp(value / 44, 0, 1)})`;
-          }));
+      update("combo", combo, (combo) => {
+        getById("combo").hidden = !combo;
+        if (combo) {
+          getById("comboN").textContent = "\xD7" + combo;
+          getById("combo").classList.toggle("hot", combo >= 25);
+        }
+      });
+      if (combo) {
+        update("comboT", Math.round(world.comboT * 20), (value) => {
+          getById("comboBar").style.transform = `scaleX(${clamp(value / 44, 0, 1)})`;
+        });
+      }
       let dashPct = stats.dashCd > 0 ? Math.round((player.dashCdT / stats.dashCd) * 100) : 0;
-      (update("dash", dashPct, (pct) => {
+      update("dash", dashPct, (pct) => {
         let btn = getById("dashBtn");
-        (btn.style.setProperty("--p", pct + "%"), btn.style.setProperty("--q", 100 - pct + "%"));
+        btn.style.setProperty("--p", pct + "%");
+        btn.style.setProperty("--q", 100 - pct + "%");
         let cooling = pct > 0;
-        (btn.classList.contains("cooling") &&
-          !cooling &&
-          (btn.classList.remove("pop"),
-          btn.offsetWidth,
-          btn.classList.add("pop"),
-          world.state === "fight" && this.g.sound.play("ready")),
-          btn.classList.toggle("cooling", cooling));
-      }),
-        update("dashSec", player.dashCdT > 0.25 ? player.dashCdT.toFixed(1) : "", (text) => {
-          getById("dashSec").textContent = text;
-        }));
+        if (btn.classList.contains("cooling") && !cooling) {
+          btn.classList.remove("pop");
+          btn.offsetWidth;
+          btn.classList.add("pop");
+          if (world.state === "fight") {
+            this.g.sound.play("ready");
+          }
+        }
+        btn.classList.toggle("cooling", cooling);
+      });
+      update("dashSec", player.dashCdT > 0.25 ? player.dashCdT.toFixed(1) : "", (text) => {
+        getById("dashSec").textContent = text;
+      });
       let nova = Math.floor(player.nova);
       update("nova", nova, (pct) => {
-        (getById("novaBtn").style.setProperty("--p", pct + "%"),
-          getById("novaBtn").classList.toggle("ready", pct >= 100));
+        getById("novaBtn").style.setProperty("--p", pct + "%");
+        getById("novaBtn").classList.toggle("ready", pct >= 100);
       });
       // 2.4.2: run timer and FPS counter
       const settings = store.data.settings,
         now = performance.now(),
         meter = hudFpsMeter;
       // a gap (pause, upgrade choice, hidden tab) starts a new measurement
-      (now - meter.last > 1e3 && ((meter.since = now), (meter.frames = 0)), (meter.last = now));
-      (meter.frames++,
-        now - meter.since >= 500 &&
-          ((meter.fps = meter.since ? Math.round((meter.frames * 1e3) / (now - meter.since)) : 0),
-          (meter.frames = 0),
-          (meter.since = now)));
+      if (now - meter.last > 1e3) {
+        meter.since = now;
+        meter.frames = 0;
+      }
+      meter.last = now;
+      meter.frames++;
+      if (now - meter.since >= 500) {
+        meter.fps = meter.since ? Math.round((meter.frames * 1e3) / (now - meter.since)) : 0;
+        meter.frames = 0;
+        meter.since = now;
+      }
       const parts = [];
-      (settings.timer && parts.push(formatTime(world.time)),
-        settings.fps && meter.fps && parts.push(meter.fps + " FPS"));
+      if (settings.timer) {
+        parts.push(formatTime(world.time));
+      }
+      if (settings.fps && meter.fps) {
+        parts.push(meter.fps + " FPS");
+      }
       const txt = parts.join(" \xB7 ");
-      txt !== meter.shown &&
-        ((meter.shown = txt), (getById("hudInfo").textContent = txt), (getById("hudInfo").hidden = !txt));
+      if (txt !== meter.shown) {
+        meter.shown = txt;
+        getById("hudInfo").textContent = txt;
+        getById("hudInfo").hidden = !txt;
+      }
     }
     buffs(world) {
       let player = world.player,
         stats = world.stats,
         chips = [];
-      (stats.bloodrush &&
-        player.rushN > 0 &&
-        chips.push(["rush", `RUSH \xD7${player.rushN}`, "#ff5a7a", player.rushT / 4]),
-        world.chronoT > 0 && chips.push(["chrono", "SLOW-MO", "#8fe8ff", world.chronoT / 2]),
-        (world.ws.revive || 0) > 0 && !world.revived && chips.push(["life", "2ND LIFE", "#6dff8a", -1]),
-        // 2.5.0 B: Emergency Shield barrier and Hazard Attunement
-        world.barrierT > 0 &&
-          chips.push(["barrier", "BARRIER", "#7fd8ff", world.barrierT / Math.max(1, stats.barrierT || 1)]),
-        world.attuned && world.state === "fight" && chips.push(["attune", "ATTUNED", "#ffb86b", -1]),
-        world.event &&
-          world.state === "fight" &&
-          chips.unshift(["event", waveEvents[world.event].name, world.event === "elite" ? "#ffc84a" : "#7ff6ff", -1]),
-        player.onIce && world.state === "fight" && chips.push(["ice", "ICE", "#bff4ff", -1]),
-        player.inAcid && world.state === "fight" && chips.push(["acid", "ACID", "#b4ff3d", -1]),
-        player.slowT > 0 && chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]));
+      if (stats.bloodrush && player.rushN > 0) {
+        chips.push(["rush", `RUSH \xD7${player.rushN}`, "#ff5a7a", player.rushT / 4]);
+      }
+      if (world.chronoT > 0) {
+        chips.push(["chrono", "SLOW-MO", "#8fe8ff", world.chronoT / 2]);
+      }
+      if ((world.ws.revive || 0) > 0 && !world.revived) {
+        chips.push(["life", "2ND LIFE", "#6dff8a", -1]);
+      }
+      if (world.barrierT > 0) {
+        chips.push(["barrier", "BARRIER", "#7fd8ff", world.barrierT / Math.max(1, stats.barrierT || 1)]);
+      }
+      if (world.attuned && world.state === "fight") {
+        chips.push(["attune", "ATTUNED", "#ffb86b", -1]);
+      }
+      if (world.event && world.state === "fight") {
+        chips.unshift(["event", waveEvents[world.event].name, world.event === "elite" ? "#ffc84a" : "#7ff6ff", -1]);
+      }
+      if (player.onIce && world.state === "fight") {
+        chips.push(["ice", "ICE", "#bff4ff", -1]);
+      }
+      if (player.inAcid && world.state === "fight") {
+        chips.push(["acid", "ACID", "#b4ff3d", -1]);
+      }
+      if (player.slowT > 0) {
+        chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]);
+      }
       let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
         buffRow = getById("buffs");
-      this.hudCache.buffKey !== key &&
-        ((this.hudCache.buffKey = key),
-        (buffRow.innerHTML = chips
+      if (this.hudCache.buffKey !== key) {
+        this.hudCache.buffKey = key;
+        buffRow.innerHTML = chips
           .map(
             ([id, text, color, left]) =>
               `<span class="buff" data-b="${id}" style="--bc:${color}">${text}${left >= 0 ? "<i></i>" : ""}</span>`,
           )
-          .join("")));
+          .join("");
+      }
       for (let [id, , , left] of chips) {
         if (left < 0) continue;
         let bar = buffRow.querySelector(`[data-b="${id}"] i`);
-        bar && (bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`);
+        if (bar) {
+          bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`;
+        }
       }
       // 2.5.0 A: chips for the timed upgrades (Heat Sink, Slipstream) and active Cryo Skates.
       // They are added next to the chips above, which may rebuild the row at any frame.
       const on = world.state === "fight" && player.alive,
         want = [];
-      on && stats.heatSink && player.heatT > 0 && want.push(["heat", "HEAT", "#ff8a3d", player.heatT / 3]);
-      on && stats.slip && player.slipT > 0 && want.push(["slip", "SLIPSTREAM", "#7ff6ff", player.slipT / 1.37]);
-      on && stats.skates && player.skating && want.push(["skate", "SKATES", "#bff4ff", -1]);
+      if (on && stats.heatSink && player.heatT > 0) {
+        want.push(["heat", "HEAT", "#ff8a3d", player.heatT / 3]);
+      }
+      if (on && stats.slip && player.slipT > 0) {
+        want.push(["slip", "SLIPSTREAM", "#7ff6ff", player.slipT / 1.37]);
+      }
+      if (on && stats.skates && player.skating) {
+        want.push(["skate", "SKATES", "#bff4ff", -1]);
+      }
       const row = getById("buffs");
       if (!row) return;
       for (const id of timedBuffChips)
@@ -984,21 +1143,23 @@ var getById = (id) => document.getElementById(id),
           row.appendChild(el);
         }
         const bar = el.querySelector("i");
-        bar && (bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`);
+        if (bar) {
+          bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`;
+        }
       }
     }
     showChoose(world) {
       let bossReward = world.offerBoss;
-      ((getById("chooseEyebrow").textContent = bossReward
+      getById("chooseEyebrow").textContent = bossReward
         ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "BOSS"} DEFEATED`
-        : `WAVE ${world.wave} CLEARED`),
-        (getById("chooseTitle").textContent = bossReward ? "Claim a rare reward" : "Choose an upgrade"));
+        : `WAVE ${world.wave} CLEARED`;
+      getById("chooseTitle").textContent = bossReward ? "Claim a rare reward" : "Choose an upgrade";
       let hpFrac = clamp(world.player.hp / world.stats.maxHp, 0, 1);
-      ((getById("chooseHp").style.transform = `scaleX(${hpFrac})`),
-        (getById("chooseHpNum").textContent = `${Math.ceil(world.player.hp)}/${world.stats.maxHp}`),
-        this.renderCards(world),
-        this.coverHud(!0),
-        (getById("choose").hidden = !1));
+      getById("chooseHp").style.transform = `scaleX(${hpFrac})`;
+      getById("chooseHpNum").textContent = `${Math.ceil(world.player.hp)}/${world.stats.maxHp}`;
+      this.renderCards(world);
+      this.coverHud(true);
+      getById("choose").hidden = false;
     }
     renderCards(world) {
       // 2.4.2: the reroll label survives a re-render (reroll), so drop its old key hint first
@@ -1006,7 +1167,7 @@ var getById = (id) => document.getElementById(id),
         .querySelectorAll(".card-key")
         .forEach((el) => el.remove());
       let cards = getById("cards");
-      ((cards.innerHTML = world.offer
+      cards.innerHTML = world.offer
         .map((id, i) => {
           let up = upgradesById[id],
             level = world.up[id] || 0,
@@ -1021,17 +1182,19 @@ var getById = (id) => document.getElementById(id),
             delta = this.statDelta(id, world);
           return `<button class="card r${up.rarity}" data-pick="${id}" style="animation-delay:${i * 70}ms"><span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${tag}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
         })
-        .join("")),
-        cards.classList.add("locked"),
-        clearTimeout(this.armT),
-        (this.armT = setTimeout(() => cards.classList.remove("locked"), 650)));
+        .join("");
+      cards.classList.add("locked");
+      clearTimeout(this.armT);
+      this.armT = setTimeout(() => cards.classList.remove("locked"), 650);
       for (let card of cards.querySelectorAll("[data-pick]"))
         card.addEventListener("click", () => {
-          cards.classList.contains("locked") || this.g.choose(card.dataset.pick);
+          if (!cards.classList.contains("locked")) {
+            this.g.choose(card.dataset.pick);
+          }
         });
-      ((getById("rerollTxt").textContent = `Reroll (${world.rerolls})`),
-        (getById("rerollBtn").disabled = world.rerolls <= 0),
-        (getById("buildStrip").innerHTML = this.buildHtml(world)));
+      getById("rerollTxt").textContent = `Reroll (${world.rerolls})`;
+      getById("rerollBtn").disabled = world.rerolls <= 0;
+      getById("buildStrip").innerHTML = this.buildHtml(world);
       // 2.5.0 D: every upgrade that is offered counts as seen (also after a reroll and in a resumed run)
       try {
         this.markSeen((world.offer || []).filter((id) => upgradesById[id]).map((id) => "up_" + id));
@@ -1088,13 +1251,19 @@ var getById = (id) => document.getElementById(id),
       return `<small class="evo-hint">\u2192 ${escapeHtml(evo.name)}: this ${mine} \xB7 ${escapeHtml(others.join(", "))}</small>`;
     }
     hideChoose() {
-      ((getById("choose").hidden = !0), this.coverHud(!1));
+      getById("choose").hidden = true;
+      this.coverHud(false);
     }
     coverHud(on) {
-      ((getById("hud").style.visibility = on ? "hidden" : ""),
-        on && ((getById("banner").innerHTML = ""), clearTimeout(this.bannerT)));
+      getById("hud").style.visibility = on ? "hidden" : "";
+      if (on) {
+        getById("banner").innerHTML = "";
+        clearTimeout(this.bannerT);
+      }
       // 2.5.0 D: the upgrade choice and the pause menu hide the title cards like the banner
-      on && this.clearTitleCard();
+      if (on) {
+        this.clearTitleCard();
+      }
     }
     buildHtml(world) {
       let own = upgradeList.filter((upgrade) => world.up[upgrade.id] && !upgrade.repeat);
@@ -1108,81 +1277,90 @@ var getById = (id) => document.getElementById(id),
         : '<span class="note">No upgrades yet.</span>';
     }
     showPause(world) {
-      ((getById("pauseTitle").textContent = `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`),
-        (getById("pauseStats").innerHTML =
-          `<span>${formatTime(world.time)}</span><span>${world.kills} KILLS</span><span>${world.shards} SHARDS</span>`),
-        (getById("pauseBuild").innerHTML = this.buildHtml(world)),
-        this.coverHud(!0),
-        (getById("pause").hidden = !1),
-        (this.screen = "pause"));
+      getById("pauseTitle").textContent = `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`;
+      getById("pauseStats").innerHTML =
+        `<span>${formatTime(world.time)}</span><span>${world.kills} KILLS</span><span>${world.shards} SHARDS</span>`;
+      getById("pauseBuild").innerHTML = this.buildHtml(world);
+      this.coverHud(true);
+      getById("pause").hidden = false;
+      this.screen = "pause";
       // 2.4.2: the build in the pause menu explains each upgrade on tap or click
       const own = upgradeList.filter((upgrade) => world.up[upgrade.id] && !upgrade.repeat),
         info = getById("pauseUpInfo");
-      own.length &&
-        (getById("pauseBuild").innerHTML = own
+      if (own.length) {
+        getById("pauseBuild").innerHTML = own
           .map(
             (upgrade) =>
               `<button type="button" class="bi r${upgrade.rarity}" data-up="${upgrade.id}" aria-label="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</button>`,
           )
-          .join(""));
-      ((info.hidden = !own.length), (info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>'));
+          .join("");
+      }
+      info.hidden = !own.length;
+      info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>';
     }
     hidePause() {
       // 2.4.2: also closes settings opened from the pause menu
       closePauseSettings(this);
-      ((getById("pause").hidden = !0), (getById("settings").hidden = !0), this.coverHud(!1));
+      getById("pause").hidden = true;
+      getById("settings").hidden = true;
+      this.coverHud(false);
     }
     // 2.4.2: settings from the pause menu (without backup and reset)
     openPauseSettings() {
       if (!this.g.paused || getById("pause").hidden) return;
-      ((this.rlFromPause = !0),
-        (getById("pause").hidden = !0),
-        getById("settings").classList.add("in-run"),
-        this._show("settings"));
+      this.rlFromPause = true;
+      getById("pause").hidden = true;
+      getById("settings").classList.add("in-run");
+      this._show("settings");
     }
     showOver(result) {
       getById("overEyebrow").textContent = result.win
         ? `${threatLevels[result.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
         : `${weaponDefs[result.weapon].name.toUpperCase()} \xB7 ${threatLevels[result.threat].name.toUpperCase()}`;
       let title = getById("overTitle");
-      ((title.textContent = result.win ? "RIFT SEALED" : result.abandoned ? "RUN ENDED" : "SIGNAL LOST"),
-        (title.className = "over-title " + (result.win ? "win" : "lose")),
-        (getById("overBest").hidden = !(result.best || result.fastest)),
-        (getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST"));
+      title.textContent = result.win ? "RIFT SEALED" : result.abandoned ? "RUN ENDED" : "SIGNAL LOST";
+      title.className = "over-title " + (result.win ? "win" : "lose");
+      getById("overBest").hidden = !(result.best || result.fastest);
+      getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST";
       let killer = result.killer ? enemyDefs[result.killer] || bossDefs[result.killer] : null;
-      ((getById("overCause").hidden = !killer && result.killer !== "lava" && result.killer !== "acid"),
-        killer
-          ? (getById("overCause").textContent =
-              `Destroyed by ${bossDefs[result.killer] ? killer.name : "a " + killer.name}`)
-          : result.killer === "lava"
-            ? (getById("overCause").textContent = "Burned by a lava vent")
-            : result.killer === "acid" && (getById("overCause").textContent = "Dissolved in acid"),
-        (getById("overStats").innerHTML = [
-          ["Wave", result.wave],
-          ["Time", formatTime(result.time)],
-          ["Kills", result.kills],
-          ["Bosses", result.bosses],
-        ]
-          .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
-          .join("")),
-        (getById("payRows").innerHTML = result.rows
-          .map(
-            ([label, value]) =>
-              `<div class="pay-row"><span>${escapeHtml(label)}</span><span class="num">${escapeHtml(value)}</span></div>`,
-          )
-          .join("")),
-        (getById("overMs").innerHTML =
-          (result.unlocks || [])
-            .map((text) => `<span class="chip">${iconSvg("star")} ${escapeHtml(text)}</span>`)
-            .join("") +
-          result.milestones
-            .map((text) => `<span class="chip">${iconSvg("trophy")} Milestone ready: ${escapeHtml(text)}</span>`)
-            .join("")),
-        this.renderDamage(result),
-        (getById("endlessBtn").hidden = !result.canEndless),
-        (getById("retryBtn").hidden = result.canEndless),
-        (getById("over").hidden = !1),
-        this.countUp(getById("payTotal"), result.total));
+      getById("overCause").hidden = !killer && result.killer !== "lava" && result.killer !== "acid";
+      if (killer) {
+        getById("overCause").textContent = `Destroyed by ${bossDefs[result.killer] ? killer.name : "a " + killer.name}`;
+      } else {
+        if (result.killer === "lava") {
+          getById("overCause").textContent = "Burned by a lava vent";
+        } else {
+          if (result.killer === "acid") {
+            getById("overCause").textContent = "Dissolved in acid";
+          }
+        }
+      }
+      getById("overStats").innerHTML = [
+        ["Wave", result.wave],
+        ["Time", formatTime(result.time)],
+        ["Kills", result.kills],
+        ["Bosses", result.bosses],
+      ]
+        .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
+        .join("");
+      getById("payRows").innerHTML = result.rows
+        .map(
+          ([label, value]) =>
+            `<div class="pay-row"><span>${escapeHtml(label)}</span><span class="num">${escapeHtml(value)}</span></div>`,
+        )
+        .join("");
+      getById("overMs").innerHTML =
+        (result.unlocks || [])
+          .map((text) => `<span class="chip">${iconSvg("star")} ${escapeHtml(text)}</span>`)
+          .join("") +
+        result.milestones
+          .map((text) => `<span class="chip">${iconSvg("trophy")} Milestone ready: ${escapeHtml(text)}</span>`)
+          .join("");
+      this.renderDamage(result);
+      getById("endlessBtn").hidden = !result.canEndless;
+      getById("retryBtn").hidden = result.canEndless;
+      getById("over").hidden = false;
+      this.countUp(getById("payTotal"), result.total);
       this.renderRunExtra();
     }
     // 1.6.0: run metrics for the game-over screen (game._runExtra, set in game.endRun)
@@ -1218,10 +1396,13 @@ var getById = (id) => document.getElementById(id),
           .filter(([, dmg]) => dmg >= 1)
           .sort((a, b) => b[1] - a[1]),
         total = sources.reduce((sum, [, dmg]) => sum + dmg, 0);
-      if (((box.hidden = !sources.length || total < 50), box.hidden)) return;
+      box.hidden = !sources.length || total < 50;
+      if (box.hidden) return;
       let shown = sources.slice(0, 4),
         rest = sources.slice(4).reduce((sum, [, dmg]) => sum + dmg, 0);
-      rest > 0 && shown.push(["other", rest]);
+      if (rest > 0) {
+        shown.push(["other", rest]);
+      }
       let top = shown[0][1];
       box.innerHTML =
         '<div class="dh">Damage dealt</div>' +
@@ -1240,29 +1421,34 @@ var getById = (id) => document.getElementById(id),
           .join("");
     }
     hideOver() {
-      getById("over").hidden = !0;
+      getById("over").hidden = true;
     }
     countUp(el, total) {
       let start = performance.now(),
         duration = 900,
         step = (now) => {
           let k = clamp((now - start) / duration, 0, 1);
-          ((el.textContent = formatCount(Math.round(total * (1 - Math.pow(1 - k, 3))))),
-            k < 1 && requestAnimationFrame(step));
+          el.textContent = formatCount(Math.round(total * (1 - Math.pow(1 - k, 3))));
+          if (k < 1) {
+            requestAnimationFrame(step);
+          }
         };
       requestAnimationFrame(step);
     }
     showCrash(log) {
-      for (let id of ["choose", "pause", "over"]) getById(id).hidden = !0;
-      (this.showHud(!1), (getById("crashLog").value = log), (getById("crash").hidden = !1));
+      for (let id of ["choose", "pause", "over"]) getById(id).hidden = true;
+      this.showHud(false);
+      getById("crashLog").value = log;
+      getById("crash").hidden = false;
     }
     hideCrash() {
-      getById("crash").hidden = !0;
+      getById("crash").hidden = true;
     }
     hurtFlash() {
       if (this.calm) return;
       let el = getById("flash");
-      (el.classList.add("on"), requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove("on"))));
+      el.classList.add("on");
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove("on")));
     }
     // ---- 2.5.0 D: title cards (see the note above RL_BIOME_CARD)
     clearTitleCard() {
@@ -1270,7 +1456,9 @@ var getById = (id) => document.getElementById(id),
       this.cardHold = null;
       clearTimeout(this.titleCardT);
       const el = getById("titleCard");
-      el && (el.innerHTML = "");
+      if (el) {
+        el.innerHTML = "";
+      }
     }
     // biome title card; it replaces the wave banner of its wave
     biomeCard(biome, wave, ms = 9000) {
@@ -1308,7 +1496,9 @@ var getById = (id) => document.getElementById(id),
         () => {
           if (this.titleCardN !== hold.token) return;
           const card = document.querySelector("#titleCard .tcard");
-          card && card.classList.add("out");
+          if (card) {
+            card.classList.add("out");
+          }
           this.titleCardT = setTimeout(
             () => this.titleCardN === hold.token && (getById("titleCard").innerHTML = ""),
             520,
@@ -1322,8 +1512,15 @@ var getById = (id) => document.getElementById(id),
       const seen = this.save && this.save.seen;
       if (!seen) return 0;
       let added = 0;
-      for (const key of keys) seen[key] !== !0 && ((seen[key] = !0), added++);
-      added && this.g.store.save("codex");
+      for (const key of keys) {
+        if (seen[key] !== true) {
+          seen[key] = true;
+          added++;
+        }
+      }
+      if (added) {
+        this.g.store.save("codex");
+      }
       return added;
     }
     // ---- 2.5.0 D: Records: Stats / Codex tabs (built on first use, the page markup stays as it was)
@@ -1332,11 +1529,14 @@ var getById = (id) => document.getElementById(id),
       this.recTab = tab === "codex" ? "codex" : "stats";
       for (const btn of getById("recTabs").querySelectorAll("[data-rtab]")) {
         const on = btn.dataset.rtab === this.recTab;
-        (btn.classList.toggle("on", on), btn.setAttribute("aria-selected", on ? "true" : "false"));
+        btn.classList.toggle("on", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
       }
-      ((getById("records").querySelector(".scroll").hidden = this.recTab !== "stats"),
-        (getById("codexList").hidden = this.recTab !== "codex"));
-      this.recTab === "codex" && this.renderCodex();
+      getById("records").querySelector(".scroll").hidden = this.recTab !== "stats";
+      getById("codexList").hidden = this.recTab !== "codex";
+      if (this.recTab === "codex") {
+        this.renderCodex();
+      }
       requestAnimationFrame(() => window.__riftLayoutAudit?.());
     }
     renderCodex() {
@@ -1367,7 +1567,9 @@ const hudFpsMeter = { frames: 0, since: 0, last: 0, fps: 0, shown: "" };
 const timedBuffChips = ["heat", "slip", "skate"];
 // 2.4.2: closes settings that were opened from the pause menu
 function closePauseSettings(ui) {
-  ((ui.rlFromPause = !1), (getById("settings").hidden = !0), getById("settings").classList.remove("in-run"));
+  ui.rlFromPause = false;
+  getById("settings").hidden = true;
+  getById("settings").classList.remove("in-run");
 }
 
 /* ==========================================================================
@@ -1442,7 +1644,7 @@ function rlCodexEntries(save) {
   const enemies = enemyIds.map((id) => ({
       key: "enemy_" + id,
       id,
-      seen: seen["enemy_" + id] === !0 || (!!RL_CODEX_WITH[id] && seen["enemy_" + RL_CODEX_WITH[id]] === !0),
+      seen: seen["enemy_" + id] === true || (!!RL_CODEX_WITH[id] && seen["enemy_" + RL_CODEX_WITH[id]] === true),
       name: enemyDefs[id].name,
       desc: RL_ENEMY_TIPS[id] || RL_CODEX_EXTRA[id] || "A creature of the rift.",
       color: rlHex(enemyDefs[id].color),
@@ -1455,7 +1657,7 @@ function rlCodexEntries(save) {
       return {
         key: "boss_" + id,
         id,
-        seen: seen["boss_" + id] === !0 || kills > 0,
+        seen: seen["boss_" + id] === true || kills > 0,
         name: boss.name,
         desc: boss.title + (bio ? ` \xB7 ${bio.name}` : ""),
         extra: kills > 0 ? `Defeated \xD7${kills}` : "",
@@ -1472,7 +1674,7 @@ function rlCodexEntries(save) {
       return {
         key: "up_" + up.id,
         id: up.id,
-        seen: seen["up_" + up.id] === !0 || offered.has(up.id),
+        seen: seen["up_" + up.id] === true || offered.has(up.id),
         name: up.name,
         desc,
         extra: weapon ? weapon.name + " only" : "",
@@ -1491,7 +1693,11 @@ function titleCardLayer() {
     el.id = "titleCard";
     el.setAttribute("aria-live", "polite");
     const banner = getById("banner");
-    banner ? banner.after(el) : getById("app").appendChild(el);
+    if (banner) {
+      banner.after(el);
+    } else {
+      getById("app").appendChild(el);
+    }
   }
   return el;
 }
@@ -1516,7 +1722,8 @@ function showTitleCard(ui, html, ms) {
 // than the clock on a slow device and stalls while a new arena or boss is first drawn, so a card
 // on a clock timer could be gone before the player saw it. `ms` is only a safety limit.
 function holdTitleCard(ui, kind, html, min, ms) {
-  ((getById("banner").innerHTML = ""), clearTimeout(ui.bannerT));
+  getById("banner").innerHTML = "";
+  clearTimeout(ui.bannerT);
   ui.cardHold = { token: showTitleCard(ui, html, ms), kind, at: performance.now(), min };
 }
 // ---- 2.5.0 D: the Stats / Codex tabs of Records, built on first use
@@ -1524,7 +1731,9 @@ function ensureRecordTabs(ui) {
   if (getById("recTabs")) return;
   const rec = getById("records"),
     main = rec.querySelector(".scroll");
-  main.id || (main.id = "recStats");
+  if (!main.id) {
+    main.id = "recStats";
+  }
   rec
     .querySelector(".topbar")
     .insertAdjacentHTML(

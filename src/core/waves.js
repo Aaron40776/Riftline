@@ -34,12 +34,21 @@ function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], w
     ),
     weightOf = (upgrade) => {
       let weight = (boss ? bossRarityWeights : rarityWeights)[upgrade.rarity];
-      return (
-        boss || (upgrade.rarity === 3 && (weight += wave * 0.35), upgrade.rarity === 4 && (weight += wave * 0.15)),
-        upgrade.id === "heal" && (weight *= hpFrac < 0.35 ? 3 : 1.2),
-        exclude.includes(upgrade.id) && (weight *= 0.05),
-        weight / Math.max(1, countRarity(pool, upgrade.rarity))
-      );
+      if (!boss) {
+        if (upgrade.rarity === 3) {
+          weight += wave * 0.35;
+        }
+        if (upgrade.rarity === 4) {
+          weight += wave * 0.15;
+        }
+      }
+      if (upgrade.id === "heal") {
+        weight *= hpFrac < 0.35 ? 3 : 1.2;
+      }
+      if (exclude.includes(upgrade.id)) {
+        weight *= 0.05;
+      }
+      return weight / Math.max(1, countRarity(pool, upgrade.rarity));
     },
     picks = [],
     evos = upgradeList.filter(
@@ -49,25 +58,34 @@ function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], w
         (!upgrade.weapon || upgrade.weapon === weapon) &&
         Object.entries(upgrade.evo).every(([id, need]) => (owned[id] || 0) >= need),
     );
-  evos.length && picks.push(evos[Math.floor(rng.next() * evos.length)].id);
+  if (evos.length) {
+    picks.push(evos[Math.floor(rng.next() * evos.length)].id);
+  }
   let left = pool.slice();
   for (; picks.length < count && left.length; ) {
     let total = 0;
     for (let upgrade of left) total += weightOf(upgrade);
     let roll = rng.next() * total,
       pick = left[left.length - 1];
-    for (let upgrade of left)
-      if (((roll -= weightOf(upgrade)), roll <= 0)) {
+    for (let upgrade of left) {
+      roll -= weightOf(upgrade);
+      if (roll <= 0) {
         pick = upgrade;
         break;
       }
-    (picks.push(pick.id), left.splice(left.indexOf(pick), 1));
+    }
+    picks.push(pick.id);
+    left.splice(left.indexOf(pick), 1);
   }
   return picks;
 }
 function countRarity(list, rarity) {
   let count = 0;
-  for (let upgrade of list) upgrade.rarity === rarity && count++;
+  for (let upgrade of list) {
+    if (upgrade.rarity === rarity) {
+      count++;
+    }
+  }
   return count;
 }
 var spawnWeights = {
@@ -146,9 +164,9 @@ function planWave(rng, wave, tm, boss, plan = {}) {
         fits,
         fits.map((type) => spawnWeights[type] * ((plan.weights && plan.weights[type]) || 1)),
       );
-      ((counts[type] = (counts[type] || 0) + 1),
-        (budget -= enemyDefs[type].cost),
-        spawns.push({ type: type, elite: type !== "swarmer" && rng.chance(eliteChance) }));
+      counts[type] = (counts[type] || 0) + 1;
+      budget -= enemyDefs[type].cost;
+      spawns.push({ type: type, elite: type !== "swarmer" && rng.chance(eliteChance) });
     }
     for (let i = spawns.length - 1; i > 0; i--) {
       let j = Math.floor(rng.next() * (i + 1));
@@ -169,7 +187,8 @@ function planWave(rng, wave, tm, boss, plan = {}) {
         weight = 0;
       for (; next < order.length && weight < size; ) {
         let spawn = order[next++];
-        (members.push(spawn), (weight += spawn.type === "swarmer" ? 0.5 : 1));
+        members.push(spawn);
+        weight += spawn.type === "swarmer" ? 0.5 : 1;
       }
       groups.push({ gap: gap * rng.range(0.85, 1.15), members: members });
     }

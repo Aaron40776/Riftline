@@ -482,8 +482,11 @@ const rlRetiredModule = (id) =>
     desc: "+1 supply cache per wave and +50% cache shards per level (not in boss waves)",
     costs: [1800, 3800, 6800],
   });
-  for (let i = workshopModules.length - 1; i >= 0; i--)
-    rlRetiredModule(workshopModules[i].id) && workshopModules.splice(i, 1);
+  for (let i = workshopModules.length - 1; i >= 0; i--) {
+    if (rlRetiredModule(workshopModules[i].id)) {
+      workshopModules.splice(i, 1);
+    }
+  }
   workshopModules.push(
     // a head start instead of a stat: common upgrades on every new run (world.js)
     {
