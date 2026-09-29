@@ -6,21 +6,8 @@ import { clamp, TAU, turnToward } from "./util.js";
  enemy.hunt so they come to the player. The 2.1/2.2 ranged enemies ignored
  it and could kite forever (the last Beacon fleeing into a corner). ---- */
 var RL_KITERS = new Set(["turret", "minebot", "sapper", "sentinel", "carrier", "drone", "beacon", "weaver"]);
-function rlInstallHunt() {
-  const base = updateEnemy;
-  updateEnemy = function (g, e, dt) {
-    if (e.hunt && RL_KITERS.has(e.type) && !(e.spawnT > 0)) {
-      g.chaseDir(e);
-      const sp = Math.max(e.speed, 2.6) * 1.3;
-      e.vx = g.cdx * sp;
-      e.vy = g.cdy * sp;
-      e.face = turnToward(e.face, Math.atan2(e.vy, e.vx), 8 * dt);
-      e.st = 0;
-      return;
-    }
-    return base(g, e, dt);
-  };
-}
+// 3b: the hunt override is folded into updateEnemy; kept as a no-op because main.js still calls it.
+function rlInstallHunt() {}
 function updateEnemyCore(i, t, e) {
   if (t.spawnT > 0) {
     ((t.vx = 0), (t.vy = 0));
@@ -809,241 +796,18 @@ function findOpenSpot(i, t, e, n, s) {
   }
   return null;
 }
-function updateEnemy(i, t, e) {
-  if (t.type === "charger") {
-    if (t.spawnT > 0) {
-      ((t.vx = 0), (t.vy = 0));
-      return;
-    }
-    const p = i.player,
-      dx = p.x - t.x,
-      dy = p.y - t.y,
-      dist = Math.hypot(dx, dy) || 0.001,
-      ang = Math.atan2(dy, dx);
-    i.chaseDir(t);
-    if (t.st === 0) {
-      ((t.vx = i.cdx * t.speed), (t.vy = i.cdy * t.speed), (t.t -= e), (t.face = turnToward(t.face, ang, 9 * e)));
-      if (p.alive && dist < 10.5 && dist > 4 && t.t <= 0 && t.los) {
-        ((t.st = 1),
-          (t.t2 = 0.48),
-          (t.ta = ang),
-          (t.vx *= 0.2),
-          (t.vy *= 0.2),
-          i.emit("charge", { x: t.x, y: t.y, type: t.type }));
-      }
-    } else if (t.st === 1) {
-      ((t.vx *= 0.65), (t.vy *= 0.65), (t.t2 -= e), (t.face = turnToward(t.face, t.ta, 16 * e)));
-      if (t.t2 <= 0) {
-        ((t.st = 2),
-          (t.t2 = 0.62),
-          (t.vx = Math.cos(t.ta) * 16.5),
-          (t.vy = Math.sin(t.ta) * 16.5),
-          i.emit("edash", { x: t.x, y: t.y, a: t.ta, type: t.type }));
-      }
-    } else {
-      ((t.t2 -= e), (t.vx *= 0.985), (t.vy *= 0.985));
-      if (t.t2 <= 0) ((t.st = 0), (t.t = 1.5 + i.rng.next() * 1.2));
-    }
+function updateEnemy(game, enemy, dt) {
+  // stragglers (see RL_KITERS): hunting ranged enemies (RL_KITERS) come straight at the player.
+  if (enemy.hunt && RL_KITERS.has(enemy.type) && !(enemy.spawnT > 0)) {
+    game.chaseDir(enemy);
+    const sp = Math.max(enemy.speed, 2.6) * 1.3;
+    enemy.vx = game.cdx * sp;
+    enemy.vy = game.cdy * sp;
+    enemy.face = turnToward(enemy.face, Math.atan2(enemy.vy, enemy.vx), 8 * dt);
+    enemy.st = 0;
     return;
   }
-  if (t.type === "minebot") {
-    if (t.spawnT > 0) {
-      ((t.vx = 0), (t.vy = 0));
-      return;
-    }
-    const p = i.player,
-      dx = p.x - t.x,
-      dy = p.y - t.y,
-      dist = Math.hypot(dx, dy) || 0.001;
-    i.chaseDir(t);
-    if (t.st === 0) {
-      const retreat = dist < 5.2;
-      ((t.vx = (retreat ? -i.cdx : i.cdx) * t.speed * (retreat ? 1.35 : 1)),
-        (t.vy = (retreat ? -i.cdy : i.cdy) * t.speed * (retreat ? 1.35 : 1)),
-        (t.t -= e),
-        (t.face = turnToward(t.face, Math.atan2(dy, dx), 8 * e)));
-      if (p.alive && dist < 10 && dist > 4.2 && t.t <= 0 && t.los) {
-        ((t.st = 1),
-          (t.t2 = 0.55),
-          (t.vx = 0),
-          (t.vy = 0),
-          i.hazard({ x: t.x, y: t.y, r: 1.15, delay: 0.55, dmg: t.dmg * 1.25, kind: "mine" }),
-          i.emit("mine", { x: t.x, y: t.y }));
-      }
-    } else {
-      ((t.t2 -= e), (t.face = turnToward(t.face, Math.atan2(dy, dx), 8 * e)));
-      if (t.t2 <= 0) ((t.st = 0), (t.t = 2.4 + i.rng.next() * 1.2));
-    }
-    return;
-  }
-  if (t.type === "sapper") {
-    if (t.spawnT > 0) {
-      t.vx = 0;
-      t.vy = 0;
-      return;
-    }
-    const p = i.player,
-      dx = p.x - t.x,
-      dy = p.y - t.y,
-      dist = Math.hypot(dx, dy) || 0.001,
-      ang = Math.atan2(dy, dx);
-    i.chaseDir(t);
-    if (t.st === 0) {
-      const retreat = dist < 5.5;
-      t.vx = (retreat ? -i.cdx : i.cdx) * t.speed * (retreat ? 1.35 : 1);
-      t.vy = (retreat ? -i.cdy : i.cdy) * t.speed * (retreat ? 1.35 : 1);
-      t.t -= e;
-      t.face = turnToward(t.face, ang, 8 * e);
-      if (p.alive && dist < 9.5 && dist > 4.2 && t.t <= 0 && t.los) {
-        t.st = 1;
-        t.t2 = 0.72;
-        t.vx *= 0.15;
-        t.vy *= 0.15;
-        i.hazard({ x: t.x, y: t.y, r: 1.25, delay: 0.72, dmg: t.dmg * 1.25, kind: "sapper" });
-        i.emit("mine", { x: t.x, y: t.y });
-      }
-    } else {
-      t.t2 -= e;
-      t.face = turnToward(t.face, ang, 8 * e);
-      if (t.t2 <= 0) {
-        t.st = 0;
-        t.t = 2.4 + i.rng.next() * 1.3;
-      }
-    }
-    return;
-  }
-  if (t.type === "phantom") {
-    if (t.spawnT > 0) {
-      t.vx = 0;
-      t.vy = 0;
-      return;
-    }
-    const p = i.player,
-      dx = p.x - t.x,
-      dy = p.y - t.y,
-      dist = Math.hypot(dx, dy) || 0.001,
-      ang = Math.atan2(dy, dx);
-    if (t.st === 0) {
-      i.chaseDir(t);
-      t.vx = i.cdx * t.speed;
-      t.vy = i.cdy * t.speed;
-      t.face = turnToward(t.face, ang, 10 * e);
-      t.t -= e;
-      if (p.alive && dist < 8.5 && dist > 3.8 && t.t <= 0) {
-        t.st = 1;
-        t.t2 = 0.82;
-        t.ghost = true;
-        t.t = 2.7;
-        i.emit("blink", { x: t.x, y: t.y, small: !0, phase: !0 });
-      }
-    } else if (t.st === 1) {
-      t.ghost = true;
-      t.vx *= 0.82;
-      t.vy *= 0.82;
-      t.t2 -= e;
-      if (t.t2 <= 0) {
-        t.ghost = false;
-        t.st = 2;
-        t.t2 = 0.32;
-        t.vx = Math.cos(ang) * 13;
-        t.vy = Math.sin(ang) * 13;
-        i.emit("edash", { x: t.x, y: t.y, a: ang, type: t.type });
-      }
-    } else {
-      t.ghost = false;
-      t.t2 -= e;
-      t.vx *= 0.985;
-      t.vy *= 0.985;
-      if (t.t2 <= 0) t.st = 0;
-    }
-    return;
-  }
-  if (t.type === "sentinel") {
-    if (t.spawnT > 0) {
-      t.vx = 0;
-      t.vy = 0;
-      return;
-    }
-    const p = i.player,
-      dx = p.x - t.x,
-      dy = p.y - t.y,
-      dist = Math.hypot(dx, dy) || 0.001,
-      ang = Math.atan2(dy, dx);
-    if (t.st === 0) {
-      if (dist > 12) (i.chaseDir(t), (t.vx = i.cdx * t.speed), (t.vy = i.cdy * t.speed));
-      else if (dist < 8.5) ((t.vx = (-dx / dist) * t.speed * 0.7), (t.vy = (-dy / dist) * t.speed * 0.7));
-      else ((t.vx *= 0.65), (t.vy *= 0.65));
-      t.face = turnToward(t.face, ang, 6 * e);
-      t.t -= e;
-      if (p.alive && dist < 15 && dist > 6 && t.t <= 0 && t.los) {
-        t.st = 1;
-        t.t2 = 0.65;
-        t.ta = ang;
-        t.vx *= 0.2;
-        t.vy *= 0.2;
-      }
-    } else if (t.st === 1) {
-      t.t2 -= e;
-      t.vx *= 0.72;
-      t.vy *= 0.72;
-      t.face = turnToward(t.face, t.ta, 8 * e);
-      if (t.t2 <= 0) {
-        i.beam({
-          x: t.x,
-          y: t.y,
-          a: t.ta,
-          len: 18,
-          w: 0.2,
-          warn: 0.55,
-          dur: 0.48,
-          rot: 0.08,
-          dmg: t.dmg * 1.2,
-          color: t.def.color,
-        });
-        i.emit("beamWarn", { x: t.x, y: t.y, small: !0 });
-        t.st = 2;
-        t.t2 = 2.5 + i.rng.next() * 1.2;
-      }
-    } else {
-      t.t2 -= e;
-      if (t.t2 <= 0) ((t.st = 0), (t.t = 0.5 + i.rng.next() * 0.8));
-    }
-    return;
-  }
-  if (t.type === "carrier") {
-    if (t.spawnT > 0) {
-      t.vx = 0;
-      t.vy = 0;
-      return;
-    }
-    const p = i.player,
-      dx = p.x - t.x,
-      dy = p.y - t.y,
-      dist = Math.hypot(dx, dy) || 0.001,
-      ang = Math.atan2(dy, dx);
-    if (dist < 8.5) ((t.vx = (-dx / dist) * t.speed), (t.vy = (-dy / dist) * t.speed));
-    else if (dist > 12) (i.chaseDir(t), (t.vx = i.cdx * t.speed), (t.vy = i.cdy * t.speed));
-    else {
-      const side = Math.sin(t.age * 1.7 + t.phase);
-      t.vx = Math.cos(ang + Math.PI / 2) * side * t.speed;
-      t.vy = Math.sin(ang + Math.PI / 2) * side * t.speed;
-    }
-    t.face = turnToward(t.face, ang, 7 * e);
-    t.t -= e;
-    if (p.alive && dist < 14 && dist > 7 && t.t <= 0 && t.los) {
-      for (const off of [-0.16, 0, 0.16])
-        i.shoot(t.x, t.y, ang + off, 20, t.dmg * 0.72, { kind: "carrier", life: 3.8, homing: 1.2 });
-      t.t = 2.4 + i.rng.next() * 1.2;
-      i.emit("eshot", { x: t.x, y: t.y });
-    }
-    return;
-  }
-  return updateEnemyCore(i, t, e);
-}
-
-/* New enemy roles use the same movement/shooting primitives as the core AI. */
-const _rlUpdateEnemy22 = updateEnemy;
-updateEnemy = function (game, enemy, dt) {
+  // 2.2: new enemy roles use the same movement/shooting primitives as the core AI.
   if (enemy.type === "drone") {
     if (enemy.spawnT > 0) {
       enemy.vx = 0;
@@ -1188,8 +952,245 @@ updateEnemy = function (game, enemy, dt) {
     }
     return;
   }
-  return _rlUpdateEnemy22(game, enemy, dt);
-};
+  // original roles
+  if (enemy.type === "charger") {
+    if (enemy.spawnT > 0) {
+      ((enemy.vx = 0), (enemy.vy = 0));
+      return;
+    }
+    const p = game.player,
+      dx = p.x - enemy.x,
+      dy = p.y - enemy.y,
+      dist = Math.hypot(dx, dy) || 0.001,
+      ang = Math.atan2(dy, dx);
+    game.chaseDir(enemy);
+    if (enemy.st === 0) {
+      ((enemy.vx = game.cdx * enemy.speed),
+        (enemy.vy = game.cdy * enemy.speed),
+        (enemy.t -= dt),
+        (enemy.face = turnToward(enemy.face, ang, 9 * dt)));
+      if (p.alive && dist < 10.5 && dist > 4 && enemy.t <= 0 && enemy.los) {
+        ((enemy.st = 1),
+          (enemy.t2 = 0.48),
+          (enemy.ta = ang),
+          (enemy.vx *= 0.2),
+          (enemy.vy *= 0.2),
+          game.emit("charge", { x: enemy.x, y: enemy.y, type: enemy.type }));
+      }
+    } else if (enemy.st === 1) {
+      ((enemy.vx *= 0.65),
+        (enemy.vy *= 0.65),
+        (enemy.t2 -= dt),
+        (enemy.face = turnToward(enemy.face, enemy.ta, 16 * dt)));
+      if (enemy.t2 <= 0) {
+        ((enemy.st = 2),
+          (enemy.t2 = 0.62),
+          (enemy.vx = Math.cos(enemy.ta) * 16.5),
+          (enemy.vy = Math.sin(enemy.ta) * 16.5),
+          game.emit("edash", { x: enemy.x, y: enemy.y, a: enemy.ta, type: enemy.type }));
+      }
+    } else {
+      ((enemy.t2 -= dt), (enemy.vx *= 0.985), (enemy.vy *= 0.985));
+      if (enemy.t2 <= 0) ((enemy.st = 0), (enemy.t = 1.5 + game.rng.next() * 1.2));
+    }
+    return;
+  }
+  if (enemy.type === "minebot") {
+    if (enemy.spawnT > 0) {
+      ((enemy.vx = 0), (enemy.vy = 0));
+      return;
+    }
+    const p = game.player,
+      dx = p.x - enemy.x,
+      dy = p.y - enemy.y,
+      dist = Math.hypot(dx, dy) || 0.001;
+    game.chaseDir(enemy);
+    if (enemy.st === 0) {
+      const retreat = dist < 5.2;
+      ((enemy.vx = (retreat ? -game.cdx : game.cdx) * enemy.speed * (retreat ? 1.35 : 1)),
+        (enemy.vy = (retreat ? -game.cdy : game.cdy) * enemy.speed * (retreat ? 1.35 : 1)),
+        (enemy.t -= dt),
+        (enemy.face = turnToward(enemy.face, Math.atan2(dy, dx), 8 * dt)));
+      if (p.alive && dist < 10 && dist > 4.2 && enemy.t <= 0 && enemy.los) {
+        ((enemy.st = 1),
+          (enemy.t2 = 0.55),
+          (enemy.vx = 0),
+          (enemy.vy = 0),
+          game.hazard({ x: enemy.x, y: enemy.y, r: 1.15, delay: 0.55, dmg: enemy.dmg * 1.25, kind: "mine" }),
+          game.emit("mine", { x: enemy.x, y: enemy.y }));
+      }
+    } else {
+      ((enemy.t2 -= dt), (enemy.face = turnToward(enemy.face, Math.atan2(dy, dx), 8 * dt)));
+      if (enemy.t2 <= 0) ((enemy.st = 0), (enemy.t = 2.4 + game.rng.next() * 1.2));
+    }
+    return;
+  }
+  if (enemy.type === "sapper") {
+    if (enemy.spawnT > 0) {
+      enemy.vx = 0;
+      enemy.vy = 0;
+      return;
+    }
+    const p = game.player,
+      dx = p.x - enemy.x,
+      dy = p.y - enemy.y,
+      dist = Math.hypot(dx, dy) || 0.001,
+      ang = Math.atan2(dy, dx);
+    game.chaseDir(enemy);
+    if (enemy.st === 0) {
+      const retreat = dist < 5.5;
+      enemy.vx = (retreat ? -game.cdx : game.cdx) * enemy.speed * (retreat ? 1.35 : 1);
+      enemy.vy = (retreat ? -game.cdy : game.cdy) * enemy.speed * (retreat ? 1.35 : 1);
+      enemy.t -= dt;
+      enemy.face = turnToward(enemy.face, ang, 8 * dt);
+      if (p.alive && dist < 9.5 && dist > 4.2 && enemy.t <= 0 && enemy.los) {
+        enemy.st = 1;
+        enemy.t2 = 0.72;
+        enemy.vx *= 0.15;
+        enemy.vy *= 0.15;
+        game.hazard({ x: enemy.x, y: enemy.y, r: 1.25, delay: 0.72, dmg: enemy.dmg * 1.25, kind: "sapper" });
+        game.emit("mine", { x: enemy.x, y: enemy.y });
+      }
+    } else {
+      enemy.t2 -= dt;
+      enemy.face = turnToward(enemy.face, ang, 8 * dt);
+      if (enemy.t2 <= 0) {
+        enemy.st = 0;
+        enemy.t = 2.4 + game.rng.next() * 1.3;
+      }
+    }
+    return;
+  }
+  if (enemy.type === "phantom") {
+    if (enemy.spawnT > 0) {
+      enemy.vx = 0;
+      enemy.vy = 0;
+      return;
+    }
+    const p = game.player,
+      dx = p.x - enemy.x,
+      dy = p.y - enemy.y,
+      dist = Math.hypot(dx, dy) || 0.001,
+      ang = Math.atan2(dy, dx);
+    if (enemy.st === 0) {
+      game.chaseDir(enemy);
+      enemy.vx = game.cdx * enemy.speed;
+      enemy.vy = game.cdy * enemy.speed;
+      enemy.face = turnToward(enemy.face, ang, 10 * dt);
+      enemy.t -= dt;
+      if (p.alive && dist < 8.5 && dist > 3.8 && enemy.t <= 0) {
+        enemy.st = 1;
+        enemy.t2 = 0.82;
+        enemy.ghost = true;
+        enemy.t = 2.7;
+        game.emit("blink", { x: enemy.x, y: enemy.y, small: !0, phase: !0 });
+      }
+    } else if (enemy.st === 1) {
+      enemy.ghost = true;
+      enemy.vx *= 0.82;
+      enemy.vy *= 0.82;
+      enemy.t2 -= dt;
+      if (enemy.t2 <= 0) {
+        enemy.ghost = false;
+        enemy.st = 2;
+        enemy.t2 = 0.32;
+        enemy.vx = Math.cos(ang) * 13;
+        enemy.vy = Math.sin(ang) * 13;
+        game.emit("edash", { x: enemy.x, y: enemy.y, a: ang, type: enemy.type });
+      }
+    } else {
+      enemy.ghost = false;
+      enemy.t2 -= dt;
+      enemy.vx *= 0.985;
+      enemy.vy *= 0.985;
+      if (enemy.t2 <= 0) enemy.st = 0;
+    }
+    return;
+  }
+  if (enemy.type === "sentinel") {
+    if (enemy.spawnT > 0) {
+      enemy.vx = 0;
+      enemy.vy = 0;
+      return;
+    }
+    const p = game.player,
+      dx = p.x - enemy.x,
+      dy = p.y - enemy.y,
+      dist = Math.hypot(dx, dy) || 0.001,
+      ang = Math.atan2(dy, dx);
+    if (enemy.st === 0) {
+      if (dist > 12) (game.chaseDir(enemy), (enemy.vx = game.cdx * enemy.speed), (enemy.vy = game.cdy * enemy.speed));
+      else if (dist < 8.5)
+        ((enemy.vx = (-dx / dist) * enemy.speed * 0.7), (enemy.vy = (-dy / dist) * enemy.speed * 0.7));
+      else ((enemy.vx *= 0.65), (enemy.vy *= 0.65));
+      enemy.face = turnToward(enemy.face, ang, 6 * dt);
+      enemy.t -= dt;
+      if (p.alive && dist < 15 && dist > 6 && enemy.t <= 0 && enemy.los) {
+        enemy.st = 1;
+        enemy.t2 = 0.65;
+        enemy.ta = ang;
+        enemy.vx *= 0.2;
+        enemy.vy *= 0.2;
+      }
+    } else if (enemy.st === 1) {
+      enemy.t2 -= dt;
+      enemy.vx *= 0.72;
+      enemy.vy *= 0.72;
+      enemy.face = turnToward(enemy.face, enemy.ta, 8 * dt);
+      if (enemy.t2 <= 0) {
+        game.beam({
+          x: enemy.x,
+          y: enemy.y,
+          a: enemy.ta,
+          len: 18,
+          w: 0.2,
+          warn: 0.55,
+          dur: 0.48,
+          rot: 0.08,
+          dmg: enemy.dmg * 1.2,
+          color: enemy.def.color,
+        });
+        game.emit("beamWarn", { x: enemy.x, y: enemy.y, small: !0 });
+        enemy.st = 2;
+        enemy.t2 = 2.5 + game.rng.next() * 1.2;
+      }
+    } else {
+      enemy.t2 -= dt;
+      if (enemy.t2 <= 0) ((enemy.st = 0), (enemy.t = 0.5 + game.rng.next() * 0.8));
+    }
+    return;
+  }
+  if (enemy.type === "carrier") {
+    if (enemy.spawnT > 0) {
+      enemy.vx = 0;
+      enemy.vy = 0;
+      return;
+    }
+    const p = game.player,
+      dx = p.x - enemy.x,
+      dy = p.y - enemy.y,
+      dist = Math.hypot(dx, dy) || 0.001,
+      ang = Math.atan2(dy, dx);
+    if (dist < 8.5) ((enemy.vx = (-dx / dist) * enemy.speed), (enemy.vy = (-dy / dist) * enemy.speed));
+    else if (dist > 12)
+      (game.chaseDir(enemy), (enemy.vx = game.cdx * enemy.speed), (enemy.vy = game.cdy * enemy.speed));
+    else {
+      const side = Math.sin(enemy.age * 1.7 + enemy.phase);
+      enemy.vx = Math.cos(ang + Math.PI / 2) * side * enemy.speed;
+      enemy.vy = Math.sin(ang + Math.PI / 2) * side * enemy.speed;
+    }
+    enemy.face = turnToward(enemy.face, ang, 7 * dt);
+    enemy.t -= dt;
+    if (p.alive && dist < 14 && dist > 7 && enemy.t <= 0 && enemy.los) {
+      for (const off of [-0.16, 0, 0.16])
+        game.shoot(enemy.x, enemy.y, ang + off, 20, enemy.dmg * 0.72, { kind: "carrier", life: 3.8, homing: 1.2 });
+      enemy.t = 2.4 + game.rng.next() * 1.2;
+      game.emit("eshot", { x: enemy.x, y: enemy.y });
+    }
+    return;
+  }
+  return updateEnemyCore(game, enemy, dt);
+}
 
 /* ---- 2.4.6: THE CRUCIBLE, the boss of Ember Works ----
  A slow furnace golem that walks at the player like the Warden. Every hit is telegraphed on the

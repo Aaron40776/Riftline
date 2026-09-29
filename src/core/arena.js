@@ -423,7 +423,8 @@ function mapScore(i, t, e, n) {
     d * 3.5 + f * 3 + p * 1.5 + (i.length >= 5 && i.length <= 9 ? 1 : 0) + u * 1.2 + (n === "scatter" ? 3 : 0) - 0.2
   );
 }
-function buildLayout(i, t, e, n) {
+// The obstacle map of a wave before the director adds its wave obstacles (see buildLayout).
+function mapLayout(i, t, e, n) {
   if (n || !obstacleShapes[i.id]) return classicLayout(i);
   let s = makeRng(hashString(t + ":map:" + e)),
     r = null,
@@ -448,19 +449,12 @@ function buildLayout(i, t, e, n) {
     features: placeFeatures(s, i.id, r.obstacles, r.W, r.H),
   };
 }
-const _rlBuildLayoutBase = buildLayout;
-function rlBuildLayoutV21(i, t, e, n) {
-  const base = _rlBuildLayoutBase(i, t, e, n),
-    layout = rlAddWaveObstacles(base, i, t, e, n);
-  return layout;
-}
-buildLayout = rlBuildLayoutV21;
-// 2.4.6: the Crucible's arena in Ember Works keeps three lava vents (boss arenas are open and had
-// no hazard at all). Its Eruption and Stoke attacks make nearby vents burst; the vents themselves
-// keep their normal cycle. Other biomes' boss arenas stay as they are.
-const _rlBuildLayout246 = buildLayout;
-buildLayout = function (biome, seed, wave, boss) {
-  const layout = _rlBuildLayout246(biome, seed, wave, boss);
+function buildLayout(biome, seed, wave, boss) {
+  // 2.1: the wave director adds wave obstacles and hazards to the map
+  const layout = rlAddWaveObstacles(mapLayout(biome, seed, wave, boss), biome, seed, wave, boss);
+  // 2.4.6: the Crucible's arena in Ember Works keeps three lava vents (boss arenas are open and had
+  // no hazard at all). Its Eruption and Stoke attacks make nearby vents burst; the vents themselves
+  // keep their normal cycle. Other biomes' boss arenas stay as they are.
   if (!boss || biome.id !== "works") return layout;
   const rng = makeRng(hashString(seed + ":crucible-vents:" + wave)),
     features = { vents: [], ice: [], portals: [], acid: [] };
@@ -469,10 +463,11 @@ buildLayout = function (biome, seed, wave, boss) {
     p && features.vents.push({ ...p, phase: rng.next() * 6, period: 3.2 + rng.next() * 1.2, st: "idle" });
   }
   return { ...layout, key: `${layout.key}:crucible:${seed}:${wave}`, features };
-};
+}
 // 2.4.6: `size` sets the radius range; hazards are bigger than portals (see RL_HAZARD_SIZE)
 // 2.4.6: bigger hazards so they shape the fight (they were 0.7–1.0 wide per extra wave hazard):
 // radius ranges of the hazards a wave adds; the fixed layout hazards grew by the same share.
+// Since 2.5.0 the waves use RL_HAZARD_SIZE_250; only the Crucible's vents still use these.
 const RL_HAZARD_SIZE = { vents: [1.3, 1.7], ice: [2.1, 2.9], acid: [1.7, 2.3] };
 function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75, size = [0.72, 1]) {
   const taken = [];
@@ -497,69 +492,41 @@ function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75, size = [0.72, 1
   return null;
 }
 function rlAddDynamicFeatures(layout, biome, seed, wave, boss, mode = "standard") {
+  const theme = RL_BIOME_HAZARD[biome.id] ?? "";
   const features = {
     vents: [...(layout.features?.vents || [])],
     ice: [...(layout.features?.ice || [])],
     portals: [...(layout.features?.portals || [])],
     acid: [...(layout.features?.acid || [])],
   };
-  const rng = makeRng(hashString(seed + ":director-features-v21:" + wave + ":" + mode));
-  const theme = RL_BIOME_HAZARD[biome.id] ?? "",
-    own = theme === "vents" || theme === "ice" || theme === "acid" ? theme : "";
-  // Every biome keeps ONE hazard theme: whatever the wave mode asks for becomes the biome's own hazard.
-  const add = (kind, count = 1) => {
-    kind = own;
-    if (!kind) return;
-    for (let j = 0; j < count; j++) {
-      if (features[kind].length >= 6) return;
-      const p = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 0.1, RL_HAZARD_SIZE[kind]);
-      if (!p) continue;
-      if (kind === "vents")
-        features.vents.push({ ...p, phase: rng.next() * 6, period: 2.8 + rng.next() * 1.6, st: "idle" });
-      else if (kind === "ice") features.ice.push({ x: p.x, y: p.y, r: p.r });
-      else if (kind === "acid") features.acid.push({ x: p.x, y: p.y, r: p.r, life: null });
+  if (boss) return features;
+  // 2.5.0 C: a biome with a vents/ice/acid theme gets about five hazards per wave (one more in the
+  // heavy wave modes) placed by rlAddHazard250. This replaced the 2.1–2.4 rules (two per wave, 2.4.0,
+  // plus the extra hazards of some wave modes), which only ever applied to these themes.
+  if (theme === "vents" || theme === "ice" || theme === "acid") {
+    const rng = makeRng(hashString(seed + ":director-features-v250:" + wave + ":" + mode));
+    const target = Math.min(
+      RL_HAZARD_CAP_250,
+      features[theme].length + RL_HAZARD_COUNT_250 + (RL_HAZARD_HEAVY_MODES_250.has(mode) ? 1 : 0),
+    );
+    for (let k = 0; k < target * 2 && features[theme].length < target; k++)
+      rlAddHazard250(features, theme, rng, layout.obstacles, layout.W, layout.H);
+    return features;
+  }
+  if (theme === "portals") {
+    // 2.1: a portal biome without portals gets one pair
+    const rng = makeRng(hashString(seed + ":director-features-v21:" + wave + ":" + mode));
+    for (let k = 0; k < 6 && !features.portals.length; k++) {
+      const a = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 0.1),
+        b = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 0.1);
+      if (a && b && Math.hypot(a.x - b.x, a.y - b.y) >= 7.2)
+        features.portals.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y });
     }
-  };
-  if (!boss) {
-    add(own, 2); // 2.4.0: two per wave (was one) — the hazard is what the biome plays around
-    if (theme === "portals" && !features.portals.length) {
-      for (let k = 0; k < 6 && !features.portals.length; k++) {
-        const a = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 0.1),
-          b = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 0.1);
-        if (a && b && Math.hypot(a.x - b.x, a.y - b.y) >= 7.2)
-          features.portals.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y });
-      }
-    }
-    switch (mode) {
-      case "crossfire":
-        add("vents", 2);
-        break;
-      case "riftwalk":
-        add("ice", 1);
-        break;
-      case "shatter":
-        add("acid", 1);
-        add("ice", 1);
-        break;
-      case "deadzone":
-        add("acid", 2);
-        break;
-      case "barricade":
-        add("ice", 1);
-        break;
-      case "minefield":
-        add("acid", 3);
-        break;
-      case "turbulence":
-        add("vents", 2);
-        add("ice", 1);
-        break;
-      case "fortress":
-        add("vents", 1);
-        break;
-      case "salvage":
-        add("ice", 1);
-        break;
+    // 2.5.0 C: and most waves a second pair
+    const rng250 = makeRng(hashString(seed + ":director-features-v250:" + wave + ":" + mode));
+    if (features.portals.length < 2 && rng250.chance(0.8)) {
+      const pair = rlPortalPair250(rng250, layout.obstacles, layout.W, layout.H, features);
+      pair && features.portals.push(pair);
     }
   }
   return features;
@@ -1086,34 +1053,4 @@ function rlHazardRoom250(arena, q, want) {
   while (r > q.r && hitsObstacle(arena.obs, q.x, q.y, r + 0.85)) r -= 0.05;
   return Math.max(q.r, r);
 }
-const _rlAddDynamicFeatures250 = rlAddDynamicFeatures;
-rlAddDynamicFeatures = function (layout, biome, seed, wave, boss, mode = "standard") {
-  const theme = RL_BIOME_HAZARD[biome.id] ?? "";
-  if (boss) return _rlAddDynamicFeatures250(layout, biome, seed, wave, boss, mode);
-  const rng = makeRng(hashString(seed + ":director-features-v250:" + wave + ":" + mode));
-  if (theme === "portals") {
-    const features = _rlAddDynamicFeatures250(layout, biome, seed, wave, boss, mode);
-    if (features.portals.length < 2 && rng.chance(0.8)) {
-      const pair = rlPortalPair250(rng, layout.obstacles, layout.W, layout.H, features);
-      pair && features.portals.push(pair);
-    }
-    return features;
-  }
-  if (theme !== "vents" && theme !== "ice" && theme !== "acid")
-    return _rlAddDynamicFeatures250(layout, biome, seed, wave, boss, mode);
-  const features = {
-    vents: [...(layout.features?.vents || [])],
-    ice: [...(layout.features?.ice || [])],
-    portals: [...(layout.features?.portals || [])],
-    acid: [...(layout.features?.acid || [])],
-  };
-  const target = Math.min(
-    RL_HAZARD_CAP_250,
-    features[theme].length + RL_HAZARD_COUNT_250 + (RL_HAZARD_HEAVY_MODES_250.has(mode) ? 1 : 0),
-  );
-  for (let k = 0; k < target * 2 && features[theme].length < target; k++)
-    rlAddHazard250(features, theme, rng, layout.obstacles, layout.W, layout.H);
-  return features;
-};
-
 export { rlAddHazard250, rlPortalPair250, rlHazardRoom250, RL_HAZARD_SIZE_250, spawnZone as rlSpawnZone };

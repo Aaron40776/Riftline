@@ -5,13 +5,7 @@ import { logError } from "./diagnostics.js";
 import { bossOrder } from "../data/enemies.js";
 import { store } from "../main.js";
 import { weaponDefs } from "../data/weapons.js";
-import {
-  RL_RETIRED_WEAPONS,
-  RL_RETIRED_MODULES,
-  milestones,
-  workshopModules,
-  rlRetired,
-} from "../data/progression.js";
+import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rlRetired } from "../data/progression.js";
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
@@ -54,6 +48,12 @@ function rlSettingNum(key, v, def) {
 /* ---- run history: the last 12 runs, shown under Records ---- */
 function rlSanitizeHistory(h) {
   if (!Array.isArray(h)) return [];
+  // 2.5.0 A: a retired upgrade in a build is shown as the upgrade that took it over.
+  h = h.map((q) =>
+    q && typeof q === "object" && Array.isArray(q.build) && q.build.some((id) => rlRetiredUpgrade(id))
+      ? { ...q, build: [...new Set(q.build.map((id) => rlRetiredUpgrade(id)?.to || id))] }
+      : q,
+  );
   const out = [],
     ni2 = (v, lo, hi, d = 0) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
   for (const q of h.slice(0, 12)) {
@@ -132,10 +132,6 @@ function rlMigrateRetired(raw) {
   RL_RETIRE_NOTE = { refund, names: owned.map((id) => RL_RETIRED_WEAPONS[id].name) };
   return out;
 }
-const _rlCleanSaveBase = cleanSave;
-cleanSave = function (raw) {
-  return _rlCleanSaveBase(rlMigrateRetired(raw));
-};
 var SAVE_KEY = "riftline.save.v1",
   defaultSettings = {
     sfx: 0.8,
@@ -195,6 +191,7 @@ var cleanNumber = (i, t, e = -1 / 0, n = 1 / 0) =>
   cleanBool = (i, t) => (typeof i == "boolean" ? i : t),
   asObject = (i) => (i && typeof i == "object" && !Array.isArray(i) ? i : {});
 function cleanRun(i) {
+  i = rlMigrateUpgrades(i); // 2.5.0 A: retired upgrades of a saved run
   if (
     !i ||
     typeof i !== "object" ||
@@ -251,6 +248,8 @@ function cleanRun(i) {
   return o;
 }
 function cleanSave(i) {
+  // 2.5.0 B: refund merged workshop modules, then 2.4.0: convert retired weapons (both on the raw save)
+  i = rlMigrateRetired(rlMigrateModules(i));
   let t = newSave(),
     e = asObject(i),
     n = t;
@@ -421,21 +420,6 @@ function rlMigrateUpgrades(run) {
   }
   return out;
 }
-const _rlCleanRun250A = cleanRun;
-cleanRun = function (raw) {
-  return _rlCleanRun250A(rlMigrateUpgrades(raw));
-};
-// Run history: a retired upgrade in a build is shown as the upgrade that took it over.
-const _rlSanitizeHistory250A = rlSanitizeHistory;
-rlSanitizeHistory = function (h) {
-  if (!Array.isArray(h)) return _rlSanitizeHistory250A(h);
-  const map = (q) =>
-    q && typeof q === "object" && Array.isArray(q.build) && q.build.some((id) => rlRetiredUpgrade(id))
-      ? { ...q, build: [...new Set(q.build.map((id) => rlRetiredUpgrade(id)?.to || id))] }
-      : q;
-  return _rlSanitizeHistory250A(h.map(map));
-};
-
 export {
   rlMigrateUpgrades,
   defaultSettings,
@@ -490,9 +474,5 @@ function rlMigrateModules(raw) {
   }
   return out;
 }
-const _rlCleanSave250B = cleanSave;
-cleanSave = function (raw) {
-  return _rlCleanSave250B(rlMigrateModules(raw));
-};
 
 export { RL_MODULE_NOTE, rlMigrateModules, set_RL_MODULE_NOTE };
