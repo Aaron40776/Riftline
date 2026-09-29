@@ -30,31 +30,31 @@ import {
  Riftline 2.3.0 content
  - rlEnemyMesh: dedicated models for the 12 enemies added in 2.0–2.2
    (they used to fall back to the Grunt box). +x is the facing direction;
-   body parts take the enemy colour (e = 55 %, n = 30 %), "glow" parts are
+   body parts take the enemy colour (mid = 55 %, dark = 30 %), "glow" parts are
    white and get tinted per instance by the renderer.
  ========================================================================== */
-function rlEnemyMesh(type, e, n, s) {
-  const W = 16777215,
-    P = Math.PI;
+function rlEnemyMesh(type, mid, dark, metal) {
+  const white = 16777215,
+    PI = Math.PI;
   switch (type) {
     case "leaper": {
       // crouched hopper: squat body, big folded hind legs, eye pair
       const legs = [];
       for (const z of [-0.34, 0.34])
         legs.push(
-          meshPart(new BoxGeometry(0.62, 0.14, 0.16), n, { x: -0.22, y: 0.3, z, rz: 0.75 }),
-          meshPart(new BoxGeometry(0.5, 0.12, 0.14), s, { x: -0.05, y: 0.14, z: z * 1.15, rz: -0.35 }),
+          meshPart(new BoxGeometry(0.62, 0.14, 0.16), dark, { x: -0.22, y: 0.3, z, rz: 0.75 }),
+          meshPart(new BoxGeometry(0.5, 0.12, 0.14), metal, { x: -0.05, y: 0.14, z: z * 1.15, rz: -0.35 }),
         );
       return {
         body: mergeParts([
-          meshPart(new SphereGeometry(0.46, 12, 8), e, { y: 0.46, sx: 1.25, sy: 0.7 }),
-          meshPart(new BoxGeometry(0.3, 0.14, 0.5), s, { x: 0.36, y: 0.3 }),
+          meshPart(new SphereGeometry(0.46, 12, 8), mid, { y: 0.46, sx: 1.25, sy: 0.7 }),
+          meshPart(new BoxGeometry(0.3, 0.14, 0.5), metal, { x: 0.36, y: 0.3 }),
           ...legs,
         ]),
         glow: mergeParts([
-          meshPart(new SphereGeometry(0.09, 8, 6), W, { x: 0.42, y: 0.62, z: 0.16 }),
-          meshPart(new SphereGeometry(0.09, 8, 6), W, { x: 0.42, y: 0.62, z: -0.16 }),
-          meshPart(new BoxGeometry(0.5, 0.04, 0.06), W, { x: -0.05, y: 0.78 }),
+          meshPart(new SphereGeometry(0.09, 8, 6), white, { x: 0.42, y: 0.62, z: 0.16 }),
+          meshPart(new SphereGeometry(0.09, 8, 6), white, { x: 0.42, y: 0.62, z: -0.16 }),
+          meshPart(new BoxGeometry(0.5, 0.04, 0.06), white, { x: -0.05, y: 0.78 }),
         ]),
       };
     }
@@ -62,16 +62,16 @@ function rlEnemyMesh(type, e, n, s) {
       // hex base, column, gun head with long barrel
       return {
         body: mergeParts([
-          meshPart(new CylinderGeometry(0.55, 0.7, 0.3, 6), n, { y: 0.15 }),
-          meshPart(new CylinderGeometry(0.17, 0.22, 0.5, 8), s, { y: 0.52 }),
-          meshPart(new BoxGeometry(0.56, 0.34, 0.48), e, { y: 0.9 }),
-          meshPart(new BoxGeometry(0.9, 0.11, 0.11), s, { x: 0.62, y: 0.92 }),
-          meshPart(new BoxGeometry(0.2, 0.2, 0.52), s, { x: -0.3, y: 0.94 }),
+          meshPart(new CylinderGeometry(0.55, 0.7, 0.3, 6), dark, { y: 0.15 }),
+          meshPart(new CylinderGeometry(0.17, 0.22, 0.5, 8), metal, { y: 0.52 }),
+          meshPart(new BoxGeometry(0.56, 0.34, 0.48), mid, { y: 0.9 }),
+          meshPart(new BoxGeometry(0.9, 0.11, 0.11), metal, { x: 0.62, y: 0.92 }),
+          meshPart(new BoxGeometry(0.2, 0.2, 0.52), metal, { x: -0.3, y: 0.94 }),
         ]),
         glow: mergeParts([
-          meshPart(new SphereGeometry(0.1, 8, 6), W, { x: 1.08, y: 0.92 }),
-          meshPart(new TorusGeometry(0.64, 0.035, 4, 24), W, { y: 0.06, rx: P / 2 }),
-          meshPart(new BoxGeometry(0.06, 0.08, 0.3), W, { x: 0.29, y: 1.02 }),
+          meshPart(new SphereGeometry(0.1, 8, 6), white, { x: 1.08, y: 0.92 }),
+          meshPart(new TorusGeometry(0.64, 0.035, 4, 24), white, { y: 0.06, rx: PI / 2 }),
+          meshPart(new BoxGeometry(0.06, 0.08, 0.3), white, { x: 0.29, y: 1.02 }),
         ]),
       };
     }
@@ -79,15 +79,15 @@ function rlEnemyMesh(type, e, n, s) {
       // armoured wedge with a ram horn
       return {
         body: mergeParts([
-          meshPart(new BoxGeometry(1.05, 0.58, 0.78), e, { y: 0.46 }),
-          meshPart(new BoxGeometry(0.62, 0.34, 0.66), n, { x: -0.12, y: 0.86 }),
-          meshPart(new ConeGeometry(0.28, 0.7, 6), s, { x: 0.82, y: 0.5, rz: -P / 2 }),
-          meshPart(new ConeGeometry(0.1, 0.36, 5), s, { x: 0.4, y: 0.86, z: 0.3, rz: -0.9 }),
-          meshPart(new ConeGeometry(0.1, 0.36, 5), s, { x: 0.4, y: 0.86, z: -0.3, rz: -0.9 }),
+          meshPart(new BoxGeometry(1.05, 0.58, 0.78), mid, { y: 0.46 }),
+          meshPart(new BoxGeometry(0.62, 0.34, 0.66), dark, { x: -0.12, y: 0.86 }),
+          meshPart(new ConeGeometry(0.28, 0.7, 6), metal, { x: 0.82, y: 0.5, rz: -PI / 2 }),
+          meshPart(new ConeGeometry(0.1, 0.36, 5), metal, { x: 0.4, y: 0.86, z: 0.3, rz: -0.9 }),
+          meshPart(new ConeGeometry(0.1, 0.36, 5), metal, { x: 0.4, y: 0.86, z: -0.3, rz: -0.9 }),
         ]),
         glow: mergeParts([
-          meshPart(new BoxGeometry(0.07, 0.08, 0.52), W, { x: 0.54, y: 0.66 }),
-          meshPart(new BoxGeometry(0.7, 0.05, 0.06), W, { x: -0.15, y: 1.05 }),
+          meshPart(new BoxGeometry(0.07, 0.08, 0.52), white, { x: 0.54, y: 0.66 }),
+          meshPart(new BoxGeometry(0.7, 0.05, 0.06), white, { x: -0.15, y: 1.05 }),
         ]),
       };
     }
@@ -95,43 +95,47 @@ function rlEnemyMesh(type, e, n, s) {
       // low crab dome carrying three mines
       const legs = [],
         mines = [];
-      for (const a of [0.6, 2.5, 3.8, 5.7])
+      for (const angle of [0.6, 2.5, 3.8, 5.7])
         legs.push(
-          meshPart(new BoxGeometry(0.5, 0.1, 0.1), s, {
-            x: Math.cos(a) * 0.55,
+          meshPart(new BoxGeometry(0.5, 0.1, 0.1), metal, {
+            x: Math.cos(angle) * 0.55,
             y: 0.14,
-            z: Math.sin(a) * 0.55,
-            ry: -a,
+            z: Math.sin(angle) * 0.55,
+            ry: -angle,
           }),
         );
       for (let k = 0; k < 3; k++) {
-        const a = P * 0.6 + k * 0.45;
+        const angle = PI * 0.6 + k * 0.45;
         mines.push(
-          meshPart(new SphereGeometry(0.13, 8, 6), W, { x: Math.cos(a) * 0.34, y: 0.78, z: Math.sin(a) * 0.34 - 0.02 }),
+          meshPart(new SphereGeometry(0.13, 8, 6), white, {
+            x: Math.cos(angle) * 0.34,
+            y: 0.78,
+            z: Math.sin(angle) * 0.34 - 0.02,
+          }),
         );
       }
       return {
         body: mergeParts([
-          meshPart(new CylinderGeometry(0.62, 0.7, 0.28, 8), n, { y: 0.26 }),
-          meshPart(new SphereGeometry(0.52, 14, 8, 0, P * 2, 0, P / 2), e, { y: 0.38 }),
+          meshPart(new CylinderGeometry(0.62, 0.7, 0.28, 8), dark, { y: 0.26 }),
+          meshPart(new SphereGeometry(0.52, 14, 8, 0, PI * 2, 0, PI / 2), mid, { y: 0.38 }),
           ...legs,
         ]),
-        glow: mergeParts([...mines, meshPart(new BoxGeometry(0.1, 0.1, 0.34), W, { x: 0.52, y: 0.44 })]),
+        glow: mergeParts([...mines, meshPart(new BoxGeometry(0.1, 0.1, 0.34), white, { x: 0.52, y: 0.44 })]),
       };
     }
     case "sapper": {
       // upright engineer with a charge pack on its back
       return {
         body: mergeParts([
-          meshPart(new CylinderGeometry(0.32, 0.4, 0.78, 8), e, { y: 0.42 }),
-          meshPart(new SphereGeometry(0.26, 10, 8), n, { y: 0.95 }),
-          meshPart(new BoxGeometry(0.34, 0.5, 0.5), s, { x: -0.38, y: 0.56 }),
-          meshPart(new CylinderGeometry(0.05, 0.05, 0.35, 6), s, { x: -0.38, y: 0.98 }),
+          meshPart(new CylinderGeometry(0.32, 0.4, 0.78, 8), mid, { y: 0.42 }),
+          meshPart(new SphereGeometry(0.26, 10, 8), dark, { y: 0.95 }),
+          meshPart(new BoxGeometry(0.34, 0.5, 0.5), metal, { x: -0.38, y: 0.56 }),
+          meshPart(new CylinderGeometry(0.05, 0.05, 0.35, 6), metal, { x: -0.38, y: 0.98 }),
         ]),
         glow: mergeParts([
-          meshPart(new SphereGeometry(0.09, 8, 6), W, { x: -0.38, y: 1.18 }),
-          meshPart(new TorusGeometry(0.2, 0.035, 4, 16), W, { x: -0.38, y: 0.56, ry: P / 2 }),
-          meshPart(new BoxGeometry(0.08, 0.06, 0.3), W, { x: 0.24, y: 0.98 }),
+          meshPart(new SphereGeometry(0.09, 8, 6), white, { x: -0.38, y: 1.18 }),
+          meshPart(new TorusGeometry(0.2, 0.035, 4, 16), white, { x: -0.38, y: 0.56, ry: PI / 2 }),
+          meshPart(new BoxGeometry(0.08, 0.06, 0.3), white, { x: 0.24, y: 0.98 }),
         ]),
       };
     }
@@ -139,16 +143,16 @@ function rlEnemyMesh(type, e, n, s) {
       // hooded wraith fading into a point
       return {
         body: mergeParts([
-          meshPart(new ConeGeometry(0.46, 1.05, 8), e, { y: 0.62, rx: P }),
-          meshPart(new SphereGeometry(0.32, 12, 8), n, { y: 1.18 }),
-          meshPart(new ConeGeometry(0.34, 0.4, 8), s, { x: -0.05, y: 1.36 }),
+          meshPart(new ConeGeometry(0.46, 1.05, 8), mid, { y: 0.62, rx: PI }),
+          meshPart(new SphereGeometry(0.32, 12, 8), dark, { y: 1.18 }),
+          meshPart(new ConeGeometry(0.34, 0.4, 8), metal, { x: -0.05, y: 1.36 }),
         ]),
         glow: mergeParts([
-          meshPart(new SphereGeometry(0.08, 8, 6), W, { x: 0.27, y: 1.2, z: 0.12 }),
-          meshPart(new SphereGeometry(0.08, 8, 6), W, { x: 0.27, y: 1.2, z: -0.12 }),
-          meshPart(new TorusGeometry(0.42, 0.035, 4, 20), W, { y: 0.34, rx: P / 2 }),
-          meshPart(new TorusGeometry(0.3, 0.03, 4, 18), W, { y: 0.8, rx: P / 2 }),
-          meshPart(new TorusGeometry(0.34, 0.03, 4, 18), W, { y: 1.18, rz: P / 2 }),
+          meshPart(new SphereGeometry(0.08, 8, 6), white, { x: 0.27, y: 1.2, z: 0.12 }),
+          meshPart(new SphereGeometry(0.08, 8, 6), white, { x: 0.27, y: 1.2, z: -0.12 }),
+          meshPart(new TorusGeometry(0.42, 0.035, 4, 20), white, { y: 0.34, rx: PI / 2 }),
+          meshPart(new TorusGeometry(0.3, 0.03, 4, 18), white, { y: 0.8, rx: PI / 2 }),
+          meshPart(new TorusGeometry(0.34, 0.03, 4, 18), white, { y: 1.18, rz: PI / 2 }),
         ]),
       };
     }
@@ -156,14 +160,14 @@ function rlEnemyMesh(type, e, n, s) {
       // floating eye on a pylon, framed by a vertical ring
       return {
         body: mergeParts([
-          meshPart(new CylinderGeometry(0.18, 0.46, 0.55, 6), n, { y: 0.28 }),
-          meshPart(new SphereGeometry(0.48, 14, 10), e, { y: 1.05 }),
-          meshPart(new TorusGeometry(0.64, 0.07, 5, 28), s, { y: 1.05 }),
+          meshPart(new CylinderGeometry(0.18, 0.46, 0.55, 6), dark, { y: 0.28 }),
+          meshPart(new SphereGeometry(0.48, 14, 10), mid, { y: 1.05 }),
+          meshPart(new TorusGeometry(0.64, 0.07, 5, 28), metal, { y: 1.05 }),
         ]),
         glow: mergeParts([
-          meshPart(new SphereGeometry(0.2, 10, 8), W, { x: 0.4, y: 1.05 }),
-          meshPart(new TorusGeometry(0.26, 0.03, 4, 18), W, { x: 0.34, y: 1.05, ry: P / 2 }),
-          meshPart(new TorusGeometry(0.46, 0.03, 4, 20), W, { y: 0.05, rx: P / 2 }),
+          meshPart(new SphereGeometry(0.2, 10, 8), white, { x: 0.4, y: 1.05 }),
+          meshPart(new TorusGeometry(0.26, 0.03, 4, 18), white, { x: 0.34, y: 1.05, ry: PI / 2 }),
+          meshPart(new TorusGeometry(0.46, 0.03, 4, 20), white, { y: 0.05, rx: PI / 2 }),
         ]),
       };
     }
@@ -171,16 +175,16 @@ function rlEnemyMesh(type, e, n, s) {
       // hovering saucer with launch bays
       return {
         body: mergeParts([
-          meshPart(new CylinderGeometry(0.86, 0.62, 0.28, 12), e, { y: 0.62 }),
-          meshPart(new SphereGeometry(0.4, 12, 8, 0, P * 2, 0, P / 2), n, { y: 0.76 }),
-          meshPart(new BoxGeometry(0.34, 0.2, 0.3), s, { y: 0.6, z: 0.78 }),
-          meshPart(new BoxGeometry(0.34, 0.2, 0.3), s, { y: 0.6, z: -0.78 }),
-          meshPart(new BoxGeometry(0.3, 0.2, 0.34), s, { x: -0.8, y: 0.6 }),
+          meshPart(new CylinderGeometry(0.86, 0.62, 0.28, 12), mid, { y: 0.62 }),
+          meshPart(new SphereGeometry(0.4, 12, 8, 0, PI * 2, 0, PI / 2), dark, { y: 0.76 }),
+          meshPart(new BoxGeometry(0.34, 0.2, 0.3), metal, { y: 0.6, z: 0.78 }),
+          meshPart(new BoxGeometry(0.34, 0.2, 0.3), metal, { y: 0.6, z: -0.78 }),
+          meshPart(new BoxGeometry(0.3, 0.2, 0.34), metal, { x: -0.8, y: 0.6 }),
         ]),
         glow: mergeParts([
-          meshPart(new TorusGeometry(0.7, 0.045, 4, 28), W, { y: 0.46, rx: P / 2 }),
-          meshPart(new BoxGeometry(0.08, 0.06, 0.24), W, { x: 0.84, y: 0.64 }),
-          meshPart(new SphereGeometry(0.1, 8, 6), W, { y: 1.14 }),
+          meshPart(new TorusGeometry(0.7, 0.045, 4, 28), white, { y: 0.46, rx: PI / 2 }),
+          meshPart(new BoxGeometry(0.08, 0.06, 0.24), white, { x: 0.84, y: 0.64 }),
+          meshPart(new SphereGeometry(0.1, 8, 6), white, { y: 1.14 }),
         ]),
       };
     }
@@ -195,33 +199,33 @@ function rlEnemyMesh(type, e, n, s) {
         [-0.34, -0.34],
       ]) {
         arms.push(
-          meshPart(new BoxGeometry(0.5, 0.06, 0.08), s, { x: x / 2, y: 0.82, z: z / 2, ry: Math.atan2(-z, x) }),
+          meshPart(new BoxGeometry(0.5, 0.06, 0.08), metal, { x: x / 2, y: 0.82, z: z / 2, ry: Math.atan2(-z, x) }),
         );
-        rotors.push(meshPart(new TorusGeometry(0.17, 0.028, 4, 16), W, { x, y: 0.9, z, rx: P / 2 }));
+        rotors.push(meshPart(new TorusGeometry(0.17, 0.028, 4, 16), white, { x, y: 0.9, z, rx: PI / 2 }));
       }
       return {
         body: mergeParts([
-          meshPart(new BoxGeometry(0.4, 0.16, 0.36), e, { y: 0.82 }),
-          meshPart(new BoxGeometry(0.34, 0.08, 0.08), n, { x: 0.3, y: 0.76 }),
+          meshPart(new BoxGeometry(0.4, 0.16, 0.36), mid, { y: 0.82 }),
+          meshPart(new BoxGeometry(0.34, 0.08, 0.08), dark, { x: 0.3, y: 0.76 }),
           ...arms,
         ]),
-        glow: mergeParts([...rotors, meshPart(new SphereGeometry(0.07, 8, 6), W, { x: 0.48, y: 0.76 })]),
+        glow: mergeParts([...rotors, meshPart(new SphereGeometry(0.07, 8, 6), white, { x: 0.48, y: 0.76 })]),
       };
     }
     case "driller": {
       // tracked body with a spinning drill
       return {
         body: mergeParts([
-          meshPart(new BoxGeometry(0.95, 0.5, 0.76), e, { y: 0.42 }),
-          meshPart(new BoxGeometry(1.1, 0.22, 0.2), s, { y: 0.14, z: 0.44 }),
-          meshPart(new BoxGeometry(1.1, 0.22, 0.2), s, { y: 0.14, z: -0.44 }),
-          meshPart(new ConeGeometry(0.34, 0.9, 8), n, { x: 0.88, y: 0.46, rz: -P / 2 }),
-          meshPart(new CylinderGeometry(0.1, 0.14, 0.4, 6), s, { x: -0.32, y: 0.84 }),
+          meshPart(new BoxGeometry(0.95, 0.5, 0.76), mid, { y: 0.42 }),
+          meshPart(new BoxGeometry(1.1, 0.22, 0.2), metal, { y: 0.14, z: 0.44 }),
+          meshPart(new BoxGeometry(1.1, 0.22, 0.2), metal, { y: 0.14, z: -0.44 }),
+          meshPart(new ConeGeometry(0.34, 0.9, 8), dark, { x: 0.88, y: 0.46, rz: -PI / 2 }),
+          meshPart(new CylinderGeometry(0.1, 0.14, 0.4, 6), metal, { x: -0.32, y: 0.84 }),
         ]),
         glow: mergeParts([
-          meshPart(new TorusGeometry(0.36, 0.04, 4, 20), W, { x: 0.46, y: 0.46, ry: P / 2 }),
-          meshPart(new SphereGeometry(0.08, 8, 6), W, { x: -0.32, y: 1.08 }),
-          meshPart(new BoxGeometry(0.07, 0.06, 0.5), W, { x: 0.2, y: 0.68 }),
+          meshPart(new TorusGeometry(0.36, 0.04, 4, 20), white, { x: 0.46, y: 0.46, ry: PI / 2 }),
+          meshPart(new SphereGeometry(0.08, 8, 6), white, { x: -0.32, y: 1.08 }),
+          meshPart(new BoxGeometry(0.07, 0.06, 0.5), white, { x: 0.2, y: 0.68 }),
         ]),
       };
     }
@@ -229,15 +233,15 @@ function rlEnemyMesh(type, e, n, s) {
       // repair spire with stacked halo rings
       return {
         body: mergeParts([
-          meshPart(new CylinderGeometry(0.46, 0.58, 0.26, 6), n, { y: 0.13 }),
-          meshPart(new CylinderGeometry(0.16, 0.3, 1.15, 6), e, { y: 0.82 }),
-          meshPart(new BoxGeometry(0.62, 0.1, 0.1), s, { y: 1.22 }),
-          meshPart(new BoxGeometry(0.1, 0.1, 0.62), s, { y: 1.22 }),
+          meshPart(new CylinderGeometry(0.46, 0.58, 0.26, 6), dark, { y: 0.13 }),
+          meshPart(new CylinderGeometry(0.16, 0.3, 1.15, 6), mid, { y: 0.82 }),
+          meshPart(new BoxGeometry(0.62, 0.1, 0.1), metal, { y: 1.22 }),
+          meshPart(new BoxGeometry(0.1, 0.1, 0.62), metal, { y: 1.22 }),
         ]),
         glow: mergeParts([
-          meshPart(new OctahedronGeometry(0.24), W, { y: 1.6 }),
-          meshPart(new TorusGeometry(0.4, 0.035, 4, 22), W, { y: 0.55, rx: P / 2 }),
-          meshPart(new TorusGeometry(0.3, 0.03, 4, 20), W, { y: 0.95, rx: P / 2 }),
+          meshPart(new OctahedronGeometry(0.24), white, { y: 1.6 }),
+          meshPart(new TorusGeometry(0.4, 0.035, 4, 22), white, { y: 0.55, rx: PI / 2 }),
+          meshPart(new TorusGeometry(0.3, 0.03, 4, 20), white, { y: 0.95, rx: PI / 2 }),
         ]),
       };
     }
@@ -245,27 +249,27 @@ function rlEnemyMesh(type, e, n, s) {
       // angular rift spider
       const legs = [];
       for (let k = 0; k < 6; k++) {
-        const a = (k < 3 ? -1 : 1) * (0.6 + (k % 3) * 0.55);
+        const angle = (k < 3 ? -1 : 1) * (0.6 + (k % 3) * 0.55);
         legs.push(
-          meshPart(new BoxGeometry(0.62, 0.06, 0.08), s, {
-            x: Math.cos(a) * 0.34,
+          meshPart(new BoxGeometry(0.62, 0.06, 0.08), metal, {
+            x: Math.cos(angle) * 0.34,
             y: 0.46,
-            z: Math.sin(a) * 0.34,
-            ry: -a,
+            z: Math.sin(angle) * 0.34,
+            ry: -angle,
             rz: 0.45,
           }),
         );
       }
       return {
         body: mergeParts([
-          meshPart(new OctahedronGeometry(0.38), e, { y: 0.66, sx: 1.35, sy: 0.8 }),
-          meshPart(new OctahedronGeometry(0.2), n, { x: 0.46, y: 0.7 }),
+          meshPart(new OctahedronGeometry(0.38), mid, { y: 0.66, sx: 1.35, sy: 0.8 }),
+          meshPart(new OctahedronGeometry(0.2), dark, { x: 0.46, y: 0.7 }),
           ...legs,
         ]),
         glow: mergeParts([
-          meshPart(new SphereGeometry(0.1, 8, 6), W, { y: 0.72 }),
-          meshPart(new TorusGeometry(0.5, 0.03, 4, 22), W, { y: 0.66, rx: P / 2 }),
-          meshPart(new BoxGeometry(0.06, 0.06, 0.2), W, { x: 0.62, y: 0.72 }),
+          meshPart(new SphereGeometry(0.1, 8, 6), white, { y: 0.72 }),
+          meshPart(new TorusGeometry(0.5, 0.03, 4, 22), white, { y: 0.66, rx: PI / 2 }),
+          meshPart(new BoxGeometry(0.06, 0.06, 0.2), white, { x: 0.62, y: 0.72 }),
         ]),
       };
     }
@@ -301,223 +305,224 @@ var RL_MESH_TYPES = [
   "beacon",
   "weaver",
 ];
-function mergeGeometries(i, t = !1) {
-  let e = i[0].index !== null,
-    n = new Set(Object.keys(i[0].attributes)),
-    s = new Set(Object.keys(i[0].morphAttributes)),
-    r = {},
-    a = {},
-    o = i[0].morphTargetsRelative,
-    c = new BufferGeometry(),
-    h = 0;
-  for (let l = 0; l < i.length; ++l) {
-    let u = i[l],
-      d = 0;
-    if (e !== (u.index !== null))
+function mergeGeometries(geometries, useGroups = !1) {
+  let isIndexed = geometries[0].index !== null,
+    attributesUsed = new Set(Object.keys(geometries[0].attributes)),
+    morphAttributesUsed = new Set(Object.keys(geometries[0].morphAttributes)),
+    attributes = {},
+    morphAttributes = {},
+    morphTargetsRelative = geometries[0].morphTargetsRelative,
+    merged = new BufferGeometry(),
+    offset = 0;
+  for (let i = 0; i < geometries.length; ++i) {
+    let geometry = geometries[i],
+      attributesCount = 0;
+    if (isIndexed !== (geometry.index !== null))
       return (
         console.error(
           "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-            l +
+            i +
             ". All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.",
         ),
         null
       );
-    for (let f in u.attributes) {
-      if (!n.has(f))
+    for (let name in geometry.attributes) {
+      if (!attributesUsed.has(name))
         return (
           console.error(
             "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-              l +
+              i +
               '. All geometries must have compatible attributes; make sure "' +
-              f +
+              name +
               '" attribute exists among all geometries, or in none of them.',
           ),
           null
         );
-      (r[f] === void 0 && (r[f] = []), r[f].push(u.attributes[f]), d++);
+      (attributes[name] === void 0 && (attributes[name] = []),
+        attributes[name].push(geometry.attributes[name]),
+        attributesCount++);
     }
-    if (d !== n.size)
+    if (attributesCount !== attributesUsed.size)
       return (
         console.error(
           "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-            l +
+            i +
             ". Make sure all geometries have the same number of attributes.",
         ),
         null
       );
-    if (o !== u.morphTargetsRelative)
+    if (morphTargetsRelative !== geometry.morphTargetsRelative)
       return (
         console.error(
           "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-            l +
+            i +
             ". .morphTargetsRelative must be consistent throughout all geometries.",
         ),
         null
       );
-    for (let f in u.morphAttributes) {
-      if (!s.has(f))
+    for (let name in geometry.morphAttributes) {
+      if (!morphAttributesUsed.has(name))
         return (
           console.error(
             "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-              l +
+              i +
               ".  .morphAttributes must be consistent throughout all geometries.",
           ),
           null
         );
-      (a[f] === void 0 && (a[f] = []), a[f].push(u.morphAttributes[f]));
+      (morphAttributes[name] === void 0 && (morphAttributes[name] = []),
+        morphAttributes[name].push(geometry.morphAttributes[name]));
     }
-    if (t) {
-      let f;
-      if (e) f = u.index.count;
-      else if (u.attributes.position !== void 0) f = u.attributes.position.count;
+    if (useGroups) {
+      let count;
+      if (isIndexed) count = geometry.index.count;
+      else if (geometry.attributes.position !== void 0) count = geometry.attributes.position.count;
       else
         return (
           console.error(
             "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-              l +
+              i +
               ". The geometry must have either an index or a position attribute",
           ),
           null
         );
-      (c.addGroup(h, f, l), (h += f));
+      (merged.addGroup(offset, count, i), (offset += count));
     }
   }
-  if (e) {
-    let l = 0,
-      u = [];
-    for (let d = 0; d < i.length; ++d) {
-      let f = i[d].index;
-      for (let p = 0; p < f.count; ++p) u.push(f.getX(p) + l);
-      l += i[d].attributes.position.count;
+  if (isIndexed) {
+    let indexOffset = 0,
+      mergedIndex = [];
+    for (let i = 0; i < geometries.length; ++i) {
+      let index = geometries[i].index;
+      for (let j = 0; j < index.count; ++j) mergedIndex.push(index.getX(j) + indexOffset);
+      indexOffset += geometries[i].attributes.position.count;
     }
-    c.setIndex(u);
+    merged.setIndex(mergedIndex);
   }
-  for (let l in r) {
-    let u = mergeAttributes(r[l]);
-    if (!u)
+  for (let name in attributes) {
+    let mergedAttribute = mergeAttributes(attributes[name]);
+    if (!mergedAttribute)
       return (
         console.error(
-          "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " + l + " attribute.",
+          "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " + name + " attribute.",
         ),
         null
       );
-    c.setAttribute(l, u);
+    merged.setAttribute(name, mergedAttribute);
   }
-  for (let l in a) {
-    let u = a[l][0].length;
-    if (u !== 0) {
-      ((c.morphAttributes = c.morphAttributes || {}), (c.morphAttributes[l] = []));
-      for (let d = 0; d < u; ++d) {
-        let f = [];
-        for (let x = 0; x < a[l].length; ++x) f.push(a[l][x][d]);
-        let p = mergeAttributes(f);
-        if (!p)
+  for (let name in morphAttributes) {
+    let numMorphTargets = morphAttributes[name][0].length;
+    if (numMorphTargets !== 0) {
+      ((merged.morphAttributes = merged.morphAttributes || {}), (merged.morphAttributes[name] = []));
+      for (let i = 0; i < numMorphTargets; ++i) {
+        let toMerge = [];
+        for (let j = 0; j < morphAttributes[name].length; ++j) toMerge.push(morphAttributes[name][j][i]);
+        let mergedMorph = mergeAttributes(toMerge);
+        if (!mergedMorph)
           return (
             console.error(
               "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " +
-                l +
+                name +
                 " morphAttribute.",
             ),
             null
           );
-        c.morphAttributes[l].push(p);
+        merged.morphAttributes[name].push(mergedMorph);
       }
     }
   }
-  return c;
+  return merged;
 }
-function mergeAttributes(i) {
-  let t,
-    e,
-    n,
-    s = -1,
-    r = 0;
-  for (let h = 0; h < i.length; ++h) {
-    let l = i[h];
-    if ((t === void 0 && (t = l.array.constructor), t !== l.array.constructor))
+function mergeAttributes(attributes) {
+  let TypedArray,
+    itemSize,
+    normalized,
+    gpuType = -1,
+    arrayLength = 0;
+  for (let i = 0; i < attributes.length; ++i) {
+    let attribute = attributes[i];
+    if (
+      (TypedArray === void 0 && (TypedArray = attribute.array.constructor), TypedArray !== attribute.array.constructor)
+    )
       return (
         console.error(
           "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.",
         ),
         null
       );
-    if ((e === void 0 && (e = l.itemSize), e !== l.itemSize))
+    if ((itemSize === void 0 && (itemSize = attribute.itemSize), itemSize !== attribute.itemSize))
       return (
         console.error(
           "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.",
         ),
         null
       );
-    if ((n === void 0 && (n = l.normalized), n !== l.normalized))
+    if ((normalized === void 0 && (normalized = attribute.normalized), normalized !== attribute.normalized))
       return (
         console.error(
           "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.",
         ),
         null
       );
-    if ((s === -1 && (s = l.gpuType), s !== l.gpuType))
+    if ((gpuType === -1 && (gpuType = attribute.gpuType), gpuType !== attribute.gpuType))
       return (
         console.error(
           "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.",
         ),
         null
       );
-    r += l.count * e;
+    arrayLength += attribute.count * itemSize;
   }
-  let a = new t(r),
-    o = new BufferAttribute(a, e, n),
-    c = 0;
-  for (let h = 0; h < i.length; ++h) {
-    let l = i[h];
-    if (l.isInterleavedBufferAttribute) {
-      let u = c / e;
-      for (let d = 0, f = l.count; d < f; d++)
-        for (let p = 0; p < e; p++) {
-          let x = l.getComponent(d, p);
-          o.setComponent(d + u, p, x);
+  let array = new TypedArray(arrayLength),
+    result = new BufferAttribute(array, itemSize, normalized),
+    offset = 0;
+  for (let i = 0; i < attributes.length; ++i) {
+    let attribute = attributes[i];
+    if (attribute.isInterleavedBufferAttribute) {
+      let tupleOffset = offset / itemSize;
+      for (let j = 0, count = attribute.count; j < count; j++)
+        for (let k = 0; k < itemSize; k++) {
+          let value = attribute.getComponent(j, k);
+          result.setComponent(j + tupleOffset, k, value);
         }
-    } else a.set(l.array, c);
-    c += l.count * e;
+    } else array.set(attribute.array, offset);
+    offset += attribute.count * itemSize;
   }
-  return (s !== void 0 && (o.gpuType = s), o);
+  return (gpuType !== void 0 && (result.gpuType = gpuType), result);
 }
 var partMatrix = new Matrix4(),
   partQuat = new Quaternion(),
   partEuler = new Euler(),
   partScale = new Vector3(),
   partPos = new Vector3();
-function meshPart(
-  i,
-  t,
-  { x: e = 0, y: n = 0, z: s = 0, rx: r = 0, ry: a = 0, rz: o = 0, sx: c = 1, sy: h = 1, sz: l = 1 } = {},
-) {
-  let u = i.index ? i.toNonIndexed() : i;
-  (partEuler.set(r, a, o),
+function meshPart(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1 } = {}) {
+  let part = geo.index ? geo.toNonIndexed() : geo;
+  (partEuler.set(rx, ry, rz),
     partQuat.setFromEuler(partEuler),
-    partMatrix.compose(partPos.set(e, n, s), partQuat, partScale.set(c, h, l)),
-    u.applyMatrix4(partMatrix),
-    u.deleteAttribute("uv"));
-  let d = new Color(t),
-    f = u.attributes.position.count,
-    p = new Float32Array(f * 3);
-  for (let x = 0; x < f; x++) ((p[x * 3] = d.r), (p[x * 3 + 1] = d.g), (p[x * 3 + 2] = d.b));
-  return (u.setAttribute("color", new BufferAttribute(p, 3)), u);
+    partMatrix.compose(partPos.set(x, y, z), partQuat, partScale.set(sx, sy, sz)),
+    part.applyMatrix4(partMatrix),
+    part.deleteAttribute("uv"));
+  let col = new Color(color),
+    count = part.attributes.position.count,
+    colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) ((colors[i * 3] = col.r), (colors[i * 3 + 1] = col.g), (colors[i * 3 + 2] = col.b));
+  return (part.setAttribute("color", new BufferAttribute(colors, 3)), part);
 }
-function mergeParts(i) {
-  let t = mergeGeometries(i, !1);
-  return (t.computeBoundingSphere(), t);
+function mergeParts(parts) {
+  let merged = mergeGeometries(parts, !1);
+  return (merged.computeBoundingSphere(), merged);
 }
-var darken = (i, t = 0.5) => new Color(i).multiplyScalar(t).getHex();
-function enemyGeometry(i, t) {
-  let e = darken(t, 0.55),
-    n = darken(t, 0.3),
-    s = 3818070;
-  switch (i) {
+var darken = (color, factor = 0.5) => new Color(color).multiplyScalar(factor).getHex();
+function enemyGeometry(type, color) {
+  let mid = darken(color, 0.55),
+    dark = darken(color, 0.3),
+    metal = 3818070;
+  switch (type) {
     case "swarmer":
       return {
         body: mergeParts([
-          meshPart(new ConeGeometry(0.4, 1, 4), e, { x: 0.05, y: 0.45, rz: -Math.PI / 2, rx: Math.PI / 4 }),
-          meshPart(new BoxGeometry(0.45, 0.06, 0.95), n, { x: -0.2, y: 0.45 }),
+          meshPart(new ConeGeometry(0.4, 1, 4), mid, { x: 0.05, y: 0.45, rz: -Math.PI / 2, rx: Math.PI / 4 }),
+          meshPart(new BoxGeometry(0.45, 0.06, 0.95), dark, { x: -0.2, y: 0.45 }),
         ]),
         glow: mergeParts([
           meshPart(new SphereGeometry(0.13, 8, 6), 16777215, { x: -0.38, y: 0.45 }),
@@ -526,24 +531,24 @@ function enemyGeometry(i, t) {
       };
     case "mite":
       return {
-        body: mergeParts([meshPart(new TetrahedronGeometry(0.34), e, { y: 0.32, ry: 0.4 })]),
+        body: mergeParts([meshPart(new TetrahedronGeometry(0.34), mid, { y: 0.32, ry: 0.4 })]),
         glow: mergeParts([meshPart(new SphereGeometry(0.1, 6, 4), 16777215, { x: 0.15, y: 0.42 })]),
       };
     case "grunt":
       return {
         body: mergeParts([
-          meshPart(new BoxGeometry(0.9, 0.75, 0.9), e, { y: 0.5 }),
-          meshPart(new BoxGeometry(0.5, 0.5, 1.25), n, { x: -0.1, y: 0.55 }),
-          meshPart(new BoxGeometry(0.7, 0.2, 0.7), s, { y: 0.98 }),
+          meshPart(new BoxGeometry(0.9, 0.75, 0.9), mid, { y: 0.5 }),
+          meshPart(new BoxGeometry(0.5, 0.5, 1.25), dark, { x: -0.1, y: 0.55 }),
+          meshPart(new BoxGeometry(0.7, 0.2, 0.7), metal, { y: 0.98 }),
         ]),
         glow: mergeParts([meshPart(new BoxGeometry(0.1, 0.14, 0.62), 16777215, { x: 0.46, y: 0.62 })]),
       };
     case "gunner":
       return {
         body: mergeParts([
-          meshPart(new CylinderGeometry(0.42, 0.52, 0.75, 8), e, { y: 0.42 }),
-          meshPart(new BoxGeometry(0.8, 0.15, 0.15), s, { x: 0.52, y: 0.62 }),
-          meshPart(new SphereGeometry(0.28, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), n, { y: 0.8 }),
+          meshPart(new CylinderGeometry(0.42, 0.52, 0.75, 8), mid, { y: 0.42 }),
+          meshPart(new BoxGeometry(0.8, 0.15, 0.15), metal, { x: 0.52, y: 0.62 }),
+          meshPart(new SphereGeometry(0.28, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), dark, { y: 0.8 }),
         ]),
         glow: mergeParts([
           meshPart(new TorusGeometry(0.47, 0.05, 5, 18), 16777215, { y: 0.78, rx: Math.PI / 2 }),
@@ -553,8 +558,8 @@ function enemyGeometry(i, t) {
     case "bomber":
       return {
         body: mergeParts([
-          meshPart(new SphereGeometry(0.5, 12, 8), e, { y: 0.52 }),
-          meshPart(new CylinderGeometry(0.1, 0.12, 0.25, 6), s, { y: 1.05 }),
+          meshPart(new SphereGeometry(0.5, 12, 8), mid, { y: 0.52 }),
+          meshPart(new CylinderGeometry(0.1, 0.12, 0.25, 6), metal, { y: 1.05 }),
         ]),
         glow: mergeParts([
           meshPart(new TorusGeometry(0.5, 0.06, 5, 20), 16777215, { y: 0.52, rx: Math.PI / 2 }),
@@ -563,7 +568,7 @@ function enemyGeometry(i, t) {
       };
     case "splitter":
       return {
-        body: mergeParts([meshPart(new DodecahedronGeometry(0.78), e, { y: 0.8 })]),
+        body: mergeParts([meshPart(new DodecahedronGeometry(0.78), mid, { y: 0.8 })]),
         glow: mergeParts([
           meshPart(new TorusGeometry(0.8, 0.06, 5, 24), 16777215, { y: 0.8, rx: Math.PI / 2 }),
           meshPart(new OctahedronGeometry(0.2), 16777215, { y: 1.62 }),
@@ -572,9 +577,9 @@ function enemyGeometry(i, t) {
     case "brute":
       return {
         body: mergeParts([
-          meshPart(new BoxGeometry(1.5, 1.1, 1.6), e, { y: 0.66 }),
-          meshPart(new BoxGeometry(0.9, 0.7, 2.2), n, { x: -0.15, y: 1 }),
-          meshPart(new BoxGeometry(0.5, 0.35, 0.9), s, { x: 0.65, y: 0.35 }),
+          meshPart(new BoxGeometry(1.5, 1.1, 1.6), mid, { y: 0.66 }),
+          meshPart(new BoxGeometry(0.9, 0.7, 2.2), dark, { x: -0.15, y: 1 }),
+          meshPart(new BoxGeometry(0.5, 0.35, 0.9), metal, { x: 0.65, y: 0.35 }),
         ]),
         glow: mergeParts([
           meshPart(new BoxGeometry(0.1, 0.16, 0.24), 16777215, { x: 0.76, y: 0.95, z: 0.35 }),
@@ -585,8 +590,8 @@ function enemyGeometry(i, t) {
     case "sniper":
       return {
         body: mergeParts([
-          meshPart(new OctahedronGeometry(0.5), e, { y: 0.95, sy: 1.7 }),
-          meshPart(new BoxGeometry(1.4, 0.09, 0.09), s, { x: 0.7, y: 0.95 }),
+          meshPart(new OctahedronGeometry(0.5), mid, { y: 0.95, sy: 1.7 }),
+          meshPart(new BoxGeometry(1.4, 0.09, 0.09), metal, { x: 0.7, y: 0.95 }),
         ]),
         glow: mergeParts([
           meshPart(new SphereGeometry(0.12, 8, 6), 16777215, { x: 1.42, y: 0.95 }),
@@ -594,35 +599,35 @@ function enemyGeometry(i, t) {
         ]),
       };
     case "hive": {
-      let r = [];
-      for (let a = 0; a < 6; a++) {
-        let o = (a / 6) * Math.PI * 2;
-        r.push(
+      let glows = [];
+      for (let i = 0; i < 6; i++) {
+        let angle = (i / 6) * Math.PI * 2;
+        glows.push(
           meshPart(new SphereGeometry(0.2, 8, 6), 16777215, {
-            x: Math.cos(o) * 1.02,
-            y: 1.05 + (a % 2) * 0.35,
-            z: Math.sin(o) * 1.02,
+            x: Math.cos(angle) * 1.02,
+            y: 1.05 + (i % 2) * 0.35,
+            z: Math.sin(angle) * 1.02,
           }),
         );
       }
       return (
-        r.push(meshPart(new OctahedronGeometry(0.28), 16777215, { y: 2.2 })),
+        glows.push(meshPart(new OctahedronGeometry(0.28), 16777215, { y: 2.2 })),
         {
           body: mergeParts([
-            meshPart(new IcosahedronGeometry(1.05, 0), e, { y: 1.15 }),
-            meshPart(new CylinderGeometry(0.7, 1, 0.35, 8), n, { y: 0.18 }),
+            meshPart(new IcosahedronGeometry(1.05, 0), mid, { y: 1.15 }),
+            meshPart(new CylinderGeometry(0.7, 1, 0.35, 8), dark, { y: 0.18 }),
           ]),
-          glow: mergeParts(r),
+          glow: mergeParts(glows),
         }
       );
     }
     case "bulwark":
       return {
         body: mergeParts([
-          meshPart(new BoxGeometry(1.1, 1, 1.2), e, { x: -0.15, y: 0.6 }),
-          meshPart(new BoxGeometry(0.6, 0.35, 0.9), s, { x: -0.2, y: 1.25 }),
-          meshPart(new CylinderGeometry(0.22, 0.26, 0.5, 6), n, { x: -0.1, y: 0.2, z: 0.45 }),
-          meshPart(new CylinderGeometry(0.22, 0.26, 0.5, 6), n, { x: -0.1, y: 0.2, z: -0.45 }),
+          meshPart(new BoxGeometry(1.1, 1, 1.2), mid, { x: -0.15, y: 0.6 }),
+          meshPart(new BoxGeometry(0.6, 0.35, 0.9), metal, { x: -0.2, y: 1.25 }),
+          meshPart(new CylinderGeometry(0.22, 0.26, 0.5, 6), dark, { x: -0.1, y: 0.2, z: 0.45 }),
+          meshPart(new CylinderGeometry(0.22, 0.26, 0.5, 6), dark, { x: -0.1, y: 0.2, z: -0.45 }),
         ]),
         glow: mergeParts([
           meshPart(new BoxGeometry(0.08, 0.12, 0.5), 16777215, { x: 0.43, y: 0.95 }),
@@ -632,9 +637,9 @@ function enemyGeometry(i, t) {
     case "striker":
       return {
         body: mergeParts([
-          meshPart(new OctahedronGeometry(0.42), e, { y: 0.7, sx: 1.5, sy: 0.9, sz: 0.8 }),
-          meshPart(new BoxGeometry(0.9, 0.05, 0.14), s, { x: 0.35, y: 0.62, z: 0.34, ry: -0.35 }),
-          meshPart(new BoxGeometry(0.9, 0.05, 0.14), s, { x: 0.35, y: 0.62, z: -0.34, ry: 0.35 }),
+          meshPart(new OctahedronGeometry(0.42), mid, { y: 0.7, sx: 1.5, sy: 0.9, sz: 0.8 }),
+          meshPart(new BoxGeometry(0.9, 0.05, 0.14), metal, { x: 0.35, y: 0.62, z: 0.34, ry: -0.35 }),
+          meshPart(new BoxGeometry(0.9, 0.05, 0.14), metal, { x: 0.35, y: 0.62, z: -0.34, ry: 0.35 }),
         ]),
         glow: mergeParts([
           meshPart(new SphereGeometry(0.12, 8, 6), 16777215, { x: 0.45, y: 0.78 }),
@@ -645,8 +650,8 @@ function enemyGeometry(i, t) {
     case "mender":
       return {
         body: mergeParts([
-          meshPart(new CylinderGeometry(0.35, 0.55, 0.7, 6), e, { y: 0.4 }),
-          meshPart(new OctahedronGeometry(0.32), n, { y: 1.05 }),
+          meshPart(new CylinderGeometry(0.35, 0.55, 0.7, 6), mid, { y: 0.4 }),
+          meshPart(new OctahedronGeometry(0.32), dark, { y: 1.05 }),
         ]),
         glow: mergeParts([
           meshPart(new BoxGeometry(0.5, 0.12, 0.12), 16777215, { y: 1.05 }),
@@ -657,9 +662,9 @@ function enemyGeometry(i, t) {
     case "mortar":
       return {
         body: mergeParts([
-          meshPart(new CylinderGeometry(0.75, 0.85, 0.5, 8), n, { y: 0.25 }),
-          meshPart(new SphereGeometry(0.55, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), e, { y: 0.5 }),
-          meshPart(new CylinderGeometry(0.2, 0.26, 0.95, 10), s, { x: 0.25, y: 1.05, rz: -0.55 }),
+          meshPart(new CylinderGeometry(0.75, 0.85, 0.5, 8), dark, { y: 0.25 }),
+          meshPart(new SphereGeometry(0.55, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mid, { y: 0.5 }),
+          meshPart(new CylinderGeometry(0.2, 0.26, 0.95, 10), metal, { x: 0.25, y: 1.05, rz: -0.55 }),
         ]),
         glow: mergeParts([
           meshPart(new TorusGeometry(0.2, 0.05, 5, 14), 16777215, { x: 0.52, y: 1.45, rz: -0.55, ry: Math.PI / 2 }),
@@ -667,12 +672,12 @@ function enemyGeometry(i, t) {
         ]),
       };
   }
-  const rlM = rlEnemyMesh(i, e, n, s);
-  return rlM || enemyGeometry("grunt", t);
+  const rlM = rlEnemyMesh(type, mid, dark, metal);
+  return rlM || enemyGeometry("grunt", color);
 }
 function shieldArcGeometry() {
-  let i = new CylinderGeometry(1.35, 1.35, 1.5, 20, 1, !0, -Math.PI / 2.9, (Math.PI * 2) / 2.9);
-  return (i.rotateY(Math.PI / 2), i.translate(0, 0.8, 0), i);
+  let geo = new CylinderGeometry(1.35, 1.35, 1.5, 20, 1, !0, -Math.PI / 2.9, (Math.PI * 2) / 2.9);
+  return (geo.rotateY(Math.PI / 2), geo.translate(0, 0.8, 0), geo);
 }
 function discGeometry() {
   return mergeParts([
@@ -684,69 +689,69 @@ function discGeometry() {
 function debrisGeometry() {
   return new BoxGeometry(1, 1, 1);
 }
-function buildPlayerModel(i, t) {
-  let e = new Group(),
-    n = new MeshLambertMaterial({ color: 2898514, emissive: 0 }),
-    s = new MeshLambertMaterial({ color: 9348036, emissive: 0 }),
-    r = new MeshBasicMaterial({ color: t, toneMapped: !1 }),
-    a = new Group(),
-    o = new Mesh(new CylinderGeometry(0.5, 0.62, 0.34, 6), n);
-  o.position.y = 0.52;
-  let c = new Mesh(new CylinderGeometry(0.64, 0.5, 0.14, 6), s);
-  c.position.y = 0.3;
-  let h = new Mesh(new TorusGeometry(0.6, 0.045, 5, 24), r);
-  ((h.rotation.x = Math.PI / 2), (h.position.y = 0.52));
-  let l = new Mesh(new BoxGeometry(0.16, 0.12, 0.5), r);
-  (l.position.set(-0.55, 0.42, 0), a.add(o, c, h, l), e.add(a));
-  let u = new Group();
-  u.position.y = 0.78;
-  let d = new Mesh(new SphereGeometry(0.3, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), s);
-  u.add(d);
-  let f = new Mesh(new BoxGeometry(0.08, 0.08, 0.3), r);
-  (f.position.set(0.24, 0.12, 0), u.add(f));
-  let p = (m, g, M = 0, b = 0.02) => {
-    let v = new Mesh(new BoxGeometry(m, g, g), n);
-    v.position.set(m / 2 + 0.12, b, M);
-    let S = new Mesh(new BoxGeometry(0.08, g * 1.2, g * 1.2), r);
-    (S.position.set(m + 0.14, b, M), u.add(v, S));
+function buildPlayerModel(weapon, color) {
+  let group = new Group(),
+    hullMat = new MeshLambertMaterial({ color: 2898514, emissive: 0 }),
+    trimMat = new MeshLambertMaterial({ color: 9348036, emissive: 0 }),
+    glowMat = new MeshBasicMaterial({ color: color, toneMapped: !1 }),
+    base = new Group(),
+    body = new Mesh(new CylinderGeometry(0.5, 0.62, 0.34, 6), hullMat);
+  body.position.y = 0.52;
+  let skirt = new Mesh(new CylinderGeometry(0.64, 0.5, 0.14, 6), trimMat);
+  skirt.position.y = 0.3;
+  let ring = new Mesh(new TorusGeometry(0.6, 0.045, 5, 24), glowMat);
+  ((ring.rotation.x = Math.PI / 2), (ring.position.y = 0.52));
+  let fin = new Mesh(new BoxGeometry(0.16, 0.12, 0.5), glowMat);
+  (fin.position.set(-0.55, 0.42, 0), base.add(body, skirt, ring, fin), group.add(base));
+  let turret = new Group();
+  turret.position.y = 0.78;
+  let dome = new Mesh(new SphereGeometry(0.3, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), trimMat);
+  turret.add(dome);
+  let sight = new Mesh(new BoxGeometry(0.08, 0.08, 0.3), glowMat);
+  (sight.position.set(0.24, 0.12, 0), turret.add(sight));
+  let addBarrel = (len, thick, z = 0, y = 0.02) => {
+    let tube = new Mesh(new BoxGeometry(len, thick, thick), hullMat);
+    tube.position.set(len / 2 + 0.12, y, z);
+    let tip = new Mesh(new BoxGeometry(0.08, thick * 1.2, thick * 1.2), glowMat);
+    (tip.position.set(len + 0.14, y, z), turret.add(tube, tip));
   };
-  if (i === "scatter") (p(0.5, 0.13, 0.1), p(0.5, 0.13, -0.1));
-  else if (i === "rail") {
-    p(0.95, 0.1);
-    let m = new Mesh(new BoxGeometry(0.8, 0.04, 0.26), s);
-    (m.position.set(0.55, 0.02, 0), u.add(m));
-  } else if (i === "rocket") {
-    let m = new Mesh(new BoxGeometry(0.46, 0.26, 0.36), n);
-    (m.position.set(0.3, 0.05, 0), u.add(m));
-    for (let g of [-0.09, 0.09])
-      for (let M of [-0.03, 0.12]) {
-        let b = new Mesh(new BoxGeometry(0.05, 0.08, 0.08), r);
-        (b.position.set(0.55, M, g), u.add(b));
+  if (weapon === "scatter") (addBarrel(0.5, 0.13, 0.1), addBarrel(0.5, 0.13, -0.1));
+  else if (weapon === "rail") {
+    addBarrel(0.95, 0.1);
+    let rail = new Mesh(new BoxGeometry(0.8, 0.04, 0.26), trimMat);
+    (rail.position.set(0.55, 0.02, 0), turret.add(rail));
+  } else if (weapon === "rocket") {
+    let pod = new Mesh(new BoxGeometry(0.46, 0.26, 0.36), hullMat);
+    (pod.position.set(0.3, 0.05, 0), turret.add(pod));
+    for (let z of [-0.09, 0.09])
+      for (let y of [-0.03, 0.12]) {
+        let tube = new Mesh(new BoxGeometry(0.05, 0.08, 0.08), glowMat);
+        (tube.position.set(0.55, y, z), turret.add(tube));
       }
-  } else if (i === "tesla") {
-    p(0.55, 0.12);
-    let m = new Mesh(new TorusGeometry(0.12, 0.03, 5, 14), r);
-    ((m.rotation.y = Math.PI / 2), m.position.set(0.45, 0.02, 0));
-    let g = m.clone();
-    ((g.position.x = 0.3), u.add(m, g));
-  } else if (i === "disc") {
-    let m = new Mesh(new BoxGeometry(0.62, 0.08, 0.34), n);
-    m.position.set(0.35, 0, 0);
-    let g = new Mesh(new CylinderGeometry(0.2, 0.2, 0.05, 16), r);
-    (g.position.set(0.42, 0.08, 0), u.add(m, g));
-  } else if (i === "flame") {
-    let m = new Mesh(new CylinderGeometry(0.12, 0.12, 0.5, 10), s);
-    ((m.rotation.x = Math.PI / 2), m.position.set(-0.05, 0.1, 0));
-    let g = new Mesh(new CylinderGeometry(0.07, 0.12, 0.55, 10), n);
-    ((g.rotation.z = -Math.PI / 2), g.position.set(0.42, 0.02, 0));
-    let M = new Mesh(new SphereGeometry(0.06, 8, 6), r);
-    (M.position.set(0.72, 0.02, 0), u.add(m, g, M));
-  } else p(0.62, 0.13);
-  e.add(u);
-  let x = new Mesh(
+  } else if (weapon === "tesla") {
+    addBarrel(0.55, 0.12);
+    let coil = new Mesh(new TorusGeometry(0.12, 0.03, 5, 14), glowMat);
+    ((coil.rotation.y = Math.PI / 2), coil.position.set(0.45, 0.02, 0));
+    let coil2 = coil.clone();
+    ((coil2.position.x = 0.3), turret.add(coil, coil2));
+  } else if (weapon === "disc") {
+    let mount = new Mesh(new BoxGeometry(0.62, 0.08, 0.34), hullMat);
+    mount.position.set(0.35, 0, 0);
+    let disc = new Mesh(new CylinderGeometry(0.2, 0.2, 0.05, 16), glowMat);
+    (disc.position.set(0.42, 0.08, 0), turret.add(mount, disc));
+  } else if (weapon === "flame") {
+    let tank = new Mesh(new CylinderGeometry(0.12, 0.12, 0.5, 10), trimMat);
+    ((tank.rotation.x = Math.PI / 2), tank.position.set(-0.05, 0.1, 0));
+    let nozzle = new Mesh(new CylinderGeometry(0.07, 0.12, 0.55, 10), hullMat);
+    ((nozzle.rotation.z = -Math.PI / 2), nozzle.position.set(0.42, 0.02, 0));
+    let pilot = new Mesh(new SphereGeometry(0.06, 8, 6), glowMat);
+    (pilot.position.set(0.72, 0.02, 0), turret.add(tank, nozzle, pilot));
+  } else addBarrel(0.62, 0.13);
+  group.add(turret);
+  let shield = new Mesh(
     new IcosahedronGeometry(1, 2),
     new MeshBasicMaterial({
-      color: t,
+      color: color,
       transparent: !0,
       opacity: 0.16,
       blending: AdditiveBlending,
@@ -754,140 +759,162 @@ function buildPlayerModel(i, t) {
       toneMapped: !1,
     }),
   );
-  return ((x.position.y = 0.6), e.add(x), { group: e, base: a, turret: u, shield: x, mats: [n, s], glowMat: r });
+  return (
+    (shield.position.y = 0.6),
+    group.add(shield),
+    { group: group, base: base, turret: turret, shield: shield, mats: [hullMat, trimMat], glowMat: glowMat }
+  );
 }
-function buildBossModel(i, t) {
-  let e = new Group(),
-    n = new MeshLambertMaterial({ color: darken(t, 0.35), emissive: 0, flatShading: !0 }),
-    s = new MeshLambertMaterial({ color: 2435898, emissive: 0, flatShading: !0 }),
-    r = new MeshBasicMaterial({ color: t, toneMapped: !1, transparent: !0 }),
-    a = [],
-    o = (c, h, l, u, d, f = e) => {
-      let p = new Mesh(c, h);
-      return (p.position.set(l, u, d), f.add(p), p);
+function buildBossModel(type, color) {
+  let group = new Group(),
+    hullMat = new MeshLambertMaterial({ color: darken(color, 0.35), emissive: 0, flatShading: !0 }),
+    darkMat = new MeshLambertMaterial({ color: 2435898, emissive: 0, flatShading: !0 }),
+    glowMat = new MeshBasicMaterial({ color: color, toneMapped: !1, transparent: !0 }),
+    spin = [],
+    addMesh = (geo, mat, x, y, z, parent = group) => {
+      let mesh = new Mesh(geo, mat);
+      return (mesh.position.set(x, y, z), parent.add(mesh), mesh);
     };
-  if (i === "warden") {
-    (o(new CylinderGeometry(1.8, 2.05, 1.5, 6), n, 0, 0.9, 0),
-      o(new BoxGeometry(1.8, 0.9, 1.6), s, -0.2, 2, 0),
-      o(new BoxGeometry(0.9, 1.1, 0.9), s, 0, 1.2, 1.9),
-      o(new BoxGeometry(0.9, 1.1, 0.9), s, 0, 1.2, -1.9),
-      o(new BoxGeometry(0.12, 0.28, 1.3), r, 0.72, 2.05, 0),
-      o(new BoxGeometry(0.2, 0.2, 0.2), r, 0.46, 1.25, 1.9),
-      o(new BoxGeometry(0.2, 0.2, 0.2), r, 0.46, 1.25, -1.9));
-    let c = o(new TorusGeometry(1.95, 0.07, 5, 36), r, 0, 0.35, 0);
-    c.rotation.x = Math.PI / 2;
-  } else if (i === "queen") {
-    (o(new SphereGeometry(1.35, 16, 10), n, 0.3, 1.9, 0).scale.set(1.1, 0.8, 1),
-      o(new SphereGeometry(1.1, 14, 9), s, -1.3, 1.6, 0).scale.set(1.3, 0.85, 0.9),
-      o(new SphereGeometry(0.2, 8, 6), r, 1.5, 2.1, 0.45),
-      o(new SphereGeometry(0.2, 8, 6), r, 1.5, 2.1, -0.45),
-      o(new SphereGeometry(0.34, 10, 8), r, -2.4, 1.6, 0));
-    let l = o(new TorusGeometry(2.1, 0.09, 5, 40), r, 0, 2.2, 0);
-    ((l.rotation.x = Math.PI / 2 - 0.25), a.push({ m: l, ax: "z", v: 0.8 }));
-    for (let u = 0; u < 6; u++) {
-      let d = (u / 6) * Math.PI * 2;
-      o(new BoxGeometry(0.18, 1.3, 0.18), s, Math.cos(d) * 1.2, 0.6, Math.sin(d) * 1.2).rotation.set(
-        Math.sin(d) * 0.5,
-        0,
-        -Math.cos(d) * 0.5,
-      );
+  if (type === "warden") {
+    (addMesh(new CylinderGeometry(1.8, 2.05, 1.5, 6), hullMat, 0, 0.9, 0),
+      addMesh(new BoxGeometry(1.8, 0.9, 1.6), darkMat, -0.2, 2, 0),
+      addMesh(new BoxGeometry(0.9, 1.1, 0.9), darkMat, 0, 1.2, 1.9),
+      addMesh(new BoxGeometry(0.9, 1.1, 0.9), darkMat, 0, 1.2, -1.9),
+      addMesh(new BoxGeometry(0.12, 0.28, 1.3), glowMat, 0.72, 2.05, 0),
+      addMesh(new BoxGeometry(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, 1.9),
+      addMesh(new BoxGeometry(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, -1.9));
+    let ring = addMesh(new TorusGeometry(1.95, 0.07, 5, 36), glowMat, 0, 0.35, 0);
+    ring.rotation.x = Math.PI / 2;
+  } else if (type === "queen") {
+    (addMesh(new SphereGeometry(1.35, 16, 10), hullMat, 0.3, 1.9, 0).scale.set(1.1, 0.8, 1),
+      addMesh(new SphereGeometry(1.1, 14, 9), darkMat, -1.3, 1.6, 0).scale.set(1.3, 0.85, 0.9),
+      addMesh(new SphereGeometry(0.2, 8, 6), glowMat, 1.5, 2.1, 0.45),
+      addMesh(new SphereGeometry(0.2, 8, 6), glowMat, 1.5, 2.1, -0.45),
+      addMesh(new SphereGeometry(0.34, 10, 8), glowMat, -2.4, 1.6, 0));
+    let halo = addMesh(new TorusGeometry(2.1, 0.09, 5, 40), glowMat, 0, 2.2, 0);
+    ((halo.rotation.x = Math.PI / 2 - 0.25), spin.push({ m: halo, ax: "z", v: 0.8 }));
+    for (let i = 0; i < 6; i++) {
+      let angle = (i / 6) * Math.PI * 2;
+      addMesh(
+        new BoxGeometry(0.18, 1.3, 0.18),
+        darkMat,
+        Math.cos(angle) * 1.2,
+        0.6,
+        Math.sin(angle) * 1.2,
+      ).rotation.set(Math.sin(angle) * 0.5, 0, -Math.cos(angle) * 0.5);
     }
-  } else if (i === "prism") {
+  } else if (type === "prism") {
     // 2.4.6: Frost Prism, a floating ice golem: a tall translucent crystal body with a cold glow
-    // core and visor, crystal shoulders and crown (n: frosted ice, flashes on hits), dark-blue
-    // rock chunks (s), orbiting frost shards and a frozen ring below. Everything fades out while
+    // core and visor, crystal shoulders and crown (hullMat: frosted ice, flashes on hits), dark-blue
+    // rock chunks (darkMat), orbiting frost shards and a frozen ring below. Everything fades out while
     // it blinks (fadeMats); the ice keeps its own translucency (userData.opacity).
     const ice = (color, emissive, opacity) => {
-      const m = new MeshLambertMaterial({ color, emissive, flatShading: !0, transparent: !0, opacity, depthWrite: !1 });
-      return ((m.userData.opacity = opacity), m);
+      const mat = new MeshLambertMaterial({
+        color,
+        emissive,
+        flatShading: !0,
+        transparent: !0,
+        opacity,
+        depthWrite: !1,
+      });
+      return ((mat.userData.opacity = opacity), mat);
     };
-    let c = ice(13431295, 1716822, 0.8),
-      h = ice(14745599, 2771583, 0.5);
-    (n.color.setHex(10934000), (n.transparent = !0), s.color.setHex(2837350), (s.transparent = !0));
-    let body = o(new OctahedronGeometry(1.35, 0), c, 0, 2.3, 0);
-    (body.scale.set(1, 1.5, 1), a.push({ m: body, ax: "y", v: 0.35 }));
+    let iceMat = ice(13431295, 1716822, 0.8),
+      paleIceMat = ice(14745599, 2771583, 0.5);
+    (hullMat.color.setHex(10934000),
+      (hullMat.transparent = !0),
+      darkMat.color.setHex(2837350),
+      (darkMat.transparent = !0));
+    let body = addMesh(new OctahedronGeometry(1.35, 0), iceMat, 0, 2.3, 0);
+    (body.scale.set(1, 1.5, 1), spin.push({ m: body, ax: "y", v: 0.35 }));
     // glow core seen through the ice, and a visor slit on the facing side (+x)
-    (o(new OctahedronGeometry(0.55, 0), r, 0, 2.3, 0).scale.set(1, 1.35, 1),
-      o(new BoxGeometry(0.1, 0.12, 0.72), r, 0.98, 2.62, 0));
+    (addMesh(new OctahedronGeometry(0.55, 0), glowMat, 0, 2.3, 0).scale.set(1, 1.35, 1),
+      addMesh(new BoxGeometry(0.1, 0.12, 0.72), glowMat, 0.98, 2.62, 0));
     // shoulders: crystal clusters leaning outwards on dark rock
     for (const z of [-1, 1]) {
-      o(new DodecahedronGeometry(0.42, 0), s, -0.05, 2.35, z * 1.2);
-      o(new OctahedronGeometry(0.34, 0), n, 0.05, 2.95, z * 1.35).rotation.set(z * 0.5, 0, 0.1);
-      const big = o(new ConeGeometry(0.3, 1.5, 5), n, -0.1, 3.0, z * 1.25);
+      addMesh(new DodecahedronGeometry(0.42, 0), darkMat, -0.05, 2.35, z * 1.2);
+      addMesh(new OctahedronGeometry(0.34, 0), hullMat, 0.05, 2.95, z * 1.35).rotation.set(z * 0.5, 0, 0.1);
+      const big = addMesh(new ConeGeometry(0.3, 1.5, 5), hullMat, -0.1, 3.0, z * 1.25);
       big.rotation.set(z * 0.55, 0, -0.12);
-      o(new ConeGeometry(0.2, 0.95, 5), n, 0.25, 2.6, z * 1.55).rotation.set(z * 1.0, 0, 0.3);
+      addMesh(new ConeGeometry(0.2, 0.95, 5), hullMat, 0.25, 2.6, z * 1.55).rotation.set(z * 1.0, 0, 0.3);
     }
     // crown of small spikes above the head
-    for (let u = 0; u < 5; u++) {
-      const d = (u / 5) * Math.PI * 2 + 0.3,
-        f = o(new ConeGeometry(0.13, 0.75, 4), n, Math.cos(d) * 0.34, 4.35, Math.sin(d) * 0.34);
-      f.rotation.set(Math.sin(d) * 0.45, 0, -Math.cos(d) * 0.45);
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2 + 0.3,
+        spike = addMesh(new ConeGeometry(0.13, 0.75, 4), hullMat, Math.cos(angle) * 0.34, 4.35, Math.sin(angle) * 0.34);
+      spike.rotation.set(Math.sin(angle) * 0.45, 0, -Math.cos(angle) * 0.45);
     }
     // icicles hanging below the body
-    for (let u = 0; u < 4; u++) {
-      const d = (u / 4) * Math.PI * 2 + 0.8;
-      o(new ConeGeometry(0.14, 0.8, 4), h, Math.cos(d) * 0.45, 0.62, Math.sin(d) * 0.45).rotation.x = Math.PI;
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2 + 0.8;
+      addMesh(
+        new ConeGeometry(0.14, 0.8, 4),
+        paleIceMat,
+        Math.cos(angle) * 0.45,
+        0.62,
+        Math.sin(angle) * 0.45,
+      ).rotation.x = Math.PI;
     }
     // orbiting frost shards: three glowing, three of plain ice, at two heights
-    let l = new Group();
-    l.position.y = 2.3;
-    for (let u = 0; u < 6; u++) {
-      const d = (u / 6) * Math.PI * 2,
-        f = o(
-          new OctahedronGeometry(u % 2 ? 0.26 : 0.32, 0),
-          u % 2 ? h : r,
-          Math.cos(d) * 2.15,
-          u % 2 ? 0.55 : -0.2,
-          Math.sin(d) * 2.15,
-          l,
+    let orbit = new Group();
+    orbit.position.y = 2.3;
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2,
+        shard = addMesh(
+          new OctahedronGeometry(i % 2 ? 0.26 : 0.32, 0),
+          i % 2 ? paleIceMat : glowMat,
+          Math.cos(angle) * 2.15,
+          i % 2 ? 0.55 : -0.2,
+          Math.sin(angle) * 2.15,
+          orbit,
         );
-      ((f.scale.y = 1.7), (f.rotation.z = u % 2 ? 0.35 : -0.2));
+      ((shard.scale.y = 1.7), (shard.rotation.z = i % 2 ? 0.35 : -0.2));
     }
-    (e.add(l), a.push({ m: l, ax: "y", v: -1.4 }));
+    (group.add(orbit), spin.push({ m: orbit, ax: "y", v: -1.4 }));
     // frozen ring on the ground
-    const ring = o(new TorusGeometry(1.9, 0.07, 4, 40), r, 0, 0.12, 0);
-    ((ring.rotation.x = Math.PI / 2), (e.userData.fadeMats = [c, h, n, s, r]));
-  } else if (i === "forge") {
+    const ring = addMesh(new TorusGeometry(1.9, 0.07, 4, 40), glowMat, 0, 0.12, 0);
+    ((ring.rotation.x = Math.PI / 2), (group.userData.fadeMats = [iceMat, paleIceMat, hullMat, darkMat, glowMat]));
+  } else if (type === "forge") {
     // 2.4.6: THE CRUCIBLE, a furnace golem: an iron crucible on stubby legs with molten metal inside
     // a heavy rim, a head with a glowing visor and a furnace mouth at the front (+x), hammer fists,
     // two chimneys and a flywheel on its back. The renderer lets the chimneys throw embers
     // (userData.chimneys).
-    let c = new MeshLambertMaterial({ color: 2366244, emissive: 0, flatShading: !0 });
-    (o(new BoxGeometry(1, 1, 0.9), s, -0.1, 0.5, 0.95),
-      o(new BoxGeometry(1, 1, 0.9), s, -0.1, 0.5, -0.95),
-      o(new CylinderGeometry(1.55, 1.15, 2, 8), c, 0, 2, 0),
-      o(new CylinderGeometry(0.95, 0.95, 0.1, 12), r, -0.25, 3.02, 0),
-      o(new BoxGeometry(0.75, 0.6, 1.05), s, 1.05, 3.1, 0),
-      o(new BoxGeometry(0.1, 0.14, 0.75), r, 1.44, 3.14, 0),
-      o(new BoxGeometry(0.3, 0.55, 1.1), r, 1.3, 1.85, 0).rotation.set(0, 0, 0.2));
-    let h = o(new TorusGeometry(1.3, 0.26, 5, 16), n, 0, 3, 0);
-    h.rotation.x = Math.PI / 2;
-    for (let l of [1, -1])
-      (o(new BoxGeometry(0.85, 0.85, 0.85), n, 0, 2.35, l * 1.75),
-        o(new BoxGeometry(1.2, 0.95, 0.95), s, 0.55, 1.35, l * 1.95),
-        o(new CylinderGeometry(0.26, 0.34, 1.7, 6), s, -1.05, 3.1, l * 0.55),
-        o(new CylinderGeometry(0.2, 0.2, 0.08, 6), r, -1.05, 3.97, l * 0.55));
-    let u = o(new TorusGeometry(0.6, 0.14, 4, 8), n, -1.62, 1.9, 0);
-    ((u.rotation.y = Math.PI / 2),
-      a.push({ m: u, ax: "z", v: 1.4 }),
-      (e.userData.chimneys = [
+    let ironMat = new MeshLambertMaterial({ color: 2366244, emissive: 0, flatShading: !0 });
+    (addMesh(new BoxGeometry(1, 1, 0.9), darkMat, -0.1, 0.5, 0.95),
+      addMesh(new BoxGeometry(1, 1, 0.9), darkMat, -0.1, 0.5, -0.95),
+      addMesh(new CylinderGeometry(1.55, 1.15, 2, 8), ironMat, 0, 2, 0),
+      addMesh(new CylinderGeometry(0.95, 0.95, 0.1, 12), glowMat, -0.25, 3.02, 0),
+      addMesh(new BoxGeometry(0.75, 0.6, 1.05), darkMat, 1.05, 3.1, 0),
+      addMesh(new BoxGeometry(0.1, 0.14, 0.75), glowMat, 1.44, 3.14, 0),
+      addMesh(new BoxGeometry(0.3, 0.55, 1.1), glowMat, 1.3, 1.85, 0).rotation.set(0, 0, 0.2));
+    let rim = addMesh(new TorusGeometry(1.3, 0.26, 5, 16), hullMat, 0, 3, 0);
+    rim.rotation.x = Math.PI / 2;
+    for (let side of [1, -1])
+      (addMesh(new BoxGeometry(0.85, 0.85, 0.85), hullMat, 0, 2.35, side * 1.75),
+        addMesh(new BoxGeometry(1.2, 0.95, 0.95), darkMat, 0.55, 1.35, side * 1.95),
+        addMesh(new CylinderGeometry(0.26, 0.34, 1.7, 6), darkMat, -1.05, 3.1, side * 0.55),
+        addMesh(new CylinderGeometry(0.2, 0.2, 0.08, 6), glowMat, -1.05, 3.97, side * 0.55));
+    let wheel = addMesh(new TorusGeometry(0.6, 0.14, 4, 8), hullMat, -1.62, 1.9, 0);
+    ((wheel.rotation.y = Math.PI / 2),
+      spin.push({ m: wheel, ax: "z", v: 1.4 }),
+      (group.userData.chimneys = [
         [-1.05, 4.05, 0.55],
         [-1.05, 4.05, -0.55],
       ]),
-      (e.userData.mats = [c]));
+      (group.userData.mats = [ironMat]));
   } else {
-    o(new SphereGeometry(1.15, 18, 12), r, 0, 2.4, 0);
-    for (let l = 0; l < 3; l++) {
-      let u = o(new TorusGeometry(1.75 + l * 0.35, 0.16, 6, 36), l === 1 ? s : n, 0, 2.4, 0);
-      (u.rotation.set(l * 1.1, l * 0.6, 0),
-        a.push({ m: u, ax: l === 0 ? "x" : l === 1 ? "y" : "z", v: 0.6 + l * 0.35 }));
+    addMesh(new SphereGeometry(1.15, 18, 12), glowMat, 0, 2.4, 0);
+    for (let i = 0; i < 3; i++) {
+      let band = addMesh(new TorusGeometry(1.75 + i * 0.35, 0.16, 6, 36), i === 1 ? darkMat : hullMat, 0, 2.4, 0);
+      (band.rotation.set(i * 1.1, i * 0.6, 0),
+        spin.push({ m: band, ax: i === 0 ? "x" : i === 1 ? "y" : "z", v: 0.6 + i * 0.35 }));
     }
-    let c = o(new CylinderGeometry(1.2, 1.8, 0.5, 8), s, 0, 0.25, 0);
-    c.rotation.y = 0.3;
-    let h = o(new TorusGeometry(2.4, 0.08, 5, 44), r, 0, 0.1, 0);
-    h.rotation.x = Math.PI / 2;
+    let base = addMesh(new CylinderGeometry(1.2, 1.8, 0.5, 8), darkMat, 0, 0.25, 0);
+    base.rotation.y = 0.3;
+    let groundRing = addMesh(new TorusGeometry(2.4, 0.08, 5, 44), glowMat, 0, 0.1, 0);
+    groundRing.rotation.x = Math.PI / 2;
   }
-  return { group: e, mats: [n, s, ...(e.userData.mats || [])], glowMat: r, spin: a };
+  return { group: group, mats: [hullMat, darkMat, ...(group.userData.mats || [])], glowMat: glowMat, spin: spin };
 }
 function wingDroneGeometry() {
   return mergeParts([
@@ -896,14 +923,18 @@ function wingDroneGeometry() {
   ]);
 }
 function orbitBladeGeometry() {
-  let i = new Shape();
-  (i.moveTo(0.42, 0), i.lineTo(-0.1, 0.16), i.lineTo(-0.22, 0), i.lineTo(-0.1, -0.16), i.closePath());
-  let t = new ExtrudeGeometry(i, { depth: 0.06, bevelEnabled: !1 });
-  return (t.rotateX(Math.PI / 2), t.translate(0, 0.62, 0), t);
+  let shape = new Shape();
+  (shape.moveTo(0.42, 0),
+    shape.lineTo(-0.1, 0.16),
+    shape.lineTo(-0.22, 0),
+    shape.lineTo(-0.1, -0.16),
+    shape.closePath());
+  let geo = new ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: !1 });
+  return (geo.rotateX(Math.PI / 2), geo.translate(0, 0.62, 0), geo);
 }
 function shardGeometry() {
-  let i = new OctahedronGeometry(0.2, 0);
-  return (i.scale(1, 1.5, 1), i);
+  let geo = new OctahedronGeometry(0.2, 0);
+  return (geo.scale(1, 1.5, 1), geo);
 }
 function healCrossGeometry() {
   return mergeParts([

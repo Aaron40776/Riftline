@@ -81,12 +81,18 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
         player.firing &&
         !player.manual &&
         player.alive &&
-        (renderer.project(target.x, 0.6, target.y, pos), renderer.project(target.x + target.r, 0.6, target.y, this.tmp2), pos.vis)
+        (renderer.project(target.x, 0.6, target.y, pos),
+        renderer.project(target.x + target.r, 0.6, target.y, this.tmp2),
+        pos.vis)
       ) {
         let size = Math.max(12, Math.abs(this.tmp2.x - pos.x) * 1.5 + 6),
           spin = this.time * 2.2,
           tick = size * 0.45;
-        (ctx.save(), ctx.translate(pos.x, pos.y), ctx.rotate(spin), (ctx.strokeStyle = "rgba(210,250,255,0.75)"), (ctx.lineWidth = 2));
+        (ctx.save(),
+          ctx.translate(pos.x, pos.y),
+          ctx.rotate(spin),
+          (ctx.strokeStyle = "rgba(210,250,255,0.75)"),
+          (ctx.lineWidth = 2));
         for (let i = 0; i < 4; i++)
           (ctx.rotate(Math.PI / 2),
             ctx.beginPath(),
@@ -112,7 +118,8 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
           ctx.fillRect(pos.x - width / 2, pos.y, width * hpFrac, 3),
           enemy.shieldMax > 0 &&
             enemy.shield > 0 &&
-            ((ctx.fillStyle = "#8fd4ff"), ctx.fillRect(pos.x - width / 2, pos.y - 4, width * (enemy.shield / enemy.shieldMax), 2)));
+            ((ctx.fillStyle = "#8fd4ff"),
+            ctx.fillRect(pos.x - width / 2, pos.y - 4, width * (enemy.shield / enemy.shieldMax), 2)));
       }
       ((ctx.textAlign = "center"), (ctx.textBaseline = "middle"));
       for (let num of renderer.nums) {
@@ -138,7 +145,8 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
           (enemy.type === "mortar" && enemy.st === 1);
         if (
           (!enemy.boss && !fewEnemies && !windingUp && !(world.state === "fight" && world.stragglerT > 3)) ||
-          (renderer.project(enemy.x, 0.6, enemy.y, pos), pos.vis && pos.x > 8 && pos.x < this.w - 8 && pos.y > 8 && pos.y < this.h - 8)
+          (renderer.project(enemy.x, 0.6, enemy.y, pos),
+          pos.vis && pos.x > 8 && pos.x < this.w - 8 && pos.y > 8 && pos.y < this.h - 8)
         )
           continue;
         let cx = this.w / 2,
@@ -149,7 +157,8 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
         let len = Math.hypot(dx, dy) || 1;
         ((dx /= len), (dy /= len));
         let tx = Math.abs(dx) > 0.001 ? ((dx > 0 ? this.w - margin - safe.r : margin + safe.l) - cx) / dx : 1 / 0,
-          ty = Math.abs(dy) > 0.001 ? ((dy > 0 ? this.h - margin - safe.b - 120 : margin + safe.t + 60) - cy) / dy : 1 / 0,
+          ty =
+            Math.abs(dy) > 0.001 ? ((dy > 0 ? this.h - margin - safe.b - 120 : margin + safe.t + 60) - cy) / dy : 1 / 0,
           edge = Math.min(tx, ty),
           ax = cx + dx * edge,
           ay = cy + dy * edge,
@@ -181,7 +190,8 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
         for (let pickup of world.pickups) {
           if (
             pickup.kind !== "heal" ||
-            (renderer.project(pickup.x, 0.5, pickup.y, pos), pos.vis && pos.x > 8 && pos.x < this.w - 8 && pos.y > 8 && pos.y < this.h - 8)
+            (renderer.project(pickup.x, 0.5, pickup.y, pos),
+            pos.vis && pos.x > 8 && pos.x < this.w - 8 && pos.y > 8 && pos.y < this.h - 8)
           )
             continue;
           let cx = this.w / 2,
@@ -192,7 +202,10 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
           let len = Math.hypot(dx, dy) || 1;
           ((dx /= len), (dy /= len));
           let tx = Math.abs(dx) > 0.001 ? ((dx > 0 ? this.w - margin - safe.r : margin + safe.l) - cx) / dx : 1 / 0,
-            ty = Math.abs(dy) > 0.001 ? ((dy > 0 ? this.h - margin - safe.b - 120 : margin + safe.t + 60) - cy) / dy : 1 / 0,
+            ty =
+              Math.abs(dy) > 0.001
+                ? ((dy > 0 ? this.h - margin - safe.b - 120 : margin + safe.t + 60) - cy) / dy
+                : 1 / 0,
             edge = Math.min(tx, ty);
           (ctx.save(),
             ctx.translate(cx + dx * edge, cy + dy * edge),
@@ -233,7 +246,11 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
       }
       if (this.callouts.length && world.boss) {
         let callout = this.callouts[0];
-        if (((callout.life -= dt), renderer.project(world.boss.x, 4.2 + world.boss.r, world.boss.y, pos), callout.life > 0 && pos.vis)) {
+        if (
+          ((callout.life -= dt),
+          renderer.project(world.boss.x, 4.2 + world.boss.r, world.boss.y, pos),
+          callout.life > 0 && pos.vis)
+        ) {
           let alpha = Math.min(1, callout.life / 0.3);
           ((ctx.globalAlpha = alpha),
             (ctx.font = '700 16px "Chakra Petch", system-ui, sans-serif'),
@@ -279,7 +296,8 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
         let y = this.h - (opts.safe ? opts.safe.b : 0) - 58,
           leftLabel = input.swap ? "AIM + FIRE" : "MOVE",
           rightLabel = input.swap ? "MOVE" : "AIM + FIRE";
-        (ctx.fillText("DRAG HERE TO " + leftLabel, this.w * 0.25, y), ctx.fillText("DRAG HERE TO " + rightLabel, this.w * 0.75, y));
+        (ctx.fillText("DRAG HERE TO " + leftLabel, this.w * 0.25, y),
+          ctx.fillText("DRAG HERE TO " + rightLabel, this.w * 0.75, y));
       }
     }
   },

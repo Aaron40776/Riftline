@@ -128,7 +128,10 @@ var musicChords = {
       let data = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
       let unlocker = ctx.createBufferSource();
-      ((unlocker.buffer = ctx.createBuffer(1, 1, 22050)), unlocker.connect(ctx.destination), unlocker.start(0), this.startScheduler());
+      ((unlocker.buffer = ctx.createBuffer(1, 1, 22050)),
+        unlocker.connect(ctx.destination),
+        unlocker.start(0),
+        this.startScheduler());
     }
     fail(err) {
       (this.failed || logError("audio", err), (this.failed = !0));
@@ -164,7 +167,11 @@ var musicChords = {
       let out = osc;
       if (opts.lp) {
         let filter = ctx.createBiquadFilter();
-        ((filter.type = "lowpass"), (filter.frequency.value = opts.lp), (filter.Q.value = opts.q || 0.7), out.connect(filter), (out = filter));
+        ((filter.type = "lowpass"),
+          (filter.frequency.value = opts.lp),
+          (filter.Q.value = opts.q || 0.7),
+          out.connect(filter),
+          (out = filter));
       }
       (out.connect(amp), amp.connect(opts.dest || this.sfx), osc.start(start), osc.stop(start + dur + 0.02));
     }
@@ -252,7 +259,10 @@ var musicChords = {
           break;
         case "combo":
           [0, 0.06, 0.12].forEach((at, i) =>
-            this.tone(midiToFreq(76 + Math.min(12, arg || 0) + [0, 4, 7][i]), 0.14, "square", 0.035, { at: at, lp: 4e3 }),
+            this.tone(midiToFreq(76 + Math.min(12, arg || 0) + [0, 4, 7][i]), 0.14, "square", 0.035, {
+              at: at,
+              lp: 4e3,
+            }),
           );
           break;
         case "heart":
@@ -587,7 +597,8 @@ var musicChords = {
                 dest: dest,
                 at: at,
               })
-            : (beat === 4 || beat === 12) && this.noise(0.14, 0.14, { type: "bandpass", f: 1800, q: 0.8, dest: dest, at: at }));
+            : (beat === 4 || beat === 12) &&
+              this.noise(0.14, 0.14, { type: "bandpass", f: 1800, q: 0.8, dest: dest, at: at }));
         let voice = musicVoices[this.biome] || musicVoices.yard;
         if (
           (beat % 2 === 0 &&
