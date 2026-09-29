@@ -23,25 +23,25 @@ import { RL_INPUT } from "./input.js";
 import { markHomeViewDirty } from "../render/renderer.js";
 
 var RL_TOUCH_CLICK_GUARD = { until: 0, x: 0, y: 0, key: "" };
-function rlUiClickKey(t) {
-  if (!t) return "";
-  if (t.id) return "id:" + t.id;
-  const e = t.dataset || {};
-  return e.buy
-    ? "buy:" + e.buy
-    : e.claim
-      ? "claim:" + e.claim
-      : e.go
-        ? "go:" + e.go
-        : t.hasAttribute && t.hasAttribute("data-back")
+function rlUiClickKey(el) {
+  if (!el) return "";
+  if (el.id) return "id:" + el.id;
+  const data = el.dataset || {};
+  return data.buy
+    ? "buy:" + data.buy
+    : data.claim
+      ? "claim:" + data.claim
+      : data.go
+        ? "go:" + data.go
+        : el.hasAttribute && el.hasAttribute("data-back")
           ? "back"
           : "";
 }
 function rlRenderHistory() {
   const el = document.getElementById("runHist");
   if (!el) return;
-  const h = store.data.history || [];
-  if (!h.length) {
+  const history = store.data.history || [];
+  if (!history.length) {
     el.innerHTML = '<p class="note">No runs yet — your last 12 runs appear here.</p>';
     return;
   }
@@ -55,27 +55,27 @@ function rlRenderHistory() {
           : bossDefs[id]
             ? bossDefs[id].name
             : "";
-  el.innerHTML = h
-    .map((q) => {
-      const icon = q.outcome === "win" ? "trophy" : q.outcome === "quit" ? "close" : "skull",
-        kn = q.outcome === "dead" ? killerName(q.killer) : "";
+  el.innerHTML = history
+    .map((run) => {
+      const icon = run.outcome === "win" ? "trophy" : run.outcome === "quit" ? "close" : "skull",
+        killer = run.outcome === "dead" ? killerName(run.killer) : "";
       const meta = [
-        threatLevels[q.threat].name,
-        formatTime(q.time),
-        formatCount(q.kills) + " kills",
-        "+" + formatCount(q.shards) + " shards",
-        kn && "by " + kn,
-        q.outcome === "quit" && "abandoned",
+        threatLevels[run.threat].name,
+        formatTime(run.time),
+        formatCount(run.kills) + " kills",
+        "+" + formatCount(run.shards) + " shards",
+        killer && "by " + killer,
+        run.outcome === "quit" && "abandoned",
       ]
         .filter(Boolean)
         .join(" · ");
-      const build = q.build.map((id) => upgradesById[id].name).join(" · ");
-      return `<div class="row panel hist ${q.outcome}"><div class="rico">${iconSvg(icon)}</div><div><b>${q.outcome === "win" ? "Rift sealed" : "Wave " + q.wave}${q.endless ? " · Endless" : ""} · ${escapeHtml((weaponDefs[q.weapon] || rlRetired(q.weapon)).name)}</b><small>${escapeHtml(meta)}</small>${build ? `<small class="hist-build">${escapeHtml(build)}</small>` : ""}</div><span class="chip">${rlAgo(q.t)}</span></div>`;
+      const build = run.build.map((id) => upgradesById[id].name).join(" · ");
+      return `<div class="row panel hist ${run.outcome}"><div class="rico">${iconSvg(icon)}</div><div><b>${run.outcome === "win" ? "Rift sealed" : "Wave " + run.wave}${run.endless ? " · Endless" : ""} · ${escapeHtml((weaponDefs[run.weapon] || rlRetired(run.weapon)).name)}</b><small>${escapeHtml(meta)}</small>${build ? `<small class="hist-build">${escapeHtml(build)}</small>` : ""}</div><span class="chip">${rlAgo(run.t)}</span></div>`;
     })
     .join("");
 }
-function rlBiomeTitle(b) {
-  return b.tag ? `${b.name} \xB7 ${b.tag}` : b.name;
+function rlBiomeTitle(biome) {
+  return biome.tag ? `${biome.name} \xB7 ${biome.tag}` : biome.name;
 }
 var iconPaths = {
   gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/><circle cx="12" cy="12" r="6.5"/>',
@@ -118,41 +118,45 @@ var iconPaths = {
     '<path d="M12 3a8 8 0 00-5 14.2V21h10v-3.8A8 8 0 0012 3z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
 };
-function iconSvg(i, t = "") {
-  let e = iconPaths[i] || iconPaths.info;
-  return `<svg class="ico ${t}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${e}</svg>`;
+function iconSvg(name, cls = "") {
+  let paths = iconPaths[name] || iconPaths.info;
+  return `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
-var getById = (i) => document.getElementById(i),
+var getById = (id) => document.getElementById(id),
   menuScreens = ["home", "workshop", "records", "settings"],
-  formatTenths = (i) => (Math.round(i * 10 + 1e-6) / 10).toString(),
-  formatPercent = (i) => Math.round(i * 100) + "%",
-  formatCooldown = (i) => (i > 0 ? formatTenths(i) + " s" : "off"),
+  formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
+  formatPercent = (value) => Math.round(value * 100) + "%",
+  formatCooldown = (value) => (value > 0 ? formatTenths(value) + " s" : "off"),
   statRows = [
-    ["Damage", (i) => i.weapon.dmg * i.dmgMul, formatTenths],
-    ["Fire rate", (i) => i.weapon.rate * i.rateMul, (i) => formatTenths(i) + "/s"],
-    ["Projectiles", (i) => i.weapon.count + (i.weapon.cone ? i.extra * 2 : i.extra), String],
-    ["Pierce", (i) => (i.pierce > 99 ? 0 : i.pierce), String],
-    ["Bounces", (i) => i.bounce, String],
-    ["Crit", (i) => i.crit, formatPercent],
-    ["Max HP", (i) => i.maxHp, String],
-    ["Speed", (i) => i.speed, (i) => formatTenths(i) + " m/s"],
-    ["Range", (i) => i.range, (i) => Math.round(i) + " m"],
-    ["Pickup radius", (i) => i.magnet, (i) => formatTenths(i) + " m"],
-    ["Dash cooldown", (i) => i.dashCd, formatCooldown],
-    ["Aegis every", (i) => i.shieldCd, formatCooldown],
-    ["Regen", (i) => i.regen, (i) => formatTenths(i) + " HP/s"],
-    ["Blades", (i) => i.orbit, String],
-    ["Blade damage", (i) => (i.orbit ? i.orbitDmg * i.dmgMul : 0), formatTenths],
-    ["Slow chance", (i) => i.cryo, formatPercent],
-    ["Chain chance", (i) => i.arc, formatPercent],
-    ["Bolt jumps", (i) => i.chain, String],
-    ["Flame burn", (i) => (i.burn ? i.burn * i.burnMul * i.dmgMul : 0), (i) => formatTenths(i) + "/s"],
-    ["Chain jumps", (i) => (i.arc ? i.arcJumps : 0), String],
-    ["Blast", (i) => i.payloadF, formatPercent],
-    ["Burn", (i) => i.thermite, formatPercent],
-    ["Repair chance", (i) => i.siphonCh, formatPercent],
-    ["Nova radius", (i) => i.novaR, (i) => formatTenths(i) + " m"],
-    ["Drones", (i) => i.wingmen, String],
+    ["Damage", (stats) => stats.weapon.dmg * stats.dmgMul, formatTenths],
+    ["Fire rate", (stats) => stats.weapon.rate * stats.rateMul, (value) => formatTenths(value) + "/s"],
+    ["Projectiles", (stats) => stats.weapon.count + (stats.weapon.cone ? stats.extra * 2 : stats.extra), String],
+    ["Pierce", (stats) => (stats.pierce > 99 ? 0 : stats.pierce), String],
+    ["Bounces", (stats) => stats.bounce, String],
+    ["Crit", (stats) => stats.crit, formatPercent],
+    ["Max HP", (stats) => stats.maxHp, String],
+    ["Speed", (stats) => stats.speed, (value) => formatTenths(value) + " m/s"],
+    ["Range", (stats) => stats.range, (value) => Math.round(value) + " m"],
+    ["Pickup radius", (stats) => stats.magnet, (value) => formatTenths(value) + " m"],
+    ["Dash cooldown", (stats) => stats.dashCd, formatCooldown],
+    ["Aegis every", (stats) => stats.shieldCd, formatCooldown],
+    ["Regen", (stats) => stats.regen, (value) => formatTenths(value) + " HP/s"],
+    ["Blades", (stats) => stats.orbit, String],
+    ["Blade damage", (stats) => (stats.orbit ? stats.orbitDmg * stats.dmgMul : 0), formatTenths],
+    ["Slow chance", (stats) => stats.cryo, formatPercent],
+    ["Chain chance", (stats) => stats.arc, formatPercent],
+    ["Bolt jumps", (stats) => stats.chain, String],
+    [
+      "Flame burn",
+      (stats) => (stats.burn ? stats.burn * stats.burnMul * stats.dmgMul : 0),
+      (value) => formatTenths(value) + "/s",
+    ],
+    ["Chain jumps", (stats) => (stats.arc ? stats.arcJumps : 0), String],
+    ["Blast", (stats) => stats.payloadF, formatPercent],
+    ["Burn", (stats) => stats.thermite, formatPercent],
+    ["Repair chance", (stats) => stats.siphonCh, formatPercent],
+    ["Nova radius", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
+    ["Drones", (stats) => stats.wingmen, String],
   ],
   damageSources = {
     arc: ["Arc Relay", "#c58bff"],
@@ -168,11 +172,14 @@ var getById = (i) => document.getElementById(i),
     inferno: ["Inferno", "#ff5a3a"],
     other: ["Other", "#93a2bf"],
   },
-  escapeHtml = (i) =>
-    String(i).replace(/[&<>"']/g, (t) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[t]),
+  escapeHtml = (text) =>
+    String(text).replace(
+      /[&<>"']/g,
+      (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch],
+    ),
   GameUI = class {
-    constructor(t) {
-      ((this.g = t),
+    constructor(game) {
+      ((this.g = game),
         (this.screen = "home"),
         (this.stack = []),
         (this.viewWeapon = 0),
@@ -183,74 +190,75 @@ var getById = (i) => document.getElementById(i),
         (getById("pauseBtn").innerHTML = iconSvg("pause")),
         this.bind());
     }
-    fillIcons(t) {
-      for (let e of t.querySelectorAll("[data-icon]"))
-        e.dataset.filled || ((e.dataset.filled = "1"), e.insertAdjacentHTML("afterbegin", iconSvg(e.dataset.icon)));
+    fillIcons(root) {
+      for (let el of root.querySelectorAll("[data-icon]"))
+        el.dataset.filled || ((el.dataset.filled = "1"), el.insertAdjacentHTML("afterbegin", iconSvg(el.dataset.icon)));
     }
     get save() {
       return this.g.store.data;
     }
-    click(t, e) {
-      if (!t) return;
-      let n = 0,
-        s = 0,
-        r = 0,
-        o = 0,
-        h = () => {
-          if (t.disabled || t.hidden) return !1;
-          (this.g.sound.play("click"), e());
+    click(el, action) {
+      if (!el) return;
+      let touchDown = 0,
+        startX = 0,
+        startY = 0,
+        pointerId = 0,
+        activate = () => {
+          if (el.disabled || el.hidden) return !1;
+          (this.g.sound.play("click"), action());
           return !0;
         };
-      t.addEventListener(
+      el.addEventListener(
         "pointerdown",
-        (l) => {
-          if ((l.pointerType === "touch" || l.pointerType === "pen") && l.isPrimary !== !1) {
-            ((s = l.clientX), (r = l.clientY), (o = l.pointerId), (n = 1));
+        (ev) => {
+          if ((ev.pointerType === "touch" || ev.pointerType === "pen") && ev.isPrimary !== !1) {
+            ((startX = ev.clientX), (startY = ev.clientY), (pointerId = ev.pointerId), (touchDown = 1));
           }
         },
         { passive: !1 },
       );
-      t.addEventListener(
+      el.addEventListener(
         "pointerup",
-        (l) => {
-          if (!(l.pointerType === "touch" || l.pointerType === "pen") || !n || l.pointerId !== o) return;
-          let u = l.clientX - s,
-            d = l.clientY - r;
-          if (((n = 0), Math.hypot(u, d) > 14 || !h())) return;
-          (l.preventDefault(), l.stopPropagation());
-          const c = performance.now();
-          ((RL_TOUCH_CLICK_GUARD.until = c + 800),
-            (RL_TOUCH_CLICK_GUARD.x = l.clientX),
-            (RL_TOUCH_CLICK_GUARD.y = l.clientY),
-            (RL_TOUCH_CLICK_GUARD.key = rlUiClickKey(t)));
+        (ev) => {
+          if (!(ev.pointerType === "touch" || ev.pointerType === "pen") || !touchDown || ev.pointerId !== pointerId)
+            return;
+          let dx = ev.clientX - startX,
+            dy = ev.clientY - startY;
+          if (((touchDown = 0), Math.hypot(dx, dy) > 14 || !activate())) return;
+          (ev.preventDefault(), ev.stopPropagation());
+          const now = performance.now();
+          ((RL_TOUCH_CLICK_GUARD.until = now + 800),
+            (RL_TOUCH_CLICK_GUARD.x = ev.clientX),
+            (RL_TOUCH_CLICK_GUARD.y = ev.clientY),
+            (RL_TOUCH_CLICK_GUARD.key = rlUiClickKey(el)));
         },
         { passive: !1 },
       );
-      t.addEventListener(
+      el.addEventListener(
         "pointercancel",
-        (l) => {
-          l.pointerId === o && (n = 0);
+        (ev) => {
+          ev.pointerId === pointerId && (touchDown = 0);
         },
         { passive: !0 },
       );
-      t.addEventListener("click", (l) => {
-        const u = performance.now(),
-          g = RL_TOUCH_CLICK_GUARD,
-          dx = Number(l.clientX) - g.x,
-          dy = Number(l.clientY) - g.y,
+      el.addEventListener("click", (ev) => {
+        const now = performance.now(),
+          guard = RL_TOUCH_CLICK_GUARD,
+          dx = Number(ev.clientX) - guard.x,
+          dy = Number(ev.clientY) - guard.y,
           near = Number.isFinite(dx) && Number.isFinite(dy) && Math.hypot(dx, dy) <= 36,
-          key = rlUiClickKey(t),
-          same = !!(g.key && key && g.key === key) || near;
-        if (u < g.until && same) {
-          ((g.until = 0), (g.key = ""), RL_RT.uiGuardDrops++, l.preventDefault(), l.stopPropagation());
+          key = rlUiClickKey(el),
+          same = !!(guard.key && key && guard.key === key) || near;
+        if (now < guard.until && same) {
+          ((guard.until = 0), (guard.key = ""), RL_RT.uiGuardDrops++, ev.preventDefault(), ev.stopPropagation());
           return;
         }
-        ((g.until = 0), (g.key = ""), h());
+        ((guard.until = 0), (guard.key = ""), activate());
       });
     }
     bind() {
-      for (let s of document.querySelectorAll("[data-go]")) this.click(s, () => this.show(s.dataset.go));
-      for (let s of document.querySelectorAll("[data-back]")) this.click(s, () => this.back());
+      for (let el of document.querySelectorAll("[data-go]")) this.click(el, () => this.show(el.dataset.go));
+      for (let el of document.querySelectorAll("[data-back]")) this.click(el, () => this.back());
       (this.click(getById("wPrev"), () => this.stepWeapon(-1)),
         this.click(getById("wNext"), () => this.stepWeapon(1)),
         this.click(getById("tPrev"), () => this.stepThreat(-1)),
@@ -258,25 +266,25 @@ var getById = (i) => document.getElementById(i),
         this.click(getById("wBuy"), () => this.buyWeapon()),
         this.click(getById("playBtn"), () => this.play()),
         this.click(getById("continueBtn"), () => this.g.startRun({ resume: !0 })));
-      let t = (s, r) =>
-        s.addEventListener("pointerdown", (a) => {
-          (a.preventDefault(), a.stopPropagation(), r());
+      let onPress = (el, action) =>
+        el.addEventListener("pointerdown", (ev) => {
+          (ev.preventDefault(), ev.stopPropagation(), action());
         });
-      (t(getById("dashBtn"), () => {
+      (onPress(getById("dashBtn"), () => {
         this.g.input.press("dash");
-        let s = this.g.world,
-          r = getById("dashBtn");
-        s &&
-          s.player.dashCdT > 0.08 &&
-          (r.classList.remove("deny"), r.offsetWidth, r.classList.add("deny"), this.g.sound.play("deny"));
+        let world = this.g.world,
+          btn = getById("dashBtn");
+        world &&
+          world.player.dashCdT > 0.08 &&
+          (btn.classList.remove("deny"), btn.offsetWidth, btn.classList.add("deny"), this.g.sound.play("deny"));
       }),
-        t(getById("novaBtn"), () => {
+        onPress(getById("novaBtn"), () => {
           this.g.input.press("nova");
-          let s = this.g.world,
-            r = getById("novaBtn");
-          s &&
-            s.player.nova < 100 &&
-            (r.classList.remove("deny"), r.offsetWidth, r.classList.add("deny"), this.g.sound.play("deny"));
+          let world = this.g.world,
+            btn = getById("novaBtn");
+          world &&
+            world.player.nova < 100 &&
+            (btn.classList.remove("deny"), btn.offsetWidth, btn.classList.add("deny"), this.g.sound.play("deny"));
         }),
         this.click(getById("pauseBtn"), () => this.g.pause()),
         this.click(getById("resumeBtn"), () => this.g.resume()),
@@ -300,39 +308,41 @@ var getById = (i) => document.getElementById(i),
         this.click(getById("endlessBtn"), () => this.g.endless()),
         this.click(getById("crashHome"), () => this.g.recover()),
         this.click(getById("crashCopy"), () => this.copy(getById("crashLog").value)));
-      let e = () => this.save.settings,
-        n = (s, r) => {
-          let a = getById(s);
-          a.addEventListener("change", () => {
-            ((e()[r] = a.checked), this.g.settingsChanged());
+      let settings = () => this.save.settings,
+        bindToggle = (id, key) => {
+          let input = getById(id);
+          input.addEventListener("change", () => {
+            ((settings()[key] = input.checked), this.g.settingsChanged());
           });
         };
-      (n("setAuto", "autoFire"),
-        n("setAssist", "assist"),
-        n("setSwap", "swap"),
-        n("setShake", "shake"),
-        n("setNumbers", "numbers"),
-        n("setContrast", "contrast"),
-        n("setCalm", "calm"));
-      for (let [s, r] of [
+      (bindToggle("setAuto", "autoFire"),
+        bindToggle("setAssist", "assist"),
+        bindToggle("setSwap", "swap"),
+        bindToggle("setShake", "shake"),
+        bindToggle("setNumbers", "numbers"),
+        bindToggle("setContrast", "contrast"),
+        bindToggle("setCalm", "calm"));
+      for (let [id, key] of [
         ["setSfx", "sfx"],
         ["setMusic", "music"],
       ]) {
-        let a = getById(s);
-        (a.addEventListener("input", () => {
-          ((e()[r] = +a.value), this.g.settingsChanged(!0));
+        let input = getById(id);
+        (input.addEventListener("input", () => {
+          ((settings()[key] = +input.value), this.g.settingsChanged(!0));
         }),
-          a.addEventListener("change", () => {
-            (this.g.settingsChanged(), r === "sfx" && this.g.sound.play("pick"));
+          input.addEventListener("change", () => {
+            (this.g.settingsChanged(), key === "sfx" && this.g.sound.play("pick"));
           }));
       }
-      for (let [s, r, a] of [
+      for (let [id, key, numeric] of [
         ["setQuality", "quality", !1],
         ["setZoom", "zoom", !0],
       ])
-        for (let o of getById(s).querySelectorAll("button"))
-          this.click(o, () => {
-            ((e()[r] = a ? +o.dataset.v : o.dataset.v), this.renderSettings(), this.g.settingsChanged());
+        for (let btn of getById(id).querySelectorAll("button"))
+          this.click(btn, () => {
+            ((settings()[key] = numeric ? +btn.dataset.v : btn.dataset.v),
+              this.renderSettings(),
+              this.g.settingsChanged());
           });
       (this.click(getById("resetBtn"), async () => {
         (await this.confirm(
@@ -347,24 +357,24 @@ var getById = (i) => document.getElementById(i),
         onLogChange(() => {
           this.screen === "settings" && this.renderLog();
         }),
-        getById("dialog").addEventListener("click", (s) => {
-          s.target === getById("dialog") && this.closeDialog(null);
+        getById("dialog").addEventListener("click", (ev) => {
+          ev.target === getById("dialog") && this.closeDialog(null);
         }));
     }
-    show(t) {
-      (menuScreens.includes(this.screen) && this.screen !== t && this.stack.push(this.screen), this._show(t));
+    show(screen) {
+      (menuScreens.includes(this.screen) && this.screen !== screen && this.stack.push(this.screen), this._show(screen));
     }
-    _show(t) {
+    _show(screen) {
       // 2.3.6: the renderer re-measures the free space of the home screen for the drone preview
       markHomeViewDirty();
       // 2.5.0 D: Records opened from another screen start on the stats
-      t === "records" && this.screen !== "records" && (this.recTab = "stats");
-      for (let e of menuScreens) getById(e).hidden = e !== t;
-      ((this.screen = t),
-        t === "home" && ((this.stack = []), this.renderHome()),
-        t === "workshop" && this.renderWorkshop(),
-        t === "records" && this.renderRecords(),
-        t === "settings" && this.renderSettings());
+      screen === "records" && this.screen !== "records" && (this.recTab = "stats");
+      for (let id of menuScreens) getById(id).hidden = id !== screen;
+      ((this.screen = screen),
+        screen === "home" && ((this.stack = []), this.renderHome()),
+        screen === "workshop" && this.renderWorkshop(),
+        screen === "records" && this.renderRecords(),
+        screen === "settings" && this.renderSettings());
       requestAnimationFrame(() => window.__riftLayoutAudit?.());
     }
     back() {
@@ -376,250 +386,264 @@ var getById = (i) => document.getElementById(i),
       this._show(this.stack.pop() || "home");
     }
     hideMenus() {
-      for (let t of menuScreens) getById(t).hidden = !0;
+      for (let id of menuScreens) getById(id).hidden = !0;
       this.screen = "game";
     }
     renderHome() {
-      let t = this.save;
-      getById("bank").textContent = formatCount(t.shards);
-      for (let r of document.querySelectorAll(".bankMirror")) r.textContent = formatCount(t.shards);
+      let save = this.save;
+      getById("bank").textContent = formatCount(save.shards);
+      for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
       ((this.viewWeapon == null || !weaponOrder[this.viewWeapon]) && (this.viewWeapon = 0),
         this.homeInit ||
-          ((this.viewWeapon = weaponOrder.indexOf(t.weapon)), (this.viewThreat = t.threat), (this.homeInit = !0)),
+          ((this.viewWeapon = weaponOrder.indexOf(save.weapon)), (this.viewThreat = save.threat), (this.homeInit = !0)),
         this.renderWeapon(),
         this.renderThreat());
-      let e = t.run,
-        n = getById("continueBtn");
-      (e
-        ? ((n.hidden = !1),
-          (n.innerHTML = `${iconSvg("play")}CONTINUE \xB7 WAVE ${e.wave + (e.offer ? 1 : 0)} \xB7 ${escapeHtml(weaponDefs[e.weapon].name)}`),
+      let run = save.run,
+        btn = getById("continueBtn");
+      (run
+        ? ((btn.hidden = !1),
+          (btn.innerHTML = `${iconSvg("play")}CONTINUE \xB7 WAVE ${run.wave + (run.offer ? 1 : 0)} \xB7 ${escapeHtml(weaponDefs[run.weapon].name)}`),
           getById("playBtn").classList.remove("primary"))
-        : ((n.hidden = !0), getById("playBtn").classList.add("primary")),
+        : ((btn.hidden = !0), getById("playBtn").classList.add("primary")),
         this.updatePlayState(),
         (getById("recBadge").hidden = !this.g.claimable().length));
-      let s = t.stats;
-      ((getById("bestLine").hidden = !s.runs),
-        s.runs &&
+      let stats = save.stats;
+      ((getById("bestLine").hidden = !stats.runs),
+        stats.runs &&
           (getById("bestLine").textContent =
-            `Best wave ${s.bestWave}` + (s.clears ? ` \xB7 ${s.clears} clear${s.clears > 1 ? "s" : ""}` : "")));
+            `Best wave ${stats.bestWave}` +
+            (stats.clears ? ` \xB7 ${stats.clears} clear${stats.clears > 1 ? "s" : ""}` : "")));
     }
     renderWeapon() {
-      let t = this.save,
-        e = weaponOrder[this.viewWeapon],
-        n = weaponDefs[e],
-        s = !!t.weapons[e],
-        r = document.querySelector(".weapon-card");
-      (r.classList.toggle("locked", !s),
-        r.style.setProperty("--wc", "#" + n.color.toString(16).padStart(6, "0")),
+      let save = this.save,
+        id = weaponOrder[this.viewWeapon],
+        weapon = weaponDefs[id],
+        owned = !!save.weapons[id],
+        card = document.querySelector(".weapon-card");
+      (card.classList.toggle("locked", !owned),
+        card.style.setProperty("--wc", "#" + weapon.color.toString(16).padStart(6, "0")),
         (getById("wIndex").textContent = `${this.viewWeapon + 1}/${weaponOrder.length}`),
-        (getById("wName").innerHTML = (s ? "" : iconSvg("lock", "inline")) + escapeHtml(n.name)),
+        (getById("wName").innerHTML = (owned ? "" : iconSvg("lock", "inline")) + escapeHtml(weapon.name)),
         getById("wName").querySelector(".ico") &&
           (getById("wName").querySelector(".ico").style.cssText =
             "display:inline-block;vertical-align:-3px;margin-right:6px;width:18px;height:18px"),
-        (getById("wBlurb").textContent = n.blurb));
-      let a = n.dmg * n.count + (n.explodeDmg || 0),
-        o = weaponRange(n),
-        c = (u) => {
-          let d = clamp(Math.round(u), 1, 8);
+        (getById("wBlurb").textContent = weapon.blurb));
+      let burst = weapon.dmg * weapon.count + (weapon.explodeDmg || 0),
+        range = weaponRange(weapon),
+        segs = (value) => {
+          let lit = clamp(Math.round(value), 1, 8);
           return (
             '<div class="segs">' +
-            Array.from({ length: 8 }, (f, p) => `<i class="${p < d ? "on" : ""}"></i>`).join("") +
+            Array.from({ length: 8 }, (_, i) => `<i class="${i < lit ? "on" : ""}"></i>`).join("") +
             "</div>"
           );
         },
-        h = n.count > 1 ? `${n.dmg}\xD7${n.count}` : n.explodeDmg ? `${n.dmg}+${n.explodeDmg}` : String(n.dmg);
+        dmgText =
+          weapon.count > 1
+            ? `${weapon.dmg}\xD7${weapon.count}`
+            : weapon.explodeDmg
+              ? `${weapon.dmg}+${weapon.explodeDmg}`
+              : String(weapon.dmg);
       getById("wStats").innerHTML = `
-    <div class="stat"><span class="k">DAMAGE</span><span class="v">${h}</span>${c((a / 55) * 8)}</div>
-    <div class="stat"><span class="k">RATE</span><span class="v">${n.rate.toFixed(1)}/s</span>${c((n.rate / 6.5) * 8)}</div>
-    <div class="stat"><span class="k">RANGE</span><span class="v">${Math.round(o)} m</span>${c((o / 28) * 8)}</div>`;
-      let l = getById("wBuy");
-      ((l.hidden = s),
-        s || ((l.innerHTML = `UNLOCK \xB7 <span class="shard-ico"></span>${n.cost}`), (l.disabled = t.shards < n.cost)),
+    <div class="stat"><span class="k">DAMAGE</span><span class="v">${dmgText}</span>${segs((burst / 55) * 8)}</div>
+    <div class="stat"><span class="k">RATE</span><span class="v">${weapon.rate.toFixed(1)}/s</span>${segs((weapon.rate / 6.5) * 8)}</div>
+    <div class="stat"><span class="k">RANGE</span><span class="v">${Math.round(range)} m</span>${segs((range / 28) * 8)}</div>`;
+      let buyBtn = getById("wBuy");
+      ((buyBtn.hidden = owned),
+        owned ||
+          ((buyBtn.innerHTML = `UNLOCK \xB7 <span class="shard-ico"></span>${weapon.cost}`),
+          (buyBtn.disabled = save.shards < weapon.cost)),
         (getById("wPrev").disabled = this.viewWeapon <= 0),
         (getById("wNext").disabled = this.viewWeapon >= weaponOrder.length - 1),
         this.updatePlayState(),
-        this.g.previewWeapon(s ? e : t.weapon));
+        this.g.previewWeapon(owned ? id : save.weapon));
     }
     renderThreat() {
-      let t = this.save,
-        e = threatLevels[this.viewThreat],
-        n = this.viewThreat > t.threatMax;
-      ((getById("tName").textContent = e.name),
+      let save = this.save,
+        threat = threatLevels[this.viewThreat],
+        locked = this.viewThreat > save.threatMax;
+      ((getById("tName").textContent = threat.name),
         getById("tName").classList.toggle("hot", this.viewThreat > 0),
-        (getById("tDesc").textContent = n
+        (getById("tDesc").textContent = locked
           ? `Clear all ${20} waves on ${threatLevels[this.viewThreat - 1].name} to unlock`
           : this.viewThreat > 0
-            ? `${e.desc} Shards \xD7${(1 + 0.25 * this.viewThreat).toFixed(2)}`
-            : e.desc),
+            ? `${threat.desc} Shards \xD7${(1 + 0.25 * this.viewThreat).toFixed(2)}`
+            : threat.desc),
         (getById("tPrev").disabled = this.viewThreat <= 0),
-        (getById("tNext").disabled = this.viewThreat >= Math.min(5, t.threatMax + 1)),
+        (getById("tNext").disabled = this.viewThreat >= Math.min(5, save.threatMax + 1)),
         this.updatePlayState());
     }
     updatePlayState() {
-      let t = this.save,
-        e = weaponOrder[this.viewWeapon],
-        n = !!t.weapons[e] && this.viewThreat <= t.threatMax,
-        s = getById("playBtn");
-      ((s.disabled = !n),
-        (s.textContent = n ? (t.run ? "NEW RUN" : "START RUN") : t.weapons[e] ? "THREAT LOCKED" : "WEAPON LOCKED"));
+      let save = this.save,
+        id = weaponOrder[this.viewWeapon],
+        playable = !!save.weapons[id] && this.viewThreat <= save.threatMax,
+        btn = getById("playBtn");
+      ((btn.disabled = !playable),
+        (btn.textContent = playable
+          ? save.run
+            ? "NEW RUN"
+            : "START RUN"
+          : save.weapons[id]
+            ? "THREAT LOCKED"
+            : "WEAPON LOCKED"));
     }
-    stepWeapon(t) {
-      this.viewWeapon = clamp(this.viewWeapon + t, 0, weaponOrder.length - 1);
-      let e = weaponOrder[this.viewWeapon];
-      (this.save.weapons[e] && ((this.save.weapon = e), this.g.store.save("weapon")), this.renderWeapon());
+    stepWeapon(dir) {
+      this.viewWeapon = clamp(this.viewWeapon + dir, 0, weaponOrder.length - 1);
+      let id = weaponOrder[this.viewWeapon];
+      (this.save.weapons[id] && ((this.save.weapon = id), this.g.store.save("weapon")), this.renderWeapon());
     }
-    stepThreat(t) {
-      ((this.viewThreat = clamp(this.viewThreat + t, 0, Math.min(5, this.save.threatMax + 1))),
+    stepThreat(dir) {
+      ((this.viewThreat = clamp(this.viewThreat + dir, 0, Math.min(5, this.save.threatMax + 1))),
         this.viewThreat <= this.save.threatMax && ((this.save.threat = this.viewThreat), this.g.store.save("threat")),
         this.renderThreat());
     }
     buyWeapon() {
-      let t = this.save,
-        e = weaponOrder[this.viewWeapon],
-        n = weaponDefs[e];
-      if (t.weapons[e] || t.shards < n.cost) {
+      let save = this.save,
+        id = weaponOrder[this.viewWeapon],
+        weapon = weaponDefs[id];
+      if (save.weapons[id] || save.shards < weapon.cost) {
         this.g.sound.play("deny");
         return;
       }
-      ((t.shards -= n.cost),
-        (t.weapons[e] = !0),
-        (t.weapon = e),
+      ((save.shards -= weapon.cost),
+        (save.weapons[id] = !0),
+        (save.weapon = id),
         this.g.store.save("buy"),
         this.g.sound.play("buy"),
-        this.toast(`${n.name} unlocked`, "gold"),
+        this.toast(`${weapon.name} unlocked`, "gold"),
         this.renderHome());
     }
     async play() {
-      let t = this.save;
-      (t.run &&
-        !(await this.confirm("Start a new run?", `Your run at wave ${t.run.wave} will be abandoned.`, "New run"))) ||
-        (t.run && this.g.discardRun(), this.g.startRun({}));
+      let save = this.save;
+      (save.run &&
+        !(await this.confirm("Start a new run?", `Your run at wave ${save.run.wave} will be abandoned.`, "New run"))) ||
+        (save.run && this.g.discardRun(), this.g.startRun({}));
     }
     renderWorkshop() {
-      let t = this.save;
-      for (let n of document.querySelectorAll(".bankMirror")) n.textContent = formatCount(t.shards);
-      let e = getById("wsList");
-      e.innerHTML = workshopModules
-        .map((n) => {
-          let s = t.workshop[n.id] || 0,
-            r = n.costs.length,
-            a = n.costs[s],
-            o = Array.from({ length: r }, (h, l) => `<i class="${l < s ? "on" : ""}"></i>`).join(""),
-            c =
-              s >= r
+      let save = this.save;
+      for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
+      let list = getById("wsList");
+      list.innerHTML = workshopModules
+        .map((mod) => {
+          let level = save.workshop[mod.id] || 0,
+            maxLevel = mod.costs.length,
+            cost = mod.costs[level],
+            pips = Array.from({ length: maxLevel }, (_, i) => `<i class="${i < level ? "on" : ""}"></i>`).join(""),
+            btn =
+              level >= maxLevel
                 ? '<button class="btn" disabled>MAX</button>'
-                : `<button class="btn" data-buy="${n.id}" ${t.shards < a ? "disabled" : ""}><span class="shard-ico"></span>${a}</button>`;
-          return `<div class="row panel"><div class="rico">${iconSvg(n.icon)}</div><div><b>${escapeHtml(n.name)}</b><small>${escapeHtml(n.desc)}</small><div class="pips">${o}</div></div>${c}</div>`;
+                : `<button class="btn" data-buy="${mod.id}" ${save.shards < cost ? "disabled" : ""}><span class="shard-ico"></span>${cost}</button>`;
+          return `<div class="row panel"><div class="rico">${iconSvg(mod.icon)}</div><div><b>${escapeHtml(mod.name)}</b><small>${escapeHtml(mod.desc)}</small><div class="pips">${pips}</div></div>${btn}</div>`;
         })
         .join("");
-      for (let n of e.querySelectorAll("[data-buy]")) this.click(n, () => this.buyModule(n.dataset.buy));
+      for (let btn of list.querySelectorAll("[data-buy]")) this.click(btn, () => this.buyModule(btn.dataset.buy));
     }
-    buyModule(t) {
-      let e = this.save,
-        n = workshopModules.find((a) => a.id === t),
-        s = e.workshop[t] || 0,
-        r = n.costs[s];
-      if (r == null || e.shards < r) {
+    buyModule(id) {
+      let save = this.save,
+        mod = workshopModules.find((mod) => mod.id === id),
+        level = save.workshop[id] || 0,
+        cost = mod.costs[level];
+      if (cost == null || save.shards < cost) {
         this.g.sound.play("deny");
         return;
       }
-      ((e.shards -= r),
-        (e.workshop[t] = s + 1),
+      ((save.shards -= cost),
+        (save.workshop[id] = level + 1),
         this.g.store.save("workshop"),
         this.g.sound.play("buy"),
         this.renderWorkshop());
     }
     renderRecords() {
-      let t = this.save,
-        e = t.stats;
-      for (let a of document.querySelectorAll(".bankMirror")) a.textContent = formatCount(t.shards);
-      let n = Object.values(e.bosses).reduce((a, o) => a + o, 0),
-        s = [
-          ["Runs", e.runs],
-          ["Best wave", e.bestWave || "\u2014"],
-          ["Full clears", e.clears],
-          ["Enemies destroyed", formatCount(e.kills)],
-          ["Bosses defeated", n],
-          ["Best threat cleared", e.bestClearThreat >= 0 ? threatLevels[e.bestClearThreat].name : "\u2014"],
-          ["Time in the rift", formatTime(e.playTime)],
-          ["Fastest clear", e.bestTime > 0 ? formatTime(e.bestTime) : "—"],
-          ["Shards earned", formatCount(e.shardsEarned)],
+      let save = this.save,
+        stats = save.stats;
+      for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
+      let bossKills = Object.values(stats.bosses).reduce((sum, count) => sum + count, 0),
+        cells = [
+          ["Runs", stats.runs],
+          ["Best wave", stats.bestWave || "\u2014"],
+          ["Full clears", stats.clears],
+          ["Enemies destroyed", formatCount(stats.kills)],
+          ["Bosses defeated", bossKills],
+          ["Best threat cleared", stats.bestClearThreat >= 0 ? threatLevels[stats.bestClearThreat].name : "\u2014"],
+          ["Time in the rift", formatTime(stats.playTime)],
+          ["Fastest clear", stats.bestTime > 0 ? formatTime(stats.bestTime) : "—"],
+          ["Shards earned", formatCount(stats.shardsEarned)],
         ];
-      getById("statGrid").innerHTML = s
+      getById("statGrid").innerHTML = cells
         .map(
-          ([a, o]) =>
-            `<div class="cell"><div class="k">${escapeHtml(a)}</div><div class="v">${escapeHtml(o)}</div></div>`,
+          ([label, value]) =>
+            `<div class="cell"><div class="k">${escapeHtml(label)}</div><div class="v">${escapeHtml(value)}</div></div>`,
         )
         .join("");
-      let r = getById("msList");
-      r.innerHTML = milestones
-        .map((a) => {
-          let o = !!t.milestones[a.id],
-            c = !o && a.test(t),
-            h = o
+      let list = getById("msList");
+      list.innerHTML = milestones
+        .map((ms) => {
+          let done = !!save.milestones[ms.id],
+            ready = !done && ms.test(save),
+            action = done
               ? `<span class="chip">${iconSvg("check")}DONE</span>`
-              : c
-                ? `<button class="btn" data-claim="${a.id}"><span class="shard-ico"></span>${a.reward}</button>`
-                : `<span class="chip"><span class="shard-ico"></span>${a.reward}</span>`;
-          return `<div class="row panel ${o ? "done" : c ? "claim" : ""}"><div class="rico">${iconSvg(o ? "check" : "trophy")}</div><div><b>${escapeHtml(a.name)}</b><small>${escapeHtml(a.desc)}</small></div>${h}</div>`;
+              : ready
+                ? `<button class="btn" data-claim="${ms.id}"><span class="shard-ico"></span>${ms.reward}</button>`
+                : `<span class="chip"><span class="shard-ico"></span>${ms.reward}</span>`;
+          return `<div class="row panel ${done ? "done" : ready ? "claim" : ""}"><div class="rico">${iconSvg(done ? "check" : "trophy")}</div><div><b>${escapeHtml(ms.name)}</b><small>${escapeHtml(ms.desc)}</small></div>${action}</div>`;
         })
         .join("");
-      for (let a of r.querySelectorAll("[data-claim]")) this.click(a, () => this.claim(a.dataset.claim));
+      for (let btn of list.querySelectorAll("[data-claim]")) this.click(btn, () => this.claim(btn.dataset.claim));
       // 2.5.0 D: Stats / Codex tabs
       try {
         this.recordsTab(this.recTab || "stats");
-      } catch (e) {
-        console.warn("codex", e);
+      } catch (err) {
+        console.warn("codex", err);
       }
       // recent runs list under the lifetime stats
       try {
         rlRenderHistory();
-      } catch (e) {
-        logError("history", e);
+      } catch (err) {
+        logError("history", err);
       }
     }
-    claim(t) {
-      let e = this.save,
-        n = milestones.find((s) => s.id === t);
-      !n ||
-        e.milestones[t] ||
-        !n.test(e) ||
-        ((e.milestones[t] = !0),
-        (e.shards += n.reward),
+    claim(id) {
+      let save = this.save,
+        ms = milestones.find((milestone) => milestone.id === id);
+      !ms ||
+        save.milestones[id] ||
+        !ms.test(save) ||
+        ((save.milestones[id] = !0),
+        (save.shards += ms.reward),
         this.g.store.save("claim"),
         this.g.sound.play("buy"),
-        this.toast(`${n.name}: +${n.reward} shards`, "gold"),
+        this.toast(`${ms.name}: +${ms.reward} shards`, "gold"),
         this.renderRecords());
     }
     renderSettings() {
-      let t = this.save.settings;
-      ((getById("setAuto").checked = t.autoFire),
-        (getById("setAssist").checked = t.assist),
-        (getById("setSwap").checked = t.swap),
-        (getById("setShake").checked = t.shake),
-        (getById("setNumbers").checked = t.numbers),
-        (getById("setContrast").checked = t.contrast),
-        (getById("setCalm").checked = t.calm),
-        (getById("setSfx").value = t.sfx),
-        (getById("setMusic").value = t.music));
-      for (let e of getById("setQuality").querySelectorAll("button"))
-        e.classList.toggle("on", e.dataset.v === t.quality);
-      for (let e of getById("setZoom").querySelectorAll("button"))
-        e.classList.toggle("on", Math.abs(+e.dataset.v - t.zoom) < 0.01);
+      let settings = this.save.settings;
+      ((getById("setAuto").checked = settings.autoFire),
+        (getById("setAssist").checked = settings.assist),
+        (getById("setSwap").checked = settings.swap),
+        (getById("setShake").checked = settings.shake),
+        (getById("setNumbers").checked = settings.numbers),
+        (getById("setContrast").checked = settings.contrast),
+        (getById("setCalm").checked = settings.calm),
+        (getById("setSfx").value = settings.sfx),
+        (getById("setMusic").value = settings.music));
+      for (let btn of getById("setQuality").querySelectorAll("button"))
+        btn.classList.toggle("on", btn.dataset.v === settings.quality);
+      for (let btn of getById("setZoom").querySelectorAll("button"))
+        btn.classList.toggle("on", Math.abs(+btn.dataset.v - settings.zoom) < 0.01);
       ((getById("qualityNote").textContent = this.g.qualityNote()),
         (getById("storageWarn").hidden = this.g.store.storageOk),
         (getById("verText").textContent = `v${GAME_VERSION}`),
         this.renderLog());
       // 2.4.2: run timer and FPS counter
-      ((getById("setTimer").checked = !!t.timer), (getById("setFps").checked = !!t.fps));
+      ((getById("setTimer").checked = !!settings.timer), (getById("setFps").checked = !!settings.fps));
     }
     renderLog() {
-      let t = getErrorLog().length;
-      getById("logCount").textContent = t ? String(t) : "0";
+      let count = getErrorLog().length;
+      getById("logCount").textContent = count ? String(count) : "0";
     }
-    async showLog(q) {
-      q || (await rlRunHealth({ context: "diagnostics" }));
-      let t = await this.dialog({
+    async showLog(skipHealth) {
+      skipHealth || (await rlRunHealth({ context: "diagnostics" }));
+      let choice = await this.dialog({
         title: "Diagnostics",
         body: `<p>Build ${escapeHtml(this.g.buildId)}. “Deep test” runs the full simulation self-test (a few seconds). Copy this text when reporting a problem.</p><textarea readonly spellcheck="false">${escapeHtml(buildReport())}</textarea>`,
         buttons: [
@@ -629,255 +653,262 @@ var getById = (i) => document.getElementById(i),
           { label: "Close", value: null, cls: "primary" },
         ],
       });
-      (t === "copy" && this.copy(buildReport()),
-        t === "clear" && (clearErrorLog(), set_RL_LAST_RUN_AUDIT(null), this.renderLog(), this.toast("Log cleared")),
-        t === "deep" &&
+      (choice === "copy" && this.copy(buildReport()),
+        choice === "clear" &&
+          (clearErrorLog(), set_RL_LAST_RUN_AUDIT(null), this.renderLog(), this.toast("Log cleared")),
+        choice === "deep" &&
           (this.toast("Running deep self-test…", "", 2600),
           setTimeout(async () => {
             await rlRunHealth({ context: "diagnostics", deep: !0 });
             this.showLog(!0);
           }, 80)));
     }
-    async copy(t) {
-      let e = !1;
+    async copy(text) {
+      let ok = !1;
       try {
-        navigator.clipboard && window.isSecureContext && (await navigator.clipboard.writeText(t), (e = !0));
+        navigator.clipboard && window.isSecureContext && (await navigator.clipboard.writeText(text), (ok = !0));
       } catch {}
-      if (!e) {
-        let n = document.createElement("textarea");
-        ((n.value = t),
-          n.setAttribute("readonly", ""),
-          (n.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0"),
-          document.body.appendChild(n),
-          n.select(),
-          n.setSelectionRange(0, t.length));
+      if (!ok) {
+        let area = document.createElement("textarea");
+        ((area.value = text),
+          area.setAttribute("readonly", ""),
+          (area.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0"),
+          document.body.appendChild(area),
+          area.select(),
+          area.setSelectionRange(0, text.length));
         try {
-          e = document.execCommand("copy");
+          ok = document.execCommand("copy");
         } catch {
-          e = !1;
+          ok = !1;
         }
-        n.remove();
+        area.remove();
       }
-      return (this.toast(e ? "Copied" : "Copy failed \u2014 select the text and copy it by hand"), e);
+      return (this.toast(ok ? "Copied" : "Copy failed \u2014 select the text and copy it by hand"), ok);
     }
-    dialog({ title: t, body: e, buttons: n, onOpen: s, read: r }) {
+    dialog({ title, body, buttons, onOpen, read }) {
       (this.dlgResolve && this.closeDialog(null),
-        (getById("dlgTitle").textContent = t),
-        (getById("dlgBody").innerHTML = e));
-      let a = getById("dlgBtns");
+        (getById("dlgTitle").textContent = title),
+        (getById("dlgBody").innerHTML = body));
+      let row = getById("dlgBtns");
       return (
-        (a.innerHTML = ""),
-        new Promise((o) => {
-          ((this.dlgResolve = o), (this.dlgRead = r || null));
-          for (let c of n) {
-            let h = document.createElement("button");
-            ((h.className = "btn " + (c.cls || "")),
-              (h.textContent = c.label),
-              this.click(h, () => this.closeDialog(c.value)),
-              a.appendChild(h));
+        (row.innerHTML = ""),
+        new Promise((resolve) => {
+          ((this.dlgResolve = resolve), (this.dlgRead = read || null));
+          for (let spec of buttons) {
+            let btn = document.createElement("button");
+            ((btn.className = "btn " + (spec.cls || "")),
+              (btn.textContent = spec.label),
+              this.click(btn, () => this.closeDialog(spec.value)),
+              row.appendChild(btn));
           }
-          ((getById("dialog").hidden = !1), s && s());
+          ((getById("dialog").hidden = !1), onOpen && onOpen());
         })
       );
     }
-    closeDialog(t) {
-      let e = this.dlgResolve,
-        n = this.dlgRead ? this.dlgRead() : void 0;
+    closeDialog(value) {
+      let resolve = this.dlgResolve,
+        text = this.dlgRead ? this.dlgRead() : void 0;
       ((this.dlgResolve = null),
         (getById("dialog").hidden = !0),
-        e && e(this.dlgRead ? { value: t, text: n } : t),
+        resolve && resolve(this.dlgRead ? { value, text } : value),
         (this.dlgRead = null));
     }
-    async confirm(t, e, n, s) {
+    async confirm(title, text, okLabel, danger) {
       return (
         (await this.dialog({
-          title: t,
-          body: `<p>${escapeHtml(e)}</p>`,
+          title,
+          body: `<p>${escapeHtml(text)}</p>`,
           buttons: [
             { label: "Cancel", value: !1, cls: "ghost" },
-            { label: n, value: !0, cls: s ? "danger" : "primary" },
+            { label: okLabel, value: !0, cls: danger ? "danger" : "primary" },
           ],
         })) === !0
       );
     }
-    alert(t, e) {
+    alert(title, text) {
       return this.dialog({
-        title: t,
-        body: `<p>${escapeHtml(e)}</p>`,
+        title,
+        body: `<p>${escapeHtml(text)}</p>`,
         buttons: [{ label: "OK", value: !0, cls: "primary" }],
       });
     }
-    toast(t, e = "", n = 2900) {
-      let s = getById("toasts"),
-        r = document.createElement("div");
+    toast(text, cls = "", ms = 2900) {
+      let box = getById("toasts"),
+        el = document.createElement("div");
       for (
-        r.className = "toast " + e, r.style.animationDuration = n + "ms", r.textContent = t, s.appendChild(r);
-        s.children.length > 3;
+        el.className = "toast " + cls,
+          el.style.animationDuration = ms + "ms",
+          el.textContent = text,
+          box.appendChild(el);
+        box.children.length > 3;
       )
-        s.firstChild.remove();
-      setTimeout(() => r.remove(), n + 50);
+        box.firstChild.remove();
+      setTimeout(() => el.remove(), ms + 50);
     }
-    banner(t, e, n = "", s = 2200) {
-      let r = getById("banner");
-      ((r.innerHTML = `<div class="bn ${n}" style="animation-duration:${s}ms"><div class="small">${escapeHtml(e || "")}</div><div class="big">${escapeHtml(t)}</div></div>`),
+    banner(big, small, cls = "", ms = 2200) {
+      let el = getById("banner");
+      ((el.innerHTML = `<div class="bn ${cls}" style="animation-duration:${ms}ms"><div class="small">${escapeHtml(small || "")}</div><div class="big">${escapeHtml(big)}</div></div>`),
         clearTimeout(this.bannerT),
         (this.bannerT = setTimeout(() => {
-          r.innerHTML = "";
-        }, s + 50)));
+          el.innerHTML = "";
+        }, ms + 50)));
     }
-    comboPop(t, e) {
-      let n = document.createElement("div");
-      ((n.className = "combo-pop"),
-        (n.textContent = `\xD7${t} COMBO  +${e}`),
-        getById("hud").appendChild(n),
-        setTimeout(() => n.remove(), 1250));
+    comboPop(combo, bonus) {
+      let el = document.createElement("div");
+      ((el.className = "combo-pop"),
+        (el.textContent = `\xD7${combo} COMBO  +${bonus}`),
+        getById("hud").appendChild(el),
+        setTimeout(() => el.remove(), 1250));
     }
-    coach(t, e, n) {
-      let s = getById("coach");
-      if (t == null) {
-        ((s.hidden = !0), (this.coachKey = null));
+    coach(step, steps, text) {
+      let box = getById("coach");
+      if (step == null) {
+        ((box.hidden = !0), (this.coachKey = null));
         return;
       }
-      let r = t + n;
-      this.coachKey !== r &&
-        ((this.coachKey = r),
+      let key = step + text;
+      this.coachKey !== key &&
+        ((this.coachKey = key),
         (getById("coachDots").innerHTML = Array.from(
-          { length: e },
-          (a, o) => `<i class="${o <= t ? "on" : ""}"></i>`,
+          { length: steps },
+          (_, i) => `<i class="${i <= step ? "on" : ""}"></i>`,
         ).join("")),
-        (getById("coachText").textContent = n),
-        (s.hidden = !1));
+        (getById("coachText").textContent = text),
+        (box.hidden = !1));
     }
-    setSwap(t) {
-      getById("hud").classList.toggle("swap", !!t);
+    setSwap(on) {
+      getById("hud").classList.toggle("swap", !!on);
     }
-    showHud(t) {
-      ((getById("hud").hidden = !t),
+    showHud(on) {
+      ((getById("hud").hidden = !on),
         (getById("hud").style.visibility = ""),
         getById("vignette").classList.remove("low"),
-        (getById("touch").hidden = !t),
-        t || (getById("bossBar").hidden = !0),
+        (getById("touch").hidden = !on),
+        on || (getById("bossBar").hidden = !0),
         (this.hudCache = {}));
       // 2.5.0 D: the end of a run hides the title cards like the banner
       this.clearTitleCard();
     }
-    hud(t) {
-      let e = this.hudCache,
-        n = t.player,
-        s = t.stats,
-        r = (x, m, g) => {
-          e[x] !== m && ((e[x] = m), g(m));
+    hud(world) {
+      let cache = this.hudCache,
+        player = world.player,
+        stats = world.stats,
+        update = (key, value, apply) => {
+          cache[key] !== value && ((cache[key] = value), apply(value));
         },
-        a = Math.max(0, Math.ceil(n.hp));
-      r("hp", a + "/" + s.maxHp, (x) => {
-        getById("hpNum").textContent = x;
+        hp = Math.max(0, Math.ceil(player.hp));
+      update("hp", hp + "/" + stats.maxHp, (text) => {
+        getById("hpNum").textContent = text;
       });
-      let o = clamp(n.hp / s.maxHp, 0, 1);
+      let hpFrac = clamp(player.hp / stats.maxHp, 0, 1);
       if (
-        (r("hpf", Math.round(o * 200), () => {
-          ((getById("hpFill").style.transform = `scaleX(${o})`),
-            (getById("hpLag").style.transform = `scaleX(${o})`),
-            getById("hpFill").parentElement.classList.toggle("low", o < 0.3));
+        (update("hpf", Math.round(hpFrac * 200), () => {
+          ((getById("hpFill").style.transform = `scaleX(${hpFrac})`),
+            (getById("hpLag").style.transform = `scaleX(${hpFrac})`),
+            getById("hpFill").parentElement.classList.toggle("low", hpFrac < 0.3));
         }),
-        r("shieldOn", s.shieldCd > 0, (x) => {
-          getById("shieldPip").hidden = !x;
+        update("shieldOn", stats.shieldCd > 0, (on) => {
+          getById("shieldPip").hidden = !on;
         }),
-        s.shieldCd > 0 &&
-          r("shield", n.shield ? 100 : Math.round((n.shieldT / s.shieldCd) * 20) * 5, (x) => {
-            (getById("shieldPip").style.setProperty("--p", x + "%"),
-              getById("shieldPip").classList.toggle("ready", x >= 100));
+        stats.shieldCd > 0 &&
+          update("shield", player.shield ? 100 : Math.round((player.shieldT / stats.shieldCd) * 20) * 5, (pct) => {
+            (getById("shieldPip").style.setProperty("--p", pct + "%"),
+              getById("shieldPip").classList.toggle("ready", pct >= 100));
           }),
-        e.hpVal != null && n.hp > e.hpVal + 0.5)
+        cache.hpVal != null && player.hp > cache.hpVal + 0.5)
       ) {
-        let x = getById("hpFill").parentElement;
-        (x.classList.remove("heal"), x.offsetWidth, x.classList.add("heal"));
+        let bar = getById("hpFill").parentElement;
+        (bar.classList.remove("heal"), bar.offsetWidth, bar.classList.add("heal"));
       }
-      ((e.hpVal = n.hp),
-        this.buffs(t),
-        r("low", n.alive && o < 0.25, (x) => {
-          getById("vignette").classList.toggle("low", x);
+      ((cache.hpVal = player.hp),
+        this.buffs(world),
+        update("low", player.alive && hpFrac < 0.25, (low) => {
+          getById("vignette").classList.toggle("low", low);
         }),
-        r("shards", t.shards, (x) => {
-          getById("runShards").textContent = formatCount(x);
-          let m = getById("shardChip");
-          (e.shardsSeen && (m.classList.remove("bump"), m.offsetWidth, m.classList.add("bump")), (e.shardsSeen = !0));
+        update("shards", world.shards, (shards) => {
+          getById("runShards").textContent = formatCount(shards);
+          let chip = getById("shardChip");
+          (cache.shardsSeen && (chip.classList.remove("bump"), chip.offsetWidth, chip.classList.add("bump")),
+            (cache.shardsSeen = !0));
         }));
-      let c = t.endless ? "" : "/" + 20;
-      r("wave", t.wave + c, () => {
-        getById("waveLabel").textContent = `WAVE ${t.wave}${c}`;
+      let waveMax = world.endless ? "" : "/" + 20;
+      update("wave", world.wave + waveMax, () => {
+        getById("waveLabel").textContent = `WAVE ${world.wave}${waveMax}`;
       });
-      let h;
-      if (t.state === "fight")
-        if (t.boss || t.bossPending) h = "BOSS";
+      let sub;
+      if (world.state === "fight")
+        if (world.boss || world.bossPending) sub = "BOSS";
         else {
-          let x = t.enemies.length + t.markers.length;
-          for (let m = t.planIdx; m < t.plan.length; m++) x += t.plan[m].members.length;
-          h = x + " LEFT";
+          let left = world.enemies.length + world.markers.length;
+          for (let i = world.planIdx; i < world.plan.length; i++) left += world.plan[i].members.length;
+          sub = left + " LEFT";
         }
-      else t.state === "cleared" ? (h = "CLEARED") : (h = "\xA0");
-      r("sub", h, (x) => {
-        getById("waveSub").textContent = x;
+      else world.state === "cleared" ? (sub = "CLEARED") : (sub = "\xA0");
+      update("sub", sub, (text) => {
+        getById("waveSub").textContent = text;
       });
-      let l = t.state === "fight" && !t.boss && !t.bossPending && t.planTotal > 0;
+      let showProg = world.state === "fight" && !world.boss && !world.bossPending && world.planTotal > 0;
       if (
-        (r("progOn", l, (x) => {
-          getById("waveProg").hidden = !x;
+        (update("progOn", showProg, (on) => {
+          getById("waveProg").hidden = !on;
         }),
-        l)
+        showProg)
       ) {
-        let x = t.enemies.length + t.markers.length;
-        for (let g = t.planIdx; g < t.plan.length; g++) x += t.plan[g].members.length;
-        let m = clamp(1 - x / Math.max(t.planTotal, x), 0, 1);
-        r("prog", Math.round(m * 50), () => {
-          getById("waveProgFill").style.transform = `scaleX(${m})`;
+        let left = world.enemies.length + world.markers.length;
+        for (let i = world.planIdx; i < world.plan.length; i++) left += world.plan[i].members.length;
+        let progress = clamp(1 - left / Math.max(world.planTotal, left), 0, 1);
+        update("prog", Math.round(progress * 50), () => {
+          getById("waveProgFill").style.transform = `scaleX(${progress})`;
         });
       }
-      let u = t.boss || (t.champion && !t.champion.dead ? t.champion : null);
-      (r("bossOn", !!u, (x) => {
-        getById("bossBar").hidden = !x;
+      let boss = world.boss || (world.champion && !world.champion.dead ? world.champion : null);
+      (update("bossOn", !!boss, (on) => {
+        getById("bossBar").hidden = !on;
       }),
-        u &&
-          (r("bossName", u.type + (u.enraged ? "!" : "") + (u.champion ? "c" : ""), () => {
-            ((getById("bossName").textContent = u.champion
-              ? `${enemyDefs[u.type].name.toUpperCase()} CHAMPION`
-              : bossDefs[u.type].name),
-              (getById("bossPhase").textContent = u.enraged ? "ENRAGED" : u.champion ? "RALLYING" : ""));
+        boss &&
+          (update("bossName", boss.type + (boss.enraged ? "!" : "") + (boss.champion ? "c" : ""), () => {
+            ((getById("bossName").textContent = boss.champion
+              ? `${enemyDefs[boss.type].name.toUpperCase()} CHAMPION`
+              : bossDefs[boss.type].name),
+              (getById("bossPhase").textContent = boss.enraged ? "ENRAGED" : boss.champion ? "RALLYING" : ""));
           }),
-          r("bossF", Math.round((u.hp / u.maxHp) * 300), (x) => {
-            ((getById("bossFill").style.transform = `scaleX(${clamp(x / 300, 0, 1)})`),
-              (getById("bossLag").style.transform = `scaleX(${clamp(x / 300, 0, 1)})`));
+          update("bossF", Math.round((boss.hp / boss.maxHp) * 300), (value) => {
+            ((getById("bossFill").style.transform = `scaleX(${clamp(value / 300, 0, 1)})`),
+              (getById("bossLag").style.transform = `scaleX(${clamp(value / 300, 0, 1)})`));
           }),
-          r("bossTicks", u.type, (x) => {
-            getById("bossTicks").innerHTML = x === "core" ? '<s style="left:66%"></s><s style="left:33%"></s>' : "";
+          update("bossTicks", boss.type, (type) => {
+            getById("bossTicks").innerHTML = type === "core" ? '<s style="left:66%"></s><s style="left:33%"></s>' : "";
           })));
-      let d = t.combo >= 5 ? t.combo : 0;
-      (r("combo", d, (x) => {
-        ((getById("combo").hidden = !x),
-          x && ((getById("comboN").textContent = "\xD7" + x), getById("combo").classList.toggle("hot", x >= 25)));
+      let combo = world.combo >= 5 ? world.combo : 0;
+      (update("combo", combo, (combo) => {
+        ((getById("combo").hidden = !combo),
+          combo &&
+            ((getById("comboN").textContent = "\xD7" + combo), getById("combo").classList.toggle("hot", combo >= 25)));
       }),
-        d &&
-          r("comboT", Math.round(t.comboT * 20), (x) => {
-            getById("comboBar").style.transform = `scaleX(${clamp(x / 44, 0, 1)})`;
+        combo &&
+          update("comboT", Math.round(world.comboT * 20), (value) => {
+            getById("comboBar").style.transform = `scaleX(${clamp(value / 44, 0, 1)})`;
           }));
-      let f = s.dashCd > 0 ? Math.round((n.dashCdT / s.dashCd) * 100) : 0;
-      (r("dash", f, (x) => {
-        let m = getById("dashBtn");
-        (m.style.setProperty("--p", x + "%"), m.style.setProperty("--q", 100 - x + "%"));
-        let g = x > 0;
-        (m.classList.contains("cooling") &&
-          !g &&
-          (m.classList.remove("pop"),
-          m.offsetWidth,
-          m.classList.add("pop"),
-          t.state === "fight" && this.g.sound.play("ready")),
-          m.classList.toggle("cooling", g));
+      let dashPct = stats.dashCd > 0 ? Math.round((player.dashCdT / stats.dashCd) * 100) : 0;
+      (update("dash", dashPct, (pct) => {
+        let btn = getById("dashBtn");
+        (btn.style.setProperty("--p", pct + "%"), btn.style.setProperty("--q", 100 - pct + "%"));
+        let cooling = pct > 0;
+        (btn.classList.contains("cooling") &&
+          !cooling &&
+          (btn.classList.remove("pop"),
+          btn.offsetWidth,
+          btn.classList.add("pop"),
+          world.state === "fight" && this.g.sound.play("ready")),
+          btn.classList.toggle("cooling", cooling));
       }),
-        r("dashSec", n.dashCdT > 0.25 ? n.dashCdT.toFixed(1) : "", (x) => {
-          getById("dashSec").textContent = x;
+        update("dashSec", player.dashCdT > 0.25 ? player.dashCdT.toFixed(1) : "", (text) => {
+          getById("dashSec").textContent = text;
         }));
-      let p = Math.floor(n.nova);
-      r("nova", p, (x) => {
-        (getById("novaBtn").style.setProperty("--p", x + "%"), getById("novaBtn").classList.toggle("ready", x >= 100));
+      let nova = Math.floor(player.nova);
+      update("nova", nova, (pct) => {
+        (getById("novaBtn").style.setProperty("--p", pct + "%"),
+          getById("novaBtn").classList.toggle("ready", pct >= 100));
       });
       // 2.4.2: run timer and FPS counter
       const settings = store.data.settings,
@@ -891,58 +922,63 @@ var getById = (i) => document.getElementById(i),
           (meter.frames = 0),
           (meter.since = now)));
       const parts = [];
-      (settings.timer && parts.push(formatTime(t.time)), settings.fps && meter.fps && parts.push(meter.fps + " FPS"));
+      (settings.timer && parts.push(formatTime(world.time)),
+        settings.fps && meter.fps && parts.push(meter.fps + " FPS"));
       const txt = parts.join(" \xB7 ");
       txt !== meter.shown &&
         ((meter.shown = txt), (getById("hudInfo").textContent = txt), (getById("hudInfo").hidden = !txt));
     }
-    buffs(t) {
-      let e = t.player,
-        n = t.stats,
-        s = [];
-      (n.bloodrush && e.rushN > 0 && s.push(["rush", `RUSH \xD7${e.rushN}`, "#ff5a7a", e.rushT / 4]),
-        t.chronoT > 0 && s.push(["chrono", "SLOW-MO", "#8fe8ff", t.chronoT / 2]),
-        (t.ws.revive || 0) > 0 && !t.revived && s.push(["life", "2ND LIFE", "#6dff8a", -1]),
+    buffs(world) {
+      let player = world.player,
+        stats = world.stats,
+        chips = [];
+      (stats.bloodrush &&
+        player.rushN > 0 &&
+        chips.push(["rush", `RUSH \xD7${player.rushN}`, "#ff5a7a", player.rushT / 4]),
+        world.chronoT > 0 && chips.push(["chrono", "SLOW-MO", "#8fe8ff", world.chronoT / 2]),
+        (world.ws.revive || 0) > 0 && !world.revived && chips.push(["life", "2ND LIFE", "#6dff8a", -1]),
         // 2.5.0 B: Emergency Shield barrier and Hazard Attunement
-        t.barrierT > 0 && s.push(["barrier", "BARRIER", "#7fd8ff", t.barrierT / Math.max(1, n.barrierT || 1)]),
-        t.attuned && t.state === "fight" && s.push(["attune", "ATTUNED", "#ffb86b", -1]),
-        t.event &&
-          t.state === "fight" &&
-          s.unshift(["event", waveEvents[t.event].name, t.event === "elite" ? "#ffc84a" : "#7ff6ff", -1]),
-        e.onIce && t.state === "fight" && s.push(["ice", "ICE", "#bff4ff", -1]),
-        e.inAcid && t.state === "fight" && s.push(["acid", "ACID", "#b4ff3d", -1]),
-        e.slowT > 0 && s.push(["chill", "CHILLED", "#aee8ff", e.slowT / 1.6]));
-      let r = s.map((o) => o[0] + o[1]).join("|"),
-        a = getById("buffs");
-      this.hudCache.buffKey !== r &&
-        ((this.hudCache.buffKey = r),
-        (a.innerHTML = s
+        world.barrierT > 0 &&
+          chips.push(["barrier", "BARRIER", "#7fd8ff", world.barrierT / Math.max(1, stats.barrierT || 1)]),
+        world.attuned && world.state === "fight" && chips.push(["attune", "ATTUNED", "#ffb86b", -1]),
+        world.event &&
+          world.state === "fight" &&
+          chips.unshift(["event", waveEvents[world.event].name, world.event === "elite" ? "#ffc84a" : "#7ff6ff", -1]),
+        player.onIce && world.state === "fight" && chips.push(["ice", "ICE", "#bff4ff", -1]),
+        player.inAcid && world.state === "fight" && chips.push(["acid", "ACID", "#b4ff3d", -1]),
+        player.slowT > 0 && chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]));
+      let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
+        buffRow = getById("buffs");
+      this.hudCache.buffKey !== key &&
+        ((this.hudCache.buffKey = key),
+        (buffRow.innerHTML = chips
           .map(
-            ([o, c, h, l]) =>
-              `<span class="buff" data-b="${o}" style="--bc:${h}">${c}${l >= 0 ? "<i></i>" : ""}</span>`,
+            ([id, text, color, left]) =>
+              `<span class="buff" data-b="${id}" style="--bc:${color}">${text}${left >= 0 ? "<i></i>" : ""}</span>`,
           )
           .join("")));
-      for (let [o, , , c] of s) {
-        if (c < 0) continue;
-        let h = a.querySelector(`[data-b="${o}"] i`);
-        h && (h.style.transform = `scaleX(${clamp(c, 0, 1).toFixed(2)})`);
+      for (let [id, , , left] of chips) {
+        if (left < 0) continue;
+        let bar = buffRow.querySelector(`[data-b="${id}"] i`);
+        bar && (bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`);
       }
       // 2.5.0 A: chips for the timed upgrades (Heat Sink, Slipstream) and active Cryo Skates.
       // They are added next to the chips above, which may rebuild the row at any frame.
-      const on = t.state === "fight" && e.alive,
+      const on = world.state === "fight" && player.alive,
         want = [];
-      on && n.heatSink && e.heatT > 0 && want.push(["heat", "HEAT", "#ff8a3d", e.heatT / 3]);
-      on && n.slip && e.slipT > 0 && want.push(["slip", "SLIPSTREAM", "#7ff6ff", e.slipT / 1.37]);
-      on && n.skates && e.skating && want.push(["skate", "SKATES", "#bff4ff", -1]);
+      on && stats.heatSink && player.heatT > 0 && want.push(["heat", "HEAT", "#ff8a3d", player.heatT / 3]);
+      on && stats.slip && player.slipT > 0 && want.push(["slip", "SLIPSTREAM", "#7ff6ff", player.slipT / 1.37]);
+      on && stats.skates && player.skating && want.push(["skate", "SKATES", "#bff4ff", -1]);
       const row = getById("buffs");
       if (!row) return;
-      for (const k of timedBuffChips) if (!want.some((w) => w[0] === k)) row.querySelector(`[data-b="${k}"]`)?.remove();
-      for (const [k, text, color, left] of want) {
-        let el = row.querySelector(`[data-b="${k}"]`);
+      for (const id of timedBuffChips)
+        if (!want.some((chip) => chip[0] === id)) row.querySelector(`[data-b="${id}"]`)?.remove();
+      for (const [id, text, color, left] of want) {
+        let el = row.querySelector(`[data-b="${id}"]`);
         if (!el) {
           el = document.createElement("span");
           el.className = "buff";
-          el.dataset.b = k;
+          el.dataset.b = id;
           el.style.setProperty("--bc", color);
           el.innerHTML = escapeHtml(text) + (left >= 0 ? "<i></i>" : "");
           row.appendChild(el);
@@ -951,54 +987,54 @@ var getById = (i) => document.getElementById(i),
         bar && (bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`);
       }
     }
-    showChoose(t) {
-      let e = t.offerBoss;
-      ((getById("chooseEyebrow").textContent = e
-        ? `${bossDefs[t.bossKills[t.bossKills.length - 1]] ? bossDefs[t.bossKills[t.bossKills.length - 1]].name : "BOSS"} DEFEATED`
-        : `WAVE ${t.wave} CLEARED`),
-        (getById("chooseTitle").textContent = e ? "Claim a rare reward" : "Choose an upgrade"));
-      let n = clamp(t.player.hp / t.stats.maxHp, 0, 1);
-      ((getById("chooseHp").style.transform = `scaleX(${n})`),
-        (getById("chooseHpNum").textContent = `${Math.ceil(t.player.hp)}/${t.stats.maxHp}`),
-        this.renderCards(t),
+    showChoose(world) {
+      let bossReward = world.offerBoss;
+      ((getById("chooseEyebrow").textContent = bossReward
+        ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "BOSS"} DEFEATED`
+        : `WAVE ${world.wave} CLEARED`),
+        (getById("chooseTitle").textContent = bossReward ? "Claim a rare reward" : "Choose an upgrade"));
+      let hpFrac = clamp(world.player.hp / world.stats.maxHp, 0, 1);
+      ((getById("chooseHp").style.transform = `scaleX(${hpFrac})`),
+        (getById("chooseHpNum").textContent = `${Math.ceil(world.player.hp)}/${world.stats.maxHp}`),
+        this.renderCards(world),
         this.coverHud(!0),
         (getById("choose").hidden = !1));
     }
-    renderCards(t) {
+    renderCards(world) {
       // 2.4.2: the reroll label survives a re-render (reroll), so drop its old key hint first
       getById("rerollBtn")
         .querySelectorAll(".card-key")
-        .forEach((e) => e.remove());
-      let e = getById("cards");
-      ((e.innerHTML = t.offer
-        .map((n, s) => {
-          let r = upgradesById[n],
-            a = t.up[n] || 0,
-            o = r.evo
+        .forEach((el) => el.remove());
+      let cards = getById("cards");
+      ((cards.innerHTML = world.offer
+        .map((id, i) => {
+          let up = upgradesById[id],
+            level = world.up[id] || 0,
+            tag = up.evo
               ? "EVOLUTION"
-              : r.repeat
-                ? rarityNames[r.rarity].toUpperCase()
-                : a
-                  ? `LV ${a} \u2192 ${a + 1}`
-                  : `NEW \xB7 ${rarityNames[r.rarity].toUpperCase()}`,
-            c = this.evoHint(r, t),
-            h = this.statDelta(n, t);
-          return `<button class="card r${r.rarity}" data-pick="${n}" style="animation-delay:${s * 70}ms"><span class="cico">${iconSvg(r.icon)}</span><span><span class="ctop"><b>${escapeHtml(r.name)}</b><span class="lv">${o}</span></span><p>${escapeHtml(r.desc(a))}</p>${h}${c}</span></button>`;
+              : up.repeat
+                ? rarityNames[up.rarity].toUpperCase()
+                : level
+                  ? `LV ${level} \u2192 ${level + 1}`
+                  : `NEW \xB7 ${rarityNames[up.rarity].toUpperCase()}`,
+            evo = this.evoHint(up, world),
+            delta = this.statDelta(id, world);
+          return `<button class="card r${up.rarity}" data-pick="${id}" style="animation-delay:${i * 70}ms"><span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${tag}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
         })
         .join("")),
-        e.classList.add("locked"),
+        cards.classList.add("locked"),
         clearTimeout(this.armT),
-        (this.armT = setTimeout(() => e.classList.remove("locked"), 650)));
-      for (let n of e.querySelectorAll("[data-pick]"))
-        n.addEventListener("click", () => {
-          e.classList.contains("locked") || this.g.choose(n.dataset.pick);
+        (this.armT = setTimeout(() => cards.classList.remove("locked"), 650)));
+      for (let card of cards.querySelectorAll("[data-pick]"))
+        card.addEventListener("click", () => {
+          cards.classList.contains("locked") || this.g.choose(card.dataset.pick);
         });
-      ((getById("rerollTxt").textContent = `Reroll (${t.rerolls})`),
-        (getById("rerollBtn").disabled = t.rerolls <= 0),
-        (getById("buildStrip").innerHTML = this.buildHtml(t)));
+      ((getById("rerollTxt").textContent = `Reroll (${world.rerolls})`),
+        (getById("rerollBtn").disabled = world.rerolls <= 0),
+        (getById("buildStrip").innerHTML = this.buildHtml(world)));
       // 2.5.0 D: every upgrade that is offered counts as seen (also after a reroll and in a resumed run)
       try {
-        this.markSeen((t.offer || []).filter((id) => upgradesById[id]).map((id) => "up_" + id));
+        this.markSeen((world.offer || []).filter((id) => upgradesById[id]).map((id) => "up_" + id));
       } catch (err) {
         console.warn("codex", err);
       }
@@ -1007,80 +1043,86 @@ var getById = (i) => document.getElementById(i),
         getById("cards")
           .querySelectorAll("[data-pick]")
           .forEach(
-            (c, i) => (
-              c.classList.add("has-key"),
-              c.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`)
+            (card, i) => (
+              card.classList.add("has-key"),
+              card.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`)
             ),
           );
         getById("rerollTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
       }
     }
-    statDelta(t, e) {
-      let n = e.player,
-        s = e.stats;
-      if (t === "heal") {
-        let o = Math.min(s.maxHp, n.hp + s.maxHp * 0.45);
-        return `<small class="delta">Hull ${Math.ceil(n.hp)} \u2192 ${Math.ceil(o)}</small>`;
+    statDelta(id, world) {
+      let player = world.player,
+        stats = world.stats;
+      if (id === "heal") {
+        let healed = Math.min(stats.maxHp, player.hp + stats.maxHp * 0.45);
+        return `<small class="delta">Hull ${Math.ceil(player.hp)} \u2192 ${Math.ceil(healed)}</small>`;
       }
-      let r = computeStats(e.weapon, { ...e.up, [t]: (e.up[t] || 0) + 1 }, e.ws),
-        a = [];
-      for (let [o, c, h] of statRows) {
-        let l = c(s),
-          u = c(r);
-        if (!(Math.abs(l - u) < 1e-6) && (a.push(`${o} ${h(l)} \u2192 ${h(u)}`), a.length >= 2)) break;
+      let next = computeStats(world.weapon, { ...world.up, [id]: (world.up[id] || 0) + 1 }, world.ws),
+        lines = [];
+      for (let [label, get, format] of statRows) {
+        let before = get(stats),
+          after = get(next);
+        if (
+          !(Math.abs(before - after) < 1e-6) &&
+          (lines.push(`${label} ${format(before)} \u2192 ${format(after)}`), lines.length >= 2)
+        )
+          break;
       }
-      return a.length ? `<small class="delta">${escapeHtml(a.join(" \xB7 "))}</small>` : "";
+      return lines.length ? `<small class="delta">${escapeHtml(lines.join(" \xB7 "))}</small>` : "";
     }
-    evoHint(t, e) {
-      if (t.evo)
-        return `<small class="evo-hint">Merges ${Object.keys(t.evo)
-          .map((o) => escapeHtml(upgradesById[o].name))
+    evoHint(up, world) {
+      if (up.evo)
+        return `<small class="evo-hint">Merges ${Object.keys(up.evo)
+          .map((id) => escapeHtml(upgradesById[id].name))
           .join(" + ")}</small>`;
-      let n = upgradeList.filter((o) => o.evo && o.evo[t.id] && !e.up[o.id] && (!o.weapon || o.weapon === e.weapon)),
-        s = n.find((o) => o.weapon) || n[0];
-      if (!s) return "";
-      let r = Object.keys(s.evo)
-          .filter((o) => o !== t.id)
-          .map((o) => `${upgradesById[o].name} ${Math.min(e.up[o] || 0, s.evo[o])}/${s.evo[o]}`),
-        a = `${Math.min((e.up[t.id] || 0) + 1, s.evo[t.id])}/${s.evo[t.id]}`;
-      return `<small class="evo-hint">\u2192 ${escapeHtml(s.name)}: this ${a} \xB7 ${escapeHtml(r.join(", "))}</small>`;
+      let evos = upgradeList.filter(
+          (evo) => evo.evo && evo.evo[up.id] && !world.up[evo.id] && (!evo.weapon || evo.weapon === world.weapon),
+        ),
+        evo = evos.find((evo) => evo.weapon) || evos[0];
+      if (!evo) return "";
+      let others = Object.keys(evo.evo)
+          .filter((id) => id !== up.id)
+          .map((id) => `${upgradesById[id].name} ${Math.min(world.up[id] || 0, evo.evo[id])}/${evo.evo[id]}`),
+        mine = `${Math.min((world.up[up.id] || 0) + 1, evo.evo[up.id])}/${evo.evo[up.id]}`;
+      return `<small class="evo-hint">\u2192 ${escapeHtml(evo.name)}: this ${mine} \xB7 ${escapeHtml(others.join(", "))}</small>`;
     }
     hideChoose() {
       ((getById("choose").hidden = !0), this.coverHud(!1));
     }
-    coverHud(t) {
-      ((getById("hud").style.visibility = t ? "hidden" : ""),
-        t && ((getById("banner").innerHTML = ""), clearTimeout(this.bannerT)));
+    coverHud(on) {
+      ((getById("hud").style.visibility = on ? "hidden" : ""),
+        on && ((getById("banner").innerHTML = ""), clearTimeout(this.bannerT)));
       // 2.5.0 D: the upgrade choice and the pause menu hide the title cards like the banner
-      t && this.clearTitleCard();
+      on && this.clearTitleCard();
     }
-    buildHtml(t) {
-      let e = upgradeList.filter((n) => t.up[n.id] && !n.repeat);
-      return e.length
-        ? e
+    buildHtml(world) {
+      let own = upgradeList.filter((upgrade) => world.up[upgrade.id] && !upgrade.repeat);
+      return own.length
+        ? own
             .map(
-              (n) =>
-                `<span class="bi r${n.rarity}" title="${escapeHtml(n.name)}">${iconSvg(n.icon)}${escapeHtml(n.name)}${t.up[n.id] > 1 ? " \xD7" + t.up[n.id] : ""}</span>`,
+              (upgrade) =>
+                `<span class="bi r${upgrade.rarity}" title="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</span>`,
             )
             .join("")
         : '<span class="note">No upgrades yet.</span>';
     }
-    showPause(t) {
-      ((getById("pauseTitle").textContent = `Wave ${t.wave}${t.endless ? " \xB7 Endless" : ""}`),
+    showPause(world) {
+      ((getById("pauseTitle").textContent = `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`),
         (getById("pauseStats").innerHTML =
-          `<span>${formatTime(t.time)}</span><span>${t.kills} KILLS</span><span>${t.shards} SHARDS</span>`),
-        (getById("pauseBuild").innerHTML = this.buildHtml(t)),
+          `<span>${formatTime(world.time)}</span><span>${world.kills} KILLS</span><span>${world.shards} SHARDS</span>`),
+        (getById("pauseBuild").innerHTML = this.buildHtml(world)),
         this.coverHud(!0),
         (getById("pause").hidden = !1),
         (this.screen = "pause"));
       // 2.4.2: the build in the pause menu explains each upgrade on tap or click
-      const own = upgradeList.filter((n) => t.up[n.id] && !n.repeat),
+      const own = upgradeList.filter((upgrade) => world.up[upgrade.id] && !upgrade.repeat),
         info = getById("pauseUpInfo");
       own.length &&
         (getById("pauseBuild").innerHTML = own
           .map(
-            (n) =>
-              `<button type="button" class="bi r${n.rarity}" data-up="${n.id}" aria-label="${escapeHtml(n.name)}">${iconSvg(n.icon)}${escapeHtml(n.name)}${t.up[n.id] > 1 ? " \xD7" + t.up[n.id] : ""}</button>`,
+            (upgrade) =>
+              `<button type="button" class="bi r${upgrade.rarity}" data-up="${upgrade.id}" aria-label="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</button>`,
           )
           .join(""));
       ((info.hidden = !own.length), (info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>'));
@@ -1098,98 +1140,102 @@ var getById = (i) => document.getElementById(i),
         getById("settings").classList.add("in-run"),
         this._show("settings"));
     }
-    showOver(t) {
-      getById("overEyebrow").textContent = t.win
-        ? `${threatLevels[t.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
-        : `${weaponDefs[t.weapon].name.toUpperCase()} \xB7 ${threatLevels[t.threat].name.toUpperCase()}`;
-      let e = getById("overTitle");
-      ((e.textContent = t.win ? "RIFT SEALED" : t.abandoned ? "RUN ENDED" : "SIGNAL LOST"),
-        (e.className = "over-title " + (t.win ? "win" : "lose")),
-        (getById("overBest").hidden = !(t.best || t.fastest)),
-        (getById("overBest").textContent = t.fastest && !t.best ? "NEW FASTEST" : "NEW BEST"));
-      let n = t.killer ? enemyDefs[t.killer] || bossDefs[t.killer] : null;
-      ((getById("overCause").hidden = !n && t.killer !== "lava" && t.killer !== "acid"),
-        n
-          ? (getById("overCause").textContent = `Destroyed by ${bossDefs[t.killer] ? n.name : "a " + n.name}`)
-          : t.killer === "lava"
+    showOver(result) {
+      getById("overEyebrow").textContent = result.win
+        ? `${threatLevels[result.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
+        : `${weaponDefs[result.weapon].name.toUpperCase()} \xB7 ${threatLevels[result.threat].name.toUpperCase()}`;
+      let title = getById("overTitle");
+      ((title.textContent = result.win ? "RIFT SEALED" : result.abandoned ? "RUN ENDED" : "SIGNAL LOST"),
+        (title.className = "over-title " + (result.win ? "win" : "lose")),
+        (getById("overBest").hidden = !(result.best || result.fastest)),
+        (getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST"));
+      let killer = result.killer ? enemyDefs[result.killer] || bossDefs[result.killer] : null;
+      ((getById("overCause").hidden = !killer && result.killer !== "lava" && result.killer !== "acid"),
+        killer
+          ? (getById("overCause").textContent =
+              `Destroyed by ${bossDefs[result.killer] ? killer.name : "a " + killer.name}`)
+          : result.killer === "lava"
             ? (getById("overCause").textContent = "Burned by a lava vent")
-            : t.killer === "acid" && (getById("overCause").textContent = "Dissolved in acid"),
+            : result.killer === "acid" && (getById("overCause").textContent = "Dissolved in acid"),
         (getById("overStats").innerHTML = [
-          ["Wave", t.wave],
-          ["Time", formatTime(t.time)],
-          ["Kills", t.kills],
-          ["Bosses", t.bosses],
+          ["Wave", result.wave],
+          ["Time", formatTime(result.time)],
+          ["Kills", result.kills],
+          ["Bosses", result.bosses],
         ]
-          .map(([s, r]) => `<div class="cell"><div class="k">${s}</div><div class="v">${r}</div></div>`)
+          .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
           .join("")),
-        (getById("payRows").innerHTML = t.rows
+        (getById("payRows").innerHTML = result.rows
           .map(
-            ([s, r]) =>
-              `<div class="pay-row"><span>${escapeHtml(s)}</span><span class="num">${escapeHtml(r)}</span></div>`,
+            ([label, value]) =>
+              `<div class="pay-row"><span>${escapeHtml(label)}</span><span class="num">${escapeHtml(value)}</span></div>`,
           )
           .join("")),
         (getById("overMs").innerHTML =
-          (t.unlocks || []).map((s) => `<span class="chip">${iconSvg("star")} ${escapeHtml(s)}</span>`).join("") +
-          t.milestones
-            .map((s) => `<span class="chip">${iconSvg("trophy")} Milestone ready: ${escapeHtml(s)}</span>`)
+          (result.unlocks || [])
+            .map((text) => `<span class="chip">${iconSvg("star")} ${escapeHtml(text)}</span>`)
+            .join("") +
+          result.milestones
+            .map((text) => `<span class="chip">${iconSvg("trophy")} Milestone ready: ${escapeHtml(text)}</span>`)
             .join("")),
-        this.renderDamage(t),
-        (getById("endlessBtn").hidden = !t.canEndless),
-        (getById("retryBtn").hidden = t.canEndless),
+        this.renderDamage(result),
+        (getById("endlessBtn").hidden = !result.canEndless),
+        (getById("retryBtn").hidden = result.canEndless),
         (getById("over").hidden = !1),
-        this.countUp(getById("payTotal"), t.total));
+        this.countUp(getById("payTotal"), result.total));
     }
-    renderDamage(t) {
-      let e = getById("overDmg"),
-        n = t.dmgSrc || {},
-        s = Object.entries(n)
-          .filter(([, h]) => h >= 1)
-          .sort((h, l) => l[1] - h[1]),
-        r = s.reduce((h, [, l]) => h + l, 0);
-      if (((e.hidden = !s.length || r < 50), e.hidden)) return;
-      let a = s.slice(0, 4),
-        o = s.slice(4).reduce((h, [, l]) => h + l, 0);
-      o > 0 && a.push(["other", o]);
-      let c = a[0][1];
-      e.innerHTML =
+    renderDamage(result) {
+      let box = getById("overDmg"),
+        bySource = result.dmgSrc || {},
+        sources = Object.entries(bySource)
+          .filter(([, dmg]) => dmg >= 1)
+          .sort((a, b) => b[1] - a[1]),
+        total = sources.reduce((sum, [, dmg]) => sum + dmg, 0);
+      if (((box.hidden = !sources.length || total < 50), box.hidden)) return;
+      let shown = sources.slice(0, 4),
+        rest = sources.slice(4).reduce((sum, [, dmg]) => sum + dmg, 0);
+      rest > 0 && shown.push(["other", rest]);
+      let top = shown[0][1];
+      box.innerHTML =
         '<div class="dh">Damage dealt</div>' +
-        a
-          .map(([h, l]) => {
-            let u = h === "weapon" ? t.weaponName : damageSources[h] ? damageSources[h][0] : "Other",
-              d =
-                h === "weapon"
-                  ? "#" + weaponDefs[t.weapon].color.toString(16).padStart(6, "0")
-                  : damageSources[h]
-                    ? damageSources[h][1]
+        shown
+          .map(([src, dmg]) => {
+            let label = src === "weapon" ? result.weaponName : damageSources[src] ? damageSources[src][0] : "Other",
+              color =
+                src === "weapon"
+                  ? "#" + weaponDefs[result.weapon].color.toString(16).padStart(6, "0")
+                  : damageSources[src]
+                    ? damageSources[src][1]
                     : "#93a2bf",
-              f = Math.round((l / r) * 100);
-            return `<div class="dmg-row" style="--dc:${d}"><span>${escapeHtml(u)}</span><span class="num">${formatCount(l)} \xB7 ${f}%</span><span class="db"><i style="transform:scaleX(${(l / c).toFixed(3)})"></i></span></div>`;
+              pct = Math.round((dmg / total) * 100);
+            return `<div class="dmg-row" style="--dc:${color}"><span>${escapeHtml(label)}</span><span class="num">${formatCount(dmg)} \xB7 ${pct}%</span><span class="db"><i style="transform:scaleX(${(dmg / top).toFixed(3)})"></i></span></div>`;
           })
           .join("");
     }
     hideOver() {
       getById("over").hidden = !0;
     }
-    countUp(t, e) {
-      let n = performance.now(),
-        s = 900,
-        r = (a) => {
-          let o = clamp((a - n) / s, 0, 1);
-          ((t.textContent = formatCount(Math.round(e * (1 - Math.pow(1 - o, 3))))), o < 1 && requestAnimationFrame(r));
+    countUp(el, total) {
+      let start = performance.now(),
+        duration = 900,
+        step = (now) => {
+          let k = clamp((now - start) / duration, 0, 1);
+          ((el.textContent = formatCount(Math.round(total * (1 - Math.pow(1 - k, 3))))),
+            k < 1 && requestAnimationFrame(step));
         };
-      requestAnimationFrame(r);
+      requestAnimationFrame(step);
     }
-    showCrash(t) {
-      for (let e of ["choose", "pause", "over"]) getById(e).hidden = !0;
-      (this.showHud(!1), (getById("crashLog").value = t), (getById("crash").hidden = !1));
+    showCrash(log) {
+      for (let id of ["choose", "pause", "over"]) getById(id).hidden = !0;
+      (this.showHud(!1), (getById("crashLog").value = log), (getById("crash").hidden = !1));
     }
     hideCrash() {
       getById("crash").hidden = !0;
     }
     hurtFlash() {
       if (this.calm) return;
-      let t = getById("flash");
-      (t.classList.add("on"), requestAnimationFrame(() => requestAnimationFrame(() => t.classList.remove("on"))));
+      let el = getById("flash");
+      (el.classList.add("on"), requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove("on"))));
     }
     // ---- 2.5.0 D: title cards (see the note above RL_BIOME_CARD)
     clearTitleCard() {
@@ -1201,62 +1247,65 @@ var getById = (i) => document.getElementById(i),
     }
     // biome title card; it replaces the wave banner of its wave
     biomeCard(biome, wave, ms = 9000) {
-      const c = rlBiomeCardInfo(biome);
+      const info = rlBiomeCardInfo(biome);
       holdTitleCard(
         this,
         "biome",
-        `<div class="tcard biome hold" data-biome="${escapeHtml(c.id)}" style="--bc:${c.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(c.name)}</div>${c.hazard ? `<div class="tc-haz">${escapeHtml(c.hazard)}</div>` : ""}${c.boss ? `<div class="tc-boss"><span>Boss</span>${escapeHtml(c.boss)}</div>` : ""}</div></div>`,
+        `<div class="tcard biome hold" data-biome="${escapeHtml(info.id)}" style="--bc:${info.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(info.name)}</div>${info.hazard ? `<div class="tc-haz">${escapeHtml(info.hazard)}</div>` : ""}${info.boss ? `<div class="tc-boss"><span>Boss</span>${escapeHtml(info.boss)}</div>` : ""}</div></div>`,
         900,
         ms,
       );
-      return c;
+      return info;
     }
     // boss intro card, shown during the camera pan to a new boss
     bossCard(id, biome, ms = 9000) {
-      const b = bossDefs[id];
-      if (!b) return null;
+      const boss = bossDefs[id];
+      if (!boss) return null;
       holdTitleCard(
         this,
         "boss",
-        `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(b.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Boss${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(b.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(b.title)}</div></div></div>`,
+        `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(boss.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Boss${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(boss.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(boss.title)}</div></div></div>`,
         1600,
         ms,
       );
-      return b;
+      return boss;
     }
     // fades the held card out in 0.5 s, after it has been on screen for its minimum time
     releaseTitleCard() {
-      const h = this.cardHold;
-      if (!h) return;
+      const hold = this.cardHold;
+      if (!hold) return;
       this.cardHold = null;
-      if (this.titleCardN !== h.token) return; // another card replaced it
+      if (this.titleCardN !== hold.token) return; // another card replaced it
       clearTimeout(this.titleCardT);
       this.titleCardT = setTimeout(
         () => {
-          if (this.titleCardN !== h.token) return;
-          const c = document.querySelector("#titleCard .tcard");
-          c && c.classList.add("out");
-          this.titleCardT = setTimeout(() => this.titleCardN === h.token && (getById("titleCard").innerHTML = ""), 520);
+          if (this.titleCardN !== hold.token) return;
+          const card = document.querySelector("#titleCard .tcard");
+          card && card.classList.add("out");
+          this.titleCardT = setTimeout(
+            () => this.titleCardN === hold.token && (getById("titleCard").innerHTML = ""),
+            520,
+          );
         },
-        Math.max(0, h.min - (performance.now() - h.at)),
+        Math.max(0, hold.min - (performance.now() - hold.at)),
       );
     }
     // ---- 2.5.0 D: Codex "seen" keys; saves only when something is new
     markSeen(keys) {
       const seen = this.save && this.save.seen;
       if (!seen) return 0;
-      let n = 0;
-      for (const k of keys) seen[k] !== !0 && ((seen[k] = !0), n++);
-      n && this.g.store.save("codex");
-      return n;
+      let added = 0;
+      for (const key of keys) seen[key] !== !0 && ((seen[key] = !0), added++);
+      added && this.g.store.save("codex");
+      return added;
     }
     // ---- 2.5.0 D: Records: Stats / Codex tabs (built on first use, the page markup stays as it was)
     recordsTab(tab) {
       ensureRecordTabs(this);
       this.recTab = tab === "codex" ? "codex" : "stats";
-      for (const b of getById("recTabs").querySelectorAll("[data-rtab]")) {
-        const on = b.dataset.rtab === this.recTab;
-        (b.classList.toggle("on", on), b.setAttribute("aria-selected", on ? "true" : "false"));
+      for (const btn of getById("recTabs").querySelectorAll("[data-rtab]")) {
+        const on = btn.dataset.rtab === this.recTab;
+        (btn.classList.toggle("on", on), btn.setAttribute("aria-selected", on ? "true" : "false"));
       }
       ((getById("records").querySelector(".scroll").hidden = this.recTab !== "stats"),
         (getById("codexList").hidden = this.recTab !== "codex"));
@@ -1264,25 +1313,25 @@ var getById = (i) => document.getElementById(i),
       requestAnimationFrame(() => window.__riftLayoutAudit?.());
     }
     renderCodex() {
-      const c = rlCodexEntries(this.save),
-        all = [...c.enemies, ...c.bosses, ...c.upgrades],
-        found = all.filter((e) => e.seen).length,
+      const codex = rlCodexEntries(this.save),
+        all = [...codex.enemies, ...codex.bosses, ...codex.upgrades],
+        found = all.filter((entry) => entry.seen).length,
         rows = (list, hint) =>
           list
-            .map((e) => {
-              const cls = `row panel cx${e.seen ? "" : " unseen"}${e.rarity ? " r" + e.rarity : ""}`;
-              if (!e.seen)
-                return `<div class="${cls}" data-cx="${escapeHtml(e.key)}"><div class="rico">${iconSvg("lock")}</div><div><b>???</b><small>${escapeHtml(hint)}</small></div></div>`;
-              return `<div class="${cls}" data-cx="${escapeHtml(e.key)}"${e.color ? ` style="--cc:${e.color}"` : ""}><div class="rico">${iconSvg(e.icon)}</div><div><b>${escapeHtml(e.name)}</b><small>${escapeHtml(e.desc)}</small>${e.extra ? `<small class="cx-extra">${escapeHtml(e.extra)}</small>` : ""}</div>${e.tag ? `<span class="chip">${escapeHtml(e.tag)}</span>` : ""}</div>`;
+            .map((entry) => {
+              const cls = `row panel cx${entry.seen ? "" : " unseen"}${entry.rarity ? " r" + entry.rarity : ""}`;
+              if (!entry.seen)
+                return `<div class="${cls}" data-cx="${escapeHtml(entry.key)}"><div class="rico">${iconSvg("lock")}</div><div><b>???</b><small>${escapeHtml(hint)}</small></div></div>`;
+              return `<div class="${cls}" data-cx="${escapeHtml(entry.key)}"${entry.color ? ` style="--cc:${entry.color}"` : ""}><div class="rico">${iconSvg(entry.icon)}</div><div><b>${escapeHtml(entry.name)}</b><small>${escapeHtml(entry.desc)}</small>${entry.extra ? `<small class="cx-extra">${escapeHtml(entry.extra)}</small>` : ""}</div>${entry.tag ? `<span class="chip">${escapeHtml(entry.tag)}</span>` : ""}</div>`;
             })
             .join(""),
         part = (title, list, hint) =>
-          `<h3 class="section-h">${title} <span class="cx-count">${list.filter((e) => e.seen).length}/${list.length}</span></h3><div class="codex-grid">${rows(list, hint)}</div>`;
+          `<h3 class="section-h">${title} <span class="cx-count">${list.filter((entry) => entry.seen).length}/${list.length}</span></h3><div class="codex-grid">${rows(list, hint)}</div>`;
       getById("codexList").innerHTML =
         `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies and bosses unlock when you meet them, upgrades when a run offers them.</p>` +
-        part("Enemies", c.enemies, "Not encountered yet") +
-        part("Bosses", c.bosses, "Not encountered yet") +
-        part("Upgrades", c.upgrades, "Not offered yet");
+        part("Enemies", codex.enemies, "Not encountered yet") +
+        part("Bosses", codex.bosses, "Not encountered yet") +
+        part("Upgrades", codex.upgrades, "Not offered yet");
     }
   };
 // 2.4.2: state of the FPS counter in the HUD
@@ -1322,44 +1371,47 @@ var RL_CODEX_EXTRA = {
   mite: "Mites burst out of destroyed Splitters. Small and fast, but one shot each.",
 };
 var RL_CODEX_WITH = { mite: "splitter" };
-const rlHex = (c) => "#" + ((Number(c) >>> 0) & 0xffffff).toString(16).padStart(6, "0");
-function rlBiomeCardInfo(b) {
-  b = b || biomeList[0];
-  const bossId = bossByBiome[b.id],
+const rlHex = (color) => "#" + ((Number(color) >>> 0) & 0xffffff).toString(16).padStart(6, "0");
+function rlBiomeCardInfo(biome) {
+  biome = biome || biomeList[0];
+  const bossId = bossByBiome[biome.id],
     boss = bossId && bossDefs[bossId];
   return {
-    id: b.id,
-    name: b.name,
-    hazard: RL_BIOME_CARD[b.id] || b.tag || "",
+    id: biome.id,
+    name: biome.name,
+    hazard: RL_BIOME_CARD[biome.id] || biome.tag || "",
     boss: boss ? boss.name : "",
-    color: rlHex(b.grid != null ? b.grid : 0x49f2ff),
+    color: rlHex(biome.grid != null ? biome.grid : 0x49f2ff),
   };
 }
 // Codex entries of a save. Names and texts come from the data tables at run time, so added or
 // removed enemies, bosses and upgrades show up without changes here.
 function rlCodexEntries(save) {
-  const d = save || {},
-    seen = d.seen || {},
-    beaten = (d.stats && d.stats.bosses) || {},
+  const data = save || {},
+    seen = data.seen || {},
+    beaten = (data.stats && data.stats.bosses) || {},
     offered = new Set();
   // saves from before the Codex never stored up_<id>; builds in the run history and the saved run
   // show which upgrades the player has been offered already
-  for (const h of Array.isArray(d.history) ? d.history : [])
-    for (const id of (h && Array.isArray(h.build) && h.build) || []) offered.add(id);
-  if (d.run && typeof d.run === "object") {
-    for (const id of Object.keys(d.run.up || {})) offered.add(id);
-    for (const id of Array.isArray(d.run.offer) ? d.run.offer : []) offered.add(id);
+  for (const run of Array.isArray(data.history) ? data.history : [])
+    for (const id of (run && Array.isArray(run.build) && run.build) || []) offered.add(id);
+  if (data.run && typeof data.run === "object") {
+    for (const id of Object.keys(data.run.up || {})) offered.add(id);
+    for (const id of Array.isArray(data.run.offer) ? data.run.offer : []) offered.add(id);
   }
   const enemyIds = [
       ...enemyOrder.filter((id) => enemyDefs[id]),
       ...Object.keys(enemyDefs).filter((id) => !enemyOrder.includes(id)),
     ],
-    bossBiome = Object.fromEntries(Object.entries(bossByBiome).map(([b, id]) => [id, biomesById[b]])),
+    bossBiome = Object.fromEntries(Object.entries(bossByBiome).map(([biomeId, id]) => [id, biomesById[biomeId]])),
     // the usual route: Neon Yard first, Void Core last
     rank = (id) => (id === "warden" ? 0 : id === "core" ? 9 : 1),
     bossIds = [
-      ...new Set([...biomeList.map((b) => bossByBiome[b.id]).filter((id) => bossDefs[id]), ...Object.keys(bossDefs)]),
-    ].sort((a, b) => rank(a) - rank(b));
+      ...new Set([
+        ...biomeList.map((biome) => bossByBiome[biome.id]).filter((id) => bossDefs[id]),
+        ...Object.keys(bossDefs),
+      ]),
+    ].sort((idA, idB) => rank(idA) - rank(idB));
   const enemies = enemyIds.map((id) => ({
       key: "enemy_" + id,
       id,
@@ -1370,36 +1422,36 @@ function rlCodexEntries(save) {
       icon: "skull",
     })),
     bosses = bossIds.map((id) => {
-      const b = bossDefs[id],
-        n = +beaten[id] || 0,
+      const boss = bossDefs[id],
+        kills = +beaten[id] || 0,
         bio = bossBiome[id];
       return {
         key: "boss_" + id,
         id,
-        seen: seen["boss_" + id] === !0 || n > 0,
-        name: b.name,
-        desc: b.title + (bio ? ` \xB7 ${bio.name}` : ""),
-        extra: n > 0 ? `Defeated \xD7${n}` : "",
-        color: rlHex(b.color),
+        seen: seen["boss_" + id] === !0 || kills > 0,
+        name: boss.name,
+        desc: boss.title + (bio ? ` \xB7 ${bio.name}` : ""),
+        extra: kills > 0 ? `Defeated \xD7${kills}` : "",
+        color: rlHex(boss.color),
         icon: "target",
       };
     }),
-    upgrades = upgradeList.map((u) => {
+    upgrades = upgradeList.map((up) => {
       let desc = "";
       try {
-        desc = typeof u.desc === "function" ? u.desc(0) : String(u.desc || "");
+        desc = typeof up.desc === "function" ? up.desc(0) : String(up.desc || "");
       } catch {}
-      const w = u.weapon && weaponDefs[u.weapon];
+      const weapon = up.weapon && weaponDefs[up.weapon];
       return {
-        key: "up_" + u.id,
-        id: u.id,
-        seen: seen["up_" + u.id] === !0 || offered.has(u.id),
-        name: u.name,
+        key: "up_" + up.id,
+        id: up.id,
+        seen: seen["up_" + up.id] === !0 || offered.has(up.id),
+        name: up.name,
         desc,
-        extra: w ? w.name + " only" : "",
-        rarity: u.evo ? 5 : u.rarity,
-        tag: u.evo ? "Evolution" : rarityNames[u.rarity] || "",
-        icon: u.icon,
+        extra: weapon ? weapon.name + " only" : "",
+        rarity: up.evo ? 5 : up.rarity,
+        tag: up.evo ? "Evolution" : rarityNames[up.rarity] || "",
+        icon: up.icon,
       };
     });
   return { enemies, bosses, upgrades };
@@ -1453,7 +1505,8 @@ function ensureRecordTabs(ui) {
       '<div id="recTabs" class="seg rec-tabs" role="tablist"><button type="button" role="tab" data-rtab="stats" class="on" aria-selected="true">Stats</button><button type="button" role="tab" data-rtab="codex" aria-selected="false">Codex</button></div>',
     );
   main.insertAdjacentHTML("afterend", '<div id="codexList" class="scroll codex" hidden></div>');
-  for (const b of getById("recTabs").querySelectorAll("[data-rtab]")) ui.click(b, () => ui.recordsTab(b.dataset.rtab));
+  for (const btn of getById("recTabs").querySelectorAll("[data-rtab]"))
+    ui.click(btn, () => ui.recordsTab(btn.dataset.rtab));
 }
 
 export {
