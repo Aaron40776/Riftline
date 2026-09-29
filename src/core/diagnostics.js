@@ -1553,7 +1553,8 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
         cleaned.wave === 12 &&
         cleaned.weapon === "pulse" &&
         cleaned.hp === 999999 &&
-        cleaned.up.dmg === 8 &&
+        // 2.5.1: the level is capped at the upgrade's max (12 since 2.5.0, the check still said 8)
+        cleaned.up.dmg === upgradesById.dmg.max &&
         cleaned.bossKills.length === 1 &&
         Number.isFinite(cleaned.time) &&
         Number.isFinite(cleaned.shards) &&
