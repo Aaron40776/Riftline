@@ -1,9 +1,9 @@
 // Run upgrades and evolutions, offer weights.
 
-var rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution"];
+const rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution"];
 // 2.5.0 A: 19 upgrades that were weaker copies of another one are gone (RL_RETIRED_UPGRADES at the
 // end says where each went); the upgrade that took them over has a higher max.
-var upgradeList = [
+const upgradeList = [
   { id: "dmg", name: "High-Yield Rounds", rarity: 1, max: 12, icon: "burst", desc: () => "+15% damage" },
   { id: "rate", name: "Rapid Cycler", rarity: 1, max: 10, icon: "rate", desc: () => "+12% fire rate" },
   { id: "hp", name: "Reinforced Hull", rarity: 1, max: 10, icon: "shield", desc: () => "+20 max HP and repair 20" },
@@ -344,8 +344,8 @@ var upgradeList = [
     desc: () => "Flames reach 30% further and burn 60% hotter.",
   },
 ];
-var upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
-var rarityWeights = [0, 60, 28, 10, 2],
+let upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
+const rarityWeights = [0, 60, 28, 10, 2],
   bossRarityWeights = [0, 0, 42, 44, 14];
 upgradeList.push(
   {
@@ -480,7 +480,7 @@ upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgr
 
 // 2.5.0 A: where the retired upgrades went. A saved run converts its levels with `k` (their value
 // in levels of the new one, rounded up, capped at its max); an offer gets the new upgrade instead.
-var RL_RETIRED_UPGRADES = {
+const RL_RETIRED_UPGRADES = {
   caliber: { to: "dmg", k: 0.67 },
   kinetic: { to: "dmg", k: 0.54 },
   overclock: { to: "rate", k: 0.67 },
@@ -501,7 +501,7 @@ var RL_RETIRED_UPGRADES = {
   scavenger: { to: "supply", k: 1 },
   scavengerNet: { to: "salvager", k: 1 },
 };
-var rlRetiredUpgrade = (id) => (Object.hasOwn(RL_RETIRED_UPGRADES, id) ? RL_RETIRED_UPGRADES[id] : null);
+const rlRetiredUpgrade = (id) => (Object.hasOwn(RL_RETIRED_UPGRADES, id) ? RL_RETIRED_UPGRADES[id] : null);
 
 export {
   rarityWeights,

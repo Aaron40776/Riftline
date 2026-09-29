@@ -16,7 +16,7 @@ for (const wpn of weapons) {
       const T = window.__riftTest,
         out = { weapon: wpn, errors: [], nonfinite: [], waves: [], evKinds: {} };
       const w = new T.World({
-        seed: T.Yi ? 1 : (wpn.length * 7919) >>> 0,
+        seed: (wpn.length * 7919) >>> 0,
         weapon: wpn,
         threat: 2,
         ws: { hull: 5, power: 5, droneBay: 2 },

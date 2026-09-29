@@ -18,7 +18,7 @@ import { hitsObstacle } from "./arena.js";
 
 const RL_LOG_VERSION = __RL_VERSION__,
   LOG_KEY = "riftline.log.v4";
-var errorLog = [],
+let errorLog = [],
   logListeners = new Set(),
   logContext = {},
   RL_RT = {
@@ -194,7 +194,7 @@ function buildReport() {
   return lines.join(`
 `);
 }
-var RL_REQUIRED_DOM = [
+let RL_REQUIRED_DOM = [
     "abandonBtn",
     "backupBtn",
     "bank",
@@ -317,7 +317,7 @@ var RL_REQUIRED_DOM = [
 function rlHealthAdd(id, status, detail) {
   RL_HEALTH.push({ id: id, status: status, detail: String(detail || "") });
 }
-var RL_LAST_RUN_AUDIT = null;
+let RL_LAST_RUN_AUDIT = null;
 // assigned from other modules (an imported binding cannot be assigned)
 function set_RL_LAST_RUN_AUDIT(value) {
   return (RL_LAST_RUN_AUDIT = value);
@@ -434,7 +434,7 @@ function rlRunAudit(world, outcome, abandoned) {
 /* ---- event contract: every event the simulation emits must have a consumer
  (renderer, sound or UI) or be explicitly internal. Boss events must only be
  emitted while a boss is alive — enemy code once reused "phase"/"dash". ---- */
-var RL_EVENT_KINDS = new Set([
+const RL_EVENT_KINDS = new Set([
   "aim",
   "beamWarn",
   "blink",
@@ -497,9 +497,9 @@ var RL_EVENT_KINDS = new Set([
   "wingShot",
   "zap",
 ]);
-var RL_BOSS_EVENTS = new Set(["phase", "enrage", "bossAtk"]);
+const RL_BOSS_EVENTS = new Set(["phase", "enrage", "bossAtk"]);
 /* positional payload the renderer reads for each event (missing -> NaN geometry) */
-var RL_EVENT_FIELDS = {
+const RL_EVENT_FIELDS = {
   warp: ["x", "y", "tx", "ty"],
   kill: ["x", "y"],
   spawn: ["x", "y"],
@@ -528,7 +528,7 @@ function rlEventPayloadError(event) {
   if ("x" in event && !(finite(event.x) && finite(event.y))) return `"${event.k}" has a non-finite position`;
   return "";
 }
-var RL_MON = null;
+let RL_MON = null;
 function rlMonErrKey(entry) {
   return `${entry.where}|${entry.msg}|${entry.file}|${entry.line}`;
 }
@@ -1300,7 +1300,7 @@ function rlUiButtonGuardSelfTest() {
 
 /* Health checks. Cheap by default; {deep:true} adds the simulation self-test.
  Concurrent calls share one run so the report never contains duplicates. */
-var RL_HEALTH_BUSY = null;
+let RL_HEALTH_BUSY = null;
 function rlRunHealth(opts) {
   const options = typeof opts === "object" && opts ? opts : { context: opts || "startup" };
   if (RL_HEALTH_BUSY) {
@@ -1721,10 +1721,10 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   } catch {}
   return RL_HEALTH;
 }
-var RL_SELFTEST_LAST = null;
+let RL_SELFTEST_LAST = null;
 /* The deep self-test (rlSelfTest) lives in selftest.js, which registers it here when it loads, so
  this module does not import the self-test (2.5.0 refactor). */
-var RL_DEEP_SELFTEST = null;
+let RL_DEEP_SELFTEST = null;
 function setDeepSelfTest(fn) {
   RL_DEEP_SELFTEST = fn;
 }

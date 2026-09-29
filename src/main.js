@@ -63,7 +63,7 @@ import { Renderer } from "./render/renderer.js";
 import "./render/biome-visuals.js";
 import { Overlay } from "./render/overlay.js";
 
-var RL_INTRO = { queue: [], last: 0 };
+const RL_INTRO = { queue: [], last: 0 };
 function rlIntroEvents(world) {
   if (game.tut) return; // the tutorial coach owns the screen on the first run
   for (const ev of world.fx) {
@@ -108,11 +108,11 @@ function rlApplyDataFixes() {
   iconPaths.map = '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>';
   rlApplyBiomeFixes();
 }
-var isStandaloneBuild = true;
-var isIOSDevice =
+const isStandaloneBuild = true;
+const isIOSDevice =
   typeof navigator < "u" &&
   (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
-var isInstalledPwa =
+const isInstalledPwa =
   typeof window < "u" &&
   ((window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
     window.navigator.standalone === true);
@@ -172,7 +172,7 @@ function registerServiceWorker(onUpdate) {
     }
   }
 }
-var wakeLockSentinel = null,
+let wakeLockSentinel = null,
   wakeLockWanted = false;
 async function setWakeLock(on) {
   wakeLockWanted = on;
@@ -199,17 +199,18 @@ if (typeof document < "u") {
     }
   });
 }
-var noJsNotice = document.getElementById("nojs");
+const noJsNotice = document.getElementById("nojs");
 if (noJsNotice) {
   noJsNotice.remove();
 }
 setLogContext({ version: GAME_VERSION, build: BUILD_ID, mode: isStandaloneBuild ? "standalone" : "artifact" });
-var qualityPresets = {
+rlApplyDataFixes();
+let qualityPresets = {
     high: { dpr: 2, particles: 1400, fps: 0 },
     battery: { dpr: 1, particles: 500, fps: 30 },
     auto: { dpr: 1.5, particles: 1400, fps: 0 },
   },
-  store = (rlApplyDataFixes(), new SaveStore()),
+  store = new SaveStore(),
   sound = new SoundEngine(),
   elementById = (id) => document.getElementById(id),
   renderer = null;
@@ -281,7 +282,7 @@ if (window.visualViewport) {
     { passive: true },
   );
 }
-var overlay = new Overlay(elementById("ov")),
+const overlay = new Overlay(elementById("ov")),
   input = new Input(elementById("touch"), renderer),
   game = {
     store: store,
@@ -630,7 +631,7 @@ function afterProgressReset(message) {
   }
   ui.toast(message);
 }
-var ui = new GameUI(game);
+const ui = new GameUI(game);
 game.ui = ui;
 input.onBlur = () => {
   if (game.mode === "game") {
@@ -659,7 +660,7 @@ input.onPause = () => {
     }
   }
 };
-var qualityPreset = qualityPresets.auto,
+let qualityPreset = qualityPresets.auto,
   autoDpr = 1.5;
 function applySettings() {
   let settings = store.data.settings;
@@ -676,7 +677,7 @@ function applySettings() {
     renderer.setQuality(dpr, qualityPreset.particles);
   }
 }
-var loopFrameId = 0,
+let loopFrameId = 0,
   frameErrorCount = 0,
   slowWindowCount = 0,
   fpsWindowTime = 0,
@@ -1026,7 +1027,7 @@ function handleWorldEvents(world) {
     logError("titlecard", err);
   }
 }
-var BOSS_INTRO_TIME = 1.5;
+const BOSS_INTRO_TIME = 1.5;
 function updateBossIntro(dt, world) {
   let intro = game.intro;
   intro.t += dt;
@@ -1052,7 +1053,7 @@ function hitStop(duration) {
     game.freeze = Math.max(game.freeze || 0, duration);
   }
 }
-var heartbeatTimer = 0;
+let heartbeatTimer = 0;
 function updateHeartbeat(dt, world) {
   let player = world.player;
   if (world.state !== "fight" || !player.alive || player.hp / world.stats.maxHp >= 0.25) {
@@ -1065,7 +1066,7 @@ function updateHeartbeat(dt, world) {
     sound.play("heart");
   }
 }
-var touchSides = () => (store.data.settings.swap ? { move: "right", aim: "left" } : { move: "left", aim: "right" }),
+const touchSides = () => (store.data.settings.swap ? { move: "right", aim: "left" } : { move: "left", aim: "right" }),
   // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"), which do nothing
   // with a mouse, and the keys were explained nowhere. Every step now has both wordings and
   // follows the input in use (the coach re-reads the text every frame).
@@ -1145,8 +1146,10 @@ let rlQUp = 0,
 const rlQLeft = {},
   rlQParticles = (dpr) => (dpr >= 1.5 ? qualityPreset.particles : dpr <= 1 ? 800 : 1100);
 function updateAutoQuality(dt, settings) {
-  if (settings.quality !== "auto" || !renderer || ((fpsWindowTime += dt), fpsWindowFrames++, fpsWindowTime < 2.5))
-    return;
+  if (settings.quality !== "auto" || !renderer) return;
+  fpsWindowTime += dt;
+  fpsWindowFrames++;
+  if (fpsWindowTime < 2.5) return;
   let fps = fpsWindowFrames / fpsWindowTime;
   fpsWindowTime = 0;
   fpsWindowFrames = 0;
@@ -1197,7 +1200,7 @@ window.addEventListener("pageshow", () => {
   input.reset(true);
   _scheduleResize("pageshow");
 });
-var unlockAudio = () => {
+const unlockAudio = () => {
   sound.unlock();
   if (sound.mode === "off" && game.mode === "menu") {
     sound.setMusic("menu");
@@ -1220,12 +1223,12 @@ document.addEventListener(
 
 /* v1.6.0 merged polish: save backup + tutorial replay (the run metrics are in GameUI.renderRunExtra) */
 (function () {
-  var makeBackup = function () {
+  const makeBackup = function () {
     return JSON.stringify(store.data, null, 2);
   };
-  var exportSave = async function () {
-    var value = makeBackup();
-    var result = await ui.dialog({
+  const exportSave = async function () {
+    const value = makeBackup();
+    const result = await ui.dialog({
       title: "Export save",
       body: '<p>Copy this text and keep it somewhere safe. It contains your Riftline progress and settings.</p><textarea id="saveExport" class="log" spellcheck="false" readonly></textarea>',
       buttons: [
@@ -1241,8 +1244,8 @@ document.addEventListener(
     });
     if (result && result.value === "copy") ui.copy(result.text || value);
   };
-  var importSave = async function () {
-    var result = await ui.dialog({
+  const importSave = async function () {
+    const result = await ui.dialog({
       title: "Import save",
       body: '<p>Paste a Riftline save export below. Importing replaces the current progress on this device.</p><textarea id="saveImport" class="log" spellcheck="false" placeholder="Paste save JSON here"></textarea>',
       buttons: [
@@ -1254,7 +1257,7 @@ document.addEventListener(
       },
     });
     if (!result || result.value !== "restore") return;
-    var parsed = store.parse(result.text);
+    const parsed = store.parse(result.text);
     if (!parsed.ok) {
       ui.alert("Invalid save", "That text is not a valid Riftline save export.");
       return;
@@ -1288,17 +1291,17 @@ document.addEventListener(
     setWakeLock(false);
     ui.toast("Save restored", "gold", 2400);
   };
-  var backupBtn = getById("backupBtn");
-  var shareBtn = getById("shareBtn");
-  var restoreBtn = getById("restoreBtn");
-  var replayTutBtn = getById("replayTutBtn");
+  const backupBtn = getById("backupBtn");
+  const shareBtn = getById("shareBtn");
+  const restoreBtn = getById("restoreBtn");
+  const replayTutBtn = getById("replayTutBtn");
   if (backupBtn) {
     backupBtn.addEventListener("click", exportSave);
   }
   if (shareBtn && !navigator.share) shareBtn.hidden = true;
   if (shareBtn) {
     shareBtn.addEventListener("click", async function () {
-      var value = makeBackup();
+      const value = makeBackup();
       try {
         await navigator.share({ title: "Riftline save", text: value });
         ui.toast("Save shared", "good", 2200);
@@ -1312,7 +1315,7 @@ document.addEventListener(
   }
   if (replayTutBtn) {
     replayTutBtn.addEventListener("click", async function () {
-      var ok = await ui.confirm(
+      const ok = await ui.confirm(
         "Replay tutorial?",
         "The onboarding will show again on your next fresh run. Your current run and progress stay untouched.",
         "Enable",

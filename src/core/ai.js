@@ -5,7 +5,7 @@ import { clamp, TAU, turnToward } from "./util.js";
 /* ---- stragglers: when only a few enemies are left for 9 s the game sets
  enemy.hunt so they come to the player. The 2.1/2.2 ranged enemies ignored
  it and could kite forever (the last Beacon fleeing into a corner). ---- */
-var RL_KITERS = new Set(["turret", "minebot", "sapper", "sentinel", "carrier", "drone", "beacon", "weaver"]);
+const RL_KITERS = new Set(["turret", "minebot", "sapper", "sentinel", "carrier", "drone", "beacon", "weaver"]);
 function updateEnemyCore(game, enemy, dt) {
   if (enemy.spawnT > 0) {
     enemy.vx = 0;
@@ -216,7 +216,9 @@ function updateEnemyCore(game, enemy, dt) {
       }
       enemy.t -= dt;
       let maxKids = enemy.elite ? 7 : 5;
-      if (enemy.t <= 0 && ((enemy.t = 3.2), enemy.kids < maxKids && game.enemies.length < 75)) {
+      const spawnNow = enemy.t <= 0;
+      if (spawnNow) enemy.t = 3.2;
+      if (spawnNow && enemy.kids < maxKids && game.enemies.length < 75) {
         let angle = game.rng.next() * TAU,
           kid = game.spawnEnemy(
             "swarmer",
@@ -508,7 +510,7 @@ function updateEnemyCore(game, enemy, dt) {
     enemy.face = turnToward(enemy.face, Math.atan2(enemy.vy, enemy.vx), 8 * dt);
   }
 }
-var bossPatterns = {
+const bossPatterns = {
   warden: ["charge", "ring", "stomp", "charge", "ring", "stomp"],
   queen: ["summon", "spiral", "burst", "eggs", "spiral", "burst"],
   // 2.4.6: the Frost Prism (was: sweep, teleport, shards, lances, teleport, sweep)
@@ -586,7 +588,8 @@ function updateBoss(game, boss, dt) {
     boss.face = turnToward(boss.face, aim, 3 * dt);
     return;
   }
-  switch (((boss.t += dt), boss.type)) {
+  boss.t += dt;
+  switch (boss.type) {
     case "warden": {
       if (boss.st === "charge") {
         let charges = 2 + rage;
@@ -660,10 +663,12 @@ function updateBoss(game, boss, dt) {
       if (boss.st === "stomp") {
         boss.vx = 0;
         boss.vy = 0;
-        if (
-          boss.n === 0 &&
-          ((boss.n = 1), game.hazard({ x: boss.x, y: boss.y, r: 4.8, delay: 1, dmg: boss.dmg, kind: "stomp" }), rage)
-        )
+        const firstStomp = boss.n === 0;
+        if (firstStomp) {
+          boss.n = 1;
+          game.hazard({ x: boss.x, y: boss.y, r: 4.8, delay: 1, dmg: boss.dmg, kind: "stomp" });
+        }
+        if (firstStomp && rage)
           for (let k = 0; k < 3; k++) {
             let angle = game.rng.next() * TAU,
               off = game.rng.range(0, 3);
@@ -1008,7 +1013,8 @@ function updateBoss(game, boss, dt) {
             });
           game.emit("beamWarn", { x: boss.x, y: boss.y });
         }
-        if (phase === 3 && ((boss.t2 += dt), boss.t2 > 0.7)) {
+        if (phase === 3) boss.t2 += dt;
+        if (phase === 3 && boss.t2 > 0.7) {
           boss.t2 = 0;
           for (let k = -1; k <= 1; k++) game.shoot(boss.x, boss.y, aim + k * 0.2, 8.5, shotDmg);
         }

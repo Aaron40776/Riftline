@@ -4,7 +4,7 @@
 import { clamp, TAU, hashString, angleDiff, makeRng } from "./util.js";
 import { RL_BIOME_HAZARD } from "../data/biomes.js";
 
-var Arena = class {
+const Arena = class {
   constructor(biome, layout) {
     this.biome = biome;
     let lay = layout || { key: biome.id + ":classic", W: biome.W, H: biome.H, obstacles: biome.obstacles, deco: 0 };
@@ -243,7 +243,7 @@ function segmentHitsBox(x0, y0, x1, y1, minX, minY, maxX, maxY) {
   }
   return true;
 }
-var SpatialHash = class {
+const SpatialHash = class {
     constructor(halfW, halfH, cellSize = 2.5) {
       this.cell = cellSize;
       this.ox = -halfW - 2;
@@ -389,7 +389,7 @@ var SpatialHash = class {
         }
     }
   };
-var OBSTACLE_GAP = 2.7,
+const OBSTACLE_GAP = 2.7,
   spawnZone = { x: 0, y: 2, r: 4.6 },
   obstacleShapes = {
     yard: [

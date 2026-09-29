@@ -22,7 +22,7 @@ import { computeStats, weaponRange } from "../core/stats.js";
 import { RL_INPUT } from "./input.js";
 import { markHomeViewDirty } from "../render/renderer.js";
 
-var RL_TOUCH_CLICK_GUARD = { until: 0, x: 0, y: 0, key: "" };
+const RL_TOUCH_CLICK_GUARD = { until: 0, x: 0, y: 0, key: "" };
 function rlUiClickKey(el) {
   if (!el) return "";
   if (el.id) return "id:" + el.id;
@@ -77,7 +77,7 @@ function rlRenderHistory() {
 function rlBiomeTitle(biome) {
   return biome.tag ? `${biome.name} \xB7 ${biome.tag}` : biome.name;
 }
-var iconPaths = {
+const iconPaths = {
   gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/><circle cx="12" cy="12" r="6.5"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   play: '<path d="M7 4.5l12 7.5-12 7.5z"/>',
@@ -122,7 +122,7 @@ function iconSvg(name, cls = "") {
   let paths = iconPaths[name] || iconPaths.info;
   return `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
-var getById = (id) => document.getElementById(id),
+const getById = (id) => document.getElementById(id),
   menuScreens = ["home", "workshop", "records", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
   formatPercent = (value) => Math.round(value * 100) + "%",
@@ -1205,12 +1205,10 @@ var getById = (id) => document.getElementById(id),
       if (!RL_INPUT.touch) {
         getById("cards")
           .querySelectorAll("[data-pick]")
-          .forEach(
-            (card, i) => (
-              card.classList.add("has-key"),
-              card.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`)
-            ),
-          );
+          .forEach((card, i) => {
+            card.classList.add("has-key");
+            card.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`);
+          });
         getById("rerollTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
       }
     }
@@ -1226,11 +1224,9 @@ var getById = (id) => document.getElementById(id),
       for (let [label, get, format] of statRows) {
         let before = get(stats),
           after = get(next);
-        if (
-          !(Math.abs(before - after) < 1e-6) &&
-          (lines.push(`${label} ${format(before)} \u2192 ${format(after)}`), lines.length >= 2)
-        )
-          break;
+        if (Math.abs(before - after) < 1e-6) continue;
+        lines.push(`${label} ${format(before)} \u2192 ${format(after)}`);
+        if (lines.length >= 2) break;
       }
       return lines.length ? `<small class="delta">${escapeHtml(lines.join(" \xB7 "))}</small>` : "";
     }
@@ -1587,7 +1583,7 @@ function closePauseSettings(ui) {
  of the wave, the boss camera pan; see main.js) and then fade out.
  ========================================================================== */
 // the hazard of each biome in a few words (the RL_BIOME_INFO tag is the fallback for new biomes)
-var RL_BIOME_CARD = {
+const RL_BIOME_CARD = {
   yard: "Open ground — no hazards",
   works: "Lava vents erupt — lure enemies onto them",
   vault: "Slick floor and ice sheets — mind your drift",
@@ -1596,10 +1592,10 @@ var RL_BIOME_CARD = {
 };
 // Codex texts for enemies without a first-encounter tip. Mites only come out of splitters (no
 // spawn event, no tip), so they are known together with the Splitter.
-var RL_CODEX_EXTRA = {
+const RL_CODEX_EXTRA = {
   mite: "Mites burst out of destroyed Splitters. Small and fast, but one shot each.",
 };
-var RL_CODEX_WITH = { mite: "splitter" };
+const RL_CODEX_WITH = { mite: "splitter" };
 const rlHex = (color) => "#" + ((Number(color) >>> 0) & 0xffffff).toString(16).padStart(6, "0");
 function rlBiomeCardInfo(biome) {
   biome = biome || biomeList[0];

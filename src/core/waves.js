@@ -5,7 +5,7 @@ import { clamp, weightedPick } from "./util.js";
 import { rarityWeights, bossRarityWeights, upgradeList } from "../data/upgrades.js";
 import { RL_BIOME_INFO } from "../data/biomes.js";
 
-var waveEvents = {
+const waveEvents = {
   elite: {
     id: "elite",
     name: "ELITE SURGE",
@@ -21,7 +21,7 @@ var waveEvents = {
     plan: { weights: { swarmer: 3, bomber: 1.6 } },
   },
 };
-var EVENT_CHANCE = 0.2;
+const EVENT_CHANCE = 0.2;
 function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], weapon = null) {
   let pool = upgradeList.filter(
       (upgrade) =>
@@ -88,7 +88,7 @@ function countRarity(list, rarity) {
   }
   return count;
 }
-var spawnWeights = {
+const spawnWeights = {
     swarmer: 5,
     grunt: 4,
     gunner: 3,
@@ -199,7 +199,7 @@ function planWave(rng, wave, tm, boss, plan = {}) {
 }
 // Enemy mix: World.startWave sets the biome's mix while it builds the wave plan with planWave; the
 // biome's weights multiply the spawn weights of the plan (events keep theirs on top).
-var RL_BIOME_MIX_CUR = null;
+let RL_BIOME_MIX_CUR = null;
 // assigned from other modules (an imported binding cannot be assigned)
 function set_RL_BIOME_MIX_CUR(mix) {
   return (RL_BIOME_MIX_CUR = mix);
@@ -244,7 +244,7 @@ Object.assign(waveEvents, {
     plan: {},
   },
 });
-var RL_BIOME_EVENT = { works: "meltdown", vault: "whiteout", marsh: "bloom", void: "riftstorm" };
+const RL_BIOME_EVENT = { works: "meltdown", vault: "whiteout", marsh: "bloom", void: "riftstorm" };
 // Signature enemies: the enemies a biome's mix favours (weight >= 1) can spawn in that biome from
 // its first wave (before, Void Core's phantom came from wave 20 and weaver from 28 although Void
 // Core is waves 16–20). Enemies pulled forward this way spawn at half their weight until their

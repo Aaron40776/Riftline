@@ -34,7 +34,7 @@ import {
   setDeepSelfTest,
 } from "./diagnostics.js";
 
-var RL_SELFTEST = null;
+let RL_SELFTEST = null;
 function selfTestBase() {
   if (RL_SELFTEST && RL_SELFTEST.version === GAME_VERSION) return RL_SELFTEST;
   const selftestStarted = performance.now?.() || 0;

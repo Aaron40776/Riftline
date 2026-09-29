@@ -27,7 +27,7 @@ import {
 import { clamp, TAU, hashString, makeRng } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./renderer.js";
 
-var floorVertexShader = `
+const floorVertexShader = `
 #include <common>
 #include <fog_pars_vertex>
 varying vec2 vW;
@@ -205,14 +205,14 @@ void main() {
             rising void motes
    light    sun colour, sky and fog density (the marsh is foggy, the void dark)
  ---- */
-var RL_BIOME_LOOK = {
+const RL_BIOME_LOOK = {
   yard: { style: 0, hemi: 1.9, sun: 0xffffff, sunI: 1.5, fog: null },
   works: { style: 1, hemi: 1.6, sun: 0xffb27a, sunI: 1.75, fog: [1.35, 3.3] },
   vault: { style: 2, hemi: 2.2, sun: 0xd6ecff, sunI: 1.8, fog: [1.3, 3.2] },
   marsh: { style: 3, hemi: 1.6, sun: 0xdcffb8, sunI: 1.15, fog: [0.95, 2.5] },
   void: { style: 4, hemi: 1.35, sun: 0xd8c4ff, sunI: 1.05, fog: [1.7, 4.4] },
 };
-var RL_FLOOR_FRAG = `
+const RL_FLOOR_FRAG = `
 #include <common>
 #include <fog_pars_fragment>
 uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
@@ -401,7 +401,7 @@ const rlFootRing = (group, x, z, radius, mat) => {
 // Outline slab under a box obstacle.
 const rlFootSlab = (group, box, mat, pad = 0.3) =>
   rlMesh(group, new BoxGeometry(box.w * 2 + pad, 0.05, box.h * 2 + pad), mat, box.x, 0.03, box.y);
-var RL_BIOME_BUILD = {
+const RL_BIOME_BUILD = {
   // Neon Yard: the original arena (fence with neon trim, pylons and crates)
   yard(view, biome, W, H, obs) {
     const group = view.group,
@@ -1232,7 +1232,7 @@ function rlAmbient(renderer, dt, world, opt) {
    Toxin Marsh  slime running down with glowing toxic spots, green drops
    Void Core    violet rim glow and star specks, motes rising
  The skin is only visual; how an enemy fights does not change. ---- */
-var RL_SKIN = { uSkin: { value: 0 }, uSkinT: { value: 0 } };
+const RL_SKIN = { uSkin: { value: 0 }, uSkinT: { value: 0 } };
 const RL_SKIN_VERT_HEAD = `
 varying vec3 vRlP;
 varying vec3 vRlN;`;

@@ -3,7 +3,7 @@
 import { biomeList } from "./biomes.js";
 import { weaponOrder } from "./weapons.js";
 
-var threatLevels = [
+const threatLevels = [
   { lvl: 0, name: "Standard", desc: "The rift as it is." },
   { lvl: 1, name: "Threat I", desc: "Enemies +25% health, +12% damage." },
   { lvl: 2, name: "Threat II", desc: "More elites, denser waves." },
@@ -11,7 +11,7 @@ var threatLevels = [
   { lvl: 4, name: "Threat IV", desc: "Only for tuned builds." },
   { lvl: 5, name: "Threat V", desc: "The breach at full strength." },
 ];
-var threatMods = (threat) => ({
+const threatMods = (threat) => ({
   hp: 1 + 0.25 * threat,
   dmg: 1 + 0.12 * threat,
   budget: 1 + 0.1 * threat,
@@ -19,7 +19,7 @@ var threatMods = (threat) => ({
   shards: 1 + 0.25 * threat,
   boss: 1 + 0.3 * threat,
 });
-var workshopModules = [
+const workshopModules = [
   {
     id: "hull",
     name: "Hull Plating",
@@ -55,8 +55,8 @@ var workshopModules = [
   },
   { id: "revive", name: "Second Life", icon: "heart", desc: "Revive once per run at 50% HP", costs: [900] },
 ];
-var modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
-var milestones = [
+let modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
+const milestones = [
   {
     id: "kills100",
     name: "First Contact",
@@ -429,7 +429,7 @@ milestones.push(
  variants of those (Void Lance, Sunlance and Ember Rail were Railguns, Razor Loop and Cyclone
  Blades Disc Launchers …). A save that owned one gets the weapon it was a variant of, plus the
  price difference in shards — or the full price when it owns that weapon already. */
-var RL_RETIRED_WEAPONS = {
+const RL_RETIRED_WEAPONS = {
   ion: { name: "Ion Repeater", cost: 1250, to: "tesla" },
   gravity: { name: "Graviton Core", cost: 1550, to: "rocket" },
   voidlance: { name: "Void Lance", cost: 1950, to: "rail" },
@@ -457,7 +457,7 @@ const rlRetired = (id) =>
  made the caches of Field Supply richer. They are folded into the module they copied. A save that
  bought levels of them gets the full price back in shards (rlMigrateModules in save.js); the kept
  module keeps its own levels. `costs` are the prices the removed module had. */
-var RL_RETIRED_MODULES = {
+const RL_RETIRED_MODULES = {
   riftBattery: { name: "Rift Battery", costs: [260, 540, 980], to: "nova" },
   reactorCore: { name: "Reactor Core", costs: [1600, 3400, 6200], to: "nova" },
   routeScanner: { name: "Route Scanner", costs: [1800, 3800, 6800], to: "fieldSupply" },

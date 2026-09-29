@@ -4,7 +4,7 @@ import { logError } from "../core/diagnostics.js";
 import { weaponDefs } from "../data/weapons.js";
 
 /* The sound engine has seven weapon voices; newer weapons borrow the closest one. */
-var RL_SFX_VOICES = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
+const RL_SFX_VOICES = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
 function rlShotSfx(id) {
   const def = weaponDefs[id];
   if (!def) return "pulse";
@@ -17,7 +17,7 @@ function rlShotSfx(id) {
   if (def.count >= 5 || def.cone) return "scatter";
   return "pulse";
 }
-var musicChords = {
+const musicChords = {
     yard: [
       [57, "m"],
       [53, "M"],
@@ -224,7 +224,9 @@ var musicChords = {
     }
     gate(key, gap) {
       let now = this.ctx.currentTime;
-      return this.last[key] && now - this.last[key] < gap ? false : ((this.last[key] = now), true);
+      if (this.last[key] && now - this.last[key] < gap) return false;
+      this.last[key] = now;
+      return true;
     }
     play(id, arg) {
       if (!(!this.ctx || this.ctx.state !== "running" || this.sfxVol <= 0))

@@ -102,7 +102,7 @@ function rlRecordRun(world, pre, win, abandoned) {
   store.save("history");
 }
 // What the last load converted (shown once as a toast after start-up).
-var RL_RETIRE_NOTE = null;
+let RL_RETIRE_NOTE = null;
 // assigned from other modules (an imported binding cannot be assigned)
 function set_RL_RETIRE_NOTE(note) {
   return (RL_RETIRE_NOTE = note);
@@ -138,7 +138,7 @@ function rlMigrateRetired(raw) {
   RL_RETIRE_NOTE = { refund, names: owned.map((id) => RL_RETIRED_WEAPONS[id].name) };
   return out;
 }
-var SAVE_KEY = "riftline.save.v1",
+const SAVE_KEY = "riftline.save.v1",
   defaultSettings = {
     sfx: 0.8,
     music: 0.45,
@@ -192,7 +192,7 @@ function newSave() {
     seen: {},
   };
 }
-var cleanNumber = (value, fallback, min = -1 / 0, max = 1 / 0) =>
+const cleanNumber = (value, fallback, min = -1 / 0, max = 1 / 0) =>
     typeof value == "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback,
   cleanBool = (value, fallback) => (typeof value == "boolean" ? value : fallback),
   asObject = (value) => (value && typeof value == "object" && !Array.isArray(value) ? value : {});
@@ -335,7 +335,7 @@ function cleanSave(input) {
   }
   return save;
 }
-var safeStorage = {
+const safeStorage = {
     ok: null,
     get(key) {
       try {
@@ -495,7 +495,7 @@ export {
  are. Like rlMigrateRetired it runs on the raw save before cleanSave, never mutates its input,
  returns it untouched when there is nothing to convert and changes nothing when run twice. A saved
  run needs no change: it does not store workshop levels (World reads them from the save). */
-var RL_MODULE_NOTE = null;
+let RL_MODULE_NOTE = null;
 function set_RL_MODULE_NOTE(note) {
   return (RL_MODULE_NOTE = note);
 }

@@ -93,7 +93,7 @@ const RL_MELTDOWN_PERIOD = 3.4,
   RL_STORM_EVERY = 6,
   RL_STORM_WARN = 1.6;
 
-var comboRewards = [
+const comboRewards = [
   [10, 3],
   [25, 8],
   [50, 20],
@@ -101,7 +101,7 @@ var comboRewards = [
   [150, 80],
   [250, 150],
 ];
-var rlStep = 1 / 60,
+const rlStep = 1 / 60,
   PLAYER_RADIUS = 0.55,
   MAX_PLAYER_BULLETS = 420,
   MAX_ENEMY_BULLETS = 360,
@@ -506,9 +506,11 @@ var rlStep = 1 / 60,
       return true;
     }
     reroll() {
-      return this.state !== "choose" || this.rerolls <= 0
-        ? false
-        : (this.rerolls--, (this.offer = this.makeOffer(this.offer || [])), this.emit("reroll"), true);
+      if (this.state !== "choose" || this.rerolls <= 0) return false;
+      this.rerolls--;
+      this.offer = this.makeOffer(this.offer || []);
+      this.emit("reroll");
+      return true;
     }
     makeOffer(exclude = []) {
       let count = 3 + ((this.ws.insight || 0) > 0 ? 1 : 0);
@@ -728,11 +730,9 @@ var rlStep = 1 / 60,
       }
     }
     shardRain(dt) {
-      if (
-        (this.planIdx >= this.plan.length && this.enemies.length === 0) ||
-        ((this.rainT -= dt), this.rainT > 0 || this.pickups.length > 200)
-      )
-        return;
+      if (this.planIdx >= this.plan.length && this.enemies.length === 0) return;
+      this.rainT -= dt;
+      if (this.rainT > 0 || this.pickups.length > 200) return;
       this.rainT = 0.8 + this.rng.next() * 0.5;
       let spot = this.arena.freePoint(this.rng, this.player.x, this.player.y, 3, 0.4),
         pickup = this.mkPickup("shard", spot.x, spot.y, this.rng.chance(0.15) ? 5 : 1);
@@ -1461,7 +1461,9 @@ var rlStep = 1 / 60,
       if (enemy.orbT > 0) {
         enemy.orbT -= dt;
       }
-      if (enemy.burnT > 0 && ((enemy.burnT -= dt), !enemy.shielded && !enemy.ghost)) {
+      const burning = enemy.burnT > 0;
+      if (burning) enemy.burnT -= dt;
+      if (burning && !enemy.shielded && !enemy.ghost) {
         let dmg = enemy.burnDps * dt;
         if (enemy.shield > 0) {
           let absorbed = Math.min(enemy.shield, dmg);
@@ -1820,13 +1822,14 @@ var rlStep = 1 / 60,
       }
     }
     dropShards(x, y, amount) {
-      for (
-        this.shardFrac = (this.shardFrac || 0) + amount - Math.floor(amount),
-          amount = Math.floor(amount),
-          this.shardFrac >= 1 && ((amount += 1), (this.shardFrac -= 1)),
-          amount = Math.max(0, Math.round(amount));
-        amount > 0;
-      ) {
+      this.shardFrac = (this.shardFrac || 0) + amount - Math.floor(amount);
+      amount = Math.floor(amount);
+      if (this.shardFrac >= 1) {
+        amount += 1;
+        this.shardFrac -= 1;
+      }
+      amount = Math.max(0, Math.round(amount));
+      while (amount > 0) {
         let chunk = amount >= 25 ? 25 : amount >= 5 ? 5 : 1;
         amount -= chunk;
         this.pickups.push(this.mkPickup("shard", x, y, chunk));
@@ -1855,19 +1858,17 @@ var rlStep = 1 / 60,
     explode(x, y, radius, dmg, opts = {}) {
       if (opts.enemies) {
         this.hash.query(x, y, radius, (enemy) => {
-          if (
-            !(enemy.dead || Math.hypot(enemy.x - x, enemy.y - y) > radius + enemy.r) &&
-            (this.hurtEnemy(
-              enemy,
-              dmg,
-              enemy.x - x,
-              enemy.y - y,
-              opts.knock || 3,
-              false,
-              blastSources[opts.kind] || "weapon",
-            ),
-            opts.burn && !enemy.dead && !enemy.shielded && !enemy.ghost)
-          ) {
+          if (enemy.dead || Math.hypot(enemy.x - x, enemy.y - y) > radius + enemy.r) return;
+          this.hurtEnemy(
+            enemy,
+            dmg,
+            enemy.x - x,
+            enemy.y - y,
+            opts.knock || 3,
+            false,
+            blastSources[opts.kind] || "weapon",
+          );
+          if (opts.burn && !enemy.dead && !enemy.shielded && !enemy.ghost) {
             let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
             enemy.burnT = Math.max(enemy.burnT, 3);
             enemy.burnDps = Math.max(burn, opts.burn);

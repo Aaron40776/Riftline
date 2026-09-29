@@ -9,7 +9,7 @@
  in 2.3.1 Tempest/Aurora looked like Neon Yard (ΔE 6–20) and Catacombs like Requiem.
  Minimum grid distance between any two of the 19 biomes is now ΔE ≥ 30 (checked by
  rlBiomeDistinct in the deep test). Floor/fog/walls/light take the grid's hue. */
-var RL_PALETTES = {
+const RL_PALETTES = {
   vault: {
     floor: 0x0e1718,
     grid: 0xbfdfe3,
@@ -31,14 +31,14 @@ function rlApplyBiomeFixes() {
 /* ---- one hazard theme per biome (2.3.1). The wave director used to drop a
  rotating vent/ice/acid pool into EVERY biome, so lava vents appeared in the
  Cryo Vault and ice in Ember Works. Each biome now owns one hazard type. ---- */
-var RL_BIOME_HAZARD = {
+const RL_BIOME_HAZARD = {
   yard: "",
   works: "vents",
   vault: "ice",
   void: "portals",
   marsh: "acid",
 };
-var biomeList = [
+const biomeList = [
   {
     id: "yard",
     name: "Neon Yard",
@@ -135,7 +135,7 @@ var biomeList = [
     ],
   },
 ];
-var biomesById = Object.fromEntries(biomeList.map((biome) => [biome.id, biome]));
+const biomesById = Object.fromEntries(biomeList.map((biome) => [biome.id, biome]));
 // 2.4.6: Void Core is always the fourth biome (waves 16–20), so the Rift Core stays the final
 // boss. Ember Works, Cryo Vault and Toxin Marsh are shuffled: two of them in waves 6–15, the third
 // from wave 21 in Endless.
@@ -163,7 +163,7 @@ function planBiomeRoute(rng) {
    Void Core    portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
  The look of each biome (floor, props, border, particles, light) is in the renderer part of
  2.4.0 further down. */
-var RL_BIOME_INFO = {
+const RL_BIOME_INFO = {
   yard: { tag: "Open ground" },
   works: {
     tag: "Lava vents",

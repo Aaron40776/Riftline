@@ -278,7 +278,7 @@ function rlEnemyMesh(type, mid, dark, metal) {
 }
 
 /* enemy types with a dedicated model (original 13 + the 12 above) */
-var RL_MESH_TYPES = [
+const RL_MESH_TYPES = [
   "swarmer",
   "mite",
   "grunt",
@@ -497,7 +497,7 @@ function mergeAttributes(attributes) {
   }
   return result;
 }
-var partMatrix = new Matrix4(),
+const partMatrix = new Matrix4(),
   partQuat = new Quaternion(),
   partEuler = new Euler(),
   partScale = new Vector3(),
@@ -525,7 +525,7 @@ function mergeParts(parts) {
   merged.computeBoundingSphere();
   return merged;
 }
-var darken = (color, factor = 0.5) => new Color(color).multiplyScalar(factor).getHex();
+const darken = (color, factor = 0.5) => new Color(color).multiplyScalar(factor).getHex();
 function enemyGeometry(type, color) {
   let mid = darken(color, 0.55),
     dark = darken(color, 0.3),

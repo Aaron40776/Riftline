@@ -7,8 +7,8 @@ import { getById } from "./ui.js";
 
 // 2.3.4: the input the player is using right now, so hints can say "W A S D" or "drag".
 // Starts from the primary pointer (coarse = touch screen) and follows the last real input.
-var RL_INPUT = { touch: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches };
-var Input = class {
+const RL_INPUT = { touch: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches };
+const Input = class {
   constructor(layer, renderer) {
     this.layer = layer;
     this.r = renderer;

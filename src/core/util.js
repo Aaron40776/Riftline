@@ -11,7 +11,7 @@ function rlAgo(time) {
         ? Math.floor(secs / 3600) + "h ago"
         : Math.floor(secs / 86400) + "d ago";
 }
-var TAU = Math.PI * 2,
+const TAU = Math.PI * 2,
   clamp = (value, min, max) => (value < min ? min : value > max ? max : value);
 function angleDiff(from, to) {
   let diff = (to - from) % TAU;
@@ -27,7 +27,7 @@ function turnToward(angle, target, maxStep) {
   let diff = angleDiff(angle, target);
   return Math.abs(diff) <= maxStep ? target : angle + Math.sign(diff) * maxStep;
 }
-var dampFactor = (rate, dt) => 1 - Math.exp(-rate * dt);
+const dampFactor = (rate, dt) => 1 - Math.exp(-rate * dt);
 function makeRng(seed) {
   let state = seed >>> 0,
     next = () => {
@@ -77,7 +77,7 @@ function formatCount(n) {
   n = Math.floor(n);
   return n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + "k" : String(n);
 }
-var GAME_VERSION = __RL_VERSION__;
+const GAME_VERSION = __RL_VERSION__;
 function smoothstep(x) {
   x = clamp(x, 0, 1);
   return x * x * (3 - 2 * x);
@@ -85,7 +85,7 @@ function smoothstep(x) {
 function easeOutBack(x) {
   return 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);
 }
-var BUILD_ID = __RL_BUILD__;
+const BUILD_ID = __RL_BUILD__;
 
 export {
   smoothstep,

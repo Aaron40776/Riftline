@@ -1,6 +1,6 @@
 // Weapon table.
 
-var weaponDefs = {
+const weaponDefs = {
   pulse: {
     id: "pulse",
     name: "Pulse Blaster",
@@ -138,6 +138,6 @@ var weaponDefs = {
     shake: 0,
   },
 };
-var weaponOrder = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
+const weaponOrder = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
 
 export { weaponOrder, weaponDefs };

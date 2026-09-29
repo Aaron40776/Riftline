@@ -51,7 +51,7 @@ import { biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
 import { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles } from "./biome-visuals.js";
 
-var tmpColor = new Color(),
+const tmpColor = new Color(),
   InstancePool = class {
     constructor(geo, mat, max, opts = {}) {
       this.max = max;
@@ -289,7 +289,7 @@ function makeColumnTexture() {
     ctx.fillRect(0, 0, size, size);
   });
 }
-var MAX_PARTICLES = 1400,
+const MAX_PARTICLES = 1400,
   goldColor = new Color(16762954),
   colorCache = new Map(),
   hexColor = (hex) => {

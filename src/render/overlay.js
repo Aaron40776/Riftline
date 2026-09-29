@@ -3,7 +3,7 @@
 import { enemyDefs, bossDefs } from "../data/enemies.js";
 import { clamp } from "../core/util.js";
 
-var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mortar: 1, striker: 1 },
+const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mortar: 1, striker: 1 },
   bossAttackNames = {
     charge: "CHARGE",
     ring: "BULLET RING",
@@ -81,6 +81,14 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
         pos = this.tmp,
         safe = opts.safe || { t: 0, b: 0, l: 0, r: 0 },
         dt = opts.dt || 0.016;
+      // project a world point into pos; true when it is in front of the camera
+      const project = (x, y, z) => {
+        renderer.project(x, y, z, pos);
+        return pos.vis;
+      };
+      // …and inside the screen with an 8 px margin
+      const inView = (x, y, z) =>
+        project(x, y, z) && pos.x > 8 && pos.x < this.w - 8 && pos.y > 8 && pos.y < this.h - 8;
       this.time += dt;
       let player = world.player,
         target = player.target;
@@ -90,10 +98,9 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
         player.firing &&
         !player.manual &&
         player.alive &&
-        (renderer.project(target.x, 0.6, target.y, pos),
-        renderer.project(target.x + target.r, 0.6, target.y, this.tmp2),
-        pos.vis)
+        project(target.x, 0.6, target.y)
       ) {
+        renderer.project(target.x + target.r, 0.6, target.y, this.tmp2);
         let size = Math.max(12, Math.abs(this.tmp2.x - pos.x) * 1.5 + 6),
           spin = this.time * 2.2,
           tick = size * 0.45;
@@ -117,7 +124,7 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
           enemy.boss ||
           (enemy.hp >= enemy.maxHp && !(enemy.shieldMax > 0 && enemy.shield < enemy.shieldMax)) ||
           !(enemy.elite || healthBarTypes[enemy.type]) ||
-          (renderer.project(enemy.x, 1.2 + enemy.r * 1.4, enemy.y, pos), !pos.vis)
+          !project(enemy.x, 1.2 + enemy.r * 1.4, enemy.y)
         )
           continue;
         let width = 18 + enemy.r * 16,
@@ -134,7 +141,7 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       for (let num of renderer.nums) {
-        if (num.life <= 0 || (renderer.project(num.x, num.y, num.z, pos), !pos.vis)) continue;
+        if (num.life <= 0 || !project(num.x, num.y, num.z)) continue;
         let alpha = clamp(num.life / 0.35, 0, 1),
           fontSize = num.crit ? 19 : num.burn ? 12 : 14;
         ctx.font = `700 ${fontSize}px "Chakra Petch", "Barlow Semi Condensed", system-ui, sans-serif`;
@@ -156,8 +163,7 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
           (enemy.type === "mortar" && enemy.st === 1);
         if (
           (!enemy.boss && !fewEnemies && !windingUp && !(world.state === "fight" && world.stragglerT > 3)) ||
-          (renderer.project(enemy.x, 0.6, enemy.y, pos),
-          pos.vis && pos.x > 8 && pos.x < this.w - 8 && pos.y > 8 && pos.y < this.h - 8)
+          inView(enemy.x, 0.6, enemy.y)
         )
           continue;
         let cx = this.w / 2,
@@ -201,12 +207,7 @@ var healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bul
       ctx.globalAlpha = 1;
       if (player.alive && player.hp / world.stats.maxHp < 0.6) {
         for (let pickup of world.pickups) {
-          if (
-            pickup.kind !== "heal" ||
-            (renderer.project(pickup.x, 0.5, pickup.y, pos),
-            pos.vis && pos.x > 8 && pos.x < this.w - 8 && pos.y > 8 && pos.y < this.h - 8)
-          )
-            continue;
+          if (pickup.kind !== "heal" || inView(pickup.x, 0.5, pickup.y)) continue;
           let cx = this.w / 2,
             cy = this.h / 2,
             dx = pos.x - cx,
