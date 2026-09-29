@@ -308,7 +308,7 @@ function rlHealthAdd(i, t, e) {
   RL_HEALTH.push({ id: i, status: t, detail: String(e || "") });
 }
 var RL_SELFTEST = null;
-function rlSelfTest() {
+function selfTestBase() {
   if (RL_SELFTEST && RL_SELFTEST.version === GAME_VERSION) return RL_SELFTEST;
   const selftestStarted = performance.now?.() || 0;
   let fail = [],
@@ -639,6 +639,22 @@ function rlSelfTest() {
     ms: Math.max(0, Math.round((performance.now?.() || selftestStarted) - selftestStarted)),
   };
   return RL_SELFTEST;
+}
+/* The deep self-test: the base test, then one part per release. Each part takes the result so far
+ and returns it with its own key added and `ok` combined. Until 2.5.0 the parts wrapped
+ rlSelfTest one after another; they run in the order of that wrapper chain (innermost first). */
+function rlSelfTest() {
+  let result = selfTestBase();
+  result = selfTestExpansion23(result); // 2.2.3
+  result = selfTestExpansion22(result); // 2.2
+  result = selfTestExpansion21(result); // 2.1
+  result = selfTestV240(result);
+  result = selfTestV246(result);
+  result = selfTestV250A(result);
+  result = selfTestV250C(result);
+  result = selfTestV250D(result);
+  result = selfTestV250B(result);
+  return result;
 }
 var RL_LAST_RUN_AUDIT = null;
 // assigned from other modules (an imported binding cannot be assigned)
@@ -1983,10 +1999,8 @@ function rlHealthSummary() {
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
  slipped through 2.2.2 (plan members, event names, save loader, texts, arena features).
  Every section runs in its own try so one failure cannot hide the others. ---- */
-const _rlSelfTestCore = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTestCore(),
-    t0 = performance.now(),
+function selfTestExpansion23(r) {
+  const t0 = performance.now(),
     f = Number.isFinite,
     cats = new Map();
   const bad = (cat, ex) => {
@@ -2232,7 +2246,7 @@ rlSelfTest = function () {
       ms: Math.round(performance.now() - t0),
     },
   };
-};
+}
 function rlLum(c) {
   return (0.2126 * ((c >> 16) & 255) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255;
 }
@@ -2273,10 +2287,8 @@ function rlBiomeDistinct(min = 30) {
     }
   return out;
 }
-const _rlSelfTest22 = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest22(),
-    fail = [];
+function selfTestExpansion22(r) {
+  const fail = [];
   const weapons = Object.keys(weaponDefs),
     enemies = Object.keys(enemyDefs),
     biomes = Object.keys(biomesById),
@@ -2359,11 +2371,9 @@ rlSelfTest = function () {
     cacheRange: [minCache, maxCache],
   };
   return { ...r, ok: r.ok && fail.length === 0, expansion22: { ok: fail.length === 0, fail, ...counts } };
-};
-const _rlSelfTest21 = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest21(),
-    fail = [];
+}
+function selfTestExpansion21(r) {
+  const fail = [];
   const weapons = Object.keys(weaponDefs),
     enemies = Object.keys(enemyDefs),
     biomes = Object.keys(biomesById),
@@ -2404,11 +2414,9 @@ rlSelfTest = function () {
       directorModes: [...modes],
     },
   };
-};
-const _rlSelfTest240 = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest240(),
-    fail = [];
+}
+function selfTestV240(r) {
+  const fail = [];
   if (weaponOrder.length !== 7 || Object.keys(weaponDefs).length !== 7) fail.push("weapon-count:" + weaponOrder.length);
   if (biomeList.length !== 5) fail.push("biome-count:" + biomeList.length);
   for (const u of upgradeList) if (u.weapon && !weaponDefs[u.weapon]) fail.push("evo-weapon:" + u.id);
@@ -2485,12 +2493,10 @@ rlSelfTest = function () {
     fail.push("migrate:" + JSON.stringify(m));
   if (rlMigrateRetired(m) !== m) fail.push("migrate-twice");
   return { ...r, ok: r.ok && fail.length === 0, v240: { ok: fail.length === 0, fail } };
-};
+}
 // 2.4.6: one boss per biome, Void Core always waves 16–20 with the Rift Core as the final boss.
-const _rlSelfTest246 = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest246(),
-    fail = [];
+function selfTestV246(r) {
+  const fail = [];
   for (const [biome, id] of Object.entries(bossByBiome)) {
     if (!biomesById[biome]) fail.push("boss-biome:" + biome);
     if (!bossDefs[id]) fail.push("boss-def:" + id);
@@ -2519,14 +2525,12 @@ rlSelfTest = function () {
       if (!(Math.abs(hull(id, wave) - hull("queen", wave)) < 1e-6)) fail.push(`slot-hull:${id}:${wave}`);
   if (!(hull("queen", 15) > hull("queen", 10))) fail.push("slot-hull-order");
   return { ...r, ok: r.ok && fail.length === 0, v246: { ok: fail.length === 0, fail } };
-};
+}
 // 2.5.0 A: retired upgrades are gone and migrate, the six new upgrades do what their card says.
 import { RL_RETIRED_UPGRADES } from "../data/upgrades.js";
 import { rlMigrateUpgrades, rlSanitizeHistory } from "./save.js";
-const _rlSelfTest250A = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest250A(),
-    fail = [],
+function selfTestV250A(r) {
+  const fail = [],
     NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
   if (upgradeList.length !== 59) fail.push("count:" + upgradeList.length);
   for (const [id, q] of Object.entries(RL_RETIRED_UPGRADES)) {
@@ -2684,7 +2688,7 @@ rlSelfTest = function () {
     if (!(w.stats.rateMul < computeStats("pulse", {}, {}).rateMul)) fail.push("reactive-cost");
   }
   return { ...r, ok: r.ok && fail.length === 0, v250A: { ok: fail.length === 0, fail } };
-};
+}
 window.addEventListener("error", (i) => logError("window", i));
 window.addEventListener("unhandledrejection", (i) => logError("promise", i.reason || i));
 (() => {
@@ -2712,10 +2716,8 @@ window.addEventListener("unhandledrejection", (i) => logError("promise", i.reaso
 // hazard biome and what it does, signature enemies from the biome's first wave, old saved runs.
 import { RL_BIOME_EVENT, rlEnemyFrom } from "./waves.js";
 import { RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
-const _rlSelfTest250C = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest250C(),
-    fail = [],
+function selfTestV250C(r) {
+  const fail = [],
     bad = (k) => fail.length < 40 && fail.push(k),
     theme = { works: "vents", vault: "ice", marsh: "acid" },
     // fairness of one arena: hazards off obstacles and walls, the spawn ring clear, portals valid
@@ -2894,17 +2896,15 @@ rlSelfTest = function () {
     }
   }
   return { ...r, ok: r.ok && fail.length === 0, v250C: { ok: fail.length === 0, fail } };
-};
+}
 
 // 2.5.0 D: biome title card, boss intro card and Codex data. Every biome card names its hazard and
 // its boss; the Codex has one entry per enemy, boss and upgrade, hides unseen ones, reads old saves
 // without Codex keys (defeated bosses, builds in the history and the saved run count as seen) and
 // never throws on broken save data.
 import { rlCodexEntries, rlBiomeCardInfo } from "../ui/ui.js";
-const _rlSelfTest250D = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest250D(),
-    fail = [];
+function selfTestV250D(r) {
+  const fail = [];
   try {
     for (const b of biomeList) {
       const c = rlBiomeCardInfo(b);
@@ -2945,7 +2945,7 @@ rlSelfTest = function () {
     fail.push("exception:" + (e && e.message));
   }
   return { ...r, ok: r.ok && fail.length === 0, v250D: { ok: fail.length === 0, fail } };
-};
+}
 
 export {
   RL_EVENT_KINDS,
@@ -2982,10 +2982,8 @@ export {
    ========================================================================== */
 RL_EVENT_KINDS.add("kit");
 RL_EVENT_KINDS.add("barrier");
-const _rlSelfTest250B = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest250B(),
-    fail = [],
+function selfTestV250B(r) {
+  const fail = [],
     ids = workshopModules.map((m) => m.id);
   for (const id of Object.keys(RL_RETIRED_MODULES)) {
     if (ids.includes(id) || modulesById[id]) fail.push("retired-listed:" + id);
@@ -3064,4 +3062,4 @@ rlSelfTest = function () {
   es.startWave(2);
   if (es.barrierUsed) fail.push("barrier-wave");
   return { ...r, ok: r.ok && fail.length === 0, v250B: { ok: fail.length === 0, fail } };
-};
+}
