@@ -8,6 +8,7 @@ import {
   set_RL_LAST_RUN_AUDIT,
   getErrorLog,
   buildReport,
+  logError,
 } from "../core/diagnostics.js";
 import { enemyDefs, bossDefs, enemyOrder, bossByBiome, RL_ENEMY_TIPS } from "../data/enemies.js";
 import { biomeList, biomesById } from "../data/biomes.js";
@@ -18,6 +19,8 @@ import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, rlRetired, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange } from "../core/stats.js";
+import { RL_INPUT } from "./input.js";
+import { markHomeViewDirty } from "../render/renderer.js";
 
 var RL_TOUCH_CLICK_GUARD = { until: 0, x: 0, y: 0, key: "" };
 function rlUiClickKey(t) {
@@ -352,14 +355,24 @@ var getById = (i) => document.getElementById(i),
       (menuScreens.includes(this.screen) && this.screen !== t && this.stack.push(this.screen), this._show(t));
     }
     _show(t) {
+      // 2.3.6: the renderer re-measures the free space of the home screen for the drone preview
+      markHomeViewDirty();
+      // 2.5.0 D: Records opened from another screen start on the stats
+      t === "records" && this.screen !== "records" && (this.recTab = "stats");
       for (let e of menuScreens) getById(e).hidden = e !== t;
       ((this.screen = t),
         t === "home" && ((this.stack = []), this.renderHome()),
         t === "workshop" && this.renderWorkshop(),
         t === "records" && this.renderRecords(),
         t === "settings" && this.renderSettings());
+      requestAnimationFrame(() => window.__riftLayoutAudit?.());
     }
     back() {
+      // 2.4.2: from settings opened in the pause menu back to the pause menu
+      if (this.rlFromPause) {
+        (closePauseSettings(this), (getById("pause").hidden = !1), (this.screen = "pause"));
+        return;
+      }
       this._show(this.stack.pop() || "home");
     }
     hideMenus() {
@@ -552,6 +565,18 @@ var getById = (i) => document.getElementById(i),
         })
         .join("");
       for (let a of r.querySelectorAll("[data-claim]")) this.click(a, () => this.claim(a.dataset.claim));
+      // 2.5.0 D: Stats / Codex tabs
+      try {
+        this.recordsTab(this.recTab || "stats");
+      } catch (e) {
+        console.warn("codex", e);
+      }
+      // recent runs list under the lifetime stats
+      try {
+        rlRenderHistory();
+      } catch (e) {
+        logError("history", e);
+      }
     }
     claim(t) {
       let e = this.save,
@@ -585,6 +610,8 @@ var getById = (i) => document.getElementById(i),
         (getById("storageWarn").hidden = this.g.store.storageOk),
         (getById("verText").textContent = `v${GAME_VERSION}`),
         this.renderLog());
+      // 2.4.2: run timer and FPS counter
+      ((getById("setTimer").checked = !!t.timer), (getById("setFps").checked = !!t.fps));
     }
     renderLog() {
       let t = getErrorLog().length;
@@ -731,6 +758,8 @@ var getById = (i) => document.getElementById(i),
         (getById("touch").hidden = !t),
         t || (getById("bossBar").hidden = !0),
         (this.hudCache = {}));
+      // 2.5.0 D: the end of a run hides the title cards like the banner
+      this.clearTitleCard();
     }
     hud(t) {
       let e = this.hudCache,
@@ -850,6 +879,22 @@ var getById = (i) => document.getElementById(i),
       r("nova", p, (x) => {
         (getById("novaBtn").style.setProperty("--p", x + "%"), getById("novaBtn").classList.toggle("ready", x >= 100));
       });
+      // 2.4.2: run timer and FPS counter
+      const settings = store.data.settings,
+        now = performance.now(),
+        meter = hudFpsMeter;
+      // a gap (pause, upgrade choice, hidden tab) starts a new measurement
+      (now - meter.last > 1e3 && ((meter.since = now), (meter.frames = 0)), (meter.last = now));
+      (meter.frames++,
+        now - meter.since >= 500 &&
+          ((meter.fps = meter.since ? Math.round((meter.frames * 1e3) / (now - meter.since)) : 0),
+          (meter.frames = 0),
+          (meter.since = now)));
+      const parts = [];
+      (settings.timer && parts.push(formatTime(t.time)), settings.fps && meter.fps && parts.push(meter.fps + " FPS"));
+      const txt = parts.join(" \xB7 ");
+      txt !== meter.shown &&
+        ((meter.shown = txt), (getById("hudInfo").textContent = txt), (getById("hudInfo").hidden = !txt));
     }
     buffs(t) {
       let e = t.player,
@@ -882,6 +927,29 @@ var getById = (i) => document.getElementById(i),
         let h = a.querySelector(`[data-b="${o}"] i`);
         h && (h.style.transform = `scaleX(${clamp(c, 0, 1).toFixed(2)})`);
       }
+      // 2.5.0 A: chips for the timed upgrades (Heat Sink, Slipstream) and active Cryo Skates.
+      // They are added next to the chips above, which may rebuild the row at any frame.
+      const on = t.state === "fight" && e.alive,
+        want = [];
+      on && n.heatSink && e.heatT > 0 && want.push(["heat", "HEAT", "#ff8a3d", e.heatT / 3]);
+      on && n.slip && e.slipT > 0 && want.push(["slip", "SLIPSTREAM", "#7ff6ff", e.slipT / 1.37]);
+      on && n.skates && e.skating && want.push(["skate", "SKATES", "#bff4ff", -1]);
+      const row = getById("buffs");
+      if (!row) return;
+      for (const k of timedBuffChips) if (!want.some((w) => w[0] === k)) row.querySelector(`[data-b="${k}"]`)?.remove();
+      for (const [k, text, color, left] of want) {
+        let el = row.querySelector(`[data-b="${k}"]`);
+        if (!el) {
+          el = document.createElement("span");
+          el.className = "buff";
+          el.dataset.b = k;
+          el.style.setProperty("--bc", color);
+          el.innerHTML = escapeHtml(text) + (left >= 0 ? "<i></i>" : "");
+          row.appendChild(el);
+        }
+        const bar = el.querySelector("i");
+        bar && (bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`);
+      }
     }
     showChoose(t) {
       let e = t.offerBoss;
@@ -897,6 +965,10 @@ var getById = (i) => document.getElementById(i),
         (getById("choose").hidden = !1));
     }
     renderCards(t) {
+      // 2.4.2: the reroll label survives a re-render (reroll), so drop its old key hint first
+      getById("rerollBtn")
+        .querySelectorAll(".card-key")
+        .forEach((e) => e.remove());
       let e = getById("cards");
       ((e.innerHTML = t.offer
         .map((n, s) => {
@@ -924,6 +996,24 @@ var getById = (i) => document.getElementById(i),
       ((getById("rerollTxt").textContent = `Reroll (${t.rerolls})`),
         (getById("rerollBtn").disabled = t.rerolls <= 0),
         (getById("buildStrip").innerHTML = this.buildHtml(t)));
+      // 2.5.0 D: every upgrade that is offered counts as seen (also after a reroll and in a resumed run)
+      try {
+        this.markSeen((t.offer || []).filter((id) => upgradesById[id]).map((id) => "up_" + id));
+      } catch (err) {
+        console.warn("codex", err);
+      }
+      // 2.4.2: keys 1–4 pick a card, R rerolls (keyboard players only)
+      if (!RL_INPUT.touch) {
+        getById("cards")
+          .querySelectorAll("[data-pick]")
+          .forEach(
+            (c, i) => (
+              c.classList.add("has-key"),
+              c.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`)
+            ),
+          );
+        getById("rerollTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
+      }
     }
     statDelta(t, e) {
       let n = e.player,
@@ -961,6 +1051,8 @@ var getById = (i) => document.getElementById(i),
     coverHud(t) {
       ((getById("hud").style.visibility = t ? "hidden" : ""),
         t && ((getById("banner").innerHTML = ""), clearTimeout(this.bannerT)));
+      // 2.5.0 D: the upgrade choice and the pause menu hide the title cards like the banner
+      t && this.clearTitleCard();
     }
     buildHtml(t) {
       let e = upgradeList.filter((n) => t.up[n.id] && !n.repeat);
@@ -981,9 +1073,30 @@ var getById = (i) => document.getElementById(i),
         this.coverHud(!0),
         (getById("pause").hidden = !1),
         (this.screen = "pause"));
+      // 2.4.2: the build in the pause menu explains each upgrade on tap or click
+      const own = upgradeList.filter((n) => t.up[n.id] && !n.repeat),
+        info = getById("pauseUpInfo");
+      own.length &&
+        (getById("pauseBuild").innerHTML = own
+          .map(
+            (n) =>
+              `<button type="button" class="bi r${n.rarity}" data-up="${n.id}" aria-label="${escapeHtml(n.name)}">${iconSvg(n.icon)}${escapeHtml(n.name)}${t.up[n.id] > 1 ? " \xD7" + t.up[n.id] : ""}</button>`,
+          )
+          .join(""));
+      ((info.hidden = !own.length), (info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>'));
     }
     hidePause() {
+      // 2.4.2: also closes settings opened from the pause menu
+      closePauseSettings(this);
       ((getById("pause").hidden = !0), (getById("settings").hidden = !0), this.coverHud(!1));
+    }
+    // 2.4.2: settings from the pause menu (without backup and reset)
+    openPauseSettings() {
+      if (!this.g.paused || getById("pause").hidden) return;
+      ((this.rlFromPause = !0),
+        (getById("pause").hidden = !0),
+        getById("settings").classList.add("in-run"),
+        this._show("settings"));
     }
     showOver(t) {
       getById("overEyebrow").textContent = t.win
@@ -1078,50 +1191,108 @@ var getById = (i) => document.getElementById(i),
       let t = getById("flash");
       (t.classList.add("on"), requestAnimationFrame(() => requestAnimationFrame(() => t.classList.remove("on"))));
     }
-  };
-(() => {
-  const _show = GameUI.prototype._show;
-  GameUI.prototype._show = function (screen) {
-    const r = _show.call(this, screen);
-    requestAnimationFrame(() => window.__riftLayoutAudit?.());
-    return r;
-  };
-})();
-
-// 2.5.0 A: HUD chips for the new timed upgrades (Heat Sink, Slipstream) and active Cryo Skates.
-// They are added next to the chips of the base method, which may rebuild the row at any frame.
-(() => {
-  const baseBuffs = GameUI.prototype.buffs,
-    chips = ["heat", "slip", "skate"];
-  GameUI.prototype.buffs = function (t) {
-    const out = baseBuffs.call(this, t),
-      p = t.player,
-      st = t.stats,
-      on = t.state === "fight" && p.alive,
-      want = [];
-    on && st.heatSink && p.heatT > 0 && want.push(["heat", "HEAT", "#ff8a3d", p.heatT / 3]);
-    on && st.slip && p.slipT > 0 && want.push(["slip", "SLIPSTREAM", "#7ff6ff", p.slipT / 1.37]);
-    on && st.skates && p.skating && want.push(["skate", "SKATES", "#bff4ff", -1]);
-    const row = getById("buffs");
-    if (!row) return out;
-    for (const k of chips)
-      if (!want.some((w) => w[0] === k)) row.querySelector(`[data-b="${k}"]`)?.remove();
-    for (const [k, text, color, left] of want) {
-      let el = row.querySelector(`[data-b="${k}"]`);
-      if (!el) {
-        el = document.createElement("span");
-        el.className = "buff";
-        el.dataset.b = k;
-        el.style.setProperty("--bc", color);
-        el.innerHTML = escapeHtml(text) + (left >= 0 ? "<i></i>" : "");
-        row.appendChild(el);
-      }
-      const bar = el.querySelector("i");
-      bar && (bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`);
+    // ---- 2.5.0 D: title cards (see the note above RL_BIOME_CARD)
+    clearTitleCard() {
+      this.titleCardN = (this.titleCardN || 0) + 1;
+      this.cardHold = null;
+      clearTimeout(this.titleCardT);
+      const el = getById("titleCard");
+      el && (el.innerHTML = "");
     }
-    return out;
+    // biome title card; it replaces the wave banner of its wave
+    biomeCard(biome, wave, ms = 9000) {
+      const c = rlBiomeCardInfo(biome);
+      holdTitleCard(
+        this,
+        "biome",
+        `<div class="tcard biome hold" data-biome="${escapeHtml(c.id)}" style="--bc:${c.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(c.name)}</div>${c.hazard ? `<div class="tc-haz">${escapeHtml(c.hazard)}</div>` : ""}${c.boss ? `<div class="tc-boss"><span>Boss</span>${escapeHtml(c.boss)}</div>` : ""}</div></div>`,
+        900,
+        ms,
+      );
+      return c;
+    }
+    // boss intro card, shown during the camera pan to a new boss
+    bossCard(id, biome, ms = 9000) {
+      const b = bossDefs[id];
+      if (!b) return null;
+      holdTitleCard(
+        this,
+        "boss",
+        `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(b.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Boss${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(b.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(b.title)}</div></div></div>`,
+        1600,
+        ms,
+      );
+      return b;
+    }
+    // fades the held card out in 0.5 s, after it has been on screen for its minimum time
+    releaseTitleCard() {
+      const h = this.cardHold;
+      if (!h) return;
+      this.cardHold = null;
+      if (this.titleCardN !== h.token) return; // another card replaced it
+      clearTimeout(this.titleCardT);
+      this.titleCardT = setTimeout(
+        () => {
+          if (this.titleCardN !== h.token) return;
+          const c = document.querySelector("#titleCard .tcard");
+          c && c.classList.add("out");
+          this.titleCardT = setTimeout(() => this.titleCardN === h.token && (getById("titleCard").innerHTML = ""), 520);
+        },
+        Math.max(0, h.min - (performance.now() - h.at)),
+      );
+    }
+    // ---- 2.5.0 D: Codex "seen" keys; saves only when something is new
+    markSeen(keys) {
+      const seen = this.save && this.save.seen;
+      if (!seen) return 0;
+      let n = 0;
+      for (const k of keys) seen[k] !== !0 && ((seen[k] = !0), n++);
+      n && this.g.store.save("codex");
+      return n;
+    }
+    // ---- 2.5.0 D: Records: Stats / Codex tabs (built on first use, the page markup stays as it was)
+    recordsTab(tab) {
+      ensureRecordTabs(this);
+      this.recTab = tab === "codex" ? "codex" : "stats";
+      for (const b of getById("recTabs").querySelectorAll("[data-rtab]")) {
+        const on = b.dataset.rtab === this.recTab;
+        (b.classList.toggle("on", on), b.setAttribute("aria-selected", on ? "true" : "false"));
+      }
+      ((getById("records").querySelector(".scroll").hidden = this.recTab !== "stats"),
+        (getById("codexList").hidden = this.recTab !== "codex"));
+      this.recTab === "codex" && this.renderCodex();
+      requestAnimationFrame(() => window.__riftLayoutAudit?.());
+    }
+    renderCodex() {
+      const c = rlCodexEntries(this.save),
+        all = [...c.enemies, ...c.bosses, ...c.upgrades],
+        found = all.filter((e) => e.seen).length,
+        rows = (list, hint) =>
+          list
+            .map((e) => {
+              const cls = `row panel cx${e.seen ? "" : " unseen"}${e.rarity ? " r" + e.rarity : ""}`;
+              if (!e.seen)
+                return `<div class="${cls}" data-cx="${escapeHtml(e.key)}"><div class="rico">${iconSvg("lock")}</div><div><b>???</b><small>${escapeHtml(hint)}</small></div></div>`;
+              return `<div class="${cls}" data-cx="${escapeHtml(e.key)}"${e.color ? ` style="--cc:${e.color}"` : ""}><div class="rico">${iconSvg(e.icon)}</div><div><b>${escapeHtml(e.name)}</b><small>${escapeHtml(e.desc)}</small>${e.extra ? `<small class="cx-extra">${escapeHtml(e.extra)}</small>` : ""}</div>${e.tag ? `<span class="chip">${escapeHtml(e.tag)}</span>` : ""}</div>`;
+            })
+            .join(""),
+        part = (title, list, hint) =>
+          `<h3 class="section-h">${title} <span class="cx-count">${list.filter((e) => e.seen).length}/${list.length}</span></h3><div class="codex-grid">${rows(list, hint)}</div>`;
+      getById("codexList").innerHTML =
+        `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies and bosses unlock when you meet them, upgrades when a run offers them.</p>` +
+        part("Enemies", c.enemies, "Not encountered yet") +
+        part("Bosses", c.bosses, "Not encountered yet") +
+        part("Upgrades", c.upgrades, "Not offered yet");
+    }
   };
-})();
+// 2.4.2: state of the FPS counter in the HUD
+const hudFpsMeter = { frames: 0, since: 0, last: 0, fps: 0, shown: "" };
+// 2.5.0 A: HUD chips of the timed upgrades, managed next to the chips of GameUI.buffs
+const timedBuffChips = ["heat", "slip", "skate"];
+// 2.4.2: closes settings that were opened from the pause menu
+function closePauseSettings(ui) {
+  ((ui.rlFromPause = !1), (getById("settings").hidden = !0), getById("settings").classList.remove("in-run"));
+}
 
 /* ==========================================================================
  2.5.0 D: design — biome title card, boss intro card, Codex in Records
@@ -1233,191 +1404,57 @@ function rlCodexEntries(save) {
     });
   return { enemies, bosses, upgrades };
 }
-(() => {
-  const layer = () => {
-    let el = getById("titleCard");
-    if (!el) {
-      el = document.createElement("div");
-      el.id = "titleCard";
-      el.setAttribute("aria-live", "polite");
-      const banner = getById("banner");
-      banner ? banner.after(el) : getById("app").appendChild(el);
-    }
-    return el;
-  };
-  // The card starts after the next frame is on screen: the first frame of a new arena or boss can
-  // take long on slow devices (shader compiles), and the card must not run out during that stall.
-  const showCard = (ui, html, ms) => {
-    const el = layer(),
-      token = (ui.titleCardN = (ui.titleCardN || 0) + 1);
-    clearTimeout(ui.titleCardT);
-    el.innerHTML = "";
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        if (ui.titleCardN !== token) return;
-        el.innerHTML = html;
-        ui.titleCardT = setTimeout(() => ui.titleCardN === token && (el.innerHTML = ""), ms + 60);
-      }),
+// ---- 2.5.0 D: title card helpers
+function titleCardLayer() {
+  let el = getById("titleCard");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "titleCard";
+    el.setAttribute("aria-live", "polite");
+    const banner = getById("banner");
+    banner ? banner.after(el) : getById("app").appendChild(el);
+  }
+  return el;
+}
+// The card starts after the next frame is on screen: the first frame of a new arena or boss can
+// take long on slow devices (shader compiles), and the card must not run out during that stall.
+function showTitleCard(ui, html, ms) {
+  const el = titleCardLayer(),
+    token = (ui.titleCardN = (ui.titleCardN || 0) + 1);
+  clearTimeout(ui.titleCardT);
+  el.innerHTML = "";
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      if (ui.titleCardN !== token) return;
+      el.innerHTML = html;
+      ui.titleCardT = setTimeout(() => ui.titleCardN === token && (el.innerHTML = ""), ms + 60);
+    }),
+  );
+  return token;
+}
+// Both cards hold until the game releases them (releaseTitleCard), because they follow game time:
+// the biome card the first 1.6 s of its wave, the boss card the camera pan. Game time runs slower
+// than the clock on a slow device and stalls while a new arena or boss is first drawn, so a card
+// on a clock timer could be gone before the player saw it. `ms` is only a safety limit.
+function holdTitleCard(ui, kind, html, min, ms) {
+  ((getById("banner").innerHTML = ""), clearTimeout(ui.bannerT));
+  ui.cardHold = { token: showTitleCard(ui, html, ms), kind, at: performance.now(), min };
+}
+// ---- 2.5.0 D: the Stats / Codex tabs of Records, built on first use
+function ensureRecordTabs(ui) {
+  if (getById("recTabs")) return;
+  const rec = getById("records"),
+    main = rec.querySelector(".scroll");
+  main.id || (main.id = "recStats");
+  rec
+    .querySelector(".topbar")
+    .insertAdjacentHTML(
+      "afterend",
+      '<div id="recTabs" class="seg rec-tabs" role="tablist"><button type="button" role="tab" data-rtab="stats" class="on" aria-selected="true">Stats</button><button type="button" role="tab" data-rtab="codex" aria-selected="false">Codex</button></div>',
     );
-    return token;
-  };
-  GameUI.prototype.clearTitleCard = function () {
-    this.titleCardN = (this.titleCardN || 0) + 1;
-    this.cardHold = null;
-    clearTimeout(this.titleCardT);
-    const el = getById("titleCard");
-    el && (el.innerHTML = "");
-  };
-  // Both cards hold until the game releases them (releaseTitleCard), because they follow game time:
-  // the biome card the first 1.6 s of its wave, the boss card the camera pan. Game time runs slower
-  // than the clock on a slow device and stalls while a new arena or boss is first drawn, so a card
-  // on a clock timer could be gone before the player saw it. `ms` is only a safety limit.
-  const holdCard = (ui, kind, html, min, ms) => {
-    ((getById("banner").innerHTML = ""), clearTimeout(ui.bannerT));
-    ui.cardHold = { token: showCard(ui, html, ms), kind, at: performance.now(), min };
-  };
-  // biome title card; it replaces the wave banner of its wave
-  GameUI.prototype.biomeCard = function (biome, wave, ms = 9000) {
-    const c = rlBiomeCardInfo(biome);
-    holdCard(
-      this,
-      "biome",
-      `<div class="tcard biome hold" data-biome="${escapeHtml(c.id)}" style="--bc:${c.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(c.name)}</div>${c.hazard ? `<div class="tc-haz">${escapeHtml(c.hazard)}</div>` : ""}${c.boss ? `<div class="tc-boss"><span>Boss</span>${escapeHtml(c.boss)}</div>` : ""}</div></div>`,
-      900,
-      ms,
-    );
-    return c;
-  };
-  // boss intro card, shown during the camera pan to a new boss
-  GameUI.prototype.bossCard = function (id, biome, ms = 9000) {
-    const b = bossDefs[id];
-    if (!b) return null;
-    holdCard(
-      this,
-      "boss",
-      `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(b.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Boss${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(b.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(b.title)}</div></div></div>`,
-      1600,
-      ms,
-    );
-    return b;
-  };
-  // fades the held card out in 0.5 s, after it has been on screen for its minimum time
-  GameUI.prototype.releaseTitleCard = function () {
-    const h = this.cardHold;
-    if (!h) return;
-    this.cardHold = null;
-    if (this.titleCardN !== h.token) return; // another card replaced it
-    clearTimeout(this.titleCardT);
-    this.titleCardT = setTimeout(
-      () => {
-        if (this.titleCardN !== h.token) return;
-        const c = document.querySelector("#titleCard .tcard");
-        c && c.classList.add("out");
-        this.titleCardT = setTimeout(() => this.titleCardN === h.token && (getById("titleCard").innerHTML = ""), 520);
-      },
-      Math.max(0, h.min - (performance.now() - h.at)),
-    );
-  };
-  // the upgrade choice, the pause menu and the end of a run hide the cards like the banner
-  const baseCover = GameUI.prototype.coverHud;
-  GameUI.prototype.coverHud = function (t) {
-    const r = baseCover.call(this, t);
-    t && this.clearTitleCard();
-    return r;
-  };
-  const baseShowHud = GameUI.prototype.showHud;
-  GameUI.prototype.showHud = function (t) {
-    const r = baseShowHud.call(this, t);
-    this.clearTitleCard();
-    return r;
-  };
-  // Codex "seen" keys; saves only when something is new
-  GameUI.prototype.markSeen = function (keys) {
-    const seen = this.save && this.save.seen;
-    if (!seen) return 0;
-    let n = 0;
-    for (const k of keys) seen[k] !== !0 && ((seen[k] = !0), n++);
-    n && this.g.store.save("codex");
-    return n;
-  };
-  // every upgrade that is offered counts as seen (also after a reroll and in a resumed run)
-  const baseCards = GameUI.prototype.renderCards;
-  GameUI.prototype.renderCards = function (t) {
-    const r = baseCards.call(this, t);
-    try {
-      this.markSeen((t.offer || []).filter((id) => upgradesById[id]).map((id) => "up_" + id));
-    } catch (e) {
-      console.warn("codex", e);
-    }
-    return r;
-  };
-
-  // ---- Records: Stats / Codex tabs (built on first use, the page markup stays as it was)
-  const ensureTabs = (ui) => {
-    if (getById("recTabs")) return;
-    const rec = getById("records"),
-      main = rec.querySelector(".scroll");
-    main.id || (main.id = "recStats");
-    rec
-      .querySelector(".topbar")
-      .insertAdjacentHTML(
-        "afterend",
-        '<div id="recTabs" class="seg rec-tabs" role="tablist"><button type="button" role="tab" data-rtab="stats" class="on" aria-selected="true">Stats</button><button type="button" role="tab" data-rtab="codex" aria-selected="false">Codex</button></div>',
-      );
-    main.insertAdjacentHTML("afterend", '<div id="codexList" class="scroll codex" hidden></div>');
-    for (const b of getById("recTabs").querySelectorAll("[data-rtab]"))
-      ui.click(b, () => ui.recordsTab(b.dataset.rtab));
-  };
-  GameUI.prototype.recordsTab = function (tab) {
-    ensureTabs(this);
-    this.recTab = tab === "codex" ? "codex" : "stats";
-    for (const b of getById("recTabs").querySelectorAll("[data-rtab]")) {
-      const on = b.dataset.rtab === this.recTab;
-      (b.classList.toggle("on", on), b.setAttribute("aria-selected", on ? "true" : "false"));
-    }
-    ((getById("records").querySelector(".scroll").hidden = this.recTab !== "stats"),
-      (getById("codexList").hidden = this.recTab !== "codex"));
-    this.recTab === "codex" && this.renderCodex();
-    requestAnimationFrame(() => window.__riftLayoutAudit?.());
-  };
-  GameUI.prototype.renderCodex = function () {
-    const c = rlCodexEntries(this.save),
-      all = [...c.enemies, ...c.bosses, ...c.upgrades],
-      found = all.filter((e) => e.seen).length,
-      rows = (list, hint) =>
-        list
-          .map((e) => {
-            const cls = `row panel cx${e.seen ? "" : " unseen"}${e.rarity ? " r" + e.rarity : ""}`;
-            if (!e.seen)
-              return `<div class="${cls}" data-cx="${escapeHtml(e.key)}"><div class="rico">${iconSvg("lock")}</div><div><b>???</b><small>${escapeHtml(hint)}</small></div></div>`;
-            return `<div class="${cls}" data-cx="${escapeHtml(e.key)}"${e.color ? ` style="--cc:${e.color}"` : ""}><div class="rico">${iconSvg(e.icon)}</div><div><b>${escapeHtml(e.name)}</b><small>${escapeHtml(e.desc)}</small>${e.extra ? `<small class="cx-extra">${escapeHtml(e.extra)}</small>` : ""}</div>${e.tag ? `<span class="chip">${escapeHtml(e.tag)}</span>` : ""}</div>`;
-          })
-          .join(""),
-      part = (title, list, hint) =>
-        `<h3 class="section-h">${title} <span class="cx-count">${list.filter((e) => e.seen).length}/${list.length}</span></h3><div class="codex-grid">${rows(list, hint)}</div>`;
-    getById("codexList").innerHTML =
-      `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies and bosses unlock when you meet them, upgrades when a run offers them.</p>` +
-      part("Enemies", c.enemies, "Not encountered yet") +
-      part("Bosses", c.bosses, "Not encountered yet") +
-      part("Upgrades", c.upgrades, "Not offered yet");
-  };
-  const baseRecords = GameUI.prototype.renderRecords;
-  GameUI.prototype.renderRecords = function () {
-    const r = baseRecords.call(this);
-    try {
-      this.recordsTab(this.recTab || "stats");
-    } catch (e) {
-      console.warn("codex", e);
-    }
-    return r;
-  };
-  // Records opened from another screen start on the stats
-  const baseShow = GameUI.prototype._show;
-  GameUI.prototype._show = function (t) {
-    t === "records" && this.screen !== "records" && (this.recTab = "stats");
-    return baseShow.call(this, t);
-  };
-})();
+  main.insertAdjacentHTML("afterend", '<div id="codexList" class="scroll codex" hidden></div>');
+  for (const b of getById("recTabs").querySelectorAll("[data-rtab]")) ui.click(b, () => ui.recordsTab(b.dataset.rtab));
+}
 
 export {
   GameUI,

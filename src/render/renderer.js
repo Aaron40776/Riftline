@@ -32,7 +32,6 @@ import {
   WebGLRenderer,
 } from "three";
 import { logError } from "../core/diagnostics.js";
-import { GameUI } from "../ui/ui.js";
 import {
   debrisGeometry,
   discGeometry,
@@ -1819,6 +1818,11 @@ var MAX_PARTICLES = 1400,
       ((this.focus = t == null ? null : { x: t, z: e }), (this.focusK = 0));
     }
   };
+// placeholder until the merge with the render agent's markHomeViewDirty (GameUI._show calls it)
+let homeViewDirtyHook = () => {};
+function markHomeViewDirty() {
+  homeViewDirtyHook();
+}
 // 2.3.6: on landscape phones and tablets the home screen has two columns (title left, weapon
 // card right). The drone preview is drawn at the screen centre, which is where the title ends,
 // so the drone sat on the last letters of RIFTLINE. With two columns the view is now shifted so
@@ -1854,11 +1858,7 @@ var MAX_PARTICLES = 1400,
   addEventListener("resize", remeasure, { passive: !0 });
   window.visualViewport && window.visualViewport.addEventListener("resize", remeasure, { passive: !0 });
   document.fonts && document.fonts.ready.then(() => (dirty = !0));
-  const baseShow = GameUI.prototype._show;
-  GameUI.prototype._show = function (screen) {
-    dirty = !0;
-    return baseShow.call(this, screen);
-  };
+  homeViewDirtyHook = () => (dirty = !0);
   Renderer.prototype.updateCamera = function (dt, world, menu) {
     baseCamera.call(this, dt, world, menu);
     let want = null;
@@ -1993,4 +1993,4 @@ Renderer.prototype.drawFeatures = function (t, e) {
   }
 };
 
-export { Renderer, hexColor, additiveMaterial };
+export { Renderer, hexColor, additiveMaterial, markHomeViewDirty };
