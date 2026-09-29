@@ -65,7 +65,7 @@ var upgradeList = [
     rarity: 2,
     max: 3,
     icon: "shield",
-    desc: (i) => "Block a hit every " + [12, 8, 5][Math.min(i, 2)] + " s",
+    desc: (level) => "Block a hit every " + [12, 8, 5][Math.min(level, 2)] + " s",
   },
   {
     id: "regen",
@@ -73,7 +73,7 @@ var upgradeList = [
     rarity: 2,
     max: 5,
     icon: "heart",
-    desc: (i) => `Regenerate ${(0.8 * (i + 1)).toFixed(1)} HP per second`,
+    desc: (level) => `Regenerate ${(0.8 * (level + 1)).toFixed(1)} HP per second`,
   },
   {
     id: "cryo",
@@ -81,7 +81,7 @@ var upgradeList = [
     rarity: 2,
     max: 3,
     icon: "snow",
-    desc: (i) => `${15 * (i + 1)}% chance to slow enemies by 45%`,
+    desc: (level) => `${15 * (level + 1)}% chance to slow enemies by 45%`,
   },
   {
     id: "shockdash",
@@ -89,7 +89,7 @@ var upgradeList = [
     rarity: 2,
     max: 2,
     icon: "wing",
-    desc: (i) => `Dashing through enemies deals ${i ? 48 : 30} damage`,
+    desc: (level) => `Dashing through enemies deals ${level ? 48 : 30} damage`,
   },
   {
     id: "payload",
@@ -97,7 +97,7 @@ var upgradeList = [
     rarity: 3,
     max: 5,
     icon: "burst",
-    desc: (i) => `Hits explode for ${40 + 15 * i}% damage around the target`,
+    desc: (level) => `Hits explode for ${40 + 15 * level}% damage around the target`,
   },
   {
     id: "arc",
@@ -105,7 +105,7 @@ var upgradeList = [
     rarity: 3,
     max: 3,
     icon: "bolt",
-    desc: (i) => `${20 + 10 * i}% chance for hits to chain to 2 enemies`,
+    desc: (level) => `${20 + 10 * level}% chance for hits to chain to 2 enemies`,
   },
   {
     id: "seeker",
@@ -121,7 +121,7 @@ var upgradeList = [
     rarity: 3,
     max: 3,
     icon: "flame",
-    desc: (i) => `Hits burn for ${30 + 15 * i}% of their damage per second`,
+    desc: (level) => `Hits burn for ${30 + 15 * level}% of their damage per second`,
   },
   {
     id: "siphon",
@@ -129,7 +129,7 @@ var upgradeList = [
     rarity: 3,
     max: 4,
     icon: "heart",
-    desc: (i) => `Kills have a ${12 + 6 * i}% chance to repair 4 HP`,
+    desc: (level) => `Kills have a ${12 + 6 * level}% chance to repair 4 HP`,
   },
   {
     id: "rearguard",
@@ -137,7 +137,7 @@ var upgradeList = [
     rarity: 3,
     max: 2,
     icon: "fan",
-    desc: (i) => (i === 0 ? "Also fire backward" : "Also fire to both sides") + " at 60% damage",
+    desc: (level) => (level === 0 ? "Also fire backward" : "Also fire to both sides") + " at 60% damage",
   },
   {
     id: "overcharge",
@@ -145,7 +145,7 @@ var upgradeList = [
     rarity: 3,
     max: 4,
     icon: "star",
-    desc: (i) => `Nova charges 40% faster, +${i < 2 ? 25 : 10}% radius`,
+    desc: (level) => `Nova charges 40% faster, +${level < 2 ? 25 : 10}% radius`,
   },
   {
     id: "wingman",
@@ -161,7 +161,7 @@ var upgradeList = [
     rarity: 2,
     max: 3,
     icon: "star",
-    desc: (l, i = l + 1) => `Elite kills drop +${2 * i} shards`,
+    desc: (level, count = level + 1) => `Elite kills drop +${2 * count} shards`,
   },
   {
     id: "bloodrush",
@@ -185,7 +185,7 @@ var upgradeList = [
     rarity: 3,
     max: 3,
     icon: "bolt",
-    desc: (l, i = l + 1) => `Kills grant +${3 * i}% Nova charge`,
+    desc: (level, count = level + 1) => `Kills grant +${3 * count}% Nova charge`,
   },
   {
     id: "chrono",
@@ -201,7 +201,7 @@ var upgradeList = [
     rarity: 2,
     max: 3,
     icon: "wing",
-    desc: (i) => `+${9 * (i + 1)}% fire rate while moving`,
+    desc: (level) => `+${9 * (level + 1)}% fire rate while moving`,
   },
   {
     id: "laststand",
@@ -209,7 +209,7 @@ var upgradeList = [
     rarity: 2,
     max: 2,
     icon: "shield",
-    desc: (i) => `-${18 * (i + 1)}% incoming damage below 35% hull`,
+    desc: (level) => `-${18 * (level + 1)}% incoming damage below 35% hull`,
   },
   {
     id: "vector",
@@ -217,7 +217,7 @@ var upgradeList = [
     rarity: 2,
     max: 6,
     icon: "arrow",
-    desc: (i) => `-${8 * (i + 1)}% dash and Aegis cooldown`,
+    desc: (level) => `-${8 * (level + 1)}% dash and Aegis cooldown`,
   },
   {
     id: "halo",
@@ -344,7 +344,7 @@ var upgradeList = [
     desc: () => "Flames reach 30% further and burn 60% hotter.",
   },
 ];
-var upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
+var upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 var rarityWeights = [0, 60, 28, 10, 2],
   bossRarityWeights = [0, 0, 42, 44, 14];
 upgradeList.push(
@@ -370,10 +370,10 @@ upgradeList.push(
     rarity: 2,
     max: 6,
     icon: "shard",
-    desc: (i) => `Every 12 kills drop ${2 * (i + 1)} bonus shards`,
+    desc: (level) => `Every 12 kills drop ${2 * (level + 1)} bonus shards`,
   },
 );
-upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
+upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 upgradeList.push(
   {
     id: "overload",
@@ -381,7 +381,7 @@ upgradeList.push(
     rarity: 2,
     max: 3,
     icon: "burst",
-    desc: (l, i = l + 1) => `Every 6th shot releases a close-range burst (${24 + 8 * i} damage)`,
+    desc: (level, count = level + 1) => `Every 6th shot releases a close-range burst (${24 + 8 * count} damage)`,
   },
   {
     id: "resonance",
@@ -389,7 +389,7 @@ upgradeList.push(
     rarity: 3,
     max: 5,
     icon: "bolt",
-    desc: (l, i = l + 1) => `+${8 * i}% chain chance and +${i} chain jump${i > 1 ? "s" : ""}`,
+    desc: (level, count = level + 1) => `+${8 * count}% chain chance and +${count} chain jump${count > 1 ? "s" : ""}`,
   },
   {
     id: "hazmat",
@@ -397,7 +397,7 @@ upgradeList.push(
     rarity: 2,
     max: 4,
     icon: "shield",
-    desc: (l, i = l + 1) => `-${Math.min(88, 25 * i)}% hazard damage (lava, acid)`,
+    desc: (level, count = level + 1) => `-${Math.min(88, 25 * count)}% hazard damage (lava, acid)`,
   },
   {
     id: "echo",
@@ -405,21 +405,19 @@ upgradeList.push(
     rarity: 3,
     max: 2,
     icon: "rate",
-    desc: (l, i = l + 1) => `${8 * i}% chance for a shot to repeat`,
+    desc: (level, count = level + 1) => `${8 * count}% chance for a shot to repeat`,
   },
 );
-upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
-upgradeList.push(
-  {
-    id: "salvager",
-    name: "Salvager Core",
-    rarity: 2,
-    max: 5,
-    icon: "shard",
-    desc: () => "+1 supply cache per wave, and caches hold more shards",
-  },
-);
-upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
+upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
+upgradeList.push({
+  id: "salvager",
+  name: "Salvager Core",
+  rarity: 2,
+  max: 5,
+  icon: "shard",
+  desc: () => "+1 supply cache per wave, and caches hold more shards",
+});
+upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 
 // 2.5.0 A: six upgrades with a mechanic of their own (World hooks at the end of core/world.js).
 // Cryo Skates and Acid Coating pay off most in their biome, Heat Sink wherever there is a hazard.
@@ -430,8 +428,8 @@ upgradeList.push(
     rarity: 2,
     max: 2,
     icon: "snow",
-    desc: (l, i = l + 1) =>
-      `+${4 * i}% speed. On ice or in Cryo Vault: +${15 * i}% more, and dash recharges ${35 * i}% faster`,
+    desc: (level, count = level + 1) =>
+      `+${4 * count}% speed. On ice or in Cryo Vault: +${15 * count}% more, and dash recharges ${35 * count}% faster`,
   },
   {
     id: "acidcoat",
@@ -439,8 +437,8 @@ upgradeList.push(
     rarity: 3,
     max: 2,
     icon: "skull",
-    desc: (l, i = l + 1) =>
-      `${15 * i}% of hits leave acid for 3 s (enemies in it take +25% damage). Bigger in Toxin Marsh`,
+    desc: (level, count = level + 1) =>
+      `${15 * count}% of hits leave acid for 3 s (enemies in it take +25% damage). Bigger in Toxin Marsh`,
   },
   {
     id: "heatsink",
@@ -448,8 +446,8 @@ upgradeList.push(
     rarity: 2,
     max: 2,
     icon: "flame",
-    desc: (l, i = l + 1) =>
-      `Lava, acid or an erupting vent nearby: +${25 * i}% fire rate for 3 s and Nova charge`,
+    desc: (level, count = level + 1) =>
+      `Lava, acid or an erupting vent nearby: +${25 * count}% fire rate for 3 s and Nova charge`,
   },
   {
     id: "slipstream",
@@ -457,7 +455,7 @@ upgradeList.push(
     rarity: 3,
     max: 2,
     icon: "dash",
-    desc: (l, i = l + 1) => `After a dash, your shots deal +${25 * i}% damage for 1.2 s`,
+    desc: (level, count = level + 1) => `After a dash, your shots deal +${25 * count}% damage for 1.2 s`,
   },
   {
     id: "surge",
@@ -465,8 +463,8 @@ upgradeList.push(
     rarity: 3,
     max: 2,
     icon: "star",
-    desc: (l) =>
-      `Combos last ${l ? 1 : 0.5} s longer. Every ${l ? 12 : 15} combo kills: a shockwave (${l ? 60 : 40} damage)`,
+    desc: (level) =>
+      `Combos last ${level ? 1 : 0.5} s longer. Every ${level ? 12 : 15} combo kills: a shockwave (${level ? 60 : 40} damage)`,
   },
   {
     id: "reactive",
@@ -474,11 +472,11 @@ upgradeList.push(
     rarity: 2,
     max: 2,
     icon: "shield",
-    desc: (l, i = l + 1) =>
-      `Getting hit releases a repulse wave (${20 + 15 * l} damage) that clears nearby shots. -${8 * i}% fire rate`,
+    desc: (level, count = level + 1) =>
+      `Getting hit releases a repulse wave (${20 + 15 * level} damage) that clears nearby shots. -${8 * count}% fire rate`,
   },
 );
-upgradesById = Object.fromEntries(upgradeList.map((i) => [i.id, i]));
+upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 
 // 2.5.0 A: where the retired upgrades went. A saved run converts its levels with `k` (their value
 // in levels of the new one, rounded up, capped at its max); an offer gets the new upgrade instead.
