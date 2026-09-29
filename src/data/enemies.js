@@ -3,7 +3,7 @@
 import { spawnWeights, heavyEnemies } from "../core/waves.js";
 
 /* ---- enemy intros: one short hint the first time each enemy type appears ---- */
-var RL_ENEMY_TIPS = {
+const RL_ENEMY_TIPS = {
   swarmer: "Swarmers rush in packs. Keep moving and let splash damage thin them out.",
   grunt: "Grunts are slow but tough. Kite them in wide circles.",
   gunner: "Gunners stop and glow before a burst — that glow is your cue to dodge.",
@@ -29,7 +29,7 @@ var RL_ENEMY_TIPS = {
   beacon: "Repair Beacons heal every enemy around them. Destroy them first.",
   weaver: "Rift Weavers warp across the arena and fire spreads after each jump.",
 };
-var enemyDefs = {
+const enemyDefs = {
   swarmer: {
     id: "swarmer",
     name: "Swarmer",
@@ -211,7 +211,7 @@ var enemyDefs = {
     color: 3535103,
   },
 };
-var enemyOrder = [
+const enemyOrder = [
   "swarmer",
   "grunt",
   "gunner",
@@ -227,18 +227,18 @@ var enemyOrder = [
   "leaper",
   "turret",
 ];
-var biomeVariants = {
+const biomeVariants = {
   works: { id: "scorch", name: "Scorched", types: ["grunt", "brute", "splitter"], color: 16738858 },
   vault: { id: "frost", name: "Frost", types: ["gunner", "sniper", "mortar"], color: 11462911 },
   void: { id: "phase", name: "Phase", types: ["swarmer", "grunt", "gunner"], color: 16732120 },
   marsh: { id: "toxic", name: "Toxic", types: ["grunt", "splitter", "swarmer", "bomber"], color: 11861821 },
 };
-var eliteAffixes = {
+const eliteAffixes = {
   shielded: { name: "Shielded", color: 7325951 },
   hasted: { name: "Hasted", color: 16773754 },
   volatile: { name: "Volatile", color: 16734778 },
 };
-var bossDefs = {
+const bossDefs = {
   warden: {
     id: "warden",
     name: "THE WARDEN",
@@ -297,11 +297,11 @@ bossDefs.forge = {
   shards: 125,
   color: 16741924,
 };
-var bossByBiome = { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core" };
+const bossByBiome = { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core" };
 // hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
-var BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
-var bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" }; // before 2.4.6; kept for old tests
-var bossOrder = ["warden", "queen", "prism", "forge", "core"];
+const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
+const bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" }; // before 2.4.6; kept for old tests
+const bossOrder = ["warden", "queen", "prism", "forge", "core"];
 /* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
 Object.assign(enemyDefs, {
   charger: {
@@ -443,4 +443,15 @@ enemyOrder.push("drone", "driller", "beacon", "weaver");
 Object.assign(spawnWeights, { drone: 0.95, driller: 0.62, beacon: 0.5, weaver: 0.72 });
 Object.assign(heavyEnemies, { drone: 1, driller: 2, beacon: 3, weaver: 1 });
 
-export { enemyDefs, bossOrder, RL_ENEMY_TIPS, eliteAffixes, biomeVariants, bossDefs, enemyOrder, bossByWave, bossByBiome, BOSS_SLOT_HP };
+export {
+  enemyDefs,
+  bossOrder,
+  RL_ENEMY_TIPS,
+  eliteAffixes,
+  biomeVariants,
+  bossDefs,
+  enemyOrder,
+  bossByWave,
+  bossByBiome,
+  BOSS_SLOT_HP,
+};

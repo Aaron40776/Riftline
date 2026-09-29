@@ -1,18 +1,99 @@
 // The simulation world (World): player, enemies, bullets, pickups, waves and states. Runs without
 // rendering.
 
-import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByWave, bossByBiome, BOSS_SLOT_HP } from "../data/enemies.js";
+import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByBiome, BOSS_SLOT_HP } from "../data/enemies.js";
 import { clamp, TAU, turnToward, hashString, angleDiff, makeRng, dampFactor } from "./util.js";
 import { updateEnemy, updateBoss, initBoss } from "./ai.js";
 import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
-import { waveEvents, EVENT_CHANCE, planWave, rollUpgradeOffer, set_RL_BIOME_MIX_CUR } from "./waves.js";
+import {
+  waveEvents,
+  EVENT_CHANCE,
+  planWave,
+  rollUpgradeOffer,
+  set_RL_BIOME_MIX_CUR,
+  RL_BIOME_EVENT,
+  rlBiomeStart,
+  rlEnemyFrom,
+} from "./waves.js";
 import { threatMods } from "../data/progression.js";
 import { upgradesById, upgradeList } from "../data/upgrades.js";
-import { Arena, buildLayout, SpatialHash } from "./arena.js";
+import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
 import { computeStats } from "./stats.js";
+// 2.2.3: the run monitor observes the live run's world (used at run time only; circular import)
+import { RL_MON, rlMonStep, rlMonIssue, rlMonBeginWave } from "./diagnostics.js";
 
-var comboRewards = [
+/* 2.3.5: shards in a supply cache, raised by Route Scanner (+50% per level). */
+function rlCacheShards(world, value) {
+  return Math.round(value * Math.max(1, world.stats.cacheValue || 1));
+}
+/* 2.3.5: Armor Core absorbs part of the damage from enemies. Lava and acid are left to
+   Hazard Seal, so the two modules do not stack on the same damage. */
+const RL_HAZARD_SRC = new Set(["lava", "acid"]);
+
+// 2.5.0 A: the six new run upgrades (levels from computeStats: skates, acidCoat, heatSink, slip,
+// surge, reactive). Their parts in step, fire, hurtPlayer, bulletHit, updateFeatures and addCombo
+// do nothing without the upgrade.
+const RL_SLIP_TIME = 1.2,
+  RL_HEAT_TIME = 3,
+  RL_COAT_MAX = 6;
+
+/* ==========================================================================
+   2.5.0 B: new workshop modules (Starter Kit, Hazard Attunement, Emergency Shield)
+   ========================================================================== */
+/* Starter Kit: the common upgrades a new run starts with. Seeded by the run, so a run and its
+ replay get the same kit; one pick per module level, never the same upgrade twice. */
+function rlStarterKit(world, count) {
+  const rng = makeRng(hashString(world.seed + ":kit")),
+    pool = upgradeList.filter(
+      (upgrade) =>
+        upgrade.rarity === 1 &&
+        !upgrade.evo &&
+        !upgrade.repeat &&
+        upgrade.id !== "heal" &&
+        (!upgrade.weapon || upgrade.weapon === world.weapon),
+    ),
+    out = [];
+  for (let i = 0; i < count && pool.length; i++) out.push(pool.splice(Math.floor(rng.next() * pool.length), 1)[0].id);
+  return out;
+}
+/* Hazard Attunement: close = within 2 m of the edge of a vent, ice sheet or acid pool, or of a
+ portal mouth. Boss-attack zones (this.hazards) do not count. */
+const RL_ATTUNE_RANGE = 2;
+function rlNearHazard(world) {
+  const arena = world.arena,
+    player = world.player;
+  if (!arena || !player.alive) return false;
+  for (const list of [arena.vents, arena.ice, arena.acid])
+    for (const hazard of list || [])
+      // 2.5.0: the player's own Acid Coating puddles (mine) are not a map hazard
+      if (!hazard.mine && Math.hypot(player.x - hazard.x, player.y - hazard.y) - (hazard.r || 0) < RL_ATTUNE_RANGE)
+        return true;
+  for (const portal of arena.portals || [])
+    if (
+      Math.hypot(player.x - portal.ax, player.y - portal.ay) < RL_ATTUNE_RANGE + 0.8 ||
+      Math.hypot(player.x - portal.bx, player.y - portal.by) < RL_ATTUNE_RANGE + 0.8
+    )
+      return true;
+  return false;
+}
+
+// ---- 2.5.0 C: biome events. Every visit of a hazard biome brings its event in one of waves 2–4
+// of the visit (never a boss wave, never right next to an Elite Surge or Shard Rain):
+//   Ember Works  Meltdown     three extra vents, all vents erupt together every 3.4 s
+//   Cryo Vault   Whiteout     three extra ice sheets; the renderer thickens the fog (snow storm)
+//   Toxin Marsh  Spore Bloom  the pools grow by up to 40% over the wave, a new one sprouts every 7 s
+//   Void Core    Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
+// Extra and moved hazards follow the fairness rules of the wave hazards (arena.js) and keep off
+// the player. The signature enemies of a biome can spawn from its first wave (waves.js).
+const RL_MELTDOWN_PERIOD = 3.4,
+  RL_BLOOM_GROW = 1.4,
+  RL_BLOOM_GROW_T = 35,
+  RL_BLOOM_EVERY = 7,
+  RL_STORM_EVERY = 6,
+  RL_STORM_WARN = 1.6;
+
+const comboRewards = [
   [10, 3],
   [25, 8],
   [50, 20],
@@ -20,191 +101,352 @@ var comboRewards = [
   [150, 80],
   [250, 150],
 ];
-var rlStep = 1 / 60,
+const rlStep = 1 / 60,
   PLAYER_RADIUS = 0.55,
   MAX_PLAYER_BULLETS = 420,
   MAX_ENEMY_BULLETS = 360,
   blastSources = { nova: "nova", inferno: "inferno", pop: "pop", bomber: "pop", payload: "payload", rocket: "weapon" },
   World = class {
-    constructor(t) {
-      let e = t.snap || null;
-      if (
-        ((this.seed = (e ? e.seed : t.seed) >>> 0),
-        (this.weapon = weaponDefs[e ? e.weapon : t.weapon] ? (e ? e.weapon : t.weapon) : "pulse"),
-        (this.threat = clamp((e ? e.threat : t.threat) | 0, 0, 5)),
-        (this.tm = threatMods(this.threat)),
-        (this.ws = { ...(t.ws || {}) }),
-        (this.up = e ? { ...e.up } : {}),
-        (this.wave = e ? e.wave : 1),
-        (this.endless = e ? !!e.endless : !1),
-        (this.time = (e && e.time) || 0),
-        (this.kills = (e && e.kills) || 0),
-        (this.shards = (e && e.shards) || 0),
-        (this.rerolls = e && e.rerolls != null ? e.rerolls | 0 : 1 + (this.ws.reroll || 0)),
-        (this.revived = e ? !!e.revived : !1),
-        (this.bossKills = e ? [...(e.bossKills || [])] : []),
-        (this.flawless = (e && e.flawless) || 0),
-        (this.legendaries = (e && e.legendaries) || 0),
-        (this.dmgDealt = (e && e.dmgDealt) || 0),
-        (this.bestCombo = (e && e.bestCombo) || 0),
-        (this.evolved = (e && e.evolved) || 0),
-        (this.runStats = {
-          dmgTaken: (e && e.runStats && Number(e.runStats.dmgTaken)) || 0,
-          dashes: (e && e.runStats && Number(e.runStats.dashes)) || 0,
-          critHits: (e && e.runStats && Number(e.runStats.critHits)) || 0,
-        }),
-        (this.dmgSrc = {}),
-        e && e.dmgSrc && typeof e.dmgSrc == "object")
-      )
-        for (let n in e.dmgSrc) Number.isFinite(e.dmgSrc[n]) && (this.dmgSrc[n] = e.dmgSrc[n]);
-      if (
-        ((this.route = planBiomeRoute(makeRng(hashString(this.seed + ":route")))),
-        (this.combo = 0),
-        (this.comboT = 0),
-        (this.trails = []),
-        (this.hold = !1),
-        (this.nextId = 1),
-        (this.fx = []),
-        (this.stats = computeStats(this.weapon, this.up, this.ws)),
-        (this.player = {
-          x: 0,
-          y: 2,
-          vx: 0,
-          vy: 0,
-          r: PLAYER_RADIUS,
-          hp: this.stats.maxHp,
-          face: -Math.PI / 2,
-          aim: -Math.PI / 2,
-          fireT: 0,
-          dashT: 0,
-          dashCdT: 0,
-          dashX: 0,
-          dashY: 0,
-          dashId: 0,
-          iT: 0,
-          shieldT: 0,
-          shield: !1,
-          nova: 0,
-          alive: !0,
-          moving: !1,
-          firing: !1,
-          rushN: 0,
-          rushT: 0,
-          regenAcc: 0,
-          wings: [],
-          target: null,
-          hurtT: 0,
-          trailT: 0,
-          portalT: 0,
-          onIce: !1,
-          shotN: 0,
-          slowT: 0,
-          acidT: 0,
-          inAcid: !1,
-        }),
-        e && (this.player.hp = clamp(e.hp, 1, this.stats.maxHp)),
-        (this.chronoT = 0),
-        (this.offer = null),
-        (this.offerBoss = !1),
-        (this.state = "fight"),
-        (this.stateT = 0),
-        this.startWave(this.wave, e ? e.nova : null),
-        e && Array.isArray(e.offer))
-      ) {
-        let n = e.offer.filter((s) => upgradesById[s]);
-        ((this.fx.length = 0),
-          (this.plan = []),
-          (this.planIdx = 0),
-          (this.bossPending = null),
-          (this.offerBoss = !!e.offerBoss),
-          (this.state = "choose"),
-          (this.offer = n.length ? n : this.makeOffer()));
+    constructor(opts) {
+      let snap = opts.snap || null;
+      this.seed = (snap ? snap.seed : opts.seed) >>> 0;
+      this.weapon = weaponDefs[snap ? snap.weapon : opts.weapon] ? (snap ? snap.weapon : opts.weapon) : "pulse";
+      this.threat = clamp((snap ? snap.threat : opts.threat) | 0, 0, 5);
+      this.tm = threatMods(this.threat);
+      this.ws = { ...(opts.ws || {}) };
+      this.up = snap ? { ...snap.up } : {};
+      this.wave = snap ? snap.wave : 1;
+      this.endless = snap ? !!snap.endless : false;
+      this.time = (snap && snap.time) || 0;
+      this.kills = (snap && snap.kills) || 0;
+      this.shards = (snap && snap.shards) || 0;
+      this.rerolls = snap && snap.rerolls != null ? snap.rerolls | 0 : 1 + (this.ws.reroll || 0);
+      this.revived = snap ? !!snap.revived : false;
+      this.bossKills = snap ? [...(snap.bossKills || [])] : [];
+      this.flawless = (snap && snap.flawless) || 0;
+      this.legendaries = (snap && snap.legendaries) || 0;
+      this.dmgDealt = (snap && snap.dmgDealt) || 0;
+      this.bestCombo = (snap && snap.bestCombo) || 0;
+      this.evolved = (snap && snap.evolved) || 0;
+      this.runStats = {
+        dmgTaken: (snap && snap.runStats && Number(snap.runStats.dmgTaken)) || 0,
+        dashes: (snap && snap.runStats && Number(snap.runStats.dashes)) || 0,
+        critHits: (snap && snap.runStats && Number(snap.runStats.critHits)) || 0,
+      };
+      this.dmgSrc = {};
+      if (snap && snap.dmgSrc && typeof snap.dmgSrc == "object")
+        for (let src in snap.dmgSrc) {
+          if (Number.isFinite(snap.dmgSrc[src])) {
+            this.dmgSrc[src] = snap.dmgSrc[src];
+          }
+        }
+      this.route = planBiomeRoute(makeRng(hashString(this.seed + ":route")));
+      this.combo = 0;
+      this.comboT = 0;
+      this.trails = [];
+      this.hold = false;
+      this.nextId = 1;
+      this.fx = [];
+      this.stats = computeStats(this.weapon, this.up, this.ws);
+      this.player = {
+        x: 0,
+        y: 2,
+        vx: 0,
+        vy: 0,
+        r: PLAYER_RADIUS,
+        hp: this.stats.maxHp,
+        face: -Math.PI / 2,
+        aim: -Math.PI / 2,
+        fireT: 0,
+        dashT: 0,
+        dashCdT: 0,
+        dashX: 0,
+        dashY: 0,
+        dashId: 0,
+        iT: 0,
+        shieldT: 0,
+        shield: false,
+        nova: 0,
+        alive: true,
+        moving: false,
+        firing: false,
+        rushN: 0,
+        rushT: 0,
+        regenAcc: 0,
+        wings: [],
+        target: null,
+        hurtT: 0,
+        trailT: 0,
+        portalT: 0,
+        onIce: false,
+        shotN: 0,
+        slowT: 0,
+        acidT: 0,
+        inAcid: false,
+      };
+      if (snap) {
+        this.player.hp = clamp(snap.hp, 1, this.stats.maxHp);
+      }
+      this.chronoT = 0;
+      this.offer = null;
+      this.offerBoss = false;
+      this.state = "fight";
+      this.stateT = 0;
+      this.startWave(this.wave, snap ? snap.nova : null);
+      if (snap && Array.isArray(snap.offer)) {
+        let offer = snap.offer.filter((id) => upgradesById[id]);
+        this.fx.length = 0;
+        this.plan = [];
+        this.planIdx = 0;
+        this.bossPending = null;
+        this.offerBoss = !!snap.offerBoss;
+        this.state = "choose";
+        this.offer = offer.length ? offer : this.makeOffer();
       }
     }
-    emit(t, e) {
-      return ((e = e || {}), (e.k = t), this.fx.push(e), e);
+    emit(kind, data) {
+      data = data || {};
+      data.k = kind;
+      this.fx.push(data);
+      return data;
     }
-    startWave(t, e) {
-      ((this.wave = t), (this.rng = makeRng(hashString(this.seed + ":" + t))));
-      let n = this.biomeFor(t),
-        s = buildLayout(n, this.seed, t, t === 1 || !!this.bossFor(t));
-      ((!this.arena || this.arena.key !== s.key) &&
-        ((this.arena = new Arena(n, s)), (this.hash = new SpatialHash(s.W, s.H, 2.5))),
-        (this.enemies = []),
-        (this.pb = []),
-        (this.eb = []),
-        (this.pickups = []),
-        (this.beams = []),
-        (this.hazards = []),
-        (this.markers = []),
-        (this.trails = []),
-        (this.boss = null),
-        (this.combo = 0),
-        (this.comboT = 0));
-      let r = this.player;
-      ((r.x = 0),
-        (r.y = 2),
-        (r.vx = r.vy = 0),
-        (r.dashT = 0),
-        (r.iT = 1),
-        (r.target = null),
-        (r.alive = !0),
-        (r.shield = this.stats.shieldCd > 0),
-        (r.shieldT = 0));
-      let a = 25 * (this.ws.nova || 0);
-      ((r.nova = e ?? Math.max(r.nova, a)),
-        (this.waveT = 0),
-        (this.waveDmg = 0),
-        (this.hpMul = (1 + 0.085 * (t - 1) + 0.0058 * (t - 1) * (t - 1)) * this.tm.hp),
-        (this.dmgMul = (1 + 0.035 * (t - 1)) * this.tm.dmg),
-        (this.stragglerT = 0));
-      let o = this.bossFor(t);
-      ((this.event = this.eventFor(t)), (this.rainT = 1.5), (this.champion = null));
-      let c = makeRng(hashString(this.seed + ":champ:" + t));
-      ((this.championPending =
-        !o && !this.event && t >= 3 && (t - 1) % 5 >= 2 && c.chance(0.4) ? this.championType(n.id, t, c) : null),
-        (this.plan = planWave(this.rng, t, this.tm, !!o, this.event ? waveEvents[this.event].plan : {})),
-        (this.planIdx = 0),
-        (this.planTotal = this.plan.reduce((h, l) => h + l.members.length, 0)),
-        (this.groupT = 1.1),
-        (this.bossPending = o),
-        (this.state = "fight"),
-        (this.stateT = 0),
-        this.emit("wave", { n: t, boss: o, biome: n.id, event: this.event }));
+    startWave(wave, nova) {
+      // 2.5.0 C: an arena changed by a biome event is never reused (startWave of the same wave again)
+      if (this.arena && this.arena.rlEvent) {
+        this.arena.key += ":used";
+      }
+      this.bioEv = null;
+      // 2.5.0 B: a fresh run (not a resumed one: that passes its saved Nova charge) gets its Starter
+      // Kit before the first wave is set up, so shield or HP upgrades from the kit count from the start
+      const kit = (this.ws.starterKit || 0) | 0;
+      let given = null;
+      if (kit > 0 && wave === 1 && nova == null && !this.kitGiven && !Object.keys(this.up).length) {
+        given = rlStarterKit(this, Math.min(3, kit));
+        for (const id of given) this.up[id] = (this.up[id] || 0) + 1;
+        this.stats = computeStats(this.weapon, this.up, this.ws);
+        this.player.hp = this.stats.maxHp;
+      }
+      this.kitGiven = true;
+      // 2.5.0 B: Emergency Shield is ready again in every wave
+      this.barrierUsed = false;
+      this.barrierT = 0;
+      this.barrierOwnShield = false;
+      this.attuned = false;
+      // 2.4.0: the biome's enemy mix weights the spawn plan (planWave reads it while the wave is set up)
+      set_RL_BIOME_MIX_CUR(RL_BIOME_INFO[this.biomeFor(wave).id]?.mix || null);
+      try {
+        this.wave = wave;
+        this.rng = makeRng(hashString(this.seed + ":" + wave));
+        let biome = this.biomeFor(wave),
+          layout = buildLayout(biome, this.seed, wave, wave === 1 || !!this.bossFor(wave));
+        if (!this.arena || this.arena.key !== layout.key) {
+          this.arena = new Arena(biome, layout);
+          this.hash = new SpatialHash(layout.W, layout.H, 2.5);
+        }
+        this.enemies = [];
+        this.pb = [];
+        this.eb = [];
+        this.pickups = [];
+        this.beams = [];
+        this.hazards = [];
+        this.markers = [];
+        this.trails = [];
+        this.boss = null;
+        this.combo = 0;
+        this.comboT = 0;
+        let player = this.player;
+        player.x = 0;
+        player.y = 2;
+        player.vx = player.vy = 0;
+        player.dashT = 0;
+        player.iT = 1;
+        player.target = null;
+        player.alive = true;
+        player.shield = this.stats.shieldCd > 0;
+        player.shieldT = 0;
+        let novaFloor = 25 * (this.ws.nova || 0);
+        player.nova = nova ?? Math.max(player.nova, novaFloor);
+        this.waveT = 0;
+        this.waveDmg = 0;
+        this.hpMul = (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) * this.tm.hp;
+        this.dmgMul = (1 + 0.035 * (wave - 1)) * this.tm.dmg;
+        this.stragglerT = 0;
+        let boss = this.bossFor(wave);
+        this.event = this.eventFor(wave);
+        this.rainT = 1.5;
+        this.champion = null;
+        let champRng = makeRng(hashString(this.seed + ":champ:" + wave));
+        this.championPending =
+          !boss && !this.event && wave >= 3 && (wave - 1) % 5 >= 2 && champRng.chance(0.4)
+            ? this.championType(biome.id, wave, champRng)
+            : null;
+        this.plan = planWave(this.rng, wave, this.tm, !!boss, this.event ? waveEvents[this.event].plan : {});
+        this.planIdx = 0;
+        this.planTotal = this.plan.reduce((sum, group) => sum + group.members.length, 0);
+        this.groupT = 1.1;
+        this.bossPending = boss;
+        this.state = "fight";
+        this.stateT = 0;
+        this.emit("wave", { n: wave, boss: boss, biome: biome.id, event: this.event });
+        // Nova start charge, the arena director's wave mode, supply caches and the director's bonus
+        // group (kept additive to the wave set up above)
+        if (nova == null && this.stats.novaStart > 0) player.nova = Math.min(100, player.nova + this.stats.novaStart);
+        const director = this.arena?.director,
+          mode = director?.mode || "standard";
+        this.waveMode = mode;
+        this.waveIntensity = director?.intensity || 0;
+        if (nova == null && !this.bossPending && !this.boss && wave >= 2) {
+          const count = wave % 6 === 0 ? 2 : 1;
+          for (let i = 0; i < count; i++) {
+            const spot = this.arena.freePoint(
+              makeRng(hashString(this.seed + ":cache:" + wave + ":" + i)),
+              player.x,
+              player.y,
+              6.2,
+              0.35,
+            );
+            if (!spot) continue;
+            const value = this.rng.chance(0.12) ? 25 : this.rng.chance(0.35) ? 10 : 5,
+              kind = this.rng.chance(0.12) ? "heal" : "shard";
+            const pickup = this.mkPickup(kind, spot.x, spot.y, kind === "heal" ? 20 : rlCacheShards(this, value));
+            pickup.vx = 0;
+            pickup.vy = 0;
+            pickup.cache = true;
+            this.pickups.push(pickup);
+          }
+        }
+        if (!(nova != null || this.bossPending || this.boss || wave < 2)) {
+          const extra =
+            Math.max(0, this.stats.cacheBonus || 0) +
+            Math.max(0, this.stats.cacheCount || 0) +
+            (mode === "cache-run" ? 2 : 0) +
+            (mode === "salvage" ? 2 : 0) +
+            (wave % 9 === 0 ? 1 : 0);
+          const cacheRng = makeRng(hashString(this.seed + ":cache22:" + wave));
+          for (let i = 0; i < extra; i++) {
+            const spot = this.arena.freePoint(cacheRng, player.x, player.y, 6.2, 0.35);
+            if (!spot) continue;
+            const kind = cacheRng.chance(0.18) ? "heal" : "shard",
+              value = kind === "heal" ? 20 : rlCacheShards(this, 5 + 2 * (this.stats.cacheBonus || 0));
+            const pickup = this.mkPickup(kind, spot.x, spot.y, value);
+            pickup.vx = 0;
+            pickup.vy = 0;
+            pickup.cache = true;
+            this.pickups.push(pickup);
+          }
+          const bonusPool =
+            {
+              barricade: ["charger", "brute"],
+              crossfire: ["sentinel", "turret", "drone"],
+              "cache-run": ["carrier", "mender", "beacon"],
+              riftwalk: ["phantom", "striker", "weaver"],
+              gauntlet: ["carrier", "leaper", "driller"],
+              shatter: ["phantom", "splitter", "driller"],
+              deadzone: ["sapper", "brute", "beacon"],
+              minefield: ["sapper", "drone"],
+              zigzag: ["weaver", "striker"],
+              salvage: ["carrier", "beacon"],
+              turbulence: ["sentinel", "drone", "weaver"],
+              fortress: ["driller", "bulwark", "beacon"],
+            }[mode] || [];
+          const avail = bonusPool.filter((id) => enemyDefs[id] && wave >= enemyDefs[id].from);
+          if (wave >= 18 && avail.length) {
+            const members = [{ type: cacheRng.pick(avail), elite: false }];
+            if (wave >= 30 && cacheRng.chance(0.45)) members.push({ type: cacheRng.pick(avail), elite: false });
+            this.plan.push({ gap: 2.35, members });
+            this.planTotal += members.length;
+          }
+        }
+      } finally {
+        set_RL_BIOME_MIX_CUR(null);
+      }
+      if (given && given.length) {
+        this.emit("kit", { ids: given });
+      }
+      // 2.5.0 C: the biome event of this wave
+      const eventDef = this.event && waveEvents[this.event];
+      if (eventDef && eventDef.biome && eventDef.biome === this.arena.biome.id && !this.bossPending) {
+        this.startBiomeEvent(this.event, wave);
+      }
+      // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
+      // worlds are ignored by identity)
+      if (RL_MON && RL_MON.w === this)
+        try {
+          rlMonBeginWave(this);
+        } catch (err) {
+          rlMonIssue("WARN", "monitor", "monitor exception: " + err.message);
+        }
     }
-    championType(t, e, n) {
-      let r = (
+    championType(biome, wave, rng) {
+      // 2.4.0: the pack biomes are gone; the five biomes also draw champions from the later enemies
+      const special = {
+        works: ["brute", "grunt", "charger", "minebot", "driller"],
+        vault: ["bulwark", "gunner", "sentinel", "turret"],
+        void: ["striker", "brute", "phantom", "weaver"],
+        marsh: ["splitter", "brute", "sapper", "carrier"],
+      }[biome];
+      if (special) {
+        const valid = special.filter((id) => enemyDefs[id] && enemyDefs[id].from <= wave);
+        if (valid.length) return rng.pick(valid);
+      }
+      let pool = (
         {
           yard: ["grunt", "gunner"],
           works: ["brute", "grunt"],
           vault: ["bulwark", "gunner"],
           void: ["striker", "brute"],
           marsh: ["splitter", "brute"],
-        }[t] || ["grunt"]
-      ).filter((a) => enemyDefs[a].from <= e);
-      return r.length ? n.pick(r) : "grunt";
+        }[biome] || ["grunt"]
+      ).filter((type) => enemyDefs[type].from <= wave);
+      return pool.length ? rng.pick(pool) : "grunt";
     }
-    eventFor(t) {
-      let e = (r) => r >= 3 && !this.bossFor(r) && (r - 1) % 5 !== 0,
-        n = (r) => makeRng(hashString(this.seed + ":event:" + r));
-      if (!e(t) || n(t).next() >= EVENT_CHANCE || (e(t - 1) && n(t - 1).next() < EVENT_CHANCE)) return null;
-      let s = n(t);
-      return (s.next(), ["elite", "rain"][Math.floor(s.next() * 2)]);
+    eventFor(wave) {
+      // 2.5.0 C: a hazard biome's visit gets its biome event, and no other event right next to it
+      const eventWave = this.biomeEventWave(wave);
+      if (eventWave && eventWave === wave) return RL_BIOME_EVENT[this.biomeFor(wave).id];
+      if (eventWave && Math.abs(eventWave - wave) === 1) return null;
+      let eligible = (waveNo) => waveNo >= 3 && !this.bossFor(waveNo) && (waveNo - 1) % 5 !== 0,
+        eventRng = (waveNo) => makeRng(hashString(this.seed + ":event:" + waveNo));
+      if (
+        !eligible(wave) ||
+        eventRng(wave).next() >= EVENT_CHANCE ||
+        (eligible(wave - 1) && eventRng(wave - 1).next() < EVENT_CHANCE)
+      )
+        return null;
+      let rng = eventRng(wave);
+      rng.next();
+      return ["elite", "rain"][Math.floor(rng.next() * 2)];
     }
-    biomeFor(t) {
-      let e = Math.max(1, t) - 1,
-        n = Math.floor(e / this.route.length),
-        s = (e + n) % this.route.length;
-      return biomesById[this.route[s]] || biomeList[0];
+    biomeFor(wave) {
+      const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
+      return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
     }
-    bossFor(t) {
-      return t % 5 !== 0 ? null : bossByWave[t] || bossOrder[(t / 5 - 1) % bossOrder.length];
+    // 2.4.6: the boss of a boss wave is the boss of its biome (Neon Yard: Warden, Ember Works:
+    // Crucible, Cryo Vault: Frost Prism, Toxin Marsh: Hive Queen, Void Core: Rift Core). In waves 5–20
+    // its hull follows the slot (wave 5, 10, 15, 20, see spawnBoss), because Queen, Prism and Crucible
+    // can each come at wave 10 or 15; Endless keeps each boss's own hull as before.
+    bossFor(wave) {
+      return wave % 5 !== 0
+        ? null
+        : bossByBiome[this.biomeFor(wave).id] || bossOrder[(wave / 5 - 1) % bossOrder.length];
+    }
+    // 2.5.0 C: the wave of the current biome visit that gets its biome event (0: none)
+    biomeEventWave(wave) {
+      const id = RL_BIOME_EVENT[this.biomeFor(wave).id];
+      if (!id) return 0;
+      const start = rlBiomeStart(wave),
+        eventWave = start + 1 + Math.floor(makeRng(hashString(this.seed + ":biome-event:" + start)).next() * 3);
+      return this.bossFor(eventWave) ? 0 : eventWave;
+    }
+    // 2.5.0 C: the wave from which an enemy type can spawn in this run's biome at `wave`
+    enemyFrom(type, wave) {
+      return rlEnemyFrom(type, this.biomeFor(wave).id, wave);
     }
     isFinalWave() {
       return !this.endless && this.wave >= 20;
     }
     snapshot() {
-      let t = {
+      let snap = {
         v: 1,
         seed: this.seed,
         weapon: this.weapon,
@@ -230,449 +472,857 @@ var rlStep = 1 / 60,
           dashes: this.runStats.dashes | 0,
           critHits: this.runStats.critHits | 0,
         },
-        dmgSrc: Object.fromEntries(Object.entries(this.dmgSrc).map(([e, n]) => [e, Math.round(n)])),
+        dmgSrc: Object.fromEntries(Object.entries(this.dmgSrc).map(([src, dmg]) => [src, Math.round(dmg)])),
       };
-      return (
-        this.state === "choose" && this.offer && ((t.offer = [...this.offer]), (t.offerBoss = !!this.offerBoss)),
-        t
-      );
+      if (this.state === "choose" && this.offer) {
+        snap.offer = [...this.offer];
+        snap.offerBoss = !!this.offerBoss;
+      }
+      return snap;
     }
-    choose(t) {
-      if (this.state !== "choose" || !this.offer || !this.offer.includes(t)) return !1;
-      let e = upgradesById[t],
-        n = this.player,
-        s = this.stats.maxHp;
-      return (
-        (this.up[t] = (this.up[t] || 0) + 1),
-        e.rarity === 4 && this.legendaries++,
-        e.rarity === 5 && this.evolved++,
-        (this.stats = computeStats(this.weapon, this.up, this.ws)),
-        t === "hp" && (n.hp = Math.min(this.stats.maxHp, n.hp + 20 + (this.stats.maxHp - s - 20))),
-        t === "heal" && (n.hp = Math.min(this.stats.maxHp, n.hp + this.stats.maxHp * 0.45)),
-        (n.hp = Math.min(n.hp, this.stats.maxHp)),
-        (this.offer = null),
-        this.emit("pick", { id: t, evo: e.rarity === 5 }),
-        this.startWave(this.wave + 1),
-        !0
-      );
+    choose(id) {
+      if (this.state !== "choose" || !this.offer || !this.offer.includes(id)) return false;
+      let upgrade = upgradesById[id],
+        player = this.player,
+        oldMaxHp = this.stats.maxHp;
+      this.up[id] = (this.up[id] || 0) + 1;
+      if (upgrade.rarity === 4) {
+        this.legendaries++;
+      }
+      if (upgrade.rarity === 5) {
+        this.evolved++;
+      }
+      this.stats = computeStats(this.weapon, this.up, this.ws);
+      if (id === "hp") {
+        player.hp = Math.min(this.stats.maxHp, player.hp + 20 + (this.stats.maxHp - oldMaxHp - 20));
+      }
+      if (id === "heal") {
+        player.hp = Math.min(this.stats.maxHp, player.hp + this.stats.maxHp * 0.45);
+      }
+      player.hp = Math.min(player.hp, this.stats.maxHp);
+      this.offer = null;
+      this.emit("pick", { id: id, evo: upgrade.rarity === 5 });
+      this.startWave(this.wave + 1);
+      return true;
     }
     reroll() {
-      return this.state !== "choose" || this.rerolls <= 0
-        ? !1
-        : (this.rerolls--, (this.offer = this.makeOffer(this.offer || [])), this.emit("reroll"), !0);
+      if (this.state !== "choose" || this.rerolls <= 0) return false;
+      this.rerolls--;
+      this.offer = this.makeOffer(this.offer || []);
+      this.emit("reroll");
+      return true;
     }
-    makeOffer(t = []) {
-      let e = 3 + ((this.ws.insight || 0) > 0 ? 1 : 0);
+    makeOffer(exclude = []) {
+      let count = 3 + ((this.ws.insight || 0) > 0 ? 1 : 0);
       return rollUpgradeOffer(
         this.rng,
         this.up,
         this.wave,
         this.player.hp / this.stats.maxHp,
-        e,
+        count,
         this.offerBoss,
-        t,
+        exclude,
         this.weapon,
       );
     }
     continueEndless() {
-      this.state === "victory" &&
-        ((this.endless = !0), (this.state = "choose"), (this.offer = this.makeOffer()), this.emit("offer"));
-    }
-    step(t, e) {
-      if (((this.stateT += t), this.state === "choose" || this.state === "victory")) {
-        this.idle(t);
-        return;
-      }
-      ((this.time += this.state === "dead" ? 0 : t), (this.waveT += t));
-      let n = this.chronoT > 0 ? 0.45 : 1;
-      (this.chronoT > 0 && (this.chronoT -= t),
-        this.comboT > 0 &&
-          ((this.comboT -= t),
-          this.comboT <= 0 && (this.combo >= 5 && this.emit("comboEnd", { n: this.combo }), (this.combo = 0))),
-        this.player.alive ? this.updatePlayer(t, e) : ((this.player.vx *= 0.9), (this.player.vy *= 0.9)),
-        this.hash.build(this.enemies),
-        this.state === "fight" && this.updateSpawns(t),
-        this.arena.flow.update(this.player.x, this.player.y));
-      let s = t * n;
-      for (let r = 0; r < this.enemies.length; r++) {
-        let a = this.enemies[r];
-        a.dead ||
-          (this.statusTick(a, t),
-          !a.dead &&
-            ((this._src = a.type),
-            (this._var = a.variant || null),
-            a.boss ? updateBoss(this, a, s) : updateEnemy(this, a, s),
-            (a.variant || a.champion) && this.variantTick(a, s),
-            this.moveEnemy(a, s)));
-      }
-      ((this._src = null),
-        (this._var = null),
-        this.separate(),
-        this.hash.build(this.enemies),
-        this.player.alive && (this.updateOrbitals(t), this.updateWingman(t), this.contactDamage()),
-        this.updateTrails(t),
-        this.updatePBullets(t),
-        this.updateEBullets(s),
-        this.updateBeams(s),
-        this.updateHazards(s),
-        this.updatePickups(t),
-        this.updateMarkers(t),
-        this.updateFeatures(t),
-        this.event === "rain" && this.state === "fight" && this.shardRain(t),
-        this.sweep(),
-        this.checkWaveEnd());
-    }
-    variantTick(t, e) {
-      if (t.spawnT > 0) return;
-      let n = this.player;
-      if (
-        (t.champion &&
-          this.hash.query(t.x, t.y, 7, (s) => {
-            !s.dead && s !== t && Math.hypot(s.x - t.x, s.y - t.y) < 7 && (s.rallyT = 0.3);
-          }),
-        t.rallyT > 0 && (t.rallyT -= e),
-        (t.vt = (t.vt || 0) - e),
-        t.variant === "scorch" && t.vt <= 0 && Math.hypot(t.vx, t.vy) > 0.5)
-      ) {
-        t.vt = 1.1;
-        let s = this._src;
-        ((this._src = t.type),
-          this.hazard({ x: t.x, y: t.y, r: 1, delay: 0.8, dmg: t.dmg * 0.6, kind: "fire" }),
-          (this._src = s));
-      } else if (t.variant === "phase" && t.vt <= 0) {
-        t.vt = 2.4 + this.rng.next();
-        let s = n.x - t.x,
-          r = n.y - t.y,
-          a = Math.hypot(s, r);
-        if (a > 4.5) {
-          let o = t.x + (s / a) * 3,
-            c = t.y + (r / a) * 3;
-          !this.arena.blocked(o, c, t.r) &&
-            !this.arena.outside(o, c, t.r) &&
-            (this.emit("blink", { x: t.x, y: t.y, small: !0, phase: !0 }), (t.x = o), (t.y = c));
-        }
+      if (this.state === "victory") {
+        this.endless = true;
+        this.state = "choose";
+        this.offer = this.makeOffer();
+        this.emit("offer");
       }
     }
-    shardRain(t) {
-      if (
-        (this.planIdx >= this.plan.length && this.enemies.length === 0) ||
-        ((this.rainT -= t), this.rainT > 0 || this.pickups.length > 200)
-      )
-        return;
-      this.rainT = 0.8 + this.rng.next() * 0.5;
-      let e = this.arena.freePoint(this.rng, this.player.x, this.player.y, 3, 0.4),
-        n = this.mkPickup("shard", e.x, e.y, this.rng.chance(0.15) ? 5 : 1);
-      ((n.vx = 0), (n.vy = 0), (n.rain = !0), this.pickups.push(n));
-    }
-    updateFeatures(t) {
-      let e = this.arena,
-        n = this.player;
-      if (e.acid.length) {
-        for (let s of e.acid) s.life != null && (s.life -= t);
-        (e.acid.some((s) => s.life != null && s.life <= 0) &&
-          (e.acid = e.acid.filter((s) => s.life == null || s.life > 0)),
-          (n.inAcid = n.alive && e.inAcid(n.x, n.y)),
-          n.inAcid && this.state === "fight"
-            ? ((n.acidT += t),
-              n.acidT >= 0.5 &&
-                ((n.acidT = 0),
-                this.hurtPlayer(
-                  2 * this.dmgMul * Math.max(0, 1 - (this.stats.hazardResist || 0)),
-                  null,
-                  null,
-                  "acid",
-                  !0,
-                )))
-            : (n.acidT = 0.35));
-        for (let s of this.enemies) s.corrode = !s.boss && e.inAcid(s.x, s.y);
-      } else n.inAcid = !1;
-      if (e.vents.length && this.state === "fight")
-        for (let s of e.vents) {
-          let r = e.ventState(s, this.waveT);
-          (r !== s.st && (r === "erupt" && this.emit("erupt", { x: s.x, y: s.y, r: s.r }), (s.st = r)),
-            r === "erupt" &&
-              (n.alive &&
-                Math.hypot(n.x - s.x, n.y - s.y) < s.r + n.r * 0.4 &&
-                this.hurtPlayer(9 * this.dmgMul * Math.max(0, 1 - (this.stats.hazardResist || 0)), s.x, s.y, "lava"),
-              this.hash.query(s.x, s.y, s.r, (a) => {
-                if (a.dead || a.boss || Math.hypot(a.x - s.x, a.y - s.y) > s.r + a.r * 0.5) return;
-                let o = a.burnT > 0 ? a.burnDps : 0;
-                ((a.burnT = Math.max(a.burnT, 2)), (a.burnDps = Math.max(o, a.maxHp * 0.14)), (a.burnSrc = "lava"));
-              })));
-        }
-      if (e.portals.length) {
-        n.portalT > 0 && (n.portalT -= t);
-        for (let s of e.portals)
-          for (let [r, a, o, c] of [
-            [s.ax, s.ay, s.bx, s.by],
-            [s.bx, s.by, s.ax, s.ay],
-          ]) {
-            if (n.alive && n.portalT <= 0 && Math.hypot(n.x - r, n.y - a) < 0.8) {
-              let h = Math.hypot(n.vx, n.vy),
-                l = h > 0.5 ? n.vx / h : 0,
-                u = h > 0.5 ? n.vy / h : 1;
-              (this.emit("warp", { x: n.x, y: n.y, tx: o, ty: c, who: "player" }),
-                (n.x = o + l * 1.2),
-                (n.y = c + u * 1.2),
-                this.arena.resolve(n, n.r),
-                (n.portalT = 0.9));
-            }
-            for (let h of [this.pb, this.eb])
-              for (let l of h)
-                if (
-                  !(l.life <= 0 || (l.warpT || 0) > this.time) &&
-                  Math.abs(l.x - r) < 0.75 &&
-                  Math.abs(l.y - a) < 0.75
-                ) {
-                  let u = Math.hypot(l.vx, l.vy) || 1;
-                  ((l.x = o + (l.vx / u) * 0.9),
-                    (l.y = c + (l.vy / u) * 0.9),
-                    (l.warpT = this.time + 0.35),
-                    l.boom && (l.back = !0),
-                    Math.random() < 0.5 && this.emit("warp", { x: r, y: a, tx: o, ty: c, who: "shot" }));
-                }
+    step(dt, input) {
+      // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
+      // worlds are ignored by identity)
+      const monitored = !!RL_MON && RL_MON.w === this,
+        fx0 = this.fx.length,
+        dash0 = this.player.dashId,
+        shards0 = this.shards,
+        kills0 = this.kills;
+      const stats = this.stats,
+        player = this.player;
+      // 2.5.0 B: the Emergency Shield barrier runs out
+      if (this.barrierT > 0) {
+        this.barrierT -= dt;
+        if (this.barrierT <= 0) {
+          this.barrierT = 0;
+          // the bubble was only shown for the barrier; a shield from the Energy Shield upgrade stays
+          if (this.barrierOwnShield) {
+            player.shield = false;
+            player.shieldT = 0;
           }
+          this.barrierOwnShield = false;
+        }
+      }
+      // 2.5.0 B: Hazard Attunement: more damage and repair while close to a map hazard
+      this.attuned = stats.attuneDmg > 0 && this.state === "fight" && rlNearHazard(this);
+      const attuned = this.attuned,
+        dmg = stats.dmgMul,
+        regen = stats.regen;
+      if (attuned) {
+        stats.dmgMul = dmg * (1 + stats.attuneDmg);
+        stats.regen = (regen || 0) + stats.attuneRegen;
+      }
+      try {
+        // 2.5.0 A: Cryo Skates, Heat Sink and Slipstream
+        const tuned = !!(stats.skates || stats.heatSink || stats.slip),
+          fight = this.state === "fight" && player.alive,
+          // Cryo Skates: on ice or anywhere in Cryo Vault (onIce is from the last frame)
+          skating = stats.skates > 0 && fight && (player.onIce || this.arena.biome.id === "vault"),
+          speed = stats.speed,
+          rate = stats.rateMul,
+          dashId = player.dashId;
+        if (tuned) {
+          // Heat Sink: an erupting vent within 2.5 m of its edge keeps the heat up and charges Nova
+          if (stats.heatSink && fight)
+            for (const vent of this.arena.vents)
+              if (vent.st === "erupt" && Math.hypot(player.x - vent.x, player.y - vent.y) < vent.r + 2.5) {
+                player.heatT = RL_HEAT_TIME;
+                this.addNova(10 * stats.heatSink * dt);
+                break;
+              }
+          player.skating = skating;
+          if (skating) stats.speed = speed * (1 + 0.15 * stats.skates);
+          if (player.heatT > 0) stats.rateMul = rate * (1 + 0.25 * stats.heatSink);
+        }
+        try {
+          // Momentum: faster fire while moving
+          const rateBase = stats.rateMul || 1;
+          stats.rateMul =
+            rateBase *
+            (stats.momentum > 0 && input && Math.hypot(+input.mx || 0, +input.my || 0) > 0.08 ? 1 + stats.momentum : 1);
+          try {
+            this.stateT += dt;
+            if (this.state === "choose" || this.state === "victory") this.idle(dt);
+            else {
+              this.time += this.state === "dead" ? 0 : dt;
+              this.waveT += dt;
+              let slow = this.chronoT > 0 ? 0.45 : 1;
+              if (this.chronoT > 0) {
+                this.chronoT -= dt;
+              }
+              if (this.comboT > 0) {
+                this.comboT -= dt;
+                if (this.comboT <= 0) {
+                  if (this.combo >= 5) {
+                    this.emit("comboEnd", { n: this.combo });
+                  }
+                  this.combo = 0;
+                }
+              }
+              if (this.player.alive) {
+                this.updatePlayer(dt, input);
+              } else {
+                this.player.vx *= 0.9;
+                this.player.vy *= 0.9;
+              }
+              this.hash.build(this.enemies);
+              if (this.state === "fight") {
+                this.updateSpawns(dt);
+              }
+              this.arena.flow.update(this.player.x, this.player.y);
+              let slowDt = dt * slow;
+              for (let i = 0; i < this.enemies.length; i++) {
+                let enemy = this.enemies[i];
+                if (!enemy.dead) {
+                  this.statusTick(enemy, dt);
+                  if (!enemy.dead) {
+                    this._src = enemy.type;
+                    this._var = enemy.variant || null;
+                    if (enemy.boss) {
+                      updateBoss(this, enemy, slowDt);
+                    } else {
+                      updateEnemy(this, enemy, slowDt);
+                    }
+                    if (enemy.variant || enemy.champion) {
+                      this.variantTick(enemy, slowDt);
+                    }
+                    this.moveEnemy(enemy, slowDt);
+                  }
+                }
+              }
+              this._src = null;
+              this._var = null;
+              this.separate();
+              this.hash.build(this.enemies);
+              if (this.player.alive) {
+                this.updateOrbitals(dt);
+                this.updateWingman(dt);
+                this.contactDamage();
+              }
+              this.updateTrails(dt);
+              this.updatePBullets(dt);
+              this.updateEBullets(slowDt);
+              this.updateBeams(slowDt);
+              this.updateHazards(slowDt);
+              this.updatePickups(dt);
+              this.updateMarkers(dt);
+              this.updateFeatures(dt);
+              if (this.event === "rain" && this.state === "fight") {
+                this.shardRain(dt);
+              }
+              this.sweep();
+              this.checkWaveEnd();
+            }
+          } finally {
+            stats.rateMul = rateBase;
+          }
+        } finally {
+          if (tuned) {
+            stats.speed = speed;
+            stats.rateMul = rate;
+            if (skating && player.dashCdT > 0) player.dashCdT = Math.max(0, player.dashCdT - 0.35 * stats.skates * dt);
+            if (player.heatT > 0) player.heatT = Math.max(0, player.heatT - dt);
+            if (player.slipT > 0) player.slipT = Math.max(0, player.slipT - dt);
+            // Slipstream: a new dash primes the shots for the dash itself plus RL_SLIP_TIME
+            if (stats.slip && player.dashId !== dashId) player.slipT = RL_SLIP_TIME + 0.17;
+          }
+        }
+      } finally {
+        if (attuned) {
+          stats.dmgMul = dmg;
+          stats.regen = regen;
+        }
+      }
+      if (monitored)
+        try {
+          rlMonStep(this, fx0, dash0, shards0, kills0, dt);
+        } catch (err) {
+          rlMonIssue("WARN", "monitor", "monitor exception: " + err.message);
+        }
+    }
+    variantTick(enemy, dt) {
+      if (enemy.spawnT > 0) return;
+      let player = this.player;
+      if (enemy.champion) {
+        this.hash.query(enemy.x, enemy.y, 7, (ally) => {
+          if (!ally.dead && ally !== enemy && Math.hypot(ally.x - enemy.x, ally.y - enemy.y) < 7) {
+            ally.rallyT = 0.3;
+          }
+        });
+      }
+      if (enemy.rallyT > 0) {
+        enemy.rallyT -= dt;
+      }
+      enemy.vt = (enemy.vt || 0) - dt;
+      if (enemy.variant === "scorch" && enemy.vt <= 0 && Math.hypot(enemy.vx, enemy.vy) > 0.5) {
+        enemy.vt = 1.1;
+        let src = this._src;
+        this._src = enemy.type;
+        this.hazard({ x: enemy.x, y: enemy.y, r: 1, delay: 0.8, dmg: enemy.dmg * 0.6, kind: "fire" });
+        this._src = src;
+      } else if (enemy.variant === "phase" && enemy.vt <= 0) {
+        enemy.vt = 2.4 + this.rng.next();
+        let dx = player.x - enemy.x,
+          dy = player.y - enemy.y,
+          dist = Math.hypot(dx, dy);
+        if (dist > 4.5) {
+          let x = enemy.x + (dx / dist) * 3,
+            y = enemy.y + (dy / dist) * 3;
+          if (!this.arena.blocked(x, y, enemy.r) && !this.arena.outside(x, y, enemy.r)) {
+            this.emit("blink", { x: enemy.x, y: enemy.y, small: true, phase: true });
+            enemy.x = x;
+            enemy.y = y;
+          }
+        }
       }
     }
-    idle(t) {
-      this.updatePickups(t);
-      for (let e of this.eb) e.life = 0;
+    shardRain(dt) {
+      if (this.planIdx >= this.plan.length && this.enemies.length === 0) return;
+      this.rainT -= dt;
+      if (this.rainT > 0 || this.pickups.length > 200) return;
+      this.rainT = 0.8 + this.rng.next() * 0.5;
+      let spot = this.arena.freePoint(this.rng, this.player.x, this.player.y, 3, 0.4),
+        pickup = this.mkPickup("shard", spot.x, spot.y, this.rng.chance(0.15) ? 5 : 1);
+      pickup.vx = 0;
+      pickup.vy = 0;
+      pickup.rain = true;
+      this.pickups.push(pickup);
+    }
+    updateFeatures(dt) {
+      // 2.5.0 C: the biome event ticks first. The player's Acid Coating puddles (mine) are not map
+      // pools: Spore Bloom neither grows them nor counts them when it looks for room or checks its
+      // pool cap.
+      if (this.bioEv && this.state === "fight") {
+        const all = this.arena.acid,
+          ownAcid = all.filter((pool) => pool.mine);
+        if (ownAcid.length) this.arena.acid = all.filter((pool) => !pool.mine);
+        try {
+          this.tickBiomeEvent(this.bioEv, dt);
+        } finally {
+          if (ownAcid.length) this.arena.acid.push(...ownAcid);
+        }
+      }
+      // 2.5.0 A: Acid Coating. The player's own acid never hurts the player: those puddles leave
+      // the list while the map features are updated below, then only mark enemies (corrode = +25%
+      // damage taken).
+      const coat = !!this.stats.acidCoat;
+      let mine = null,
+        natural = false,
+        live = null;
+      if (coat) {
+        const all = this.arena.acid;
+        mine = all.filter((pool) => pool.mine);
+        this.arena.acid = all.filter((pool) => !pool.mine);
+        natural = this.arena.acid.length > 0;
+        live = mine;
+      }
+      try {
+        let arena = this.arena,
+          player = this.player;
+        if (arena.acid.length) {
+          for (let pool of arena.acid) {
+            if (pool.life != null) {
+              pool.life -= dt;
+            }
+          }
+          if (arena.acid.some((pool) => pool.life != null && pool.life <= 0)) {
+            arena.acid = arena.acid.filter((pool) => pool.life == null || pool.life > 0);
+          }
+          player.inAcid = player.alive && arena.inAcid(player.x, player.y);
+          if (player.inAcid && this.state === "fight") {
+            player.acidT += dt;
+            if (player.acidT >= 0.5) {
+              player.acidT = 0;
+              this.hurtPlayer(
+                2 * this.dmgMul * Math.max(0, 1 - (this.stats.hazardResist || 0)),
+                null,
+                null,
+                "acid",
+                true,
+              );
+            }
+          } else {
+            player.acidT = 0.35;
+          }
+          for (let enemy of this.enemies) enemy.corrode = !enemy.boss && arena.inAcid(enemy.x, enemy.y);
+        } else player.inAcid = false;
+        if (arena.vents.length && this.state === "fight")
+          for (let vent of arena.vents) {
+            let state = arena.ventState(vent, this.waveT);
+            if (state !== vent.st) {
+              if (state === "erupt") {
+                this.emit("erupt", { x: vent.x, y: vent.y, r: vent.r });
+              }
+              vent.st = state;
+            }
+            if (state === "erupt") {
+              if (player.alive && Math.hypot(player.x - vent.x, player.y - vent.y) < vent.r + player.r * 0.4) {
+                this.hurtPlayer(
+                  9 * this.dmgMul * Math.max(0, 1 - (this.stats.hazardResist || 0)),
+                  vent.x,
+                  vent.y,
+                  "lava",
+                );
+              }
+              this.hash.query(vent.x, vent.y, vent.r, (enemy) => {
+                if (enemy.dead || enemy.boss || Math.hypot(enemy.x - vent.x, enemy.y - vent.y) > vent.r + enemy.r * 0.5)
+                  return;
+                let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
+                enemy.burnT = Math.max(enemy.burnT, 2);
+                enemy.burnDps = Math.max(burn, enemy.maxHp * 0.14);
+                enemy.burnSrc = "lava";
+              });
+            }
+          }
+        if (arena.portals.length) {
+          if (player.portalT > 0) {
+            player.portalT -= dt;
+          }
+          for (let portal of arena.portals)
+            for (let [fromX, fromY, toX, toY] of [
+              [portal.ax, portal.ay, portal.bx, portal.by],
+              [portal.bx, portal.by, portal.ax, portal.ay],
+            ]) {
+              if (player.alive && player.portalT <= 0 && Math.hypot(player.x - fromX, player.y - fromY) < 0.8) {
+                let speed = Math.hypot(player.vx, player.vy),
+                  dirX = speed > 0.5 ? player.vx / speed : 0,
+                  dirY = speed > 0.5 ? player.vy / speed : 1;
+                this.emit("warp", { x: player.x, y: player.y, tx: toX, ty: toY, who: "player" });
+                player.x = toX + dirX * 1.2;
+                player.y = toY + dirY * 1.2;
+                this.arena.resolve(player, player.r);
+                player.portalT = 0.9;
+              }
+              for (let list of [this.pb, this.eb])
+                for (let bullet of list)
+                  if (
+                    !(bullet.life <= 0 || (bullet.warpT || 0) > this.time) &&
+                    Math.abs(bullet.x - fromX) < 0.75 &&
+                    Math.abs(bullet.y - fromY) < 0.75
+                  ) {
+                    let speed = Math.hypot(bullet.vx, bullet.vy) || 1;
+                    bullet.x = toX + (bullet.vx / speed) * 0.9;
+                    bullet.y = toY + (bullet.vy / speed) * 0.9;
+                    bullet.warpT = this.time + 0.35;
+                    if (bullet.boom) {
+                      bullet.back = true;
+                    }
+                    if (Math.random() < 0.5) {
+                      this.emit("warp", { x: fromX, y: fromY, tx: toX, ty: toY, who: "shot" });
+                    }
+                  }
+            }
+        }
+      } finally {
+        if (coat) {
+          for (const pool of mine) pool.life -= dt;
+          live = mine.filter((pool) => pool.life > 0);
+          this.arena.acid.push(...live);
+        }
+      }
+      if (coat)
+        for (const enemy of this.enemies)
+          enemy.corrode =
+            (natural && !!enemy.corrode) ||
+            (!enemy.boss && live.some((pool) => (enemy.x - pool.x) ** 2 + (enemy.y - pool.y) ** 2 < pool.r * pool.r));
+    }
+    idle(dt) {
+      this.updatePickups(dt);
+      for (let bullet of this.eb) bullet.life = 0;
       this.sweep();
     }
-    updatePlayer(t, e) {
-      let n = this.player,
-        s = this.stats;
-      ((e = e || {}),
-        (n.iT = Math.max(0, n.iT - t)),
-        (n.dashCdT = Math.max(0, n.dashCdT - t)),
-        (n.hurtT = Math.max(0, n.hurtT - t)),
-        n.rushT > 0 && ((n.rushT -= t), n.rushT <= 0 && (n.rushN = 0)),
-        s.shieldCd > 0 &&
-          !n.shield &&
-          ((n.shieldT += t), n.shieldT >= s.shieldCd && ((n.shield = !0), (n.shieldT = 0), this.emit("shieldUp"))),
-        s.regen > 0 && n.hp < s.maxHp && (n.hp = Math.min(s.maxHp, n.hp + s.regen * t)));
-      let r = +e.mx || 0,
-        a = +e.my || 0,
-        o = Math.hypot(r, a);
-      if ((o > 1 && ((r /= o), (a /= o)), (n.moving = o > 0.08), e.dash && n.dashCdT <= 0 && n.dashT <= 0)) {
-        let d = r,
-          f = a;
-        Math.hypot(d, f) < 0.2 && ((d = Math.cos(n.face)), (f = Math.sin(n.face)));
-        let p = Math.hypot(d, f) || 1;
-        ((n.dashX = d / p),
-          (n.dashY = f / p),
-          (n.dashT = 0.17),
-          (n.dashCdT = s.dashCd),
-          n.dashId++,
-          this.runStats.dashes++,
-          (n.iT = Math.max(n.iT, 0.24)),
-          s.chrono && (this.chronoT = 2),
-          this.emit("dash", { x: n.x, y: n.y, a: Math.atan2(n.dashY, n.dashX) }));
+    updatePlayer(dt, input) {
+      let player = this.player,
+        stats = this.stats;
+      input = input || {};
+      player.iT = Math.max(0, player.iT - dt);
+      player.dashCdT = Math.max(0, player.dashCdT - dt);
+      player.hurtT = Math.max(0, player.hurtT - dt);
+      if (player.rushT > 0) {
+        player.rushT -= dt;
+        if (player.rushT <= 0) {
+          player.rushN = 0;
+        }
       }
-      if (n.dashT > 0)
-        ((n.dashT -= t),
-          (n.vx = n.dashX * 28),
-          (n.vy = n.dashY * 28),
-          s.shockDash && this.dashHits(),
-          s.trail &&
-            ((n.trailT -= t),
-            n.trailT <= 0 &&
-              ((n.trailT = 0.025), this.trails.length < 80 && this.trails.push({ x: n.x, y: n.y, life: 1.4 }))));
-      else {
-        let d = this.arena.ice.length && this.arena.onIce(n.x, n.y);
-        ((n.onIce = !!d), n.slowT > 0 && (n.slowT -= t));
+      if (stats.shieldCd > 0 && !player.shield) {
+        player.shieldT += dt;
+        if (player.shieldT >= stats.shieldCd) {
+          player.shield = true;
+          player.shieldT = 0;
+          this.emit("shieldUp");
+        }
+      }
+      if (stats.regen > 0 && player.hp < stats.maxHp) {
+        player.hp = Math.min(stats.maxHp, player.hp + stats.regen * dt);
+      }
+      let mx = +input.mx || 0,
+        my = +input.my || 0,
+        len = Math.hypot(mx, my);
+      if (len > 1) {
+        mx /= len;
+        my /= len;
+      }
+      player.moving = len > 0.08;
+      if (input.dash && player.dashCdT <= 0 && player.dashT <= 0) {
+        let dx = mx,
+          dy = my;
+        if (Math.hypot(dx, dy) < 0.2) {
+          dx = Math.cos(player.face);
+          dy = Math.sin(player.face);
+        }
+        let norm = Math.hypot(dx, dy) || 1;
+        player.dashX = dx / norm;
+        player.dashY = dy / norm;
+        player.dashT = 0.17;
+        player.dashCdT = stats.dashCd;
+        player.dashId++;
+        this.runStats.dashes++;
+        player.iT = Math.max(player.iT, 0.24);
+        if (stats.chrono) {
+          this.chronoT = 2;
+        }
+        this.emit("dash", { x: player.x, y: player.y, a: Math.atan2(player.dashY, player.dashX) });
+      }
+      if (player.dashT > 0) {
+        player.dashT -= dt;
+        player.vx = player.dashX * 28;
+        player.vy = player.dashY * 28;
+        if (stats.shockDash) {
+          this.dashHits();
+        }
+        if (stats.trail) {
+          player.trailT -= dt;
+          if (player.trailT <= 0) {
+            player.trailT = 0.025;
+            if (this.trails.length < 80) {
+              this.trails.push({ x: player.x, y: player.y, life: 1.4 });
+            }
+          }
+        }
+      } else {
+        let onIce = this.arena.ice.length && this.arena.onIce(player.x, player.y);
+        player.onIce = !!onIce;
+        if (player.slowT > 0) {
+          player.slowT -= dt;
+        }
         // 2.4.0: a biome can set its own floor grip (Cryo Vault: the whole floor is slick)
-        let f = dampFactor(d ? 2.4 : this.arena.biome.grip || 16, t),
-          p = s.speed * (d ? 1.12 : 1) * (n.slowT > 0 ? 0.65 : 1);
-        ((n.vx += (r * p - n.vx) * f), (n.vy += (a * p - n.vy) * f));
+        let grip = dampFactor(onIce ? 2.4 : this.arena.biome.grip || 16, dt),
+          speed = stats.speed * (onIce ? 1.12 : 1) * (player.slowT > 0 ? 0.65 : 1);
+        player.vx += (mx * speed - player.vx) * grip;
+        player.vy += (my * speed - player.vy) * grip;
       }
-      ((n.x += n.vx * t),
-        (n.y += n.vy * t),
-        this.arena.resolve(n, n.r),
-        n.moving && n.dashT <= 0 && (n.face = turnToward(n.face, Math.atan2(a, r), 14 * t)));
-      let c = !!e.aim && Math.hypot(+e.ax || 0, +e.ay || 0) > 0.2,
-        h = null;
-      if (c) ((h = Math.atan2(e.ay, e.ax)), e.assist !== !1 && (h = this.assistAim(h)), (n.target = null));
-      else {
-        let d = this.pickTarget();
-        ((n.target = d), d && (h = Math.atan2(d.y - n.y, d.x - n.x)));
+      player.x += player.vx * dt;
+      player.y += player.vy * dt;
+      this.arena.resolve(player, player.r);
+      if (player.moving && player.dashT <= 0) {
+        player.face = turnToward(player.face, Math.atan2(my, mx), 14 * dt);
       }
-      let l = c || (!!e.fire && h != null) || (!!e.auto && h != null && n.target != null);
-      (h != null ? (n.aim = turnToward(n.aim, h, 30 * t)) : n.moving && (n.aim = turnToward(n.aim, n.face, 8 * t)),
-        (n.firing = l),
-        (n.manual = c));
-      let u = s.weapon.rate * s.rateMul * (1 + (s.bloodrush ? 0.04 * n.rushN : 0));
-      if (((n.fireT -= t), l && h != null)) {
-        let d = 0;
-        for (; n.fireT <= 0 && d < 3; ) (this.fire(h), (n.fireT += 1 / u), d++);
-        n.fireT < 0 && (n.fireT = 0);
-      } else n.fireT < 0 && (n.fireT = 0);
-      e.nova && this.nova();
+      let manual = !!input.aim && Math.hypot(+input.ax || 0, +input.ay || 0) > 0.2,
+        aim = null;
+      if (manual) {
+        aim = Math.atan2(input.ay, input.ax);
+        if (input.assist !== false) {
+          aim = this.assistAim(aim);
+        }
+        player.target = null;
+      } else {
+        let target = this.pickTarget();
+        player.target = target;
+        if (target) {
+          aim = Math.atan2(target.y - player.y, target.x - player.x);
+        }
+      }
+      let firing = manual || (!!input.fire && aim != null) || (!!input.auto && aim != null && player.target != null);
+      if (aim != null) {
+        player.aim = turnToward(player.aim, aim, 30 * dt);
+      } else {
+        if (player.moving) {
+          player.aim = turnToward(player.aim, player.face, 8 * dt);
+        }
+      }
+      player.firing = firing;
+      player.manual = manual;
+      let rate = stats.weapon.rate * stats.rateMul * (1 + (stats.bloodrush ? 0.04 * player.rushN : 0));
+      player.fireT -= dt;
+      if (firing && aim != null) {
+        let shots = 0;
+        for (; player.fireT <= 0 && shots < 3; ) {
+          this.fire(aim);
+          player.fireT += 1 / rate;
+          shots++;
+        }
+        if (player.fireT < 0) {
+          player.fireT = 0;
+        }
+      } else {
+        if (player.fireT < 0) {
+          player.fireT = 0;
+        }
+      }
+      if (input.nova) {
+        this.nova();
+      }
     }
-    assistAim(t) {
-      let e = this.player,
-        n = null,
-        s = 0.22,
-        r = this.stats.range + 2;
-      for (let a of this.enemies) {
-        if (a.dead || a.ghost) continue;
-        let o = a.x - e.x,
-          c = a.y - e.y,
-          h = Math.hypot(o, c);
-        if (h > r) continue;
-        let l = Math.abs(angleDiff(t, Math.atan2(c, o))),
-          u = Math.min(0.35, 0.12 + Math.atan2(a.r, h));
-        l < u && l < s + (0.05 * h) / r && ((n = a), (s = l));
+    assistAim(angle) {
+      let player = this.player,
+        best = null,
+        bestErr = 0.22,
+        range = this.stats.range + 2;
+      for (let enemy of this.enemies) {
+        if (enemy.dead || enemy.ghost) continue;
+        let dx = enemy.x - player.x,
+          dy = enemy.y - player.y,
+          dist = Math.hypot(dx, dy);
+        if (dist > range) continue;
+        let err = Math.abs(angleDiff(angle, Math.atan2(dy, dx))),
+          cone = Math.min(0.35, 0.12 + Math.atan2(enemy.r, dist));
+        if (err < cone && err < bestErr + (0.05 * dist) / range) {
+          best = enemy;
+          bestErr = err;
+        }
       }
-      return n ? Math.atan2(n.y - e.y, n.x - e.x) : t;
+      return best ? Math.atan2(best.y - player.y, best.x - player.x) : angle;
     }
     pickTarget() {
-      let t = this.player,
-        e = this.stats.range + 2.5,
-        n = null,
-        s = 1 / 0;
-      for (let r of this.enemies) {
-        if (r.dead || r.spawnT > 0.2 || r.ghost) continue;
-        let a = Math.hypot(r.x - t.x, r.y - t.y) - r.r;
-        if (a > e) continue;
-        let o = a + (r.los ? 0 : 9);
-        (r === t.target && (o *= 0.8), o < s && ((s = o), (n = r)));
+      let player = this.player,
+        range = this.stats.range + 2.5,
+        best = null,
+        bestScore = 1 / 0;
+      for (let enemy of this.enemies) {
+        if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
+        let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y) - enemy.r;
+        if (dist > range) continue;
+        let score = dist + (enemy.los ? 0 : 9);
+        if (enemy === player.target) {
+          score *= 0.8;
+        }
+        if (score < bestScore) {
+          bestScore = score;
+          best = enemy;
+        }
       }
-      return n;
+      return best;
     }
-    fire(t) {
-      let e = this.player,
-        n = this.stats,
-        s = n.weapon,
-        r = s.count + (s.cone ? n.extra * 2 : n.extra),
-        a = 0.75,
-        o = e.x + Math.cos(t) * a,
-        c = e.y + Math.sin(t) * a;
-      e.shotN = (e.shotN || 0) + 1;
-      let h = n.overdrive && e.shotN % 4 === 0,
-        l = (u, d) => {
-          if (this.pb.length >= MAX_PLAYER_BULLETS) return;
-          let f = (this.rng.next() - 0.5) * 2 * s.spread,
-            p = u + f,
-            x = s.speed * n.velMul * (s.cone ? 0.85 + this.rng.next() * 0.3 : 1),
-            m = {
-              id: this.nextId++,
-              x: o,
-              y: c,
-              vx: Math.cos(p) * x,
-              vy: Math.sin(p) * x,
-              a: p,
-              r: s.r * n.sizeMul,
-              dmg: s.dmg * n.dmgMul * d,
-              life: s.life * (s.cone ? 0.85 + this.rng.next() * 0.3 : 1),
-              pierce: n.lance && s.rail ? 999 : n.pierce,
-              bounce: s.boomerang ? 0 : n.bounce,
-              hits: [],
-              w: s.id,
-              age: 0,
-              homing: n.homing,
-            };
-          (h && d >= 1 && ((m.dmg *= 3), (m.r *= 2), (m.pierce += 3), (m.vx *= 1.2), (m.vy *= 1.2), (m.heavy = !0)),
-            s.boomerang && ((m.boom = !0), (m.turn = s.life * 0.5), (m.life = 4), (m.sp = x), (m.spin = 0)),
-            s.drag && ((m.drag = s.drag), (m.grow = s.grow)),
-            this.pb.push(m));
-        };
-      if (s.cone) {
-        let u = s.cone + n.extra * 0.08;
-        for (let d = 0; d < r; d++) l(t - u / 2 + (u * (d + 0.5)) / r, 1);
-      } else for (let u = 0; u < r; u++) l(t + (u - (r - 1) / 2) * s.fan, 1);
-      (n.rear >= 1 && l(t + Math.PI, 0.6),
-        n.rear >= 2 && (l(t + Math.PI / 2, 0.6), l(t - Math.PI / 2, 0.6)),
-        this.emit("shot", { w: s.id, x: o, y: c, a: t, heavy: h }));
+    fire(angle) {
+      const stats = this.stats;
+      // one volley; 2.1 Echo fires a second one
+      const volley = (aim) => {
+        let player = this.player,
+          weapon = stats.weapon,
+          count = weapon.count + (weapon.cone ? stats.extra * 2 : stats.extra),
+          muzzle = 0.75,
+          originX = player.x + Math.cos(aim) * muzzle,
+          originY = player.y + Math.sin(aim) * muzzle;
+        player.shotN = (player.shotN || 0) + 1;
+        let heavy = stats.overdrive && player.shotN % 4 === 0,
+          shoot = (dir, mul) => {
+            if (this.pb.length >= MAX_PLAYER_BULLETS) return;
+            let spread = (this.rng.next() - 0.5) * 2 * weapon.spread,
+              heading = dir + spread,
+              speed = weapon.speed * stats.velMul * (weapon.cone ? 0.85 + this.rng.next() * 0.3 : 1),
+              bullet = {
+                id: this.nextId++,
+                x: originX,
+                y: originY,
+                vx: Math.cos(heading) * speed,
+                vy: Math.sin(heading) * speed,
+                a: heading,
+                r: weapon.r * stats.sizeMul,
+                dmg: weapon.dmg * stats.dmgMul * mul,
+                life: weapon.life * (weapon.cone ? 0.85 + this.rng.next() * 0.3 : 1),
+                pierce: stats.lance && weapon.rail ? 999 : stats.pierce,
+                bounce: weapon.boomerang ? 0 : stats.bounce,
+                hits: [],
+                w: weapon.id,
+                age: 0,
+                homing: stats.homing,
+              };
+            if (heavy && mul >= 1) {
+              bullet.dmg *= 3;
+              bullet.r *= 2;
+              bullet.pierce += 3;
+              bullet.vx *= 1.2;
+              bullet.vy *= 1.2;
+              bullet.heavy = true;
+            }
+            if (weapon.boomerang) {
+              bullet.boom = true;
+              bullet.turn = weapon.life * 0.5;
+              bullet.life = 4;
+              bullet.sp = speed;
+              bullet.spin = 0;
+            }
+            if (weapon.drag) {
+              bullet.drag = weapon.drag;
+              bullet.grow = weapon.grow;
+            }
+            this.pb.push(bullet);
+          };
+        if (weapon.cone) {
+          let arc = weapon.cone + stats.extra * 0.08;
+          for (let i = 0; i < count; i++) shoot(aim - arc / 2 + (arc * (i + 0.5)) / count, 1);
+        } else for (let i = 0; i < count; i++) shoot(aim + (i - (count - 1) / 2) * weapon.fan, 1);
+        if (stats.rear >= 1) {
+          shoot(aim + Math.PI, 0.6);
+        }
+        if (stats.rear >= 2) {
+          shoot(aim + Math.PI / 2, 0.6);
+          shoot(aim - Math.PI / 2, 0.6);
+        }
+        this.emit("shot", { w: weapon.id, x: originX, y: originY, a: aim, heavy: heavy });
+      };
+      // 2.5.0 A: Slipstream: the shots after a dash hit harder
+      const boost = stats.slip > 0 && this.player.slipT > 0,
+        dmg = stats.dmgMul;
+      if (boost) stats.dmgMul = dmg * (1 + 0.25 * stats.slip);
+      try {
+        // 2.1: Overload (every 6th shot bursts at the muzzle) and Echo (a chance of a second volley)
+        const echoing = !!this._rl21Echoing;
+        volley(angle);
+        if (echoing || this.state !== "fight" || !this.player.alive) return;
+        const shot = this.player.shotN || 0;
+        if (stats.overload > 0 && shot > 0 && shot % 6 === 0)
+          this.explode(
+            this.player.x + Math.cos(angle) * 0.9,
+            this.player.y + Math.sin(angle) * 0.9,
+            1.25,
+            24 + 8 * stats.overload,
+            { enemies: true, knock: 2, kind: "overload" },
+          );
+        if (stats.echo > 0 && this.rng.chance(Math.min(0.28, 0.08 * stats.echo))) {
+          this._rl21Echoing = true;
+          try {
+            volley(angle + this.rng.range(-0.035, 0.035));
+          } finally {
+            this._rl21Echoing = false;
+          }
+        }
+      } finally {
+        if (boost) stats.dmgMul = dmg;
+      }
     }
     dashHits() {
-      let t = this.player;
-      this.hash.query(t.x, t.y, 1.1, (e) => {
-        e.dead ||
-          e.dashHit === t.dashId ||
-          Math.hypot(e.x - t.x, e.y - t.y) > e.r + 1.1 ||
-          ((e.dashHit = t.dashId),
-          this.hurtEnemy(e, this.stats.shockDash * this.stats.dmgMul, t.dashX, t.dashY, 6, !1, "dash"),
-          this.emit("zap", { x: e.x, y: e.y }));
+      let player = this.player;
+      this.hash.query(player.x, player.y, 1.1, (enemy) => {
+        if (
+          !(
+            enemy.dead ||
+            enemy.dashHit === player.dashId ||
+            Math.hypot(enemy.x - player.x, enemy.y - player.y) > enemy.r + 1.1
+          )
+        ) {
+          enemy.dashHit = player.dashId;
+          this.hurtEnemy(enemy, this.stats.shockDash * this.stats.dmgMul, player.dashX, player.dashY, 6, false, "dash");
+          this.emit("zap", { x: enemy.x, y: enemy.y });
+        }
       });
     }
     nova() {
-      let t = this.player,
-        e = this.stats;
-      if (t.nova < 100 || !t.alive || this.state !== "fight") return;
-      ((t.nova = 0), (t.iT = Math.max(t.iT, 0.5)));
-      let n = e.novaR;
-      this.explode(t.x, t.y, n, 70 * e.dmgMul, { enemies: !0, knock: 12, kind: "nova" });
-      for (let s of this.eb)
-        Math.hypot(s.x - t.x, s.y - t.y) < n * 1.7 && ((s.life = 0), this.emit("pop", { x: s.x, y: s.y }));
-      this.emit("nova", { x: t.x, y: t.y, r: n });
-    }
-    addNova(t) {
-      let e = this.player,
-        n = e.nova;
-      ((e.nova = Math.min(100, e.nova + t * this.stats.novaMul)), n < 100 && e.nova >= 100 && this.emit("novaReady"));
-    }
-    hurtPlayer(t, e, n, s, r = !1) {
-      let a = this.player,
-        b = a.hp;
-      if (!a.alive || (!r && a.iT > 0) || a.dashT > 0 || this.state !== "fight" || this.god) return !1;
-      if (a.shield && !r)
-        return ((a.shield = !1), (a.shieldT = 0), (a.iT = 0.6), this.emit("shieldBreak", { x: a.x, y: a.y }), !1);
-      if (
-        ((t = Math.round(t)),
-        (a.hp -= t),
-        (this.runStats.dmgTaken += Math.min(t, b)),
-        (this.lastHit = s || null),
-        this.dmgBy && (this.dmgBy[s || "?"] = (this.dmgBy[s || "?"] || 0) + t),
-        r || ((a.iT = 0.65), (a.hurtT = 0.3)),
-        (this.waveDmg += t),
-        e != null && !r)
-      ) {
-        let o = a.x - e,
-          c = a.y - n,
-          h = Math.hypot(o, c) || 1;
-        ((a.vx += (o / h) * 7), (a.vy += (c / h) * 7));
+      let player = this.player,
+        stats = this.stats;
+      if (player.nova < 100 || !player.alive || this.state !== "fight") return;
+      player.nova = 0;
+      player.iT = Math.max(player.iT, 0.5);
+      let radius = stats.novaR;
+      this.explode(player.x, player.y, radius, 70 * stats.dmgMul, { enemies: true, knock: 12, kind: "nova" });
+      for (let bullet of this.eb) {
+        if (Math.hypot(bullet.x - player.x, bullet.y - player.y) < radius * 1.7) {
+          bullet.life = 0;
+          this.emit("pop", { x: bullet.x, y: bullet.y });
+        }
       }
-      return (
-        this.emit("hurt", { dmg: t, x: a.x, y: a.y, sx: e, sy: n, chip: r }),
-        a.hp <= 0 &&
-          ((this.ws.revive || 0) > 0 && !this.revived
-            ? ((this.revived = !0),
-              (a.hp = Math.round(this.stats.maxHp * 0.5)),
-              (a.iT = 2.2),
-              (a.nova = 100),
-              this.nova(),
-              this.emit("revive", { x: a.x, y: a.y }))
-            : ((a.hp = 0),
-              (a.alive = !1),
-              (this.state = "dead"),
-              (this.stateT = 0),
-              this.emit("die", { x: a.x, y: a.y }))),
-        !0
-      );
+      this.emit("nova", { x: player.x, y: player.y, r: radius });
     }
-    spawnEnemy(t, e, n, s = {}) {
-      let r = enemyDefs[t],
-        a = !!s.elite,
-        o = r.hp * this.hpMul * (a ? 3.2 : 1) * (s.hpF || 1),
-        c = {
+    addNova(amount) {
+      let player = this.player,
+        before = player.nova;
+      player.nova = Math.min(100, player.nova + amount * this.stats.novaMul);
+      if (before < 100 && player.nova >= 100) {
+        this.emit("novaReady");
+      }
+    }
+    hurtPlayer(dmg, srcX, srcY, src, chip = false) {
+      // 2.5.0 B: no damage while the Emergency Shield barrier is up
+      if (this.barrierT > 0 && this.player.alive && this.state === "fight") return false;
+      const stats = this.stats,
+        player = this.player;
+      // Last Stand: less damage below 35% hull. 2.4.2: the 1-damage floor only applies to hits that
+      // did at least 1 before. Small hazard ticks (acid with high resistance) used to be raised to 1.
+      if (player.hp <= stats.maxHp * 0.35 && stats.laststand > 0)
+        dmg = Math.min(dmg, Math.max(1, dmg * (1 - stats.laststand)));
+      // 2.3.5: Armor Core absorbs part of the damage from enemies (not lava and acid)
+      const armor = Math.min(0.5, stats.armor || 0);
+      if (armor > 0 && !RL_HAZARD_SRC.has(src)) dmg = dmg * (1 - armor);
+      let hpBefore = player.hp,
+        hit;
+      if (!player.alive || (!chip && player.iT > 0) || player.dashT > 0 || this.state !== "fight" || this.god)
+        hit = false;
+      else if (player.shield && !chip) {
+        player.shield = false;
+        player.shieldT = 0;
+        player.iT = 0.6;
+        this.emit("shieldBreak", { x: player.x, y: player.y });
+        hit = false;
+      } else {
+        dmg = Math.round(dmg);
+        player.hp -= dmg;
+        this.runStats.dmgTaken += Math.min(dmg, hpBefore);
+        this.lastHit = src || null;
+        if (this.dmgBy) {
+          this.dmgBy[src || "?"] = (this.dmgBy[src || "?"] || 0) + dmg;
+        }
+        if (!chip) {
+          player.iT = 0.65;
+          player.hurtT = 0.3;
+        }
+        this.waveDmg += dmg;
+        if (srcX != null && !chip) {
+          let dx = player.x - srcX,
+            dy = player.y - srcY,
+            dist = Math.hypot(dx, dy) || 1;
+          player.vx += (dx / dist) * 7;
+          player.vy += (dy / dist) * 7;
+        }
+        this.emit("hurt", { dmg: dmg, x: player.x, y: player.y, sx: srcX, sy: srcY, chip: chip });
+        if (player.hp <= 0) {
+          if ((this.ws.revive || 0) > 0 && !this.revived) {
+            this.revived = true;
+            player.hp = Math.round(this.stats.maxHp * 0.5);
+            player.iT = 2.2;
+            player.nova = 100;
+            this.nova();
+            this.emit("revive", { x: player.x, y: player.y });
+          } else {
+            player.hp = 0;
+            player.alive = false;
+            this.state = "dead";
+            this.stateT = 0;
+            this.emit("die", { x: player.x, y: player.y });
+          }
+        }
+        hit = true;
+      }
+      if (hit && player.alive) {
+        // 2.5.0 A: Heat Sink: lava and acid damage (after Hazmat) heat the drone up
+        if (stats.heatSink && (src === "lava" || src === "acid")) {
+          player.heatT = RL_HEAT_TIME;
+          this.addNova(3 * stats.heatSink);
+        }
+        // 2.5.0 A: Reactive Plating: a real hit (not a hazard tick) pushes everything nearby away
+        if (stats.reactive && !chip && !this._rlReacting) {
+          const radius = 3 + 0.6 * (stats.reactive - 1);
+          this._rlReacting = true;
+          try {
+            this.explode(player.x, player.y, radius, (20 + 15 * (stats.reactive - 1)) * stats.dmgMul, {
+              enemies: true,
+              knock: 10,
+              kind: "reactive",
+            });
+          } finally {
+            this._rlReacting = false;
+          }
+          for (const bullet of this.eb)
+            if (bullet.life > 0 && Math.hypot(bullet.x - player.x, bullet.y - player.y) < radius * 1.2) {
+              bullet.life = 0;
+              this.emit("pop", { x: bullet.x, y: bullet.y });
+            }
+        }
+      }
+      // 2.5.0 B: Emergency Shield: once per wave below 30% hull, a short barrier and some repair
+      if (
+        hit &&
+        stats.barrierT > 0 &&
+        !this.barrierUsed &&
+        player.alive &&
+        this.state === "fight" &&
+        player.hp > 0 &&
+        player.hp < stats.maxHp * 0.3
+      ) {
+        this.barrierUsed = true;
+        this.barrierT = stats.barrierT;
+        player.hp = Math.min(stats.maxHp, player.hp + Math.round(stats.maxHp * stats.barrierHeal));
+        this.barrierOwnShield = !player.shield;
+        player.shield = true;
+        this.emit("barrier", { x: player.x, y: player.y, t: stats.barrierT });
+        this.emit("heal", { x: player.x, y: player.y });
+      }
+      return hit;
+    }
+    spawnEnemy(type, x, y, opts = {}) {
+      let def = enemyDefs[type],
+        elite = !!opts.elite,
+        hp = def.hp * this.hpMul * (elite ? 3.2 : 1) * (opts.hpF || 1),
+        enemy = {
           id: this.nextId++,
-          type: t,
-          def: r,
-          x: e,
-          y: n,
+          type: type,
+          def: def,
+          x: x,
+          y: y,
           vx: 0,
           vy: 0,
           kx: 0,
           ky: 0,
-          r: r.r * (a ? 1.3 : 1),
-          hp: o,
-          maxHp: o,
-          speed: r.speed * (a ? 1.12 : 1) * (0.92 + this.rng.next() * 0.16),
-          dmg: r.dmg * this.dmgMul * (a ? 1.3 : 1),
-          face: Math.atan2(this.player.y - n, this.player.x - e),
-          elite: a,
-          boss: !1,
+          r: def.r * (elite ? 1.3 : 1),
+          hp: hp,
+          maxHp: hp,
+          speed: def.speed * (elite ? 1.12 : 1) * (0.92 + this.rng.next() * 0.16),
+          dmg: def.dmg * this.dmgMul * (elite ? 1.3 : 1),
+          face: Math.atan2(this.player.y - y, this.player.x - x),
+          elite: elite,
+          boss: false,
           age: 0,
           st: 0,
           t: this.rng.range(0.5, 2),
@@ -687,68 +1337,76 @@ var rlStep = 1 / 60,
           burnShow: 0,
           orbT: 0,
           dashHit: 0,
-          dead: !1,
-          los: !0,
+          dead: false,
+          los: true,
           losT: this.rng.next() * 0.25,
-          parent: s.parent || 0,
+          parent: opts.parent || 0,
           kids: 0,
           phase: this.rng.next() * TAU,
-          noDrop: !!s.noDrop,
+          noDrop: !!opts.noDrop,
           affix: null,
           shield: 0,
           shieldMax: 0,
         };
-      s.champion &&
-        ((c.champion = !0),
-        (c.maxHp = c.hp = o * 2.2),
-        (c.r *= 1.3),
-        (c.speed *= 0.9),
-        (c.dmg *= 1.2),
-        (c.spawnT = 0.8));
-      let h = biomeVariants[this.arena.biome.id];
-      return (
-        h &&
-          h.types.includes(t) &&
-          !s.champion &&
-          !s.noVariant &&
-          this.wave >= 3 &&
-          this.rng.chance(0.35) &&
-          (c.variant = h.id),
-        t === "bulwark" && ((c.guard = c.guardMax = c.hp * 0.9), (c.guardDown = 0), (c.guardFlash = 0)),
-        a &&
-          this.wave >= 10 &&
-          t !== "mite" &&
-          !s.champion &&
-          ((c.affix = this.rng.pick(["shielded", "hasted", "volatile"])),
-          c.affix === "shielded" && (c.shield = c.shieldMax = o * 0.45),
-          c.affix === "hasted" && (c.speed *= 1.35)),
-        this.enemies.push(c),
-        c
-      );
+      if (opts.champion) {
+        enemy.champion = true;
+        enemy.maxHp = enemy.hp = hp * 2.2;
+        enemy.r *= 1.3;
+        enemy.speed *= 0.9;
+        enemy.dmg *= 1.2;
+        enemy.spawnT = 0.8;
+      }
+      let variant = biomeVariants[this.arena.biome.id];
+      if (
+        variant &&
+        variant.types.includes(type) &&
+        !opts.champion &&
+        !opts.noVariant &&
+        this.wave >= 3 &&
+        this.rng.chance(0.35)
+      ) {
+        enemy.variant = variant.id;
+      }
+      if (type === "bulwark") {
+        enemy.guard = enemy.guardMax = enemy.hp * 0.9;
+        enemy.guardDown = 0;
+        enemy.guardFlash = 0;
+      }
+      if (elite && this.wave >= 10 && type !== "mite" && !opts.champion) {
+        enemy.affix = this.rng.pick(["shielded", "hasted", "volatile"]);
+        if (enemy.affix === "shielded") {
+          enemy.shield = enemy.shieldMax = hp * 0.45;
+        }
+        if (enemy.affix === "hasted") {
+          enemy.speed *= 1.35;
+        }
+      }
+      this.enemies.push(enemy);
+      return enemy;
     }
-    spawnBoss(t) {
-      let e = bossDefs[t],
-        n = this.endless ? 1 + Math.floor((this.wave - 20) / 5) * 0.55 : 1,
-        s = e.hp * this.tm.boss * 0.9 * n * (1 + (this.wave > 20 ? (this.wave - 20) * 0.08 : 0)),
-        r = this.arena,
-        a = {
+    spawnBoss(id) {
+      let def = bossDefs[id],
+        scale = this.endless ? 1 + Math.floor((this.wave - 20) / 5) * 0.55 : 1,
+        hp = def.hp * this.tm.boss * 0.9 * scale * (1 + (this.wave > 20 ? (this.wave - 20) * 0.08 : 0)),
+        arena = this.arena,
+        boss = {
           id: this.nextId++,
-          type: t,
-          def: e,
+          type: id,
+          def: def,
           x: 0,
-          y: -r.H + 5,
+          y: -arena.H + 5,
           vx: 0,
           vy: 0,
           kx: 0,
           ky: 0,
-          r: e.r,
-          hp: s,
-          maxHp: s,
-          speed: e.speed,
-          dmg: e.dmg * this.dmgMul,
+          r: def.r,
+          hp: hp,
+          maxHp: hp,
+          speed: def.speed,
+          dmg: def.dmg * this.dmgMul,
           face: Math.PI / 2,
-          elite: !1,
-          boss: !0,
+          elite: false,
+          boss: true,
           age: 0,
           st: 0,
           t: 2.2,
@@ -763,563 +1421,799 @@ var rlStep = 1 / 60,
           burnShow: 0,
           orbT: 0,
           dashHit: 0,
-          dead: !1,
-          los: !0,
+          dead: false,
+          los: true,
           losT: 0,
           parent: 0,
           kids: 0,
           phase: 0,
-          enraged: !1,
-          noDrop: !1,
+          enraged: false,
+          noDrop: false,
           pattern: 0,
         };
-      return (
-        this.player.y < 0 && (a.y = r.H - 5),
-        initBoss(this, a),
-        this.enemies.push(a),
-        (this.boss = a),
-        this.emit("boss", { id: t, name: e.name, title: e.title }),
-        a
-      );
-    }
-    statusTick(t, e) {
-      if (
-        ((t.age += e),
-        t.spawnT > 0 && (t.spawnT -= e),
-        t.flash > 0 && (t.flash = Math.max(0, t.flash - e * 7)),
-        t.slowT > 0 && (t.slowT -= e),
-        t.orbT > 0 && (t.orbT -= e),
-        t.burnT > 0 && ((t.burnT -= e), !t.shielded && !t.ghost))
-      ) {
-        let n = t.burnDps * e;
-        if (t.shield > 0) {
-          let s = Math.min(t.shield, n);
-          ((t.shield -= s), (n -= s), t.shield <= 0 && this.emit("shieldPop", { x: t.x, y: t.y, r: t.r }));
-        }
-        ((n = this.capPhase(t, n)),
-          (t.burnAcc += n),
-          (t.burnShow += e),
-          (t.hp -= n),
-          (this.dmgDealt += n),
-          this.credit(t.burnSrc || "burn", n),
-          t.burnShow > 0.5 &&
-            (t.burnAcc > 0.5 && this.emit("dmg", { x: t.x, y: t.y, v: t.burnAcc, burn: !0, id: t.id }),
-            (t.burnAcc = 0),
-            (t.burnShow = 0)),
-          t.hp <= 0 && this.killEnemy(t));
+      if (this.player.y < 0) {
+        boss.y = arena.H - 5;
       }
-      ((t.losT -= e),
-        t.losT <= 0 &&
-          ((t.losT = 0.2 + this.rng.next() * 0.1),
-          (t.los = this.arena.los(t.x, t.y, this.player.x, this.player.y, 0.2))));
+      initBoss(this, boss);
+      this.enemies.push(boss);
+      this.boss = boss;
+      this.emit("boss", { id: id, name: def.name, title: def.title });
+      // 2.4.6: in waves 5–20 the hull follows the slot (see bossFor)
+      const slot = this.wave / 5 - 1;
+      if (boss && !this.endless && this.wave <= 20 && Number.isInteger(slot) && BOSS_SLOT_HP[slot]) {
+        const hpScale = BOSS_SLOT_HP[slot] / boss.def.hp;
+        boss.hp *= hpScale;
+        boss.maxHp *= hpScale;
+      }
+      return boss;
     }
-    chaseDir(t) {
-      let e = this.player,
-        n = e.x - t.x,
-        s = e.y - t.y,
-        r = Math.hypot(n, s) || 1;
-      if (((this.cdx = n / r), (this.cdy = s / r), t.los || r < 2)) return;
-      let a = this.arena.flow,
-        o = a.idx(t.x, t.y),
-        c = a.dx[o],
-        h = a.dy[o];
-      (c !== 0 || h !== 0) && ((this.cdx = c), (this.cdy = h));
+    statusTick(enemy, dt) {
+      enemy.age += dt;
+      if (enemy.spawnT > 0) {
+        enemy.spawnT -= dt;
+      }
+      if (enemy.flash > 0) {
+        enemy.flash = Math.max(0, enemy.flash - dt * 7);
+      }
+      if (enemy.slowT > 0) {
+        enemy.slowT -= dt;
+      }
+      if (enemy.orbT > 0) {
+        enemy.orbT -= dt;
+      }
+      const burning = enemy.burnT > 0;
+      if (burning) enemy.burnT -= dt;
+      if (burning && !enemy.shielded && !enemy.ghost) {
+        let dmg = enemy.burnDps * dt;
+        if (enemy.shield > 0) {
+          let absorbed = Math.min(enemy.shield, dmg);
+          enemy.shield -= absorbed;
+          dmg -= absorbed;
+          if (enemy.shield <= 0) {
+            this.emit("shieldPop", { x: enemy.x, y: enemy.y, r: enemy.r });
+          }
+        }
+        dmg = this.capPhase(enemy, dmg);
+        enemy.burnAcc += dmg;
+        enemy.burnShow += dt;
+        enemy.hp -= dmg;
+        this.dmgDealt += dmg;
+        this.credit(enemy.burnSrc || "burn", dmg);
+        if (enemy.burnShow > 0.5) {
+          if (enemy.burnAcc > 0.5) {
+            this.emit("dmg", { x: enemy.x, y: enemy.y, v: enemy.burnAcc, burn: true, id: enemy.id });
+          }
+          enemy.burnAcc = 0;
+          enemy.burnShow = 0;
+        }
+        if (enemy.hp <= 0) {
+          this.killEnemy(enemy);
+        }
+      }
+      enemy.losT -= dt;
+      if (enemy.losT <= 0) {
+        enemy.losT = 0.2 + this.rng.next() * 0.1;
+        enemy.los = this.arena.los(enemy.x, enemy.y, this.player.x, this.player.y, 0.2);
+      }
     }
-    moveEnemy(t, e) {
-      let n = (t.slowT > 0 ? 0.55 : 1) * (t.rallyT > 0 ? 1.2 : 1),
-        s = t.vx,
-        r = t.vy;
-      if (this.arena.ice.length && !t.boss && this.arena.onIce(t.x, t.y)) {
-        let o = dampFactor(2.2, e);
-        ((t.svx = (t.svx ?? s) + (s - (t.svx ?? s)) * o),
-          (t.svy = (t.svy ?? r) + (r - (t.svy ?? r)) * o),
-          (s = t.svx),
-          (r = t.svy));
-      } else ((t.svx = s), (t.svy = r));
-      ((t.x += (s * n + t.kx) * e), (t.y += (r * n + t.ky) * e));
-      let a = dampFactor(7, e);
-      ((t.kx -= t.kx * a), (t.ky -= t.ky * a), (t.hitWall = this.arena.resolve(t, t.r)));
+    chaseDir(enemy) {
+      let player = this.player,
+        dx = player.x - enemy.x,
+        dy = player.y - enemy.y,
+        dist = Math.hypot(dx, dy) || 1;
+      this.cdx = dx / dist;
+      this.cdy = dy / dist;
+      if (enemy.los || dist < 2) return;
+      let flow = this.arena.flow,
+        cell = flow.idx(enemy.x, enemy.y),
+        flowX = flow.dx[cell],
+        flowY = flow.dy[cell];
+      if (flowX !== 0 || flowY !== 0) {
+        this.cdx = flowX;
+        this.cdy = flowY;
+      }
+    }
+    moveEnemy(enemy, dt) {
+      let mul = (enemy.slowT > 0 ? 0.55 : 1) * (enemy.rallyT > 0 ? 1.2 : 1),
+        vx = enemy.vx,
+        vy = enemy.vy;
+      if (this.arena.ice.length && !enemy.boss && this.arena.onIce(enemy.x, enemy.y)) {
+        let grip = dampFactor(2.2, dt);
+        enemy.svx = (enemy.svx ?? vx) + (vx - (enemy.svx ?? vx)) * grip;
+        enemy.svy = (enemy.svy ?? vy) + (vy - (enemy.svy ?? vy)) * grip;
+        vx = enemy.svx;
+        vy = enemy.svy;
+      } else {
+        enemy.svx = vx;
+        enemy.svy = vy;
+      }
+      enemy.x += (vx * mul + enemy.kx) * dt;
+      enemy.y += (vy * mul + enemy.ky) * dt;
+      let damp = dampFactor(7, dt);
+      enemy.kx -= enemy.kx * damp;
+      enemy.ky -= enemy.ky * damp;
+      enemy.hitWall = this.arena.resolve(enemy, enemy.r);
     }
     separate() {
-      let t = this.enemies;
-      for (let e = 0; e < t.length; e++) {
-        let n = t[e];
-        n.dead ||
-          this.hash.query(n.x, n.y, n.r, (s) => {
-            if (s === n || s.dead || s.id < n.id) return;
-            let r = s.x - n.x,
-              a = s.y - n.y,
-              o = n.r + s.r,
-              c = r * r + a * a;
-            if (c >= o * o) return;
-            let h = Math.sqrt(c) || 0.001,
-              l = (o - h) * 0.5,
-              u = n.boss ? 20 : n.r * n.r,
-              d = s.boss ? 20 : s.r * s.r,
-              f = u + d,
-              p = c > 1e-6 ? r / h : 1,
-              x = c > 1e-6 ? a / h : 0;
-            ((n.x -= p * l * 2 * (d / f)),
-              (n.y -= x * l * 2 * (d / f)),
-              (s.x += p * l * 2 * (u / f)),
-              (s.y += x * l * 2 * (u / f)));
+      let enemies = this.enemies;
+      for (let i = 0; i < enemies.length; i++) {
+        let enemy = enemies[i];
+        if (!enemy.dead) {
+          this.hash.query(enemy.x, enemy.y, enemy.r, (other) => {
+            if (other === enemy || other.dead || other.id < enemy.id) return;
+            let dx = other.x - enemy.x,
+              dy = other.y - enemy.y,
+              minDist = enemy.r + other.r,
+              distSq = dx * dx + dy * dy;
+            if (distSq >= minDist * minDist) return;
+            let dist = Math.sqrt(distSq) || 0.001,
+              push = (minDist - dist) * 0.5,
+              massA = enemy.boss ? 20 : enemy.r * enemy.r,
+              massB = other.boss ? 20 : other.r * other.r,
+              massSum = massA + massB,
+              nx = distSq > 1e-6 ? dx / dist : 1,
+              ny = distSq > 1e-6 ? dy / dist : 0;
+            enemy.x -= nx * push * 2 * (massB / massSum);
+            enemy.y -= ny * push * 2 * (massB / massSum);
+            other.x += nx * push * 2 * (massA / massSum);
+            other.y += ny * push * 2 * (massA / massSum);
           });
+        }
       }
-      for (let e of t) e.dead || this.arena.resolve(e, e.r);
+      for (let enemy of enemies) {
+        if (!enemy.dead) {
+          this.arena.resolve(enemy, enemy.r);
+        }
+      }
     }
     contactDamage() {
-      let t = this.player;
-      this.hash.query(t.x, t.y, t.r, (e) => {
-        if (e.dead || e.spawnT > 0 || e.ghost) return;
-        let n = e.x - t.x,
-          s = e.y - t.y,
-          r = e.r + t.r,
-          a = n * n + s * s;
-        if (a >= r * r) return;
-        let o = Math.sqrt(a) || 0.001;
-        if (
-          (e.boss
-            ? ((t.x -= (n / o) * (r - o)), (t.y -= (s / o) * (r - o)), this.arena.resolve(t, t.r))
-            : ((e.x += (n / o) * (r - o)), (e.y += (s / o) * (r - o)), this.arena.resolve(e, e.r)),
-          e.type === "bomber")
-        )
-          return;
-        let c = e.boss
-          ? e.dmg
-          : (e.st === 2 && e.type === "brute") || (e.st === 3 && e.type === "striker")
-            ? e.dmg * 1.4
-            : e.dmg;
-        this.hurtPlayer(c, e.x, e.y, e.type);
+      let player = this.player;
+      this.hash.query(player.x, player.y, player.r, (enemy) => {
+        if (enemy.dead || enemy.spawnT > 0 || enemy.ghost) return;
+        let dx = enemy.x - player.x,
+          dy = enemy.y - player.y,
+          minDist = enemy.r + player.r,
+          distSq = dx * dx + dy * dy;
+        if (distSq >= minDist * minDist) return;
+        let dist = Math.sqrt(distSq) || 0.001;
+        if (enemy.boss) {
+          player.x -= (dx / dist) * (minDist - dist);
+          player.y -= (dy / dist) * (minDist - dist);
+          this.arena.resolve(player, player.r);
+        } else {
+          enemy.x += (dx / dist) * (minDist - dist);
+          enemy.y += (dy / dist) * (minDist - dist);
+          this.arena.resolve(enemy, enemy.r);
+        }
+        if (enemy.type === "bomber") return;
+        let dmg = enemy.boss
+          ? enemy.dmg
+          : (enemy.st === 2 && enemy.type === "brute") || (enemy.st === 3 && enemy.type === "striker")
+            ? enemy.dmg * 1.4
+            : enemy.dmg;
+        this.hurtPlayer(dmg, enemy.x, enemy.y, enemy.type);
       });
     }
-    hurtEnemy(t, e, n, s, r, a, o = "weapon") {
-      if (!(t.dead || e <= 0 || t.ghost)) {
-        if (t.shielded) {
-          this.emit("ping", { x: t.x, y: t.y });
+    hurtEnemy(enemy, dmg, dx, dy, knock, crit, src = "weapon") {
+      // Hunter: more damage to elites and bosses
+      dmg = dmg * (enemy && (enemy.elite || enemy.boss) ? this.stats.eliteMul || 1 : 1);
+      if (!(enemy.dead || dmg <= 0 || enemy.ghost)) {
+        if (enemy.shielded) {
+          this.emit("ping", { x: enemy.x, y: enemy.y });
           return;
         }
-        if (t.shield > 0) {
-          let c = Math.min(t.shield, e);
-          if (
-            ((t.shield -= c),
-            (e -= c),
-            (t.flash = 0.6),
-            t.shield <= 0 && this.emit("shieldPop", { x: t.x, y: t.y, r: t.r }),
-            e <= 0)
-          ) {
-            this.emit("dmg", { x: t.x, y: t.y, v: c, shield: !0, id: t.id });
+        if (enemy.shield > 0) {
+          let absorbed = Math.min(enemy.shield, dmg);
+          enemy.shield -= absorbed;
+          dmg -= absorbed;
+          enemy.flash = 0.6;
+          if (enemy.shield <= 0) {
+            this.emit("shieldPop", { x: enemy.x, y: enemy.y, r: enemy.r });
+          }
+          if (dmg <= 0) {
+            this.emit("dmg", { x: enemy.x, y: enemy.y, v: absorbed, shield: true, id: enemy.id });
             return;
           }
         }
-        if (
-          (a && this.runStats.critHits++,
-          t.corrode && !t.boss && (e *= 1.25),
-          (e = this.capPhase(t, e)),
-          (t.hp -= e),
-          (this.dmgDealt += Math.min(e, t.hp + e)),
-          this.credit(o, Math.min(e, t.hp + e)),
-          (t.flash = 1),
-          r)
-        ) {
-          let c = Math.hypot(n, s) || 1,
-            h = t.boss ? 0.04 : 1 / (0.6 + t.r * t.r * 1.6);
-          ((t.kx += (n / c) * r * h * 2.2), (t.ky += (s / c) * r * h * 2.2));
+        if (crit) {
+          this.runStats.critHits++;
         }
-        (t.boss && this.addNova(e * 0.045),
-          this.emit("dmg", { x: t.x, y: t.y, v: e, crit: a, id: t.id }),
-          t.hp <= 0 && this.killEnemy(t));
-      }
-    }
-    capPhase(t, e) {
-      if (!t.boss || t.type !== "core") return e;
-      for (let n of [0.66, 0.33]) {
-        let s = t.maxHp * n;
-        if (t.hp > s && t.hp - e < s) return Math.max(0, t.hp - (s - 1));
-      }
-      return e;
-    }
-    credit(t, e) {
-      e > 0 && (this.dmgSrc[t] = (this.dmgSrc[t] || 0) + e);
-    }
-    killEnemy(t) {
-      if (t.dead) return;
-      ((t.dead = !0), (t.hp = 0));
-      let e = t.def;
-      if (!t.boss) {
-        (this.kills++, t.noCombo || this.addCombo(), this.addNova(2.5 * Math.max(1, e.cost) * (t.elite ? 3 : 1)));
-        let n = this.stats,
-          s = this.player;
-        (n.siphonCh &&
-          this.rng.chance(n.siphonCh) &&
-          ((s.hp = Math.min(n.maxHp, s.hp + 4)), this.emit("heal", { x: s.x, y: s.y, v: 4 })),
-          n.bloodrush && ((s.rushN = Math.min(10, s.rushN + 1)), (s.rushT = 4)));
-        if (!t.noDrop) {
-          n.bounty &&
-            t.elite &&
-            (this.dropShards(s.x, s.y, 2 * n.bounty),
-            this.emit("bountyPulse", { x: s.x, y: s.y, amount: 2 * n.bounty }));
-          n.capacitor && this.addNova(3 * n.capacitor);
+        if (enemy.corrode && !enemy.boss) {
+          dmg *= 1.25;
+        }
+        dmg = this.capPhase(enemy, dmg);
+        enemy.hp -= dmg;
+        this.dmgDealt += Math.min(dmg, enemy.hp + dmg);
+        this.credit(src, Math.min(dmg, enemy.hp + dmg));
+        enemy.flash = 1;
+        if (knock) {
+          let len = Math.hypot(dx, dy) || 1,
+            knockMul = enemy.boss ? 0.04 : 1 / (0.6 + enemy.r * enemy.r * 1.6);
+          enemy.kx += (dx / len) * knock * knockMul * 2.2;
+          enemy.ky += (dy / len) * knock * knockMul * 2.2;
+        }
+        if (enemy.boss) {
+          this.addNova(dmg * 0.045);
+        }
+        this.emit("dmg", { x: enemy.x, y: enemy.y, v: dmg, crit: crit, id: enemy.id });
+        if (enemy.hp <= 0) {
+          this.killEnemy(enemy);
         }
       }
-      if (!t.noDrop) {
-        let n =
-          (t.boss ? e.shards : e.shards * (t.elite ? 4 : 1) * 0.4) * (this.event ? waveEvents[this.event].shardMul : 1);
-        this.dropShards(t.x, t.y, n);
-        let s = this.player.hp / this.stats.maxHp,
-          r = t.boss ? 1 : t.elite ? 0.5 : s < 0.5 ? 0.045 : 0.02;
-        this.rng.chance(r) && this.pickups.push(this.mkPickup("heal", t.x, t.y, t.boss ? 40 : 15));
+    }
+    capPhase(enemy, dmg) {
+      if (!enemy.boss || enemy.type !== "core") return dmg;
+      for (let frac of [0.66, 0.33]) {
+        let mark = enemy.maxHp * frac;
+        if (enemy.hp > mark && enemy.hp - dmg < mark) return Math.max(0, enemy.hp - (mark - 1));
       }
-      if (
-        (this.emit("kill", { type: t.type, x: t.x, y: t.y, elite: t.elite, boss: t.boss, r: t.r }),
-        t.type === "splitter")
-      )
-        for (let n = 0; n < 3; n++) {
-          let s = (n / 3) * TAU + this.rng.next(),
-            r = this.spawnEnemy("mite", t.x + Math.cos(s) * 0.6, t.y + Math.sin(s) * 0.6, {
-              elite: t.elite,
-              noDrop: !1,
+      return dmg;
+    }
+    credit(src, amount) {
+      if (amount > 0) {
+        this.dmgSrc[src] = (this.dmgSrc[src] || 0) + amount;
+      }
+    }
+    killEnemy(enemy) {
+      if (enemy.dead) return;
+      const kills0 = this.kills;
+      enemy.dead = true;
+      enemy.hp = 0;
+      let def = enemy.def;
+      if (!enemy.boss) {
+        this.kills++;
+        if (!enemy.noCombo) {
+          this.addCombo();
+        }
+        this.addNova(2.5 * Math.max(1, def.cost) * (enemy.elite ? 3 : 1));
+        let stats = this.stats,
+          player = this.player;
+        if (stats.siphonCh && this.rng.chance(stats.siphonCh)) {
+          player.hp = Math.min(stats.maxHp, player.hp + 4);
+          this.emit("heal", { x: player.x, y: player.y, v: 4 });
+        }
+        if (stats.bloodrush) {
+          player.rushN = Math.min(10, player.rushN + 1);
+          player.rushT = 4;
+        }
+        if (!enemy.noDrop) {
+          if (stats.bounty && enemy.elite) {
+            this.dropShards(player.x, player.y, 2 * stats.bounty);
+            this.emit("bountyPulse", { x: player.x, y: player.y, amount: 2 * stats.bounty });
+          }
+          if (stats.capacitor) {
+            this.addNova(3 * stats.capacitor);
+          }
+        }
+      }
+      if (!enemy.noDrop) {
+        let shards =
+          (enemy.boss ? def.shards : def.shards * (enemy.elite ? 4 : 1) * 0.4) *
+          (this.event ? waveEvents[this.event].shardMul : 1);
+        this.dropShards(enemy.x, enemy.y, shards);
+        let hpFrac = this.player.hp / this.stats.maxHp,
+          healChance = enemy.boss ? 1 : enemy.elite ? 0.5 : hpFrac < 0.5 ? 0.045 : 0.02;
+        if (this.rng.chance(healChance)) {
+          this.pickups.push(this.mkPickup("heal", enemy.x, enemy.y, enemy.boss ? 40 : 15));
+        }
+      }
+      this.emit("kill", {
+        type: enemy.type,
+        x: enemy.x,
+        y: enemy.y,
+        elite: enemy.elite,
+        boss: enemy.boss,
+        r: enemy.r,
+      });
+      if (enemy.type === "splitter")
+        for (let i = 0; i < 3; i++) {
+          let angle = (i / 3) * TAU + this.rng.next(),
+            mite = this.spawnEnemy("mite", enemy.x + Math.cos(angle) * 0.6, enemy.y + Math.sin(angle) * 0.6, {
+              elite: enemy.elite,
+              noDrop: false,
             });
-          ((r.spawnT = 0), (r.kx = Math.cos(s) * 6), (r.ky = Math.sin(s) * 6));
+          mite.spawnT = 0;
+          mite.kx = Math.cos(angle) * 6;
+          mite.ky = Math.sin(angle) * 6;
         }
-      if (this.stats.inferno && t.burnT > 0 && !t.boss) {
-        let n = Math.max(6 * this.stats.dmgMul, t.burnDps);
-        (this.hash.query(t.x, t.y, 2.4, (s) => {
-          s.dead ||
-            s === t ||
-            Math.hypot(s.x - t.x, s.y - t.y) > 2.4 + s.r ||
-            ((s.burnT = Math.max(s.burnT, 3)), (s.burnDps = Math.max(s.burnDps, n)));
-        }),
-          this.explode(t.x, t.y, 2.2, 18 * this.stats.dmgMul, { enemies: !0, knock: 2, kind: "inferno" }));
+      if (this.stats.inferno && enemy.burnT > 0 && !enemy.boss) {
+        let burnDps = Math.max(6 * this.stats.dmgMul, enemy.burnDps);
+        this.hash.query(enemy.x, enemy.y, 2.4, (other) => {
+          if (!(other.dead || other === enemy || Math.hypot(other.x - enemy.x, other.y - enemy.y) > 2.4 + other.r)) {
+            other.burnT = Math.max(other.burnT, 3);
+            other.burnDps = Math.max(other.burnDps, burnDps);
+          }
+        });
+        this.explode(enemy.x, enemy.y, 2.2, 18 * this.stats.dmgMul, { enemies: true, knock: 2, kind: "inferno" });
       }
-      if (
-        (t.variant === "toxic" && this.arena.acid.push({ x: t.x, y: t.y, r: 1.4, life: 5 }),
-        t.champion &&
-          ((this.champion = null),
-          this.pickups.push(this.mkPickup("heal", t.x, t.y, 25)),
-          this.dropShards(t.x, t.y, 20),
-          this.hash.query(t.x, t.y, 8, (n) => {
-            !n.dead && n !== t && !n.boss && (n.slowT = Math.max(n.slowT, 2.5));
-          }),
-          this.emit("championDown", { x: t.x, y: t.y, type: t.type })),
-        t.affix === "volatile")
-      ) {
-        let n = this._src;
-        ((this._src = t.type),
-          this.hazard({ x: t.x, y: t.y, r: 2.3, delay: 0.75, dmg: t.dmg * 1.1, kind: "volatile" }),
-          (this._src = n));
+      if (enemy.variant === "toxic") {
+        this.arena.acid.push({ x: enemy.x, y: enemy.y, r: 1.4, life: 5 });
       }
-      if (
-        (t.type === "bomber" &&
-          t.st !== 3 &&
-          this.explode(t.x, t.y, 2.3, 30 * this.stats.dmgMul, { enemies: !0, kind: "pop" }),
-        t.parent)
-      ) {
-        let n = this.enemies.find((s) => s.id === t.parent);
-        n && (n.kids = Math.max(0, n.kids - 1));
+      if (enemy.champion) {
+        this.champion = null;
+        this.pickups.push(this.mkPickup("heal", enemy.x, enemy.y, 25));
+        this.dropShards(enemy.x, enemy.y, 20);
+        this.hash.query(enemy.x, enemy.y, 8, (other) => {
+          if (!other.dead && other !== enemy && !other.boss) {
+            other.slowT = Math.max(other.slowT, 2.5);
+          }
+        });
+        this.emit("championDown", { x: enemy.x, y: enemy.y, type: enemy.type });
       }
-      if (t.boss) {
-        (this.bossKills.push(t.type), (this.boss = null));
-        for (let n of this.enemies) n.dead || ((n.noDrop = !0), (n.noCombo = !0), (n.affix = null), this.killEnemy(n));
-        for (let n of this.eb) n.life = 0;
-        ((this.beams.length = 0),
-          (this.hazards.length = 0),
-          (this.markers = []),
-          (this.planIdx = this.plan.length),
-          this.emit("bossDown", { id: t.type, x: t.x, y: t.y }));
+      if (enemy.affix === "volatile") {
+        let src = this._src;
+        this._src = enemy.type;
+        this.hazard({ x: enemy.x, y: enemy.y, r: 2.3, delay: 0.75, dmg: enemy.dmg * 1.1, kind: "volatile" });
+        this._src = src;
+      }
+      if (enemy.type === "bomber" && enemy.st !== 3) {
+        this.explode(enemy.x, enemy.y, 2.3, 30 * this.stats.dmgMul, { enemies: true, kind: "pop" });
+      }
+      if (enemy.parent) {
+        let parent = this.enemies.find((other) => other.id === enemy.parent);
+        if (parent) {
+          parent.kids = Math.max(0, parent.kids - 1);
+        }
+      }
+      if (enemy.boss) {
+        this.bossKills.push(enemy.type);
+        this.boss = null;
+        for (let other of this.enemies) {
+          if (!other.dead) {
+            other.noDrop = true;
+            other.noCombo = true;
+            other.affix = null;
+            this.killEnemy(other);
+          }
+        }
+        for (let bullet of this.eb) bullet.life = 0;
+        this.beams.length = 0;
+        this.hazards.length = 0;
+        this.markers = [];
+        this.planIdx = this.plan.length;
+        this.emit("bossDown", { id: enemy.type, x: enemy.x, y: enemy.y });
+      }
+      // carriers drop a shard cache, Supply Drop pays shards every 12th kill
+      if (enemy.boss || this.kills <= kills0 || !this.player.alive) return;
+      if (enemy.type === "carrier" && this.state === "fight" && this.rng.chance(0.55)) {
+        const value = rlCacheShards(this, 5 + 3 * (this.stats.cacheBonus || 0)),
+          pickup = this.mkPickup("shard", enemy.x, enemy.y, value);
+        pickup.vx = 0;
+        pickup.vy = 0;
+        pickup.cache = true;
+        this.pickups.push(pickup);
+      }
+      if (this.stats.supply && this.kills % 12 === 0) {
+        const amount = 2 * this.stats.supply;
+        this.dropShards(enemy.x, enemy.y, amount);
+        this.emit("supplyDrop", { x: enemy.x, y: enemy.y, amount });
       }
     }
     addCombo() {
-      (this.combo++, (this.comboT = 2.2), this.combo > this.bestCombo && (this.bestCombo = this.combo));
-      for (let [t, e] of comboRewards) this.combo === t && ((this.shards += e), this.emit("combo", { n: t, bonus: e }));
-    }
-    dropShards(t, e, n) {
-      for (
-        this.shardFrac = (this.shardFrac || 0) + n - Math.floor(n),
-          n = Math.floor(n),
-          this.shardFrac >= 1 && ((n += 1), (this.shardFrac -= 1)),
-          n = Math.max(0, Math.round(n));
-        n > 0;
-      ) {
-        let s = n >= 25 ? 25 : n >= 5 ? 5 : 1;
-        ((n -= s),
-          this.pickups.push(this.mkPickup("shard", t, e, s)),
-          this.pickups.length > 260 && ((this.pickups[this.pickups.length - 1].v += n), (n = 0)));
+      this.combo++;
+      this.comboT = 2.2;
+      if (this.combo > this.bestCombo) {
+        this.bestCombo = this.combo;
+      }
+      for (let [at, bonus] of comboRewards) {
+        if (this.combo === at) {
+          this.shards += bonus;
+          this.emit("combo", { n: at, bonus: bonus });
+        }
+      }
+      // 2.5.0 A: Combo Surge: longer combos, and every 15th (12th) combo kill sends out a shockwave
+      const level = this.stats.surge || 0;
+      if (!level) return;
+      this.comboT += 0.5 * level;
+      const every = level > 1 ? 12 : 15,
+        player = this.player;
+      if (this.combo % every === 0 && player.alive && this.state === "fight" && !this._rlSurging) {
+        this._rlSurging = true;
+        try {
+          this.explode(player.x, player.y, level > 1 ? 4 : 3.5, (level > 1 ? 60 : 40) * this.stats.dmgMul, {
+            enemies: true,
+            knock: 8,
+            kind: "surge",
+          });
+        } finally {
+          this._rlSurging = false;
+        }
+        this.emit("surge", { x: player.x, y: player.y, n: this.combo });
       }
     }
-    mkPickup(t, e, n, s) {
-      let r = this.rng.next() * TAU,
-        a = 2 + this.rng.next() * 4;
+    dropShards(x, y, amount) {
+      this.shardFrac = (this.shardFrac || 0) + amount - Math.floor(amount);
+      amount = Math.floor(amount);
+      if (this.shardFrac >= 1) {
+        amount += 1;
+        this.shardFrac -= 1;
+      }
+      amount = Math.max(0, Math.round(amount));
+      while (amount > 0) {
+        let chunk = amount >= 25 ? 25 : amount >= 5 ? 5 : 1;
+        amount -= chunk;
+        this.pickups.push(this.mkPickup("shard", x, y, chunk));
+        if (this.pickups.length > 260) {
+          this.pickups[this.pickups.length - 1].v += amount;
+          amount = 0;
+        }
+      }
+    }
+    mkPickup(kind, x, y, value) {
+      let angle = this.rng.next() * TAU,
+        speed = 2 + this.rng.next() * 4;
       return {
-        kind: t,
-        x: e,
-        y: n,
-        vx: Math.cos(r) * a,
-        vy: Math.sin(r) * a,
-        v: s,
+        kind: kind,
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        v: value,
         t: 0,
-        pull: !1,
-        dead: !1,
+        pull: false,
+        dead: false,
         id: this.nextId++,
       };
     }
-    explode(t, e, n, s, r = {}) {
-      if (
-        (r.enemies &&
-          this.hash.query(t, e, n, (a) => {
-            if (
-              !(a.dead || Math.hypot(a.x - t, a.y - e) > n + a.r) &&
-              (this.hurtEnemy(a, s, a.x - t, a.y - e, r.knock || 3, !1, blastSources[r.kind] || "weapon"),
-              r.burn && !a.dead && !a.shielded && !a.ghost)
-            ) {
-              let c = a.burnT > 0 ? a.burnDps : 0;
-              ((a.burnT = Math.max(a.burnT, 3)), (a.burnDps = Math.max(c, r.burn)), (a.burnSrc = "burn"));
-            }
-          }),
-        r.player)
-      ) {
-        let a = this.player;
-        Math.hypot(a.x - t, a.y - e) < n + a.r && this.hurtPlayer(r.dmgPlayer || s, t, e, r.src || this._src);
+    explode(x, y, radius, dmg, opts = {}) {
+      if (opts.enemies) {
+        this.hash.query(x, y, radius, (enemy) => {
+          if (enemy.dead || Math.hypot(enemy.x - x, enemy.y - y) > radius + enemy.r) return;
+          this.hurtEnemy(
+            enemy,
+            dmg,
+            enemy.x - x,
+            enemy.y - y,
+            opts.knock || 3,
+            false,
+            blastSources[opts.kind] || "weapon",
+          );
+          if (opts.burn && !enemy.dead && !enemy.shielded && !enemy.ghost) {
+            let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
+            enemy.burnT = Math.max(enemy.burnT, 3);
+            enemy.burnDps = Math.max(burn, opts.burn);
+            enemy.burnSrc = "burn";
+          }
+        });
       }
-      this.emit("boom", { x: t, y: e, r: n, kind: r.kind || "boom" });
-    }
-    chainFrom(t, e, n, s, r = "weapon") {
-      let a = t,
-        o = [a.x, a.y],
-        c = new Set(s || []);
-      c.add(t.id);
-      for (let h = 0; h < e; h++) {
-        let l = null,
-          u = 5.5;
-        if (
-          (this.hash.query(a.x, a.y, 5.5, (f) => {
-            if (f.dead || f.ghost || c.has(f.id)) return;
-            let p = Math.hypot(f.x - a.x, f.y - a.y) - f.r;
-            p < u && this.arena.los(a.x, a.y, f.x, f.y) && ((u = p), (l = f));
-          }),
-          !l)
-        )
-          break;
-        (c.add(l.id), o.push(l.x, l.y));
-        let d = l;
-        (this.hurtEnemy(d, n, d.x - a.x, d.y - a.y, 0.5, !1, r), (a = d));
+      if (opts.player) {
+        let player = this.player;
+        if (Math.hypot(player.x - x, player.y - y) < radius + player.r) {
+          this.hurtPlayer(opts.dmgPlayer || dmg, x, y, opts.src || this._src);
+        }
       }
-      o.length > 2 && this.emit("chain", { pts: o });
+      this.emit("boom", { x: x, y: y, r: radius, kind: opts.kind || "boom" });
     }
-    updatePBullets(t) {
-      let e = this.stats,
-        n = this.arena,
-        s = this.player;
-      for (let r of this.pb) {
-        if (r.life <= 0) continue;
-        if (((r.life -= t), (r.age += t), r.boom))
-          if ((!r.back && r.age >= r.turn && ((r.back = !0), (r.hits.length = 0)), r.back)) {
-            let x = s.x - r.x,
-              m = s.y - r.y,
-              g = Math.hypot(x, m) || 0.001;
-            if (g < 0.9 || !s.alive || r.age > 4) {
-              r.life = 0;
+    chainFrom(from, jumps, dmg, hits, src = "weapon") {
+      let cur = from,
+        pts = [cur.x, cur.y],
+        seen = new Set(hits || []);
+      seen.add(from.id);
+      for (let i = 0; i < jumps; i++) {
+        let next = null,
+          best = 5.5;
+        this.hash.query(cur.x, cur.y, 5.5, (enemy) => {
+          if (enemy.dead || enemy.ghost || seen.has(enemy.id)) return;
+          let dist = Math.hypot(enemy.x - cur.x, enemy.y - cur.y) - enemy.r;
+          if (dist < best && this.arena.los(cur.x, cur.y, enemy.x, enemy.y)) {
+            best = dist;
+            next = enemy;
+          }
+        });
+        if (!next) break;
+        seen.add(next.id);
+        pts.push(next.x, next.y);
+        let target = next;
+        this.hurtEnemy(target, dmg, target.x - cur.x, target.y - cur.y, 0.5, false, src);
+        cur = target;
+      }
+      if (pts.length > 2) {
+        this.emit("chain", { pts: pts });
+      }
+    }
+    updatePBullets(dt) {
+      let stats = this.stats,
+        arena = this.arena,
+        player = this.player;
+      for (let bullet of this.pb) {
+        if (bullet.life <= 0) continue;
+        bullet.life -= dt;
+        bullet.age += dt;
+        if (bullet.boom) {
+          if (!bullet.back && bullet.age >= bullet.turn) {
+            bullet.back = true;
+            bullet.hits.length = 0;
+          }
+          if (bullet.back) {
+            let dx = player.x - bullet.x,
+              dy = player.y - bullet.y,
+              dist = Math.hypot(dx, dy) || 0.001;
+            if (dist < 0.9 || !player.alive || bullet.age > 4) {
+              bullet.life = 0;
               continue;
             }
-            let M = dampFactor(9, t),
-              b = r.sp * 1.15;
-            ((r.vx += ((x / g) * b - r.vx) * M), (r.vy += ((m / g) * b - r.vy) * M));
-          } else r.homing > 0 && r.age > 0.05 && this.home(r, t);
-        else r.homing > 0 && r.age > 0.05 && this.home(r, t);
-        if (r.drag) {
-          let x = 1 - r.drag * t;
-          ((r.vx *= x), (r.vy *= x), (r.r = Math.min(1.3, r.r + r.grow * t)));
+            let damp = dampFactor(9, dt),
+              speed = bullet.sp * 1.15;
+            bullet.vx += ((dx / dist) * speed - bullet.vx) * damp;
+            bullet.vy += ((dy / dist) * speed - bullet.vy) * damp;
+          } else {
+            if (bullet.homing > 0 && bullet.age > 0.05) {
+              this.home(bullet, dt);
+            }
+          }
+        } else {
+          if (bullet.homing > 0 && bullet.age > 0.05) {
+            this.home(bullet, dt);
+          }
         }
-        let a = r.x,
-          o = r.y;
-        ((r.x += r.vx * t), (r.y += r.vy * t));
-        let c = !1,
-          h = Math.hypot(r.vx, r.vy) * t,
-          l = h > 0.4 ? Math.ceil(h / 0.4) : 1,
-          u = e.lance && r.w === "rail";
-        for (let x = 1; x <= l; x++) {
-          let m = x / l,
-            g = a + (r.x - a) * m,
-            M = o + (r.y - o) * m;
-          if (n.outside(g, M) || (!u && n.blocked(g, M, r.r * 0.5))) {
-            ((r.x = g), (r.y = M), (c = !0));
+        if (bullet.drag) {
+          let keep = 1 - bullet.drag * dt;
+          bullet.vx *= keep;
+          bullet.vy *= keep;
+          bullet.r = Math.min(1.3, bullet.r + bullet.grow * dt);
+        }
+        let prevX = bullet.x,
+          prevY = bullet.y;
+        bullet.x += bullet.vx * dt;
+        bullet.y += bullet.vy * dt;
+        let hitWall = false,
+          travel = Math.hypot(bullet.vx, bullet.vy) * dt,
+          steps = travel > 0.4 ? Math.ceil(travel / 0.4) : 1,
+          pierceWalls = stats.lance && bullet.w === "rail";
+        for (let i = 1; i <= steps; i++) {
+          let frac = i / steps,
+            sx = prevX + (bullet.x - prevX) * frac,
+            sy = prevY + (bullet.y - prevY) * frac;
+          if (arena.outside(sx, sy) || (!pierceWalls && arena.blocked(sx, sy, bullet.r * 0.5))) {
+            bullet.x = sx;
+            bullet.y = sy;
+            hitWall = true;
             break;
           }
         }
-        if (c) {
-          if (r.boom && !r.back) {
-            ((r.back = !0),
-              (r.hits.length = 0),
-              (r.x -= r.vx * t),
-              (r.y -= r.vy * t),
-              this.emit("spark", { x: r.x, y: r.y, w: r.w }));
+        if (hitWall) {
+          if (bullet.boom && !bullet.back) {
+            bullet.back = true;
+            bullet.hits.length = 0;
+            bullet.x -= bullet.vx * dt;
+            bullet.y -= bullet.vy * dt;
+            this.emit("spark", { x: bullet.x, y: bullet.y, w: bullet.w });
             continue;
           }
-          ((r.life = 0),
-            (r.bomblet || r.w === "rocket" || weaponDefs[r.w]?.explode || (e.payloadR && !r.drag)) &&
-              this.bulletBurst(r, null),
-            r.drag || this.emit("spark", { x: r.x, y: r.y, w: r.w }));
+          bullet.life = 0;
+          if (
+            bullet.bomblet ||
+            bullet.w === "rocket" ||
+            weaponDefs[bullet.w]?.explode ||
+            (stats.payloadR && !bullet.drag)
+          ) {
+            this.bulletBurst(bullet, null);
+          }
+          if (!bullet.drag) {
+            this.emit("spark", { x: bullet.x, y: bullet.y, w: bullet.w });
+          }
           continue;
         }
-        let d = Math.hypot(r.vx, r.vy) * t,
-          f = d > 0.5 ? Math.ceil(d / 0.5) : 1,
-          p = !!weaponDefs[r.w].rail;
-        for (let x = 0; x < f && r.life > 0; x++) {
-          let m = f > 1 ? (x + 1) / f - 1 : 0,
-            g = r.x + r.vx * t * m,
-            M = r.y + r.vy * t * m;
-          this.hash.query(g, M, r.r + 0.8, (b) => {
-            if (r.life <= 0) return !0;
-            if (b.dead || b.spawnT > 0.15 || b.ghost) return;
-            let v = b.x - g,
-              S = b.y - M;
-            if (b.type === "bulwark" && !p && b.guardDown <= 0 && !r.hits.includes(b.id)) {
-              let R = Math.hypot(v, S),
-                _ = b.r + 0.75 + r.r;
-              if (R < _ && Math.abs(angleDiff(b.face, Math.atan2(-S, -v))) < 1.15) {
-                let E = b.x + Math.cos(b.face) * (b.r + 0.45),
-                  C = b.y + Math.sin(b.face) * (b.r + 0.45);
-                return (
-                  r.boom && !r.back
-                    ? ((r.back = !0), (r.hits.length = 0))
-                    : r.drag
-                      ? (r.hits.push(b.id), r.pierce-- <= 0 && (r.life = 0))
-                      : ((r.life = 0),
-                        (r.w === "rocket" || r.bomblet || weaponDefs[r.w]?.explode || e.payloadR) &&
-                          ((r.x = E), (r.y = C), this.bulletBurst(r, null))),
-                  (b.guard -= r.dmg),
-                  (b.guardFlash = 1),
-                  b.guard <= 0
-                    ? ((b.guardDown = 4), this.emit("guardBreak", { x: E, y: C }))
-                    : (!r.drag || this.rng.chance(0.2)) && this.emit("block", { x: E, y: C }),
-                  !0
-                );
+        let reach = Math.hypot(bullet.vx, bullet.vy) * dt,
+          probes = reach > 0.5 ? Math.ceil(reach / 0.5) : 1,
+          rail = !!weaponDefs[bullet.w].rail;
+        for (let i = 0; i < probes && bullet.life > 0; i++) {
+          let frac = probes > 1 ? (i + 1) / probes - 1 : 0,
+            sx = bullet.x + bullet.vx * dt * frac,
+            sy = bullet.y + bullet.vy * dt * frac;
+          this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => {
+            if (bullet.life <= 0) return true;
+            if (enemy.dead || enemy.spawnT > 0.15 || enemy.ghost) return;
+            let dx = enemy.x - sx,
+              dy = enemy.y - sy;
+            if (enemy.type === "bulwark" && !rail && enemy.guardDown <= 0 && !bullet.hits.includes(enemy.id)) {
+              let dist = Math.hypot(dx, dy),
+                guardR = enemy.r + 0.75 + bullet.r;
+              if (dist < guardR && Math.abs(angleDiff(enemy.face, Math.atan2(-dy, -dx))) < 1.15) {
+                let gx = enemy.x + Math.cos(enemy.face) * (enemy.r + 0.45),
+                  gy = enemy.y + Math.sin(enemy.face) * (enemy.r + 0.45);
+                if (bullet.boom && !bullet.back) {
+                  bullet.back = true;
+                  bullet.hits.length = 0;
+                } else {
+                  if (bullet.drag) {
+                    bullet.hits.push(enemy.id);
+                    if (bullet.pierce-- <= 0) {
+                      bullet.life = 0;
+                    }
+                  } else {
+                    bullet.life = 0;
+                    if (bullet.w === "rocket" || bullet.bomblet || weaponDefs[bullet.w]?.explode || stats.payloadR) {
+                      bullet.x = gx;
+                      bullet.y = gy;
+                      this.bulletBurst(bullet, null);
+                    }
+                  }
+                }
+                enemy.guard -= bullet.dmg;
+                enemy.guardFlash = 1;
+                if (enemy.guard <= 0) {
+                  enemy.guardDown = 4;
+                  this.emit("guardBreak", { x: gx, y: gy });
+                } else {
+                  if (!bullet.drag || this.rng.chance(0.2)) {
+                    this.emit("block", { x: gx, y: gy });
+                  }
+                }
+                return true;
               }
             }
-            let T = b.r + r.r;
-            v * v + S * S > T * T || r.hits.includes(b.id) || this.bulletHit(r, b);
+            let hitR = enemy.r + bullet.r;
+            if (!(dx * dx + dy * dy > hitR * hitR || bullet.hits.includes(enemy.id))) {
+              this.bulletHit(bullet, enemy);
+            }
           });
         }
       }
     }
-    home(t, e) {
-      let n = null,
-        s = 8,
-        r = Math.atan2(t.vy, t.vx);
-      if (
-        (this.hash.query(t.x, t.y, 8, (c) => {
-          if (c.dead || c.ghost || t.hits.includes(c.id)) return;
-          let h = c.x - t.x,
-            l = c.y - t.y,
-            u = Math.hypot(h, l);
-          u > s || Math.abs(angleDiff(r, Math.atan2(l, h))) > 1.3 || ((s = u), (n = c));
-        }),
-        !n)
-      )
-        return;
-      let a = turnToward(r, Math.atan2(n.y - t.y, n.x - t.x), t.homing * e),
-        o = Math.hypot(t.vx, t.vy);
-      ((t.vx = Math.cos(a) * o), (t.vy = Math.sin(a) * o), (t.a = a));
+    home(bullet, dt) {
+      let target = null,
+        best = 8,
+        heading = Math.atan2(bullet.vy, bullet.vx);
+      this.hash.query(bullet.x, bullet.y, 8, (enemy) => {
+        if (enemy.dead || enemy.ghost || bullet.hits.includes(enemy.id)) return;
+        let dx = enemy.x - bullet.x,
+          dy = enemy.y - bullet.y,
+          dist = Math.hypot(dx, dy);
+        if (!(dist > best || Math.abs(angleDiff(heading, Math.atan2(dy, dx))) > 1.3)) {
+          best = dist;
+          target = enemy;
+        }
+      });
+      if (!target) return;
+      let angle = turnToward(heading, Math.atan2(target.y - bullet.y, target.x - bullet.x), bullet.homing * dt),
+        speed = Math.hypot(bullet.vx, bullet.vy);
+      bullet.vx = Math.cos(angle) * speed;
+      bullet.vy = Math.sin(angle) * speed;
+      bullet.a = angle;
     }
-    bulletHit(t, e) {
-      let n = this.stats,
-        s = weaponDefs[t.w],
-        r = this.rng.chance(n.crit),
-        a = t.dmg * (r ? n.critMul : 1);
-      (t.hits.push(e.id),
-        this.hurtEnemy(e, a, t.vx, t.vy, s.knock, r, t.wing ? "wingman" : t.bomblet ? "payload" : "weapon"));
-      let o = e.shielded || e.ghost;
-      if (
-        (n.cryo && !o && this.rng.chance(n.cryo) && ((e.slowT = 2), this.emit("freeze", { x: e.x, y: e.y })),
-        t.drag && n.burn && !e.dead && !o)
-      ) {
-        let c = e.burnT > 0 ? e.burnDps : 0;
-        ((e.burnT = Math.max(e.burnT, 2.5)),
-          (e.burnDps = Math.max(c, n.burn * n.burnMul * n.dmgMul)),
-          (e.burnSrc = "burn"));
+    bulletHit(bullet, enemy) {
+      let stats = this.stats,
+        weapon = weaponDefs[bullet.w],
+        crit = this.rng.chance(stats.crit),
+        dmg = bullet.dmg * (crit ? stats.critMul : 1);
+      bullet.hits.push(enemy.id);
+      this.hurtEnemy(
+        enemy,
+        dmg,
+        bullet.vx,
+        bullet.vy,
+        weapon.knock,
+        crit,
+        bullet.wing ? "wingman" : bullet.bomblet ? "payload" : "weapon",
+      );
+      let immune = enemy.shielded || enemy.ghost,
+        bounced = false;
+      if (stats.cryo && !immune && this.rng.chance(stats.cryo)) {
+        enemy.slowT = 2;
+        this.emit("freeze", { x: enemy.x, y: enemy.y });
       }
-      if (n.thermite && !e.dead && !o) {
-        let c = e.burnT > 0 ? e.burnDps : 0;
-        ((e.burnT = 3), (e.burnDps = Math.max(c, a * n.thermite)), (e.burnSrc = "burn"));
+      if (bullet.drag && stats.burn && !enemy.dead && !immune) {
+        let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
+        enemy.burnT = Math.max(enemy.burnT, 2.5);
+        enemy.burnDps = Math.max(burn, stats.burn * stats.burnMul * stats.dmgMul);
+        enemy.burnSrc = "burn";
+      }
+      if (stats.thermite && !enemy.dead && !immune) {
+        let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
+        enemy.burnT = 3;
+        enemy.burnDps = Math.max(burn, dmg * stats.thermite);
+        enemy.burnSrc = "burn";
+      }
+      if (stats.chain) {
+        this.chainFrom(enemy, stats.chain, dmg * stats.chainF, bullet.hits);
+      }
+      if (stats.arc && this.rng.chance(stats.arc * (bullet.drag ? 0.25 : 1))) {
+        this.chainFrom(enemy, stats.arcJumps, dmg * 0.6, bullet.hits, "arc");
       }
       if (
-        (n.chain && this.chainFrom(e, n.chain, a * n.chainF, t.hits),
-        n.arc && this.rng.chance(n.arc * (t.drag ? 0.25 : 1)) && this.chainFrom(e, n.arcJumps, a * 0.6, t.hits, "arc"),
-        (t.bomblet ||
-          t.w === "rocket" ||
-          weaponDefs[t.w]?.explode ||
-          (n.payloadR && (!t.drag || this.rng.chance(0.2)))) &&
-          this.bulletBurst(t, e),
-        t.bounce > 0)
+        bullet.bomblet ||
+        bullet.w === "rocket" ||
+        weaponDefs[bullet.w]?.explode ||
+        (stats.payloadR && (!bullet.drag || this.rng.chance(0.2)))
       ) {
-        let c = null,
-          h = 8;
-        if (
-          (this.hash.query(e.x, e.y, 8, (l) => {
-            if (l.dead || l.ghost || t.hits.includes(l.id)) return;
-            let u = Math.hypot(l.x - e.x, l.y - e.y);
-            u < h && ((h = u), (c = l));
-          }),
-          c)
-        ) {
-          t.bounce--;
-          let l = Math.hypot(t.vx, t.vy),
-            u = Math.atan2(c.y - e.y, c.x - e.x);
-          ((t.x = e.x),
-            (t.y = e.y),
-            (t.vx = Math.cos(u) * l),
-            (t.vy = Math.sin(u) * l),
-            (t.a = u),
-            (t.life = Math.max(t.life, 0.35)),
-            this.emit("bounce", { x: e.x, y: e.y }));
-          return;
+        this.bulletBurst(bullet, enemy);
+      }
+      if (bullet.bounce > 0) {
+        let next = null,
+          best = 8;
+        this.hash.query(enemy.x, enemy.y, 8, (other) => {
+          if (other.dead || other.ghost || bullet.hits.includes(other.id)) return;
+          let dist = Math.hypot(other.x - enemy.x, other.y - enemy.y);
+          if (dist < best) {
+            best = dist;
+            next = other;
+          }
+        });
+        if (next) {
+          bullet.bounce--;
+          let speed = Math.hypot(bullet.vx, bullet.vy),
+            angle = Math.atan2(next.y - enemy.y, next.x - enemy.x);
+          bullet.x = enemy.x;
+          bullet.y = enemy.y;
+          bullet.vx = Math.cos(angle) * speed;
+          bullet.vy = Math.sin(angle) * speed;
+          bullet.a = angle;
+          bullet.life = Math.max(bullet.life, 0.35);
+          this.emit("bounce", { x: enemy.x, y: enemy.y });
+          bounced = true;
         }
       }
-      if (t.pierce > 0) {
-        t.pierce--;
+      if (!bounced)
+        if (bullet.pierce > 0) bullet.pierce--;
+        else bullet.life = 0;
+      // 2.5.0 A: Acid Coating: a puddle under the enemy (at most one per enemy every 1.2 s, flames less often)
+      if (
+        stats.acidCoat > 0 &&
+        this.state === "fight" &&
+        !enemy.boss &&
+        !enemy.shielded &&
+        !enemy.ghost &&
+        this.time - (enemy.coatAt ?? -9) > 1.2 &&
+        this.rng.chance(0.15 * stats.acidCoat * (bullet.drag ? 0.3 : 1))
+      ) {
+        enemy.coatAt = this.time;
+        const acid = this.arena.acid,
+          mine = acid.filter((pool) => pool.mine);
+        if (mine.length >= RL_COAT_MAX) acid.splice(acid.indexOf(mine[0]), 1);
+        const marsh = this.arena.biome.id === "marsh";
+        acid.push({ x: enemy.x, y: enemy.y, r: marsh ? 1.5 : 1.1, life: marsh ? 4 : 3, mine: true });
+      }
+    }
+    bulletBurst(bullet, enemy) {
+      let stats = this.stats,
+        weapon = weaponDefs[bullet.w],
+        x = enemy ? enemy.x : bullet.x,
+        y = enemy ? enemy.y : bullet.y;
+      if (bullet.bomblet) {
+        this.explode(x, y, 1.4, bullet.dmg, { enemies: true, knock: 1.5, kind: "payload" });
         return;
       }
-      t.life = 0;
+      if (weapon?.explode && bullet.w !== "rocket" && !bullet.wing) {
+        let dmg = Number.isFinite(weapon.explodeDmg) ? weapon.explodeDmg * stats.dmgMul : bullet.dmg,
+          size = stats.sizeMul > 1 ? 1.15 : 1;
+        this.explode(x, y, weapon.explode * size, dmg, { enemies: true, knock: 3, kind: bullet.w });
+      }
+      if (bullet.w === "rocket" && !bullet.wing) {
+        let hellfire = stats.hellfire;
+        this.explode(
+          x,
+          y,
+          weapon.explode * (stats.sizeMul > 1 ? 1.25 : 1) * (hellfire ? 1.35 : 1),
+          weapon.explodeDmg * stats.dmgMul,
+          {
+            enemies: true,
+            knock: 4,
+            kind: "rocket",
+            burn: hellfire ? weapon.explodeDmg * stats.dmgMul * 0.35 : 0,
+          },
+        );
+      }
+      if (stats.payloadR) {
+        this.explode(x, y, stats.payloadR, bullet.dmg * stats.payloadF, { enemies: true, knock: 1.5, kind: "payload" });
+        if (stats.cluster) {
+          this.bomblets(x, y, Math.max(6, bullet.dmg * 0.5));
+        }
+      }
     }
-    bulletBurst(t, e) {
-      let n = this.stats,
-        s = weaponDefs[t.w],
-        r = e ? e.x : t.x,
-        a = e ? e.y : t.y;
-      if (t.bomblet) {
-        this.explode(r, a, 1.4, t.dmg, { enemies: !0, knock: 1.5, kind: "payload" });
-        return;
-      }
-      if (s?.explode && t.w !== "rocket" && !t.wing) {
-        let c = Number.isFinite(s.explodeDmg) ? s.explodeDmg * n.dmgMul : t.dmg,
-          o = n.sizeMul > 1 ? 1.15 : 1;
-        this.explode(r, a, s.explode * o, c, { enemies: !0, knock: 3, kind: t.w });
-      }
-      if (t.w === "rocket" && !t.wing) {
-        let o = n.hellfire;
-        this.explode(r, a, s.explode * (n.sizeMul > 1 ? 1.25 : 1) * (o ? 1.35 : 1), s.explodeDmg * n.dmgMul, {
-          enemies: !0,
-          knock: 4,
-          kind: "rocket",
-          burn: o ? s.explodeDmg * n.dmgMul * 0.35 : 0,
-        });
-      }
-      n.payloadR &&
-        (this.explode(r, a, n.payloadR, t.dmg * n.payloadF, { enemies: !0, knock: 1.5, kind: "payload" }),
-        n.cluster && this.bomblets(r, a, Math.max(6, t.dmg * 0.5)));
-    }
-    bomblets(t, e, n) {
-      for (let s = 0; s < 3; s++) {
+    bomblets(x, y, dmg) {
+      for (let i = 0; i < 3; i++) {
         if (this.pb.length >= MAX_PLAYER_BULLETS) return;
-        let r = this.rng.next() * TAU;
+        let angle = this.rng.next() * TAU;
         this.pb.push({
           id: this.nextId++,
-          x: t,
-          y: e,
-          vx: Math.cos(r) * 11,
-          vy: Math.sin(r) * 11,
-          a: r,
+          x: x,
+          y: y,
+          vx: Math.cos(angle) * 11,
+          vy: Math.sin(angle) * 11,
+          a: angle,
           r: 0.16,
-          dmg: n,
+          dmg: dmg,
           life: 0.8,
           pierce: 0,
           bounce: 0,
@@ -1327,121 +2221,147 @@ var rlStep = 1 / 60,
           w: "rocket",
           age: 0,
           homing: 6,
-          bomblet: !0,
+          bomblet: true,
         });
       }
     }
-    updateEBullets(t) {
-      let e = this.player,
-        n = this.arena;
-      for (let s of this.eb)
-        if (!(s.life <= 0)) {
-          if (((s.life -= t), (s.age += t), s.homing && s.age > 0.3 && s.age < 2.4 && e.alive)) {
-            let r = Math.atan2(s.vy, s.vx),
-              a = Math.hypot(s.vx, s.vy),
-              o = turnToward(r, Math.atan2(e.y - s.y, e.x - s.x), s.homing * t);
-            ((s.vx = Math.cos(o) * a), (s.vy = Math.sin(o) * a));
+    updateEBullets(dt) {
+      let player = this.player,
+        arena = this.arena;
+      for (let bullet of this.eb)
+        if (!(bullet.life <= 0)) {
+          bullet.life -= dt;
+          bullet.age += dt;
+          if (bullet.homing && bullet.age > 0.3 && bullet.age < 2.4 && player.alive) {
+            let heading = Math.atan2(bullet.vy, bullet.vx),
+              speed = Math.hypot(bullet.vx, bullet.vy),
+              angle = turnToward(heading, Math.atan2(player.y - bullet.y, player.x - bullet.x), bullet.homing * dt);
+            bullet.vx = Math.cos(angle) * speed;
+            bullet.vy = Math.sin(angle) * speed;
           }
+          if (bullet.accel) {
+            bullet.vx *= 1 + bullet.accel * dt;
+            bullet.vy *= 1 + bullet.accel * dt;
+          }
+          bullet.x += bullet.vx * dt;
+          bullet.y += bullet.vy * dt;
           if (
-            (s.accel && ((s.vx *= 1 + s.accel * t), (s.vy *= 1 + s.accel * t)),
-            (s.x += s.vx * t),
-            (s.y += s.vy * t),
-            n.outside(s.x, s.y, -0.5) || (s.solid !== !1 && n.blocked(s.x, s.y, s.r * 0.4)))
+            arena.outside(bullet.x, bullet.y, -0.5) ||
+            (bullet.solid !== false && arena.blocked(bullet.x, bullet.y, bullet.r * 0.4))
           ) {
-            ((s.life = 0), this.emit("pop", { x: s.x, y: s.y }));
+            bullet.life = 0;
+            this.emit("pop", { x: bullet.x, y: bullet.y });
             continue;
           }
-          if (e.alive) {
-            let r = e.x - s.x,
-              a = e.y - s.y,
-              o = e.r * 0.8 + s.r;
-            r * r + a * a < o * o &&
-              e.iT <= 0 &&
-              e.dashT <= 0 &&
-              ((s.life = 0),
-              this.hurtPlayer(s.dmg, s.x - s.vx * 0.05, s.y - s.vy * 0.05, s.src) &&
-                s.frost &&
-                ((e.slowT = 1.6), this.emit("chill", { x: e.x, y: e.y })));
+          if (player.alive) {
+            let dx = player.x - bullet.x,
+              dy = player.y - bullet.y,
+              hitR = player.r * 0.8 + bullet.r;
+            if (dx * dx + dy * dy < hitR * hitR && player.iT <= 0 && player.dashT <= 0) {
+              bullet.life = 0;
+              if (
+                this.hurtPlayer(bullet.dmg, bullet.x - bullet.vx * 0.05, bullet.y - bullet.vy * 0.05, bullet.src) &&
+                bullet.frost
+              ) {
+                player.slowT = 1.6;
+                this.emit("chill", { x: player.x, y: player.y });
+              }
+            }
           }
         }
     }
-    shoot(t, e, n, s, r, a = {}) {
+    shoot(x, y, angle, speed, dmg, opts = {}) {
       if (this.eb.length >= MAX_ENEMY_BULLETS) return null;
-      let o = {
-        x: t,
-        y: e,
-        vx: Math.cos(n) * s,
-        vy: Math.sin(n) * s,
-        r: a.r || 0.24,
-        dmg: r,
-        life: a.life || 5,
+      let bullet = {
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        r: opts.r || 0.24,
+        dmg: dmg,
+        life: opts.life || 5,
         age: 0,
-        kind: a.kind || "orb",
-        homing: a.homing || 0,
-        accel: a.accel || 0,
-        solid: a.solid,
-        src: a.src || this._src,
+        kind: opts.kind || "orb",
+        homing: opts.homing || 0,
+        accel: opts.accel || 0,
+        solid: opts.solid,
+        src: opts.src || this._src,
         frost: this._var === "frost",
       };
-      return (this.eb.push(o), o);
+      this.eb.push(bullet);
+      return bullet;
     }
-    updateOrbitals(t) {
-      let e = this.stats.orbit;
-      if (!e) return;
-      let n = this.player,
-        s = this.stats.orbitR,
-        r = this.stats.orbitDmg * this.stats.dmgMul,
-        a = 0.6 * this.stats.bladeScale;
-      for (let o = 0; o < e; o++) {
-        let c = this.time * 3.3 + (o * TAU) / e,
-          h = n.x + Math.cos(c) * s,
-          l = n.y + Math.sin(c) * s;
-        this.hash.query(h, l, a, (u) => {
-          u.dead ||
-            u.orbT > 0 ||
-            u.spawnT > 0.1 ||
-            Math.hypot(u.x - h, u.y - l) > u.r + a ||
-            ((u.orbT = 0.38), this.hurtEnemy(u, r, u.x - n.x, u.y - n.y, 2.5, !1, "orbit"));
+    updateOrbitals(dt) {
+      let count = this.stats.orbit;
+      if (!count) return;
+      let player = this.player,
+        radius = this.stats.orbitR,
+        dmg = this.stats.orbitDmg * this.stats.dmgMul,
+        size = 0.6 * this.stats.bladeScale;
+      for (let i = 0; i < count; i++) {
+        let angle = this.time * 3.3 + (i * TAU) / count,
+          bx = player.x + Math.cos(angle) * radius,
+          by = player.y + Math.sin(angle) * radius;
+        this.hash.query(bx, by, size, (enemy) => {
+          if (
+            !(
+              enemy.dead ||
+              enemy.orbT > 0 ||
+              enemy.spawnT > 0.1 ||
+              Math.hypot(enemy.x - bx, enemy.y - by) > enemy.r + size
+            )
+          ) {
+            enemy.orbT = 0.38;
+            this.hurtEnemy(enemy, dmg, enemy.x - player.x, enemy.y - player.y, 2.5, false, "orbit");
+          }
         });
-        for (let u of this.eb)
-          u.life > 0 &&
-            Math.abs(u.x - h) < 0.7 &&
-            Math.abs(u.y - l) < 0.7 &&
-            ((u.life = 0), this.emit("pop", { x: u.x, y: u.y }));
+        for (let bullet of this.eb) {
+          if (bullet.life > 0 && Math.abs(bullet.x - bx) < 0.7 && Math.abs(bullet.y - by) < 0.7) {
+            bullet.life = 0;
+            this.emit("pop", { x: bullet.x, y: bullet.y });
+          }
+        }
       }
     }
-    updateWingman(t) {
-      let e = this.stats.wingmen;
-      if (!e) return;
-      let n = this.player;
-      for (; n.wings.length < e; ) n.wings.push({ x: n.x, y: n.y, t: n.wings.length * 0.2 });
-      let s = dampFactor(6, t);
-      for (let r = 0; r < e; r++) {
-        let a = n.wings[r],
-          o = [2.3, -2.3, 1.3, -1.3][r] ?? 2.3,
-          c = n.x + Math.cos(n.aim + o) * 1.5,
-          h = n.y + Math.sin(n.aim + o) * 1.5;
-        if (((a.x += (c - a.x) * s), (a.y += (h - a.y) * s), (a.t -= t), a.t > 0)) continue;
-        let l = null,
-          u = 13;
-        for (let p of this.enemies) {
-          if (p.dead || p.spawnT > 0.2 || p.ghost) continue;
-          let x = Math.hypot(p.x - a.x, p.y - a.y) + (p.los ? 0 : 7);
-          x < u && ((u = x), (l = p));
+    updateWingman(dt) {
+      let count = this.stats.wingmen;
+      if (!count) return;
+      let player = this.player;
+      for (; player.wings.length < count; )
+        player.wings.push({ x: player.x, y: player.y, t: player.wings.length * 0.2 });
+      let damp = dampFactor(6, dt);
+      for (let i = 0; i < count; i++) {
+        let wing = player.wings[i],
+          offset = [2.3, -2.3, 1.3, -1.3][i] ?? 2.3,
+          tx = player.x + Math.cos(player.aim + offset) * 1.5,
+          ty = player.y + Math.sin(player.aim + offset) * 1.5;
+        wing.x += (tx - wing.x) * damp;
+        wing.y += (ty - wing.y) * damp;
+        wing.t -= dt;
+        if (wing.t > 0) continue;
+        let target = null,
+          best = 13;
+        for (let enemy of this.enemies) {
+          if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
+          let dist = Math.hypot(enemy.x - wing.x, enemy.y - wing.y) + (enemy.los ? 0 : 7);
+          if (dist < best) {
+            best = dist;
+            target = enemy;
+          }
         }
-        if (!l) continue;
-        a.t = this.stats.wingman > 1 ? 0.3 : 0.5;
-        let d = Math.atan2(l.y - a.y, l.x - a.x),
-          f = this.stats.wingSpread;
-        for (let p = 0; p < f && !(this.pb.length >= MAX_PLAYER_BULLETS); p++) {
-          let x = d + (p - (f - 1) / 2) * 0.16;
+        if (!target) continue;
+        wing.t = this.stats.wingman > 1 ? 0.3 : 0.5;
+        let angle = Math.atan2(target.y - wing.y, target.x - wing.x),
+          spread = this.stats.wingSpread;
+        for (let j = 0; j < spread && !(this.pb.length >= MAX_PLAYER_BULLETS); j++) {
+          let shotAngle = angle + (j - (spread - 1) / 2) * 0.16;
           this.pb.push({
             id: this.nextId++,
-            x: a.x,
-            y: a.y,
-            vx: Math.cos(x) * 30,
-            vy: Math.sin(x) * 30,
-            a: x,
+            x: wing.x,
+            y: wing.y,
+            vx: Math.cos(shotAngle) * 30,
+            vy: Math.sin(shotAngle) * 30,
+            a: shotAngle,
             r: 0.14,
             dmg: 9 * this.stats.dmgMul,
             life: 0.5,
@@ -1451,212 +2371,292 @@ var rlStep = 1 / 60,
             w: "pulse",
             age: 0,
             homing: 0,
-            wing: !0,
+            wing: true,
           });
         }
-        this.emit("wingShot", { x: a.x, y: a.y, a: d });
+        this.emit("wingShot", { x: wing.x, y: wing.y, a: angle });
       }
     }
-    updateTrails(t) {
+    updateTrails(dt) {
       if (!this.trails.length) return;
-      let e = 7 * this.stats.dmgMul;
-      for (let n of this.trails)
-        ((n.life -= t),
-          this.hash.query(n.x, n.y, 0.8, (s) => {
-            s.dead ||
-              s.trailT > this.time ||
-              Math.hypot(s.x - n.x, s.y - n.y) > s.r + 0.8 ||
-              ((s.trailT = this.time + 0.25), this.hurtEnemy(s, e, 0, 0, 0, !1, "trail"));
-          }));
-      this.trails = this.trails.filter((n) => n.life > 0);
+      let dmg = 7 * this.stats.dmgMul;
+      for (let trail of this.trails) {
+        trail.life -= dt;
+        this.hash.query(trail.x, trail.y, 0.8, (enemy) => {
+          if (
+            !(
+              enemy.dead ||
+              enemy.trailT > this.time ||
+              Math.hypot(enemy.x - trail.x, enemy.y - trail.y) > enemy.r + 0.8
+            )
+          ) {
+            enemy.trailT = this.time + 0.25;
+            this.hurtEnemy(enemy, dmg, 0, 0, 0, false, "trail");
+          }
+        });
+      }
+      this.trails = this.trails.filter((trail) => trail.life > 0);
     }
-    updateBeams(t) {
-      let e = this.player;
-      for (let n of this.beams)
-        if (
-          ((n.t += t),
-          n.rot && (n.a += n.rot * t),
-          n.follow && ((n.x = n.follow.x), (n.y = n.follow.y), n.follow.dead && (n.t = 999)),
-          (n.live = n.t >= n.warn && n.t < n.warn + n.dur),
-          (n.cur = this.arena.rayLen(n.x, n.y, n.a, n.len)),
-          n.live && e.alive)
-        ) {
-          let s = n.x + Math.cos(n.a) * n.cur,
-            r = n.y + Math.sin(n.a) * n.cur,
-            a = s - n.x,
-            o = r - n.y,
-            c = a * a + o * o,
-            h = ((e.x - n.x) * a + (e.y - n.y) * o) / c;
-          h = clamp(h, 0, 1);
-          let l = n.x + a * h,
-            u = n.y + o * h,
-            d = n.w * 0.5 + e.r * 0.7;
-          (e.x - l) ** 2 + (e.y - u) ** 2 < d * d && this.hurtPlayer(n.dmg, l, u, n.src);
+    updateBeams(dt) {
+      let player = this.player;
+      for (let beam of this.beams) {
+        beam.t += dt;
+        if (beam.rot) {
+          beam.a += beam.rot * dt;
         }
-      this.beams = this.beams.filter((n) => n.t < n.warn + n.dur);
-    }
-    beam(t) {
-      let e = {
-        x: t.x,
-        y: t.y,
-        a: t.a,
-        len: t.len || 30,
-        cur: t.len || 30,
-        w: t.w || 0.8,
-        warn: t.warn ?? 0.8,
-        dur: t.dur ?? 0.5,
-        t: 0,
-        rot: t.rot || 0,
-        dmg: t.dmg || 20,
-        follow: t.follow || null,
-        live: !1,
-        color: t.color || 0,
-        src: this._src,
-      };
-      return (this.beams.push(e), e);
-    }
-    hazard(t) {
-      let e = {
-        x: t.x,
-        y: t.y,
-        r: t.r,
-        delay: t.delay ?? 1,
-        t: 0,
-        dmg: t.dmg || 20,
-        kind: t.kind || "stomp",
-        done: !1,
-        src: this._src,
-        sx: t.sx,
-        sy: t.sy,
-      };
-      return (this.hazards.push(e), e);
-    }
-    updateHazards(t) {
-      for (let e of this.hazards)
-        ((e.t += t),
-          !e.done &&
-            e.t >= e.delay &&
-            ((e.done = !0),
-            this.explode(e.x, e.y, e.r, 0, { player: !0, dmgPlayer: e.dmg, kind: e.kind, src: e.src })));
-      this.hazards = this.hazards.filter((e) => e.t < e.delay + 0.4);
-    }
-    updatePickups(t) {
-      let e = this.player,
-        n = this.stats,
-        s =
-          this.state !== "fight" ||
-          (this.enemies.length === 0 && this.planIdx >= this.plan.length && !this.bossPending),
-        r = n.magnet;
-      for (let a of this.pickups) {
-        if (a.dead) continue;
-        a.t += t;
-        let o = e.x - a.x,
-          c = e.y - a.y,
-          h = Math.hypot(o, c) || 0.001,
-          l = a.kind === "heal" && e.hp >= n.maxHp - 0.5 && this.state === "fight";
-        if (
-          (l && a.pull && !s && (a.pull = !1),
-          !l && !a.pull && a.t > 0.35 && (h < r || s) && (a.pull = !0),
-          a.pull && (e.alive || this.state !== "dead"))
-        ) {
-          let u = 9 + a.t * 10 + (s ? 14 : 0);
-          ((a.vx += ((o / h) * u - a.vx) * dampFactor(9, t)), (a.vy += ((c / h) * u - a.vy) * dampFactor(9, t)));
-        } else ((a.vx *= 1 - dampFactor(4, t)), (a.vy *= 1 - dampFactor(4, t)));
-        if (
-          ((a.x += a.vx * t), (a.y += a.vy * t), a.pull || this.arena.resolve(a, 0.2), h < e.r + 0.35 && e.alive && !l)
-        ) {
-          if (((a.dead = !0), a.kind === "shard")) ((this.shards += a.v), this.emit("shard", { v: a.v }));
-          else if (a.kind === "heal") {
-            let u = e.hp;
-            ((e.hp = Math.min(n.maxHp, e.hp + a.v)), this.emit("heal", { x: e.x, y: e.y, v: Math.round(e.hp - u) }));
+        if (beam.follow) {
+          beam.x = beam.follow.x;
+          beam.y = beam.follow.y;
+          if (beam.follow.dead) {
+            beam.t = 999;
           }
         }
-        a.kind === "heal" && a.t > 14 && !a.pull && (a.dead = !0);
+        beam.live = beam.t >= beam.warn && beam.t < beam.warn + beam.dur;
+        beam.cur = this.arena.rayLen(beam.x, beam.y, beam.a, beam.len);
+        if (beam.live && player.alive) {
+          let endX = beam.x + Math.cos(beam.a) * beam.cur,
+            endY = beam.y + Math.sin(beam.a) * beam.cur,
+            dx = endX - beam.x,
+            dy = endY - beam.y,
+            lenSq = dx * dx + dy * dy,
+            along = ((player.x - beam.x) * dx + (player.y - beam.y) * dy) / lenSq;
+          along = clamp(along, 0, 1);
+          let cx = beam.x + dx * along,
+            cy = beam.y + dy * along,
+            hitR = beam.w * 0.5 + player.r * 0.7;
+          if ((player.x - cx) ** 2 + (player.y - cy) ** 2 < hitR * hitR) {
+            this.hurtPlayer(beam.dmg, cx, cy, beam.src);
+          }
+        }
+      }
+      this.beams = this.beams.filter((beam) => beam.t < beam.warn + beam.dur);
+    }
+    beam(opts) {
+      let beam = {
+        x: opts.x,
+        y: opts.y,
+        a: opts.a,
+        len: opts.len || 30,
+        cur: opts.len || 30,
+        w: opts.w || 0.8,
+        warn: opts.warn ?? 0.8,
+        dur: opts.dur ?? 0.5,
+        t: 0,
+        rot: opts.rot || 0,
+        dmg: opts.dmg || 20,
+        follow: opts.follow || null,
+        live: false,
+        color: opts.color || 0,
+        src: this._src,
+      };
+      this.beams.push(beam);
+      return beam;
+    }
+    hazard(opts) {
+      let hazard = {
+        x: opts.x,
+        y: opts.y,
+        r: opts.r,
+        delay: opts.delay ?? 1,
+        t: 0,
+        dmg: opts.dmg || 20,
+        kind: opts.kind || "stomp",
+        done: false,
+        src: this._src,
+        sx: opts.sx,
+        sy: opts.sy,
+      };
+      this.hazards.push(hazard);
+      return hazard;
+    }
+    updateHazards(dt) {
+      // 2.4.6: the Frost Prism's Glacier zones chill the player they catch (slower for 1.6 s, like a
+      // frost shot). A dash through the zone avoids it, as it avoids the hit.
+      let cold = null;
+      for (const hazard of this.hazards) {
+        if (hazard.kind === "glacier" && !hazard.done) {
+          (cold || (cold = [])).push(hazard);
+        }
+      }
+      for (let hazard of this.hazards) {
+        hazard.t += dt;
+        if (!hazard.done && hazard.t >= hazard.delay) {
+          hazard.done = true;
+          this.explode(hazard.x, hazard.y, hazard.r, 0, {
+            player: true,
+            dmgPlayer: hazard.dmg,
+            kind: hazard.kind,
+            src: hazard.src,
+          });
+        }
+      }
+      this.hazards = this.hazards.filter((hazard) => hazard.t < hazard.delay + 0.4);
+      if (!cold) return;
+      const player = this.player;
+      for (const hazard of cold) {
+        if (
+          hazard.done &&
+          player.alive &&
+          player.dashT <= 0 &&
+          this.state === "fight" &&
+          Math.hypot(player.x - hazard.x, player.y - hazard.y) < hazard.r + player.r
+        ) {
+          player.slowT = Math.max(player.slowT, 1.6);
+          this.emit("chill", { x: player.x, y: player.y });
+        }
       }
     }
-    updateMarkers(t) {
-      for (let e of this.markers)
-        if (((e.t += t), !e.fake && e.t >= e.dur && !e.done)) {
-          e.done = !0;
-          let n = this.spawnEnemy(e.type, e.x, e.y, { elite: e.elite, champion: e.champion });
-          (e.champion && ((this.champion = n), this.emit("champion", { type: e.type, x: e.x, y: e.y })),
-            this.emit("spawn", { x: e.x, y: e.y, type: e.type, elite: e.elite }),
-            (n.face = Math.atan2(this.player.y - e.y, this.player.x - e.x)));
+    updatePickups(dt) {
+      let player = this.player,
+        stats = this.stats,
+        vacuum =
+          this.state !== "fight" ||
+          (this.enemies.length === 0 && this.planIdx >= this.plan.length && !this.bossPending),
+        magnet = stats.magnet;
+      for (let pickup of this.pickups) {
+        if (pickup.dead) continue;
+        pickup.t += dt;
+        let dx = player.x - pickup.x,
+          dy = player.y - pickup.y,
+          dist = Math.hypot(dx, dy) || 0.001,
+          skip = pickup.kind === "heal" && player.hp >= stats.maxHp - 0.5 && this.state === "fight";
+        if (skip && pickup.pull && !vacuum) {
+          pickup.pull = false;
         }
-      this.markers = this.markers.filter((e) => !e.done);
+        if (!skip && !pickup.pull && pickup.t > 0.35 && (dist < magnet || vacuum)) {
+          pickup.pull = true;
+        }
+        if (pickup.pull && (player.alive || this.state !== "dead")) {
+          let speed = 9 + pickup.t * 10 + (vacuum ? 14 : 0);
+          pickup.vx += ((dx / dist) * speed - pickup.vx) * dampFactor(9, dt);
+          pickup.vy += ((dy / dist) * speed - pickup.vy) * dampFactor(9, dt);
+        } else {
+          pickup.vx *= 1 - dampFactor(4, dt);
+          pickup.vy *= 1 - dampFactor(4, dt);
+        }
+        pickup.x += pickup.vx * dt;
+        pickup.y += pickup.vy * dt;
+        if (!pickup.pull) {
+          this.arena.resolve(pickup, 0.2);
+        }
+        if (dist < player.r + 0.35 && player.alive && !skip) {
+          pickup.dead = true;
+          if (pickup.kind === "shard") {
+            this.shards += pickup.v;
+            this.emit("shard", { v: pickup.v });
+          } else if (pickup.kind === "heal") {
+            let before = player.hp;
+            player.hp = Math.min(stats.maxHp, player.hp + pickup.v);
+            this.emit("heal", { x: player.x, y: player.y, v: Math.round(player.hp - before) });
+          }
+        }
+        if (pickup.kind === "heal" && pickup.t > 14 && !pickup.pull) {
+          pickup.dead = true;
+        }
+      }
     }
-    updateSpawns(t) {
+    updateMarkers(dt) {
+      for (let marker of this.markers) {
+        marker.t += dt;
+        if (!marker.fake && marker.t >= marker.dur && !marker.done) {
+          marker.done = true;
+          let enemy = this.spawnEnemy(marker.type, marker.x, marker.y, {
+            elite: marker.elite,
+            champion: marker.champion,
+          });
+          if (marker.champion) {
+            this.champion = enemy;
+            this.emit("champion", { type: marker.type, x: marker.x, y: marker.y });
+          }
+          this.emit("spawn", { x: marker.x, y: marker.y, type: marker.type, elite: marker.elite });
+          enemy.face = Math.atan2(this.player.y - marker.y, this.player.x - marker.x);
+        }
+      }
+      this.markers = this.markers.filter((marker) => !marker.done);
+    }
+    updateSpawns(dt) {
       if (this.planIdx >= this.plan.length && !this.bossPending && !this.boss && this.enemies.length <= 4) {
-        if (((this.stragglerT += t), this.stragglerT > 9)) for (let o of this.enemies) o.hunt = !0;
+        this.stragglerT += dt;
+        if (this.stragglerT > 9) for (let enemy of this.enemies) enemy.hunt = true;
       } else this.stragglerT = 0;
       if (this.bossPending && this.waveT > 1.6) {
-        let o = this.bossPending;
-        ((this.bossPending = null), this.spawnBoss(o));
+        let id = this.bossPending;
+        this.bossPending = null;
+        this.spawnBoss(id);
       }
       if (this.championPending && this.waveT > 5 && !this.hold) {
-        let o = this.arena.freePoint(this.rng, this.player.x, this.player.y, 9, 1.6);
-        (this.markers.push({
-          x: o.x,
-          y: o.y,
+        let spot = this.arena.freePoint(this.rng, this.player.x, this.player.y, 9, 1.6);
+        this.markers.push({
+          x: spot.x,
+          y: spot.y,
           t: 0,
           dur: 1.6,
           type: this.championPending,
-          elite: !0,
-          champion: !0,
-          done: !1,
-        }),
-          (this.championPending = null));
+          elite: true,
+          champion: true,
+          done: false,
+        });
+        this.championPending = null;
       }
       if (this.planIdx >= this.plan.length || this.hold) return;
-      this.groupT -= t;
-      let e = this.enemies.length + this.markers.length,
-        n = Math.min(70, 26 + Math.round(this.wave * 2.5));
-      if (this.groupT > 0 || e >= n) return;
-      let s = this.plan[this.planIdx++];
-      this.groupT = s.gap;
-      let r = this.player,
-        a = this.arena.freePoint(this.rng, r.x, r.y, 8.5, 1.2),
-        o = [];
-      for (let c = 0; c < s.members.length; c++) {
-        let h = a.x,
-          l = a.y,
-          u = this.rng.next() * TAU + c * 2.399963;
-        for (let d = 0; d < 12; d++) {
-          let f =
-              0.55 + Math.min(1.7, 1 + s.members.length * 0.12) * Math.sqrt((c + 0.6) / Math.max(1, s.members.length)),
-            p = u + this.rng.range(-0.35, 0.35),
-            x = a.x + Math.cos(p) * f,
-            m = a.y + Math.sin(p) * f;
+      this.groupT -= dt;
+      let crowd = this.enemies.length + this.markers.length,
+        cap = Math.min(70, 26 + Math.round(this.wave * 2.5));
+      if (this.groupT > 0 || crowd >= cap) return;
+      let group = this.plan[this.planIdx++];
+      this.groupT = group.gap;
+      let player = this.player,
+        portal = this.arena.freePoint(this.rng, player.x, player.y, 8.5, 1.2),
+        placed = [];
+      for (let i = 0; i < group.members.length; i++) {
+        let spawnX = portal.x,
+          spawnY = portal.y,
+          angle = this.rng.next() * TAU + i * 2.399963;
+        for (let j = 0; j < 12; j++) {
+          let dist =
+              0.55 +
+              Math.min(1.7, 1 + group.members.length * 0.12) * Math.sqrt((i + 0.6) / Math.max(1, group.members.length)),
+            dir = angle + this.rng.range(-0.35, 0.35),
+            tryX = portal.x + Math.cos(dir) * dist,
+            tryY = portal.y + Math.sin(dir) * dist;
           if (
-            !this.arena.blocked(x, m, 0.8) &&
-            !this.arena.outside(x, m, 1) &&
-            !this.arena.featureBlocked(x, m, 0.25) &&
-            Math.hypot(x - r.x, m - r.y) >= 6.5 &&
-            o.every((g) => Math.hypot(x - g.x, m - g.y) >= 0.9)
+            !this.arena.blocked(tryX, tryY, 0.8) &&
+            !this.arena.outside(tryX, tryY, 1) &&
+            !this.arena.featureBlocked(tryX, tryY, 0.25) &&
+            Math.hypot(tryX - player.x, tryY - player.y) >= 6.5 &&
+            placed.every((other) => Math.hypot(tryX - other.x, tryY - other.y) >= 0.9)
           ) {
-            h = x;
-            l = m;
+            spawnX = tryX;
+            spawnY = tryY;
             break;
           }
         }
-        o.push({ x: h, y: l });
+        placed.push({ x: spawnX, y: spawnY });
         this.markers.push({
-          x: h,
-          y: l,
+          x: spawnX,
+          y: spawnY,
           t: 0,
           dur: 0.95,
-          type: s.members[c].type,
-          elite: s.members[c].elite,
-          done: !1,
+          type: group.members[i].type,
+          elite: group.members[i].elite,
+          done: false,
         });
       }
-      this.emit("portal", { x: a.x, y: a.y, n: s.members.length });
+      this.emit("portal", { x: portal.x, y: portal.y, n: group.members.length });
     }
     sweep() {
-      (this.enemies.some((t) => t.dead) && (this.enemies = this.enemies.filter((t) => !t.dead)),
-        this.pb.some((t) => t.life <= 0) && (this.pb = this.pb.filter((t) => t.life > 0)),
-        this.eb.some((t) => t.life <= 0) && (this.eb = this.eb.filter((t) => t.life > 0)),
-        this.pickups.some((t) => t.dead) && (this.pickups = this.pickups.filter((t) => !t.dead)));
+      if (this.enemies.some((enemy) => enemy.dead)) {
+        this.enemies = this.enemies.filter((enemy) => !enemy.dead);
+      }
+      if (this.pb.some((bullet) => bullet.life <= 0)) {
+        this.pb = this.pb.filter((bullet) => bullet.life > 0);
+      }
+      if (this.eb.some((bullet) => bullet.life <= 0)) {
+        this.eb = this.eb.filter((bullet) => bullet.life > 0);
+      }
+      if (this.pickups.some((pickup) => pickup.dead)) {
+        this.pickups = this.pickups.filter((pickup) => !pickup.dead);
+      }
     }
     checkWaveEnd() {
       if (this.state === "fight") {
@@ -1668,651 +2668,158 @@ var rlStep = 1 / 60,
           this.markers.length === 0 &&
           this.waveT > 1.8
         ) {
-          ((this.state = "cleared"), (this.stateT = 0), this.waveDmg === 0 && this.wave >= 8 && this.flawless++);
-          let e = !!this.bossFor(this.wave);
-          if (e) {
-            let n = this.player;
-            n.hp = Math.min(this.stats.maxHp, n.hp + this.stats.maxHp * 0.3);
+          this.state = "cleared";
+          this.stateT = 0;
+          if (this.waveDmg === 0 && this.wave >= 8) {
+            this.flawless++;
           }
-          ((this.offerBoss = e), this.emit("cleared", { n: this.wave, boss: e, flawless: this.waveDmg === 0 }));
+          let boss = !!this.bossFor(this.wave);
+          if (boss) {
+            let player = this.player;
+            player.hp = Math.min(this.stats.maxHp, player.hp + this.stats.maxHp * 0.3);
+          }
+          this.offerBoss = boss;
+          this.emit("cleared", { n: this.wave, boss: boss, flawless: this.waveDmg === 0 });
         }
       } else if (this.state === "cleared" && ((this.stateT > 1.6 && this.pickups.length === 0) || this.stateT > 3.5)) {
-        for (let t of this.pickups) t.kind === "shard" && (this.shards += t.v);
-        ((this.pickups.length = 0),
-          this.isFinalWave()
-            ? ((this.state = "victory"), (this.stateT = 0), this.emit("victory"))
-            : ((this.state = "choose"), (this.stateT = 0), (this.offer = this.makeOffer()), this.emit("offer")));
-      }
-    }
-  };
-
-/* 2.3.5: shards in a supply cache, raised by Route Scanner (+50% per level). */
-function rlCacheShards(w, v) {
-  return Math.round(v * Math.max(1, w.stats.cacheValue || 1));
-}
-/* 2.3.5: Armor Core absorbs part of the damage from enemies. Lava and acid are left to
-   Hazard Seal, so the two modules do not stack on the same damage. */
-const RL_HAZARD_SRC = new Set(["lava", "acid"]);
-const _rlHurtArmor = World.prototype.hurtPlayer;
-World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
-  const armor = Math.min(0.5, this.stats.armor || 0);
-  return _rlHurtArmor.call(this, armor > 0 && !RL_HAZARD_SRC.has(src) ? dmg * (1 - armor) : dmg, x, y, src, chip);
-};
-
-/* Prototype hooks keep new systems additive and preserve the original class implementation. */
-const _rlStartWave = World.prototype.startWave;
-World.prototype.startWave = function (wave, nova) {
-  _rlStartWave.call(this, wave, nova);
-  if (nova == null && this.stats.novaStart > 0)
-    this.player.nova = Math.min(100, this.player.nova + this.stats.novaStart);
-  const director = this.arena?.director,
-    mode = director?.mode || "standard";
-  this.waveMode = mode;
-  this.waveIntensity = director?.intensity || 0;
-  if (nova == null && !this.bossPending && !this.boss && wave >= 2) {
-    const count = wave % 6 === 0 ? 2 : 1;
-    for (let i = 0; i < count; i++) {
-      const p = this.arena.freePoint(
-        makeRng(hashString(this.seed + ":cache:" + wave + ":" + i)),
-        this.player.x,
-        this.player.y,
-        6.2,
-        0.35,
-      );
-      if (!p) continue;
-      const value = this.rng.chance(0.12) ? 25 : this.rng.chance(0.35) ? 10 : 5,
-        kind = this.rng.chance(0.12) ? "heal" : "shard";
-      const q = this.mkPickup(kind, p.x, p.y, kind === "heal" ? 20 : rlCacheShards(this, value));
-      q.vx = 0;
-      q.vy = 0;
-      q.cache = !0;
-      this.pickups.push(q);
-    }
-  }
-  if (nova != null || this.bossPending || this.boss || wave < 2) return;
-  const extra =
-    Math.max(0, this.stats.cacheBonus || 0) +
-    Math.max(0, this.stats.cacheCount || 0) +
-    (mode === "cache-run" ? 2 : 0) +
-    (mode === "salvage" ? 2 : 0) +
-    (wave % 9 === 0 ? 1 : 0);
-  const cacheRng = makeRng(hashString(this.seed + ":cache22:" + wave));
-  for (let i = 0; i < extra; i++) {
-    const p = this.arena.freePoint(cacheRng, this.player.x, this.player.y, 6.2, 0.35);
-    if (!p) continue;
-    const kind = cacheRng.chance(0.18) ? "heal" : "shard",
-      value = kind === "heal" ? 20 : rlCacheShards(this, 5 + 2 * (this.stats.cacheBonus || 0));
-    const q = this.mkPickup(kind, p.x, p.y, value);
-    q.vx = 0;
-    q.vy = 0;
-    q.cache = !0;
-    this.pickups.push(q);
-  }
-  const bonusPool =
-    {
-      barricade: ["charger", "brute"],
-      crossfire: ["sentinel", "turret", "drone"],
-      "cache-run": ["carrier", "mender", "beacon"],
-      riftwalk: ["phantom", "striker", "weaver"],
-      gauntlet: ["carrier", "leaper", "driller"],
-      shatter: ["phantom", "splitter", "driller"],
-      deadzone: ["sapper", "brute", "beacon"],
-      minefield: ["sapper", "drone"],
-      zigzag: ["weaver", "striker"],
-      salvage: ["carrier", "beacon"],
-      turbulence: ["sentinel", "drone", "weaver"],
-      fortress: ["driller", "bulwark", "beacon"],
-    }[mode] || [];
-  const avail = bonusPool.filter((id) => enemyDefs[id] && wave >= enemyDefs[id].from);
-  if (wave >= 18 && avail.length) {
-    const members = [{ type: cacheRng.pick(avail), elite: !1 }];
-    if (wave >= 30 && cacheRng.chance(0.45)) members.push({ type: cacheRng.pick(avail), elite: !1 });
-    this.plan.push({ gap: 2.35, members });
-    this.planTotal += members.length;
-  }
-};
-const _rlKillEnemy = World.prototype.killEnemy;
-World.prototype.killEnemy = function (enemy) {
-  const before = this.kills;
-  _rlKillEnemy.call(this, enemy);
-  if (enemy?.boss || this.kills <= before || !this.player.alive) return;
-  if (enemy.type === "carrier" && this.state === "fight" && this.rng.chance(0.55)) {
-    const v = rlCacheShards(this, 5 + 3 * (this.stats.cacheBonus || 0)),
-      q = this.mkPickup("shard", enemy.x, enemy.y, v);
-    q.vx = 0;
-    q.vy = 0;
-    q.cache = !0;
-    this.pickups.push(q);
-  }
-  if (this.stats.supply && this.kills % 12 === 0) {
-    const amount = 2 * this.stats.supply;
-    this.dropShards(enemy.x, enemy.y, amount);
-    this.emit("supplyDrop", { x: enemy.x, y: enemy.y, amount });
-  }
-};
-const _rlHurtEnemy = World.prototype.hurtEnemy;
-World.prototype.hurtEnemy = function (enemy, dmg, dx, dy, knock, crit, src) {
-  const mul = enemy && (enemy.elite || enemy.boss) ? this.stats.eliteMul || 1 : 1;
-  return _rlHurtEnemy.call(this, enemy, dmg * mul, dx, dy, knock, crit, src);
-};
-const _rlChampionType = World.prototype.championType;
-World.prototype.championType = function (biome, wave, rng) {
-  // 2.4.0: the pack biomes are gone; the five biomes also draw champions from the later enemies
-  const special = {
-    works: ["brute", "grunt", "charger", "minebot", "driller"],
-    vault: ["bulwark", "gunner", "sentinel", "turret"],
-    void: ["striker", "brute", "phantom", "weaver"],
-    marsh: ["splitter", "brute", "sapper", "carrier"],
-  }[biome];
-  if (special) {
-    const valid = special.filter((id) => enemyDefs[id] && enemyDefs[id].from <= wave);
-    if (valid.length) return rng.pick(valid);
-  }
-  return _rlChampionType.call(this, biome, wave, rng);
-};
-const _rlFire21 = World.prototype.fire;
-World.prototype.fire = function (angle) {
-  const echoing = !!this._rl21Echoing;
-  _rlFire21.call(this, angle);
-  if (echoing || this.state !== "fight" || !this.player.alive) return;
-  const s = this.stats,
-    shot = this.player.shotN || 0;
-  if (s.overload > 0 && shot > 0 && shot % 6 === 0)
-    this.explode(
-      this.player.x + Math.cos(angle) * 0.9,
-      this.player.y + Math.sin(angle) * 0.9,
-      1.25,
-      24 + 8 * s.overload,
-      { enemies: true, knock: 2, kind: "overload" },
-    );
-  if (s.echo > 0 && this.rng.chance(Math.min(0.28, 0.08 * s.echo))) {
-    this._rl21Echoing = true;
-    try {
-      _rlFire21.call(this, angle + this.rng.range(-0.035, 0.035));
-    } finally {
-      this._rl21Echoing = false;
-    }
-  }
-};
-World.prototype.biomeFor = function (wave) {
-  const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
-  return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
-};
-// 2.4.6: the boss of a boss wave is the boss of its biome (Neon Yard: Warden, Ember Works:
-// Crucible, Cryo Vault: Frost Prism, Toxin Marsh: Hive Queen, Void Core: Rift Core). In waves 5–20
-// its hull follows the slot (wave 5, 10, 15, 20), because Queen, Prism and Crucible can each come
-// at wave 10 or 15; Endless keeps each boss's own hull as before.
-World.prototype.bossFor = function (wave) {
-  return wave % 5 !== 0 ? null : bossByBiome[this.biomeFor(wave).id] || bossOrder[(wave / 5 - 1) % bossOrder.length];
-};
-const _rlSpawnBoss246 = World.prototype.spawnBoss;
-World.prototype.spawnBoss = function (id) {
-  const b = _rlSpawnBoss246.call(this, id),
-    slot = this.wave / 5 - 1;
-  if (b && !this.endless && this.wave <= 20 && Number.isInteger(slot) && BOSS_SLOT_HP[slot]) {
-    const k = BOSS_SLOT_HP[slot] / b.def.hp;
-    ((b.hp *= k), (b.maxHp *= k));
-  }
-  return b;
-};
-// 2.4.6: the Frost Prism's Glacier zones chill the player they catch (slower for 1.6 s, like a
-// frost shot). A dash through the zone avoids it, as it avoids the hit.
-const _rlUpdateHazards246 = World.prototype.updateHazards;
-World.prototype.updateHazards = function (dt) {
-  let cold = null;
-  for (const h of this.hazards) h.kind === "glacier" && !h.done && (cold || (cold = [])).push(h);
-  _rlUpdateHazards246.call(this, dt);
-  if (!cold) return;
-  const p = this.player;
-  for (const h of cold)
-    h.done &&
-      p.alive &&
-      p.dashT <= 0 &&
-      this.state === "fight" &&
-      Math.hypot(p.x - h.x, p.y - h.y) < h.r + p.r &&
-      ((p.slowT = Math.max(p.slowT, 1.6)), this.emit("chill", { x: p.x, y: p.y }));
-};
-const _rlStartWave240 = World.prototype.startWave;
-World.prototype.startWave = function (wave, nova) {
-  set_RL_BIOME_MIX_CUR(RL_BIOME_INFO[this.biomeFor(wave).id]?.mix || null);
-  try {
-    return _rlStartWave240.call(this, wave, nova);
-  } finally {
-    set_RL_BIOME_MIX_CUR(null);
-  }
-};
-(() => {
-  const baseStep = World.prototype.step,
-    baseHurt = World.prototype.hurtPlayer;
-  World.prototype.step = function (dt, input) {
-    const st = this.stats,
-      base = st.rateMul || 1;
-    st.rateMul =
-      base * (st.momentum > 0 && input && Math.hypot(+input.mx || 0, +input.my || 0) > 0.08 ? 1 + st.momentum : 1);
-    try {
-      return baseStep.call(this, dt, input);
-    } finally {
-      st.rateMul = base;
-    }
-  };
-  World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
-    const st = this.stats,
-      low = this.player.hp <= st.maxHp * 0.35;
-    return baseHurt.call(
-      this,
-      // 2.4.2: the 1-damage floor only applies to hits that did at least 1 before. Small hazard
-      // ticks (acid with high resistance) used to be raised to 1 by Last Stand.
-      low && st.laststand > 0 ? Math.min(dmg, Math.max(1, dmg * (1 - st.laststand))) : dmg,
-      x,
-      y,
-      src,
-      chip,
-    );
-  };
-})();
-
-// 2.5.0 A: the six new run upgrades (levels from computeStats: skates, acidCoat, heatSink, slip,
-// surge, reactive). Each hook does nothing without its upgrade.
-const RL_SLIP_TIME = 1.2,
-  RL_HEAT_TIME = 3,
-  RL_COAT_MAX = 6;
-(() => {
-  const baseStep = World.prototype.step,
-    baseFire = World.prototype.fire,
-    baseHurt = World.prototype.hurtPlayer,
-    baseHit = World.prototype.bulletHit,
-    baseCombo = World.prototype.addCombo,
-    baseFeatures = World.prototype.updateFeatures;
-  World.prototype.step = function (dt, input) {
-    const st = this.stats,
-      p = this.player;
-    if (!(st.skates || st.heatSink || st.slip)) return baseStep.call(this, dt, input);
-    const fight = this.state === "fight" && p.alive,
-      // Cryo Skates: on ice or anywhere in Cryo Vault (onIce is from the last frame)
-      skating = st.skates > 0 && fight && (p.onIce || this.arena.biome.id === "vault"),
-      speed = st.speed,
-      rate = st.rateMul,
-      dashId = p.dashId;
-    // Heat Sink: an erupting vent within 2.5 m of its edge keeps the heat up and charges Nova
-    if (st.heatSink && fight)
-      for (const v of this.arena.vents)
-        if (v.st === "erupt" && Math.hypot(p.x - v.x, p.y - v.y) < v.r + 2.5) {
-          p.heatT = RL_HEAT_TIME;
-          this.addNova(10 * st.heatSink * dt);
-          break;
+        for (let pickup of this.pickups) {
+          if (pickup.kind === "shard") {
+            this.shards += pickup.v;
+          }
         }
-    p.skating = skating;
-    if (skating) st.speed = speed * (1 + 0.15 * st.skates);
-    if (p.heatT > 0) st.rateMul = rate * (1 + 0.25 * st.heatSink);
-    try {
-      return baseStep.call(this, dt, input);
-    } finally {
-      st.speed = speed;
-      st.rateMul = rate;
-      if (skating && p.dashCdT > 0) p.dashCdT = Math.max(0, p.dashCdT - 0.35 * st.skates * dt);
-      if (p.heatT > 0) p.heatT = Math.max(0, p.heatT - dt);
-      if (p.slipT > 0) p.slipT = Math.max(0, p.slipT - dt);
-      // Slipstream: a new dash primes the shots for the dash itself plus RL_SLIP_TIME
-      if (st.slip && p.dashId !== dashId) p.slipT = RL_SLIP_TIME + 0.17;
-    }
-  };
-  World.prototype.fire = function (angle) {
-    const st = this.stats,
-      boost = st.slip > 0 && this.player.slipT > 0;
-    if (!boost) return baseFire.call(this, angle);
-    const dmg = st.dmgMul;
-    st.dmgMul = dmg * (1 + 0.25 * st.slip);
-    try {
-      return baseFire.call(this, angle);
-    } finally {
-      st.dmgMul = dmg;
-    }
-  };
-  World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
-    const hit = baseHurt.call(this, dmg, x, y, src, chip),
-      st = this.stats,
-      p = this.player;
-    if (!hit || !p.alive) return hit;
-    // Heat Sink: lava and acid damage (after Hazmat) heat the drone up
-    if (st.heatSink && (src === "lava" || src === "acid")) {
-      p.heatT = RL_HEAT_TIME;
-      this.addNova(3 * st.heatSink);
-    }
-    // Reactive Plating: a real hit (not a hazard tick) pushes everything nearby away
-    if (st.reactive && !chip && !this._rlReacting) {
-      const r = 3 + 0.6 * (st.reactive - 1);
-      this._rlReacting = true;
-      try {
-        this.explode(p.x, p.y, r, (20 + 15 * (st.reactive - 1)) * st.dmgMul, {
-          enemies: true,
-          knock: 10,
-          kind: "reactive",
-        });
-      } finally {
-        this._rlReacting = false;
-      }
-      for (const b of this.eb)
-        if (b.life > 0 && Math.hypot(b.x - p.x, b.y - p.y) < r * 1.2) {
-          b.life = 0;
-          this.emit("pop", { x: b.x, y: b.y });
+        this.pickups.length = 0;
+        if (this.isFinalWave()) {
+          this.state = "victory";
+          this.stateT = 0;
+          this.emit("victory");
+        } else {
+          this.state = "choose";
+          this.stateT = 0;
+          this.offer = this.makeOffer();
+          this.emit("offer");
         }
-    }
-    return hit;
-  };
-  World.prototype.bulletHit = function (bullet, enemy) {
-    const out = baseHit.call(this, bullet, enemy),
-      st = this.stats;
-    // Acid Coating: a puddle under the enemy (at most one per enemy every 1.2 s, flames less often)
-    if (
-      st.acidCoat > 0 &&
-      this.state === "fight" &&
-      !enemy.boss &&
-      !enemy.shielded &&
-      !enemy.ghost &&
-      this.time - (enemy.coatAt ?? -9) > 1.2 &&
-      this.rng.chance(0.15 * st.acidCoat * (bullet.drag ? 0.3 : 1))
-    ) {
-      enemy.coatAt = this.time;
-      const acid = this.arena.acid,
-        mine = acid.filter((q) => q.mine);
-      if (mine.length >= RL_COAT_MAX) acid.splice(acid.indexOf(mine[0]), 1);
-      const marsh = this.arena.biome.id === "marsh";
-      acid.push({ x: enemy.x, y: enemy.y, r: marsh ? 1.5 : 1.1, life: marsh ? 4 : 3, mine: true });
-    }
-    return out;
-  };
-  // The player's own acid never hurts the player: those puddles leave the list while the base
-  // update checks the player, then only mark enemies (corrode = +25% damage taken).
-  World.prototype.updateFeatures = function (dt) {
-    if (!this.stats.acidCoat) return baseFeatures.call(this, dt);
-    const all = this.arena.acid,
-      mine = all.filter((q) => q.mine);
-    this.arena.acid = all.filter((q) => !q.mine);
-    const natural = this.arena.acid.length > 0;
-    let live = mine;
-    try {
-      baseFeatures.call(this, dt);
-    } finally {
-      for (const q of mine) q.life -= dt;
-      live = mine.filter((q) => q.life > 0);
-      this.arena.acid.push(...live);
-    }
-    for (const e of this.enemies)
-      e.corrode =
-        (natural && !!e.corrode) || (!e.boss && live.some((q) => (e.x - q.x) ** 2 + (e.y - q.y) ** 2 < q.r * q.r));
-  };
-  // Combo Surge: longer combos, and every 15th (12th) combo kill sends out a shockwave
-  World.prototype.addCombo = function () {
-    const out = baseCombo.call(this),
-      lv = this.stats.surge || 0;
-    if (!lv) return out;
-    this.comboT += 0.5 * lv;
-    const every = lv > 1 ? 12 : 15,
-      p = this.player;
-    if (this.combo % every === 0 && p.alive && this.state === "fight" && !this._rlSurging) {
-      this._rlSurging = true;
-      try {
-        this.explode(p.x, p.y, lv > 1 ? 4 : 3.5, (lv > 1 ? 60 : 40) * this.stats.dmgMul, {
-          enemies: true,
-          knock: 8,
-          kind: "surge",
-        });
-      } finally {
-        this._rlSurging = false;
-      }
-      this.emit("surge", { x: p.x, y: p.y, n: this.combo });
-    }
-    return out;
-  };
-})();
-
-/* ==========================================================================
-   2.5.0 B: new workshop modules (Starter Kit, Hazard Attunement, Emergency Shield)
-   ========================================================================== */
-/* Starter Kit: the common upgrades a new run starts with. Seeded by the run, so a run and its
- replay get the same kit; one pick per module level, never the same upgrade twice. */
-function rlStarterKit(w, n) {
-  const rng = makeRng(hashString(w.seed + ":kit")),
-    pool = upgradeList.filter(
-      (u) => u.rarity === 1 && !u.evo && !u.repeat && u.id !== "heal" && (!u.weapon || u.weapon === w.weapon),
-    ),
-    out = [];
-  for (let i = 0; i < n && pool.length; i++) out.push(pool.splice(Math.floor(rng.next() * pool.length), 1)[0].id);
-  return out;
-}
-/* Hazard Attunement: close = within 2 m of the edge of a vent, ice sheet or acid pool, or of a
- portal mouth. Boss-attack zones (this.hazards) do not count. */
-const RL_ATTUNE_RANGE = 2;
-function rlNearHazard(w) {
-  const a = w.arena,
-    p = w.player;
-  if (!a || !p.alive) return !1;
-  for (const list of [a.vents, a.ice, a.acid])
-    for (const h of list || [])
-      // 2.5.0: the player's own Acid Coating puddles (mine) are not a map hazard
-      if (!h.mine && Math.hypot(p.x - h.x, p.y - h.y) - (h.r || 0) < RL_ATTUNE_RANGE) return !0;
-  for (const q of a.portals || [])
-    if (
-      Math.hypot(p.x - q.ax, p.y - q.ay) < RL_ATTUNE_RANGE + 0.8 ||
-      Math.hypot(p.x - q.bx, p.y - q.by) < RL_ATTUNE_RANGE + 0.8
-    )
-      return !0;
-  return !1;
-}
-(() => {
-  const baseStartWave = World.prototype.startWave,
-    baseStep = World.prototype.step,
-    baseHurt = World.prototype.hurtPlayer;
-  World.prototype.startWave = function (wave, nova) {
-    // a fresh run (not a resumed one: that passes its saved Nova charge) gets its kit before the
-    // first wave is set up, so shield or HP upgrades from the kit count from the start
-    const kit = (this.ws.starterKit || 0) | 0;
-    let given = null;
-    if (kit > 0 && wave === 1 && nova == null && !this.kitGiven && !Object.keys(this.up).length) {
-      given = rlStarterKit(this, Math.min(3, kit));
-      for (const id of given) this.up[id] = (this.up[id] || 0) + 1;
-      this.stats = computeStats(this.weapon, this.up, this.ws);
-      this.player.hp = this.stats.maxHp;
-    }
-    this.kitGiven = !0;
-    // Emergency Shield is ready again in every wave
-    this.barrierUsed = !1;
-    this.barrierT = 0;
-    this.barrierOwnShield = !1;
-    this.attuned = !1;
-    const r = baseStartWave.call(this, wave, nova);
-    given && given.length && this.emit("kit", { ids: given });
-    return r;
-  };
-  World.prototype.step = function (dt, input) {
-    const st = this.stats,
-      p = this.player;
-    if (this.barrierT > 0) {
-      this.barrierT -= dt;
-      if (this.barrierT <= 0) {
-        this.barrierT = 0;
-        // the bubble was only shown for the barrier; a shield from the Energy Shield upgrade stays
-        this.barrierOwnShield && ((p.shield = !1), (p.shieldT = 0));
-        this.barrierOwnShield = !1;
       }
     }
-    this.attuned = st.attuneDmg > 0 && this.state === "fight" && rlNearHazard(this);
-    if (!this.attuned) return baseStep.call(this, dt, input);
-    const dmg = st.dmgMul,
-      regen = st.regen;
-    st.dmgMul = dmg * (1 + st.attuneDmg);
-    st.regen = (regen || 0) + st.attuneRegen;
-    try {
-      return baseStep.call(this, dt, input);
-    } finally {
-      st.dmgMul = dmg;
-      st.regen = regen;
-    }
-  };
-  World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
-    if (this.barrierT > 0 && this.player.alive && this.state === "fight") return !1;
-    const out = baseHurt.call(this, dmg, x, y, src, chip),
-      p = this.player,
-      st = this.stats;
-    if (
-      out &&
-      st.barrierT > 0 &&
-      !this.barrierUsed &&
-      p.alive &&
-      this.state === "fight" &&
-      p.hp > 0 &&
-      p.hp < st.maxHp * 0.3
-    ) {
-      this.barrierUsed = !0;
-      this.barrierT = st.barrierT;
-      p.hp = Math.min(st.maxHp, p.hp + Math.round(st.maxHp * st.barrierHeal));
-      this.barrierOwnShield = !p.shield;
-      p.shield = !0;
-      this.emit("barrier", { x: p.x, y: p.y, t: st.barrierT });
-      this.emit("heal", { x: p.x, y: p.y });
-    }
-    return out;
-  };
-})();
-// ---- 2.5.0 C: biome events. Every visit of a hazard biome brings its event in one of waves 2–4
-// of the visit (never a boss wave, never right next to an Elite Surge or Shard Rain):
-//   Ember Works  Meltdown     three extra vents, all vents erupt together every 3.4 s
-//   Cryo Vault   Whiteout     three extra ice sheets; the renderer thickens the fog (snow storm)
-//   Toxin Marsh  Spore Bloom  the pools grow by up to 40% over the wave, a new one sprouts every 7 s
-//   Void Core    Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
-// Extra and moved hazards follow the fairness rules of the wave hazards (arena.js) and keep off
-// the player. The signature enemies of a biome can spawn from its first wave (waves.js).
-import { RL_BIOME_EVENT, rlBiomeStart, rlEnemyFrom } from "./waves.js";
-import { rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
-const RL_MELTDOWN_PERIOD = 3.4,
-  RL_BLOOM_GROW = 1.4,
-  RL_BLOOM_GROW_T = 35,
-  RL_BLOOM_EVERY = 7,
-  RL_STORM_EVERY = 6,
-  RL_STORM_WARN = 1.6;
-// the wave of the current biome visit that gets its biome event (0: none)
-World.prototype.biomeEventWave = function (wave) {
-  const id = RL_BIOME_EVENT[this.biomeFor(wave).id];
-  if (!id) return 0;
-  const start = rlBiomeStart(wave),
-    at = start + 1 + Math.floor(makeRng(hashString(this.seed + ":biome-event:" + start)).next() * 3);
-  return this.bossFor(at) ? 0 : at;
-};
-// the wave from which an enemy type can spawn in this run's biome at `wave`
-World.prototype.enemyFrom = function (type, wave) {
-  return rlEnemyFrom(type, this.biomeFor(wave).id, wave);
-};
-const _rlEventFor250 = World.prototype.eventFor;
-World.prototype.eventFor = function (wave) {
-  const at = this.biomeEventWave(wave);
-  if (at && at === wave) return RL_BIOME_EVENT[this.biomeFor(wave).id];
-  if (at && Math.abs(at - wave) === 1) return null;
-  return _rlEventFor250.call(this, wave);
-};
-const _rlStartWave250 = World.prototype.startWave;
-World.prototype.startWave = function (wave, nova) {
-  // an arena changed by a biome event is never reused (startWave of the same wave again)
-  this.arena && this.arena.rlEvent && (this.arena.key += ":used");
-  this.bioEv = null;
-  const out = _rlStartWave250.call(this, wave, nova),
-    ev = this.event && waveEvents[this.event];
-  ev && ev.biome && ev.biome === this.arena.biome.id && !this.bossPending && this.startBiomeEvent(this.event, wave);
-  return out;
-};
-World.prototype.startBiomeEvent = function (id, wave) {
-  const A = this.arena,
-    p = this.player,
-    rng = makeRng(hashString(this.seed + ":biome-event:" + id + ":" + wave)),
-    avoid = [{ x: p.x, y: p.y, r: 3.5 }],
-    // the extra sheets of a Whiteout are smaller, so they still fit between the wave's big ones
-    add = (kind, n, size) => {
-      for (let k = 0; k < n * 3 && n > 0; k++)
-        rlAddHazard250(A, kind, rng, A.obs, A.W, A.H, { avoid, cap: 9, size, tries: 60 }) && n--;
-    };
-  A.rlEvent = id;
-  if (id === "meltdown") {
-    add("vents", 3);
-    // all vents in step: idle at the start, the first warning 0.7 s into the wave, then every 3.4 s
-    const P = RL_MELTDOWN_PERIOD,
-      phase = 0;
-    for (const q of A.vents) ((q.period = P), (q.phase = phase), (q.st = "idle"));
-  } else if (id === "whiteout") add("ice", 3, [1.7, 2.5]);
-  else if (id === "bloom") {
-    for (const q of A.acid)
-      q.life == null &&
-        (q.grow = { r0: q.r, to: rlHazardRoom250(A, q, q.r * RL_BLOOM_GROW), t0: 0, dur: RL_BLOOM_GROW_T });
-    this.bioEv = { id, t: 0, next: RL_BLOOM_EVERY, n: 0, rng };
-  } else if (id === "riftstorm") this.bioEv = { id, t: 0, next: RL_STORM_EVERY, rng };
-};
-World.prototype.tickBiomeEvent = function (ev, dt) {
-  const A = this.arena,
-    p = this.player;
-  ev.t += dt;
-  if (ev.id === "bloom") {
-    for (const q of A.acid)
-      q.grow && (q.r = q.grow.r0 + (q.grow.to - q.grow.r0) * clamp((ev.t - q.grow.t0) / q.grow.dur, 0, 1));
-    if (ev.t >= ev.next && ev.n < 4) {
-      ev.next += RL_BLOOM_EVERY;
-      // not on the player, not on an enemy about to spawn
-      const avoid = [{ x: p.x, y: p.y, r: 4 }, ...this.markers.map((m) => ({ x: m.x, y: m.y, r: 1.2 }))],
-        q = rlAddHazard250(A, "acid", ev.rng, A.obs, A.W, A.H, { avoid, cap: 10, size: [1.6, 2.3], tries: 90 });
-      if (q) {
-        ev.n++;
-        q.grow = { r0: 0.3, to: q.r, t0: ev.t, dur: 2.5 };
-        q.r = 0.3;
-        this.emit("hatch", { x: q.x, y: q.y, big: !0 });
-      }
-    }
-  } else if (ev.id === "riftstorm" && A.portals.length) {
-    if (!ev.planned && ev.t >= ev.next - RL_STORM_WARN) {
-      ev.planned = !0;
-      const next = { portals: [] };
-      for (const q of A.portals) {
-        const avoid = [
-            { x: p.x, y: p.y, r: 3.5 },
-            { x: q.ax, y: q.ay, r: 3 },
-            { x: q.bx, y: q.by, r: 3 },
-          ],
-          pair = rlPortalPair250(ev.rng, A.obs, A.W, A.H, next, { avoid });
-        q.next = pair;
-        pair && (next.portals.push(pair), this.emit("blinkWarn", { x: pair.ax, y: pair.ay }));
-      }
-    }
-    for (const q of A.portals) q.next && (q.moveIn = Math.max(0, ev.next - ev.t));
-    if (ev.t >= ev.next) {
-      ev.next += RL_STORM_EVERY;
-      ev.planned = !1;
-      for (const q of A.portals) {
-        const n = q.next;
-        if (!n) continue;
-        // the new spots must still be clear of the player (it may have walked there)
-        if (Math.hypot(p.x - n.ax, p.y - n.ay) > 1.6 && Math.hypot(p.x - n.bx, p.y - n.by) > 1.6) {
-          this.emit("blink", { x: q.ax, y: q.ay, small: !0, phase: !0 });
-          ((q.ax = n.ax), (q.ay = n.ay), (q.bx = n.bx), (q.by = n.by));
-          this.emit("blink", { x: q.ax, y: q.ay, small: !0, phase: !0 });
-          this.emit("blink", { x: q.bx, y: q.by, small: !0, phase: !0 });
+    // 2.5.0 C: set up the biome event of this wave (extra hazards, Meltdown timing, Bloom and Storm state)
+    startBiomeEvent(id, wave) {
+      const arena = this.arena,
+        player = this.player,
+        rng = makeRng(hashString(this.seed + ":biome-event:" + id + ":" + wave)),
+        avoid = [{ x: player.x, y: player.y, r: 3.5 }],
+        // the extra sheets of a Whiteout are smaller, so they still fit between the wave's big ones
+        add = (kind, count, size) => {
+          for (let k = 0; k < count * 3 && count > 0; k++) {
+            if (rlAddHazard250(arena, kind, rng, arena.obs, arena.W, arena.H, { avoid, cap: 9, size, tries: 60 })) {
+              count--;
+            }
+          }
+        };
+      arena.rlEvent = id;
+      if (id === "meltdown") {
+        add("vents", 3);
+        // all vents in step: idle at the start, the first warning 0.7 s into the wave, then every 3.4 s
+        const period = RL_MELTDOWN_PERIOD,
+          phase = 0;
+        for (const vent of arena.vents) {
+          vent.period = period;
+          vent.phase = phase;
+          vent.st = "idle";
         }
-        q.next = null;
-        q.moveIn = 0;
+      } else if (id === "whiteout") add("ice", 3, [1.7, 2.5]);
+      else if (id === "bloom") {
+        for (const pool of arena.acid) {
+          if (pool.life == null) {
+            pool.grow = {
+              r0: pool.r,
+              to: rlHazardRoom250(arena, pool, pool.r * RL_BLOOM_GROW),
+              t0: 0,
+              dur: RL_BLOOM_GROW_T,
+            };
+          }
+        }
+        this.bioEv = { id, t: 0, next: RL_BLOOM_EVERY, n: 0, rng };
+      } else if (id === "riftstorm") this.bioEv = { id, t: 0, next: RL_STORM_EVERY, rng };
+    }
+    // 2.5.0 C: Spore Bloom and Rift Storm over the wave (from updateFeatures)
+    tickBiomeEvent(event, dt) {
+      const arena = this.arena,
+        player = this.player;
+      event.t += dt;
+      if (event.id === "bloom") {
+        for (const pool of arena.acid) {
+          if (pool.grow) {
+            pool.r =
+              pool.grow.r0 + (pool.grow.to - pool.grow.r0) * clamp((event.t - pool.grow.t0) / pool.grow.dur, 0, 1);
+          }
+        }
+        if (event.t >= event.next && event.n < 4) {
+          event.next += RL_BLOOM_EVERY;
+          // not on the player, not on an enemy about to spawn
+          const avoid = [
+              { x: player.x, y: player.y, r: 4 },
+              ...this.markers.map((marker) => ({ x: marker.x, y: marker.y, r: 1.2 })),
+            ],
+            pool = rlAddHazard250(arena, "acid", event.rng, arena.obs, arena.W, arena.H, {
+              avoid,
+              cap: 10,
+              size: [1.6, 2.3],
+              tries: 90,
+            });
+          if (pool) {
+            event.n++;
+            pool.grow = { r0: 0.3, to: pool.r, t0: event.t, dur: 2.5 };
+            pool.r = 0.3;
+            this.emit("hatch", { x: pool.x, y: pool.y, big: true });
+          }
+        }
+      } else if (event.id === "riftstorm" && arena.portals.length) {
+        if (!event.planned && event.t >= event.next - RL_STORM_WARN) {
+          event.planned = true;
+          const next = { portals: [] };
+          for (const portal of arena.portals) {
+            const avoid = [
+                { x: player.x, y: player.y, r: 3.5 },
+                { x: portal.ax, y: portal.ay, r: 3 },
+                { x: portal.bx, y: portal.by, r: 3 },
+              ],
+              pair = rlPortalPair250(event.rng, arena.obs, arena.W, arena.H, next, { avoid });
+            portal.next = pair;
+            if (pair) {
+              next.portals.push(pair);
+              this.emit("blinkWarn", { x: pair.ax, y: pair.ay });
+            }
+          }
+        }
+        for (const portal of arena.portals) {
+          if (portal.next) {
+            portal.moveIn = Math.max(0, event.next - event.t);
+          }
+        }
+        if (event.t >= event.next) {
+          event.next += RL_STORM_EVERY;
+          event.planned = false;
+          for (const portal of arena.portals) {
+            const dest = portal.next;
+            if (!dest) continue;
+            // the new spots must still be clear of the player (it may have walked there)
+            if (
+              Math.hypot(player.x - dest.ax, player.y - dest.ay) > 1.6 &&
+              Math.hypot(player.x - dest.bx, player.y - dest.by) > 1.6
+            ) {
+              this.emit("blink", { x: portal.ax, y: portal.ay, small: true, phase: true });
+              portal.ax = dest.ax;
+              portal.ay = dest.ay;
+              portal.bx = dest.bx;
+              portal.by = dest.by;
+              this.emit("blink", { x: portal.ax, y: portal.ay, small: true, phase: true });
+              this.emit("blink", { x: portal.bx, y: portal.by, small: true, phase: true });
+            }
+            portal.next = null;
+            portal.moveIn = 0;
+          }
+        }
       }
     }
-  }
-};
-const _rlUpdateFeatures250 = World.prototype.updateFeatures;
-World.prototype.updateFeatures = function (dt) {
-  if (this.bioEv && this.state === "fight") {
-    // 2.5.0: the player's Acid Coating puddles (mine) are not map pools: Spore Bloom neither grows
-    // them nor counts them when it looks for room or checks its pool cap
-    const all = this.arena.acid,
-      mine = all.filter((q) => q.mine);
-    if (mine.length) this.arena.acid = all.filter((q) => !q.mine);
-    try {
-      this.tickBiomeEvent(this.bioEv, dt);
-    } finally {
-      if (mine.length) this.arena.acid.push(...mine);
-    }
-  }
-  return _rlUpdateFeatures250.call(this, dt);
-};
+  };
 
 export { World, rlStep };

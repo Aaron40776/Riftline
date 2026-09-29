@@ -9,7 +9,7 @@
  in 2.3.1 Tempest/Aurora looked like Neon Yard (ΔE 6–20) and Catacombs like Requiem.
  Minimum grid distance between any two of the 19 biomes is now ΔE ≥ 30 (checked by
  rlBiomeDistinct in the deep test). Floor/fog/walls/light take the grid's hue. */
-var RL_PALETTES = {
+const RL_PALETTES = {
   vault: {
     floor: 0x0e1718,
     grid: 0xbfdfe3,
@@ -21,20 +21,24 @@ var RL_PALETTES = {
   },
 };
 function rlApplyBiomeFixes() {
-  for (const [id, p] of Object.entries(RL_PALETTES)) biomesById[id] && Object.assign(biomesById[id], p);
+  for (const [id, palette] of Object.entries(RL_PALETTES)) {
+    if (biomesById[id]) {
+      Object.assign(biomesById[id], palette);
+    }
+  }
 }
 
 /* ---- one hazard theme per biome (2.3.1). The wave director used to drop a
  rotating vent/ice/acid pool into EVERY biome, so lava vents appeared in the
  Cryo Vault and ice in Ember Works. Each biome now owns one hazard type. ---- */
-var RL_BIOME_HAZARD = {
+const RL_BIOME_HAZARD = {
   yard: "",
   works: "vents",
   vault: "ice",
   void: "portals",
   marsh: "acid",
 };
-var biomeList = [
+const biomeList = [
   {
     id: "yard",
     name: "Neon Yard",
@@ -131,20 +135,20 @@ var biomeList = [
     ],
   },
 ];
-var biomesById = Object.fromEntries(biomeList.map((i) => [i.id, i]));
+const biomesById = Object.fromEntries(biomeList.map((biome) => [biome.id, biome]));
 // 2.4.6: Void Core is always the fourth biome (waves 16–20), so the Rift Core stays the final
 // boss. Ember Works, Cryo Vault and Toxin Marsh are shuffled: two of them in waves 6–15, the third
 // from wave 21 in Endless.
-function planBiomeRoute(i) {
-  let t = biomeList
+function planBiomeRoute(rng) {
+  let ids = biomeList
     .slice(1)
-    .map((e) => e.id)
+    .map((biome) => biome.id)
     .filter((id) => id !== "void");
-  for (let e = t.length - 1; e > 0; e--) {
-    let n = Math.floor(i.next() * (e + 1));
-    [t[e], t[n]] = [t[n], t[e]];
+  for (let i = ids.length - 1; i > 0; i--) {
+    let j = Math.floor(rng.next() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
   }
-  return ["yard", t[0], t[1], "void", ...t.slice(2)];
+  return ["yard", ids[0], ids[1], "void", ...ids.slice(2)];
 }
 
 /* 2.4.0: 19 biomes → 5, and the biome changes after every boss again (it changed every wave
@@ -159,7 +163,7 @@ function planBiomeRoute(i) {
    Void Core    portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
  The look of each biome (floor, props, border, particles, light) is in the renderer part of
  2.4.0 further down. */
-var RL_BIOME_INFO = {
+const RL_BIOME_INFO = {
   yard: { tag: "Open ground" },
   works: {
     tag: "Lava vents",
@@ -179,7 +183,13 @@ var RL_BIOME_INFO = {
     mix: { striker: 2.2, phantom: 2.4, weaver: 2.2, leaper: 1.8, drone: 1.8, sniper: 0.6 },
   },
 };
-for (const [id, info] of Object.entries(RL_BIOME_INFO))
-  biomesById[id] && ((biomesById[id].tag = info.tag), info.grip && (biomesById[id].grip = info.grip));
+for (const [id, info] of Object.entries(RL_BIOME_INFO)) {
+  if (biomesById[id]) {
+    biomesById[id].tag = info.tag;
+    if (info.grip) {
+      biomesById[id].grip = info.grip;
+    }
+  }
+}
 
 export { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList, rlApplyBiomeFixes };

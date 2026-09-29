@@ -27,7 +27,7 @@ import {
 import { clamp, TAU, hashString, makeRng } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./renderer.js";
 
-var floorVertexShader = `
+const floorVertexShader = `
 #include <common>
 #include <fog_pars_vertex>
 varying vec2 vW;
@@ -87,147 +87,106 @@ void main() {
   #include <colorspace_fragment>
 }`,
   ArenaView = class {
-    constructor(t) {
-      ((this.scene = t),
-        (this.group = new Group()),
-        t.add(this.group),
-        (this.uniforms = UniformsUtils.merge([
-          UniformsLib.fog,
-          {
-            uBase: { value: new Color() },
-            uGrid: { value: new Color() },
-            uAccent: { value: new Color() },
-            uHalf: { value: new Vector2(18, 18) },
-            uPlayer: { value: new Vector2() },
-            uTime: { value: 0 },
-            uPulse: { value: 0 },
-            uDeco: { value: 0 },
-            uL: { value: Array.from({ length: 6 }, () => new Vector4()) },
-            uLC: { value: Array.from({ length: 6 }, () => new Color()) },
-          },
-        ])),
-        (this.floorMat = new ShaderMaterial({
+    constructor(scene) {
+      this.scene = scene;
+      this.group = new Group();
+      scene.add(this.group);
+      this.uniforms = UniformsUtils.merge([
+        UniformsLib.fog,
+        {
+          uBase: { value: new Color() },
+          uGrid: { value: new Color() },
+          uAccent: { value: new Color() },
+          uHalf: { value: new Vector2(18, 18) },
+          uPlayer: { value: new Vector2() },
+          uTime: { value: 0 },
+          uPulse: { value: 0 },
+          uDeco: { value: 0 },
+          uL: { value: Array.from({ length: 6 }, () => new Vector4()) },
+          uLC: { value: Array.from({ length: 6 }, () => new Color()) },
+        },
+      ]);
+      this.floorMat = new ShaderMaterial({
+        uniforms: this.uniforms,
+        vertexShader: floorVertexShader,
+        fragmentShader: floorFragmentShader,
+        fog: true,
+      });
+      this.biomeId = null;
+    }
+    // 2.4.0: the arena is rebuilt from scratch for every layout (as before); build() asks the biome
+    // for its border and props and switches the floor shader's style
+    build(biome, layout, animate = false) {
+      layout = layout || { key: biome.id + ":classic", W: biome.W, H: biome.H, obs: biome.obstacles, deco: 0 };
+      if (this.layKey === layout.key) return;
+      const first = this.layKey == null;
+      if (!this.rlFloor) {
+        // same uniforms, new fragment shader with one branch per biome style
+        this.uniforms.uStyle = { value: 0 };
+        this.floorMat.dispose();
+        this.floorMat = new ShaderMaterial({
           uniforms: this.uniforms,
           vertexShader: floorVertexShader,
-          fragmentShader: floorFragmentShader,
-          fog: !0,
-        })),
-        (this.biomeId = null));
-    }
-    build(t, e, n = !1) {
-      if (((e = e || { key: t.id + ":classic", W: t.W, H: t.H, obs: t.obstacles, deco: 0 }), this.layKey === e.key))
-        return;
-      let s = this.layKey == null;
-      ((this.layKey = e.key),
-        (this.biomeId = t.id),
-        this.group.traverse((b) => {
-          (b.geometry && b.geometry.dispose(), b.material && b.material !== this.floorMat && b.material.dispose());
-        }),
-        this.group.clear());
-      let r = this.uniforms;
-      (r.uBase.value.setHex(t.floor),
-        r.uGrid.value.setHex(t.grid),
-        r.uAccent.value.setHex(t.accent),
-        r.uHalf.value.set(e.W, e.H),
-        (r.uDeco.value = e.deco || 0));
-      let a = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
-      ((a.rotation.x = -Math.PI / 2), this.group.add(a));
-      let o = new MeshLambertMaterial({ color: t.wall }),
-        c = new MeshBasicMaterial({ color: t.grid, toneMapped: !1 }),
-        h = new MeshBasicMaterial({ color: t.accent, toneMapped: !1 }),
-        l = e.W,
-        u = e.H,
-        d = 0.5,
-        f = 0.7,
-        p = [
-          [0, -u - d / 2, l * 2 + d * 2, d],
-          [0, u + d / 2, l * 2 + d * 2, d],
-          [-l - d / 2, 0, d, u * 2],
-          [l + d / 2, 0, d, u * 2],
-        ];
-      for (let [b, v, S, T] of p) {
-        let R = new Mesh(new BoxGeometry(S, f, T), o);
-        (R.position.set(b, f / 2, v), this.group.add(R));
-        let _ = new Mesh(new BoxGeometry(S === d ? 0.08 : S, 0.06, T === d ? 0.08 : T), c);
-        (_.position.set(
-          b + (S === d ? (b < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
-          f + 0.03,
-          v + (T === d ? (v < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
-        ),
-          this.group.add(_));
+          fragmentShader: RL_FLOOR_FRAG,
+          fog: true,
+        });
+        this.rlFloor = true;
       }
-      for (let b of [-1, 1])
-        for (let v of [-1, 1]) {
-          let S = new Mesh(new BoxGeometry(0.9, 1.4, 0.9), o);
-          S.position.set(b * (l + 0.25), 0.7, v * (u + 0.25));
-          let T = new Mesh(new BoxGeometry(0.95, 0.08, 0.95), h);
-          (T.position.set(b * (l + 0.25), 1.42, v * (u + 0.25)), this.group.add(S, T));
+      this.layKey = layout.key;
+      this.biomeId = biome.id;
+      this.group.traverse((obj) => {
+        if (obj.geometry) {
+          obj.geometry.dispose();
         }
-      let x = new Group();
-      (this.group.add(x), (this.obsGroup = x));
-      let m = new MeshLambertMaterial({ color: new Color(t.wall).multiplyScalar(1.4) }),
-        g = new MeshLambertMaterial({
-          color: new Color(t.grid).multiplyScalar(0.55),
-          emissive: new Color(t.grid).multiplyScalar(0.12),
-          flatShading: !0,
-        }),
-        M = t.id;
-      for (let b of e.obs)
-        if (b.t === "c") {
-          if (M === "vault") {
-            let E = new Mesh(new CylinderGeometry(b.r * 0.35, b.r * 1.05, 1.8, 6), g);
-            (E.position.set(b.x, 0.9, b.y), (E.rotation.y = (b.x * 7 + b.y * 3) % 6));
-            let C = new Mesh(new OctahedronGeometry(b.r * 0.4), c);
-            C.position.set(b.x, 1.95, b.y);
-            let L = new Mesh(new TorusGeometry(b.r * 1.1, 0.04, 4, 24), h);
-            ((L.rotation.x = Math.PI / 2), L.position.set(b.x, 0.05, b.y), x.add(E, C, L));
-            continue;
-          }
-          let v = M === "works" ? 1.5 : 1.8,
-            S = new Mesh(new CylinderGeometry(b.r, b.r * 1.08, v, 20), m);
-          S.position.set(b.x, v / 2, b.y);
-          let T = new Mesh(new CylinderGeometry(b.r * 1.02, b.r * 1.02, 0.08, 20, 1, !0), c);
-          T.position.set(b.x, v * 0.75, b.y);
-          let R = new Mesh(new TorusGeometry(b.r * 1.1, 0.04, 4, 32), h);
-          ((R.rotation.x = Math.PI / 2), R.position.set(b.x, 0.05, b.y));
-          let _ = new Mesh(new CylinderGeometry(b.r * 0.6, b.r * 0.6, 0.06, 16), c);
-          if ((_.position.set(b.x, v + 0.03, b.y), x.add(S, T, R, _), M === "works")) {
-            let E = T.clone();
-            ((E.position.y = v * 0.35), x.add(E));
-          }
-        } else {
-          let v = M === "void" ? 1.75 : M === "vault" ? 1 : M === "yard" && b.w < 1.3 && b.h < 1.3 ? 1.1 : 1.3,
-            S = new Mesh(new BoxGeometry(b.w * 2, v, b.h * 2), M === "vault" ? g : m);
-          (S.position.set(b.x, v / 2, b.y), x.add(S));
-          let T = new Mesh(new BoxGeometry(b.w * 2 + 0.04, 0.07, 0.07), c);
-          for (let E of [-b.h, b.h]) {
-            let C = T.clone();
-            (C.position.set(b.x, v, b.y + E), x.add(C));
-          }
-          let R = new Mesh(new BoxGeometry(0.07, 0.07, b.h * 2 + 0.04), c);
-          for (let E of [-b.w, b.w]) {
-            let C = R.clone();
-            (C.position.set(b.x + E, v, b.y), x.add(C));
-          }
-          if (M === "void") {
-            let E = new Mesh(
-              new BoxGeometry(b.w > b.h ? b.w * 2 + 0.02 : 0.06, v * 0.7, b.w > b.h ? 0.06 : b.h * 2 + 0.02),
-              h,
-            );
-            (E.position.set(b.x, v * 0.5, b.y), x.add(E));
-          }
-          let _ = new Mesh(new BoxGeometry(b.w * 2 + 0.3, 0.05, b.h * 2 + 0.3), h);
-          (_.position.set(b.x, 0.03, b.y), x.add(_));
+        if (obj.material && obj.material !== this.floorMat) {
+          obj.material.dispose();
         }
-      ((this.rise = n && !s ? 0 : 1), (x.position.y = this.rise < 1 ? -2.6 : 0));
+      });
+      this.group.clear();
+      const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.yard,
+        uniforms = this.uniforms;
+      uniforms.uBase.value.setHex(biome.floor);
+      uniforms.uGrid.value.setHex(biome.grid);
+      uniforms.uAccent.value.setHex(biome.accent);
+      uniforms.uHalf.value.set(layout.W, layout.H);
+      uniforms.uDeco.value = look.style === 0 ? layout.deco || 0 : 0;
+      uniforms.uStyle.value = look.style;
+      const floor = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      this.group.add(floor);
+      const props = new Group();
+      this.group.add(props);
+      this.obsGroup = props;
+      this.rlAnim = [];
+      this.rlEmit = [];
+      (RL_BIOME_BUILD[biome.id] || RL_BIOME_BUILD.yard)(
+        this,
+        biome,
+        layout.W,
+        layout.H,
+        layout.obs,
+        makeRng(hashString(layout.key + ":look")),
+      );
+      this.rise = animate && !first ? 0 : 1;
+      props.position.y = this.rise < 1 ? -2.6 : 0;
     }
-    update(t, e, n, s) {
+    update(dt, px, pz, pulse) {
       if (this.obsGroup && this.rise < 1) {
-        this.rise = Math.min(1, this.rise + t / 0.7);
-        let r = 1 - Math.pow(1 - this.rise, 3);
-        this.obsGroup.position.y = -2.6 * (1 - r);
+        this.rise = Math.min(1, this.rise + dt / 0.7);
+        let ease = 1 - Math.pow(1 - this.rise, 3);
+        this.obsGroup.position.y = -2.6 * (1 - ease);
       }
-      ((this.uniforms.uTime.value += t), this.uniforms.uPlayer.value.set(e, n), (this.uniforms.uPulse.value = s));
+      this.uniforms.uTime.value += dt;
+      this.uniforms.uPlayer.value.set(px, pz);
+      this.uniforms.uPulse.value = pulse;
+      // 2.4.0: animated props (spinning and bobbing)
+      const time = this.uniforms.uTime.value;
+      for (const anim of this.rlAnim || []) {
+        const obj = anim.o;
+        if (anim.k === "spin" || anim.k === "spinbob") obj.rotation.y += dt * anim.s;
+        if (anim.k === "bob" || anim.k === "spinbob")
+          obj.position.y = anim.b + Math.sin(time * (anim.s || 1) + anim.ph) * (anim.a || 0.1);
+      }
     }
   };
 
@@ -246,14 +205,14 @@ void main() {
             rising void motes
    light    sun colour, sky and fog density (the marsh is foggy, the void dark)
  ---- */
-var RL_BIOME_LOOK = {
+const RL_BIOME_LOOK = {
   yard: { style: 0, hemi: 1.9, sun: 0xffffff, sunI: 1.5, fog: null },
   works: { style: 1, hemi: 1.6, sun: 0xffb27a, sunI: 1.75, fog: [1.35, 3.3] },
   vault: { style: 2, hemi: 2.2, sun: 0xd6ecff, sunI: 1.8, fog: [1.3, 3.2] },
   marsh: { style: 3, hemi: 1.6, sun: 0xdcffb8, sunI: 1.15, fog: [0.95, 2.5] },
   void: { style: 4, hemi: 1.35, sun: 0xd8c4ff, sunI: 1.05, fog: [1.7, 4.4] },
 };
-var RL_FLOOR_FRAG = `
+const RL_FLOOR_FRAG = `
 #include <common>
 #include <fog_pars_fragment>
 uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
@@ -391,302 +350,426 @@ void main() {
 // Instanced props (reeds, crystals, stripes, rocks): one draw call per kind.
 function rlInst(group, geo, mat, list) {
   if (!list.length) return null;
-  const m = new InstancedMesh(geo, mat, list.length),
-    o = new Object3D();
-  list.forEach((q, k) => {
-    o.position.set(q.x, q.y, q.z);
-    o.rotation.set(q.rx || 0, q.ry || 0, q.rz || 0);
-    o.scale.set(q.sx ?? 1, q.sy ?? 1, q.sz ?? 1);
-    o.updateMatrix();
-    m.setMatrixAt(k, o.matrix);
-    q.c != null && m.setColorAt(k, hexColor(q.c));
+  const mesh = new InstancedMesh(geo, mat, list.length),
+    dummy = new Object3D();
+  list.forEach((item, i) => {
+    dummy.position.set(item.x, item.y, item.z);
+    dummy.rotation.set(item.rx || 0, item.ry || 0, item.rz || 0);
+    dummy.scale.set(item.sx ?? 1, item.sy ?? 1, item.sz ?? 1);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    if (item.c != null) {
+      mesh.setColorAt(i, hexColor(item.c));
+    }
   });
-  m.frustumCulled = !1;
-  group.add(m);
-  return m;
+  mesh.frustumCulled = false;
+  group.add(mesh);
+  return mesh;
 }
 // Points along the border, `off` outside it, every `step` metres: fn(x, z, nx, nz)
 function rlAlongBorder(W, H, off, step, fn) {
-  const a = W + off,
-    b = H + off;
+  const outW = W + off,
+    outH = H + off;
   for (const [x0, z0, x1, z1, nx, nz] of [
-    [-a, -b, a, -b, 0, -1],
-    [a, -b, a, b, 1, 0],
-    [a, b, -a, b, 0, 1],
-    [-a, b, -a, -b, -1, 0],
+    [-outW, -outH, outW, -outH, 0, -1],
+    [outW, -outH, outW, outH, 1, 0],
+    [outW, outH, -outW, outH, 0, 1],
+    [-outW, outH, -outW, -outH, -1, 0],
   ]) {
-    const n = Math.max(1, Math.round(Math.hypot(x1 - x0, z1 - z0) / step));
-    for (let k = 0; k < n; k++) {
-      const f = (k + 0.5) / n;
-      fn(x0 + (x1 - x0) * f, z0 + (z1 - z0) * f, nx, nz);
+    const count = Math.max(1, Math.round(Math.hypot(x1 - x0, z1 - z0) / step));
+    for (let i = 0; i < count; i++) {
+      const frac = (i + 0.5) / count;
+      fn(x0 + (x1 - x0) * frac, z0 + (z1 - z0) * frac, nx, nz);
     }
   }
 }
 const rlMesh = (group, geo, mat, x, y, z, ry = 0) => {
-  const m = new Mesh(geo, mat);
-  m.position.set(x, y, z);
-  m.rotation.y = ry;
-  group.add(m);
-  return m;
+  const mesh = new Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.rotation.y = ry;
+  group.add(mesh);
+  return mesh;
 };
-const rlGlow = (c, opacity = 1) =>
-  new MeshBasicMaterial({ color: c, toneMapped: !1, transparent: opacity < 1, opacity });
+const rlGlow = (color, opacity = 1) =>
+  new MeshBasicMaterial({ color, toneMapped: false, transparent: opacity < 1, opacity });
 // A thin ring on the floor at the collision radius, so the footprint reads in every biome.
-const rlFootRing = (g, x, z, r, mat) => {
-  const q = rlMesh(g, new TorusGeometry(r, 0.04, 4, 32), mat, x, 0.05, z);
-  q.rotation.x = Math.PI / 2;
-  return q;
+const rlFootRing = (group, x, z, radius, mat) => {
+  const ring = rlMesh(group, new TorusGeometry(radius, 0.04, 4, 32), mat, x, 0.05, z);
+  ring.rotation.x = Math.PI / 2;
+  return ring;
 };
 // Outline slab under a box obstacle.
-const rlFootSlab = (g, b, mat, pad = 0.3) =>
-  rlMesh(g, new BoxGeometry(b.w * 2 + pad, 0.05, b.h * 2 + pad), mat, b.x, 0.03, b.y);
-var RL_BIOME_BUILD = {
+const rlFootSlab = (group, box, mat, pad = 0.3) =>
+  rlMesh(group, new BoxGeometry(box.w * 2 + pad, 0.05, box.h * 2 + pad), mat, box.x, 0.03, box.y);
+const RL_BIOME_BUILD = {
   // Neon Yard: the original arena (fence with neon trim, pylons and crates)
-  yard(A, t, W, H, obs) {
-    const g = A.group,
-      x = A.obsGroup,
-      o = new MeshLambertMaterial({ color: t.wall }),
-      c = new MeshBasicMaterial({ color: t.grid, toneMapped: !1 }),
-      h = new MeshBasicMaterial({ color: t.accent, toneMapped: !1 }),
-      d = 0.5,
-      f = 0.7;
+  yard(view, biome, W, H, obs) {
+    const group = view.group,
+      props = view.obsGroup,
+      wallMat = new MeshLambertMaterial({ color: biome.wall }),
+      gridMat = new MeshBasicMaterial({ color: biome.grid, toneMapped: false }),
+      accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false }),
+      wallW = 0.5,
+      wallH = 0.7;
     for (const [bx, bz, sx, sz] of [
-      [0, -H - d / 2, W * 2 + d * 2, d],
-      [0, H + d / 2, W * 2 + d * 2, d],
-      [-W - d / 2, 0, d, H * 2],
-      [W + d / 2, 0, d, H * 2],
+      [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
+      [0, H + wallW / 2, W * 2 + wallW * 2, wallW],
+      [-W - wallW / 2, 0, wallW, H * 2],
+      [W + wallW / 2, 0, wallW, H * 2],
     ]) {
-      rlMesh(g, new BoxGeometry(sx, f, sz), o, bx, f / 2, bz);
+      rlMesh(group, new BoxGeometry(sx, wallH, sz), wallMat, bx, wallH / 2, bz);
       rlMesh(
-        g,
-        new BoxGeometry(sx === d ? 0.08 : sx, 0.06, sz === d ? 0.08 : sz),
-        c,
-        bx + (sx === d ? (bx < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
-        f + 0.03,
-        bz + (sz === d ? (bz < 0 ? d / 2 - 0.04 : -d / 2 + 0.04) : 0),
+        group,
+        new BoxGeometry(sx === wallW ? 0.08 : sx, 0.06, sz === wallW ? 0.08 : sz),
+        gridMat,
+        bx + (sx === wallW ? (bx < 0 ? wallW / 2 - 0.04 : -wallW / 2 + 0.04) : 0),
+        wallH + 0.03,
+        bz + (sz === wallW ? (bz < 0 ? wallW / 2 - 0.04 : -wallW / 2 + 0.04) : 0),
       );
     }
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        rlMesh(g, new BoxGeometry(0.9, 1.4, 0.9), o, sx * (W + 0.25), 0.7, sz * (H + 0.25));
-        rlMesh(g, new BoxGeometry(0.95, 0.08, 0.95), h, sx * (W + 0.25), 1.42, sz * (H + 0.25));
+        rlMesh(group, new BoxGeometry(0.9, 1.4, 0.9), wallMat, sx * (W + 0.25), 0.7, sz * (H + 0.25));
+        rlMesh(group, new BoxGeometry(0.95, 0.08, 0.95), accentMat, sx * (W + 0.25), 1.42, sz * (H + 0.25));
       }
-    const m = new MeshLambertMaterial({ color: new Color(t.wall).multiplyScalar(1.4) });
-    for (const b of obs)
-      if (b.t === "c") {
-        const v = 1.8;
-        rlMesh(x, new CylinderGeometry(b.r, b.r * 1.08, v, 20), m, b.x, v / 2, b.y);
-        rlMesh(x, new CylinderGeometry(b.r * 1.02, b.r * 1.02, 0.08, 20, 1, !0), c, b.x, v * 0.75, b.y);
-        rlFootRing(x, b.x, b.y, b.r * 1.1, h);
-        rlMesh(x, new CylinderGeometry(b.r * 0.6, b.r * 0.6, 0.06, 16), c, b.x, v + 0.03, b.y);
+    const propMat = new MeshLambertMaterial({ color: new Color(biome.wall).multiplyScalar(1.4) });
+    for (const obstacle of obs)
+      if (obstacle.t === "c") {
+        const height = 1.8;
+        rlMesh(
+          props,
+          new CylinderGeometry(obstacle.r, obstacle.r * 1.08, height, 20),
+          propMat,
+          obstacle.x,
+          height / 2,
+          obstacle.y,
+        );
+        rlMesh(
+          props,
+          new CylinderGeometry(obstacle.r * 1.02, obstacle.r * 1.02, 0.08, 20, 1, true),
+          gridMat,
+          obstacle.x,
+          height * 0.75,
+          obstacle.y,
+        );
+        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.1, accentMat);
+        rlMesh(
+          props,
+          new CylinderGeometry(obstacle.r * 0.6, obstacle.r * 0.6, 0.06, 16),
+          gridMat,
+          obstacle.x,
+          height + 0.03,
+          obstacle.y,
+        );
       } else {
-        const v = b.w < 1.3 && b.h < 1.3 ? 1.1 : 1.3;
-        rlMesh(x, new BoxGeometry(b.w * 2, v, b.h * 2), m, b.x, v / 2, b.y);
-        for (const e of [-b.h, b.h]) rlMesh(x, new BoxGeometry(b.w * 2 + 0.04, 0.07, 0.07), c, b.x, v, b.y + e);
-        for (const e of [-b.w, b.w]) rlMesh(x, new BoxGeometry(0.07, 0.07, b.h * 2 + 0.04), c, b.x + e, v, b.y);
-        rlFootSlab(x, b, h);
+        const height = obstacle.w < 1.3 && obstacle.h < 1.3 ? 1.1 : 1.3;
+        rlMesh(
+          props,
+          new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2),
+          propMat,
+          obstacle.x,
+          height / 2,
+          obstacle.y,
+        );
+        for (const off of [-obstacle.h, obstacle.h])
+          rlMesh(
+            props,
+            new BoxGeometry(obstacle.w * 2 + 0.04, 0.07, 0.07),
+            gridMat,
+            obstacle.x,
+            height,
+            obstacle.y + off,
+          );
+        for (const off of [-obstacle.w, obstacle.w])
+          rlMesh(
+            props,
+            new BoxGeometry(0.07, 0.07, obstacle.h * 2 + 0.04),
+            gridMat,
+            obstacle.x + off,
+            height,
+            obstacle.y,
+          );
+        rlFootSlab(props, obstacle, accentMat);
       }
   },
   // Ember Works: steel wall with hazard stripes, furnaces in the corners, chimneys and machines
-  works(A, t, W, H, obs, R) {
-    const g = A.group,
-      x = A.obsGroup,
-      steel = new MeshLambertMaterial({ color: 0x2b2420, flatShading: !0 }),
-      dark = new MeshLambertMaterial({ color: t.wall, flatShading: !0 }),
-      pipe = new MeshLambertMaterial({ color: 0x3d3129, flatShading: !0 }),
-      glow = rlGlow(t.grid),
-      hot = rlGlow(t.accent),
-      d = 0.6,
-      f = 1.25;
+  works(view, biome, W, H, obs, rng) {
+    const group = view.group,
+      props = view.obsGroup,
+      steel = new MeshLambertMaterial({ color: 0x2b2420, flatShading: true }),
+      dark = new MeshLambertMaterial({ color: biome.wall, flatShading: true }),
+      pipe = new MeshLambertMaterial({ color: 0x3d3129, flatShading: true }),
+      glow = rlGlow(biome.grid),
+      hot = rlGlow(biome.accent),
+      wallW = 0.6,
+      wallH = 1.25;
     for (const [bx, bz, sx, sz] of [
-      [0, -H - d / 2, W * 2 + d * 2, d],
-      [0, H + d / 2, W * 2 + d * 2, d],
-      [-W - d / 2, 0, d, H * 2],
-      [W + d / 2, 0, d, H * 2],
+      [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
+      [0, H + wallW / 2, W * 2 + wallW * 2, wallW],
+      [-W - wallW / 2, 0, wallW, H * 2],
+      [W + wallW / 2, 0, wallW, H * 2],
     ]) {
-      rlMesh(g, new BoxGeometry(sx, f, sz), steel, bx, f / 2, bz);
+      rlMesh(group, new BoxGeometry(sx, wallH, sz), steel, bx, wallH / 2, bz);
       // a pipe along the inner face of every wall
       const along = sx > sz,
-        p = rlMesh(
-          g,
+        pipeMesh = rlMesh(
+          group,
           new CylinderGeometry(0.12, 0.12, along ? sx : sz, 8),
           pipe,
           bx + (along ? 0 : -Math.sign(bx) * 0.38),
           0.45,
           bz + (along ? -Math.sign(bz) * 0.38 : 0),
         );
-      along ? (p.rotation.z = Math.PI / 2) : (p.rotation.x = Math.PI / 2);
+      if (along) {
+        pipeMesh.rotation.z = Math.PI / 2;
+      } else {
+        pipeMesh.rotation.x = Math.PI / 2;
+      }
     }
     // hazard stripes on top of the wall: one instanced mesh, orange and black
     const stripes = [];
-    let k = 0;
-    rlAlongBorder(W, H, d / 2, 0.55, (px, pz, nx) =>
+    let stripe = 0;
+    rlAlongBorder(W, H, wallW / 2, 0.55, (px, pz, nx) =>
       stripes.push({
         x: px,
-        y: f + 0.05,
+        y: wallH + 0.05,
         z: pz,
         ry: nx ? Math.PI / 2 : 0,
         sx: 0.5,
         sy: 0.1,
-        sz: d + 0.02,
-        c: k++ % 2 ? 0x141210 : t.grid,
+        sz: wallW + 0.02,
+        c: stripe++ % 2 ? 0x141210 : biome.grid,
       }),
     );
-    rlInst(g, new BoxGeometry(1, 1, 1), new MeshBasicMaterial({ toneMapped: !1 }), stripes);
+    rlInst(group, new BoxGeometry(1, 1, 1), new MeshBasicMaterial({ toneMapped: false }), stripes);
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
         const cx = sx * (W + 0.55),
           cz = sz * (H + 0.55);
-        rlMesh(g, new BoxGeometry(1.6, 1.9, 1.6), dark, cx, 0.95, cz);
-        rlMesh(g, new BoxGeometry(1.64, 0.14, 0.5), hot, cx, 1.2, cz);
-        A.rlEmit.push({ x: cx, z: cz, y: 2.0, k: "spark" });
+        rlMesh(group, new BoxGeometry(1.6, 1.9, 1.6), dark, cx, 0.95, cz);
+        rlMesh(group, new BoxGeometry(1.64, 0.14, 0.5), hot, cx, 1.2, cz);
+        view.rlEmit.push({ x: cx, z: cz, y: 2.0, k: "spark" });
       }
-    for (const b of obs)
-      if (b.t === "c") {
+    for (const obstacle of obs)
+      if (obstacle.t === "c") {
         // chimney: steel stack, glowing band, fire in the mouth, sparks rising
-        const v = 2.4;
-        rlMesh(x, new CylinderGeometry(b.r * 0.78, b.r, v, 14), steel, b.x, v / 2, b.y);
-        rlMesh(x, new CylinderGeometry(b.r * 0.84, b.r * 0.86, 0.18, 14), glow, b.x, v * 0.68, b.y);
-        const rim = rlMesh(x, new TorusGeometry(b.r * 0.72, 0.09, 6, 20), dark, b.x, v, b.y);
+        const height = 2.4;
+        rlMesh(
+          props,
+          new CylinderGeometry(obstacle.r * 0.78, obstacle.r, height, 14),
+          steel,
+          obstacle.x,
+          height / 2,
+          obstacle.y,
+        );
+        rlMesh(
+          props,
+          new CylinderGeometry(obstacle.r * 0.84, obstacle.r * 0.86, 0.18, 14),
+          glow,
+          obstacle.x,
+          height * 0.68,
+          obstacle.y,
+        );
+        const rim = rlMesh(
+          props,
+          new TorusGeometry(obstacle.r * 0.72, 0.09, 6, 20),
+          dark,
+          obstacle.x,
+          height,
+          obstacle.y,
+        );
         rim.rotation.x = Math.PI / 2;
-        const mouth = rlMesh(x, new CircleGeometry(b.r * 0.66, 18), hot, b.x, v - 0.02, b.y);
+        const mouth = rlMesh(
+          props,
+          new CircleGeometry(obstacle.r * 0.66, 18),
+          hot,
+          obstacle.x,
+          height - 0.02,
+          obstacle.y,
+        );
         mouth.rotation.x = -Math.PI / 2;
-        rlFootRing(x, b.x, b.y, b.r * 1.08, glow);
-        A.rlEmit.push({ x: b.x, z: b.y, y: v + 0.1, k: "spark" });
+        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, glow);
+        view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: height + 0.1, k: "spark" });
       } else {
         // machine block: dark top plate, glowing seams, hot vents
-        const v = 1.1,
-          longX = b.w >= b.h;
-        rlMesh(x, new BoxGeometry(b.w * 2, v, b.h * 2), steel, b.x, v / 2, b.y);
+        const height = 1.1,
+          longX = obstacle.w >= obstacle.h;
         rlMesh(
-          x,
-          new BoxGeometry(Math.max(0.1, b.w * 2 - 0.2), 0.08, Math.max(0.1, b.h * 2 - 0.2)),
-          dark,
-          b.x,
-          v + 0.04,
-          b.y,
+          props,
+          new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2),
+          steel,
+          obstacle.x,
+          height / 2,
+          obstacle.y,
         );
-        for (const s of [-1, 1])
-          longX
-            ? rlMesh(x, new BoxGeometry(b.w * 2 + 0.02, 0.08, 0.04), glow, b.x, v * 0.55, b.y + s * b.h)
-            : rlMesh(x, new BoxGeometry(0.04, 0.08, b.h * 2 + 0.02), glow, b.x + s * b.w, v * 0.55, b.y);
-        const n = Math.max(1, Math.min(4, Math.floor(Math.max(b.w, b.h) / 0.6)));
-        for (let j = 0; j < n; j++) {
-          const f2 = (j + 0.5) / n - 0.5;
+        rlMesh(
+          props,
+          new BoxGeometry(Math.max(0.1, obstacle.w * 2 - 0.2), 0.08, Math.max(0.1, obstacle.h * 2 - 0.2)),
+          dark,
+          obstacle.x,
+          height + 0.04,
+          obstacle.y,
+        );
+        for (const side of [-1, 1]) {
+          if (longX) {
+            rlMesh(
+              props,
+              new BoxGeometry(obstacle.w * 2 + 0.02, 0.08, 0.04),
+              glow,
+              obstacle.x,
+              height * 0.55,
+              obstacle.y + side * obstacle.h,
+            );
+          } else {
+            rlMesh(
+              props,
+              new BoxGeometry(0.04, 0.08, obstacle.h * 2 + 0.02),
+              glow,
+              obstacle.x + side * obstacle.w,
+              height * 0.55,
+              obstacle.y,
+            );
+          }
+        }
+        const vents = Math.max(1, Math.min(4, Math.floor(Math.max(obstacle.w, obstacle.h) / 0.6)));
+        for (let j = 0; j < vents; j++) {
+          const pos = (j + 0.5) / vents - 0.5;
           rlMesh(
-            x,
+            props,
             new BoxGeometry(0.28, 0.06, 0.28),
             hot,
-            b.x + (longX ? f2 * b.w * 1.6 : 0),
-            v + 0.1,
-            b.y + (longX ? 0 : f2 * b.h * 1.6),
+            obstacle.x + (longX ? pos * obstacle.w * 1.6 : 0),
+            height + 0.1,
+            obstacle.y + (longX ? 0 : pos * obstacle.h * 1.6),
           );
         }
-        rlFootSlab(x, b, glow, 0.25);
+        rlFootSlab(props, obstacle, glow, 0.25);
       }
   },
   // Cryo Vault: ice wall crowned with crystals, crystal clusters and ice blocks with snow caps
-  vault(A, t, W, H, obs, R) {
-    const g = A.group,
-      x = A.obsGroup,
+  vault(view, biome, W, H, obs, rng) {
+    const group = view.group,
+      props = view.obsGroup,
       ice = new MeshLambertMaterial({
         color: 0x9fd8f0,
         emissive: 0x0c2a44,
-        transparent: !0,
+        transparent: true,
         opacity: 0.84,
-        flatShading: !0,
+        flatShading: true,
       }),
-      core = new MeshLambertMaterial({ color: 0x2a5a78, emissive: 0x061624, flatShading: !0 }),
-      snow = new MeshLambertMaterial({ color: 0xe8f4ff, emissive: 0x1a2a38, flatShading: !0 }),
-      glow = rlGlow(t.grid, 0.8),
-      d = 0.6,
-      f = 0.45;
+      core = new MeshLambertMaterial({ color: 0x2a5a78, emissive: 0x061624, flatShading: true }),
+      snow = new MeshLambertMaterial({ color: 0xe8f4ff, emissive: 0x1a2a38, flatShading: true }),
+      glow = rlGlow(biome.grid, 0.8),
+      wallW = 0.6,
+      wallH = 0.45;
     for (const [bx, bz, sx, sz] of [
-      [0, -H - d / 2, W * 2 + d * 2, d],
-      [0, H + d / 2, W * 2 + d * 2, d],
-      [-W - d / 2, 0, d, H * 2],
-      [W + d / 2, 0, d, H * 2],
+      [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
+      [0, H + wallW / 2, W * 2 + wallW * 2, wallW],
+      [-W - wallW / 2, 0, wallW, H * 2],
+      [W + wallW / 2, 0, wallW, H * 2],
     ])
-      rlMesh(g, new BoxGeometry(sx, f, sz), core, bx, f / 2, bz);
+      rlMesh(group, new BoxGeometry(sx, wallH, sz), core, bx, wallH / 2, bz);
     const spikes = [],
       tint = [0xbfe8ff, 0x9fd8f0, 0xdff4ff, 0x86c4e8];
     for (const off of [0.25, 0.85])
       rlAlongBorder(W, H, off, 0.75, (px, pz, nx, nz) => {
-        const h = R.range(0.7, off < 0.5 ? 1.5 : 2.4),
-          tilt = R.range(0.1, 0.35);
+        const len = rng.range(0.7, off < 0.5 ? 1.5 : 2.4),
+          tilt = rng.range(0.1, 0.35);
         spikes.push({
-          x: px + R.range(-0.2, 0.2) * (nz ? 1 : 0),
-          y: f + h / 2 - 0.1,
-          z: pz + R.range(-0.2, 0.2) * (nx ? 1 : 0),
+          x: px + rng.range(-0.2, 0.2) * (nz ? 1 : 0),
+          y: wallH + len / 2 - 0.1,
+          z: pz + rng.range(-0.2, 0.2) * (nx ? 1 : 0),
           rx: nz * tilt,
           rz: -nx * tilt,
-          ry: R.range(0, 6),
-          sx: R.range(0.7, 1.2),
-          sy: h,
-          sz: R.range(0.7, 1.2),
-          c: R.pick(tint),
+          ry: rng.range(0, 6),
+          sx: rng.range(0.7, 1.2),
+          sy: len,
+          sz: rng.range(0.7, 1.2),
+          c: rng.pick(tint),
         });
       });
     rlInst(
-      g,
+      group,
       new ConeGeometry(0.28, 1, 6),
-      new MeshLambertMaterial({ emissive: 0x0c2a44, transparent: !0, opacity: 0.88, flatShading: !0 }),
+      new MeshLambertMaterial({ emissive: 0x0c2a44, transparent: true, opacity: 0.88, flatShading: true }),
       spikes,
     );
-    for (const b of obs)
-      if (b.t === "c") {
+    for (const obstacle of obs)
+      if (obstacle.t === "c") {
         // crystal cluster: a tall hexagonal prism and four smaller ones leaning outwards
-        const main = rlMesh(x, new CylinderGeometry(b.r * 0.3, b.r * 0.5, 2.1, 6), ice, b.x, 1.05, b.y, R.range(0, 6));
-        main.rotation.z = R.range(-0.08, 0.08);
+        const main = rlMesh(
+          props,
+          new CylinderGeometry(obstacle.r * 0.3, obstacle.r * 0.5, 2.1, 6),
+          ice,
+          obstacle.x,
+          1.05,
+          obstacle.y,
+          rng.range(0, 6),
+        );
+        main.rotation.z = rng.range(-0.08, 0.08);
         for (let j = 0; j < 4; j++) {
-          const a = (j / 4) * Math.PI * 2 + R.range(-0.4, 0.4),
-            h = R.range(0.8, 1.4),
-            q = rlMesh(
-              x,
-              new CylinderGeometry(b.r * 0.14, b.r * 0.24, h, 6),
+          const angle = (j / 4) * Math.PI * 2 + rng.range(-0.4, 0.4),
+            len = rng.range(0.8, 1.4),
+            shard = rlMesh(
+              props,
+              new CylinderGeometry(obstacle.r * 0.14, obstacle.r * 0.24, len, 6),
               ice,
-              b.x + Math.cos(a) * b.r * 0.55,
-              h / 2 - 0.05,
-              b.y + Math.sin(a) * b.r * 0.55,
+              obstacle.x + Math.cos(angle) * obstacle.r * 0.55,
+              len / 2 - 0.05,
+              obstacle.y + Math.sin(angle) * obstacle.r * 0.55,
             );
-          q.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
+          shard.rotation.set(Math.sin(angle) * 0.35, 0, -Math.cos(angle) * 0.35);
         }
-        const frost = rlMesh(x, new CircleGeometry(b.r, 20), snow, b.x, 0.02, b.y);
+        const frost = rlMesh(props, new CircleGeometry(obstacle.r, 20), snow, obstacle.x, 0.02, obstacle.y);
         frost.rotation.x = -Math.PI / 2;
-        rlFootRing(x, b.x, b.y, b.r * 1.08, glow);
-        A.rlEmit.push({ x: b.x, z: b.y, y: 2.0, k: "glint" });
+        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, glow);
+        view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 2.0, k: "glint" });
       } else {
         // ice block: clear shell, dark core, snow cap
-        const v = 1.05;
-        rlMesh(x, new BoxGeometry(b.w * 2 * 0.72, v * 0.8, b.h * 2 * 0.72), core, b.x, v * 0.42, b.y);
-        rlMesh(x, new BoxGeometry(b.w * 2, v, b.h * 2), ice, b.x, v / 2, b.y);
-        rlMesh(x, new BoxGeometry(b.w * 2 + 0.1, 0.14, b.h * 2 + 0.1), snow, b.x, v + 0.05, b.y);
-        rlFootSlab(x, b, glow, 0.25);
+        const height = 1.05;
+        rlMesh(
+          props,
+          new BoxGeometry(obstacle.w * 2 * 0.72, height * 0.8, obstacle.h * 2 * 0.72),
+          core,
+          obstacle.x,
+          height * 0.42,
+          obstacle.y,
+        );
+        rlMesh(props, new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2), ice, obstacle.x, height / 2, obstacle.y);
+        rlMesh(
+          props,
+          new BoxGeometry(obstacle.w * 2 + 0.1, 0.14, obstacle.h * 2 + 0.1),
+          snow,
+          obstacle.x,
+          height + 0.05,
+          obstacle.y,
+        );
+        rlFootSlab(props, obstacle, glow, 0.25);
       }
   },
   // Toxin Marsh: a mud bank with reeds and rocks, mushrooms, dead trees and mossy logs
-  marsh(A, t, W, H, obs, R) {
-    const g = A.group,
-      x = A.obsGroup,
-      bark = new MeshLambertMaterial({ color: 0x2e2a1c, flatShading: !0 }),
-      moss = new MeshLambertMaterial({ color: 0x2f5a22, emissive: 0x0a1a06, flatShading: !0 }),
-      stem = new MeshLambertMaterial({ color: 0xcfc8a8, flatShading: !0 }),
-      cap = new MeshLambertMaterial({ color: 0x6a3a8a, emissive: 0x1a0826, flatShading: !0 }),
+  marsh(view, biome, W, H, obs, rng) {
+    const group = view.group,
+      props = view.obsGroup,
+      bark = new MeshLambertMaterial({ color: 0x2e2a1c, flatShading: true }),
+      moss = new MeshLambertMaterial({ color: 0x2f5a22, emissive: 0x0a1a06, flatShading: true }),
+      stem = new MeshLambertMaterial({ color: 0xcfc8a8, flatShading: true }),
+      cap = new MeshLambertMaterial({ color: 0x6a3a8a, emissive: 0x1a0826, flatShading: true }),
       gill = new MeshLambertMaterial({ color: 0x1c1024 }),
-      spot = rlGlow(t.accent),
-      ring = rlGlow(t.grid, 0.55),
-      wood = new MeshLambertMaterial({ color: 0x6a5a3a, flatShading: !0 }),
-      d = 1.2;
+      spot = rlGlow(biome.accent),
+      ring = rlGlow(biome.grid, 0.55),
+      wood = new MeshLambertMaterial({ color: 0x6a5a3a, flatShading: true }),
+      wallW = 1.2;
     for (const [bx, bz, sx, sz] of [
-      [0, -H - d / 2, W * 2 + d * 2, d],
-      [0, H + d / 2, W * 2 + d * 2, d],
-      [-W - d / 2, 0, d, H * 2],
-      [W + d / 2, 0, d, H * 2],
+      [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
+      [0, H + wallW / 2, W * 2 + wallW * 2, wallW],
+      [-W - wallW / 2, 0, wallW, H * 2],
+      [W + wallW / 2, 0, wallW, H * 2],
     ])
       rlMesh(
-        g,
+        group,
         new BoxGeometry(sx, 0.22, sz),
-        new MeshLambertMaterial({ color: 0x1a2414, flatShading: !0 }),
+        new MeshLambertMaterial({ color: 0x1a2414, flatShading: true }),
         bx,
         0.11,
         bz,
@@ -696,274 +779,275 @@ var RL_BIOME_BUILD = {
       green = [0x5a7a2a, 0x4a6a24, 0x6f8a34, 0x3e5a20];
     rlAlongBorder(W, H, 0.55, 0.4, (px, pz, nx, nz) => {
       for (let j = 0; j < 2; j++) {
-        const h = R.range(0.9, 2.3),
-          o = R.range(-0.45, 0.6);
+        const len = rng.range(0.9, 2.3),
+          off = rng.range(-0.45, 0.6);
         reeds.push({
-          x: px + nx * o + R.range(-0.2, 0.2) * (nz ? 1 : 0),
-          y: h / 2,
-          z: pz + nz * o + R.range(-0.2, 0.2) * (nx ? 1 : 0),
-          rx: R.range(-0.15, 0.15),
-          rz: R.range(-0.15, 0.15),
-          sy: h,
-          c: R.pick(green),
+          x: px + nx * off + rng.range(-0.2, 0.2) * (nz ? 1 : 0),
+          y: len / 2,
+          z: pz + nz * off + rng.range(-0.2, 0.2) * (nx ? 1 : 0),
+          rx: rng.range(-0.15, 0.15),
+          rz: rng.range(-0.15, 0.15),
+          sy: len,
+          c: rng.pick(green),
         });
       }
     });
     rlAlongBorder(W, H, 1.3, 2.6, (px, pz) => {
-      const s = R.range(0.5, 1.2);
+      const size = rng.range(0.5, 1.2);
       rocks.push({
-        x: px + R.range(-0.4, 0.4),
-        y: s * 0.25,
-        z: pz + R.range(-0.4, 0.4),
-        ry: R.range(0, 6),
-        rx: R.range(0, 1),
-        sx: s,
-        sy: s * 0.6,
-        sz: s * R.range(0.8, 1.2),
-        c: R.pick([0x2a3328, 0x333a2c, 0x262e24]),
+        x: px + rng.range(-0.4, 0.4),
+        y: size * 0.25,
+        z: pz + rng.range(-0.4, 0.4),
+        ry: rng.range(0, 6),
+        rx: rng.range(0, 1),
+        sx: size,
+        sy: size * 0.6,
+        sz: size * rng.range(0.8, 1.2),
+        c: rng.pick([0x2a3328, 0x333a2c, 0x262e24]),
       });
     });
-    rlInst(g, new CylinderGeometry(0.03, 0.05, 1, 4), new MeshLambertMaterial({ flatShading: !0 }), reeds);
-    rlInst(g, new DodecahedronGeometry(0.6), new MeshLambertMaterial({ flatShading: !0 }), rocks);
-    for (const b of obs)
-      if (b.t === "c") {
-        if (R.chance(0.55)) {
+    rlInst(group, new CylinderGeometry(0.03, 0.05, 1, 4), new MeshLambertMaterial({ flatShading: true }), reeds);
+    rlInst(group, new DodecahedronGeometry(0.6), new MeshLambertMaterial({ flatShading: true }), rocks);
+    for (const obstacle of obs)
+      if (obstacle.t === "c") {
+        if (rng.chance(0.55)) {
           // giant mushroom: pale stem, purple cap with glowing spots, spores drifting up
-          rlMesh(x, new CylinderGeometry(b.r * 0.22, b.r * 0.32, 1.25, 8), stem, b.x, 0.62, b.y);
-          const c2 = rlMesh(
-            x,
-            new SphereGeometry(b.r * 1.02, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-            cap,
-            b.x,
-            1.18,
-            b.y,
+          rlMesh(
+            props,
+            new CylinderGeometry(obstacle.r * 0.22, obstacle.r * 0.32, 1.25, 8),
+            stem,
+            obstacle.x,
+            0.62,
+            obstacle.y,
           );
-          c2.scale.y = 0.6;
-          const under = rlMesh(x, new CircleGeometry(b.r * 1.0, 18), gill, b.x, 1.18, b.y);
+          const capMesh = rlMesh(
+            props,
+            new SphereGeometry(obstacle.r * 1.02, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+            cap,
+            obstacle.x,
+            1.18,
+            obstacle.y,
+          );
+          capMesh.scale.y = 0.6;
+          const under = rlMesh(props, new CircleGeometry(obstacle.r * 1.0, 18), gill, obstacle.x, 1.18, obstacle.y);
           under.rotation.x = Math.PI / 2;
           for (let j = 0; j < 6; j++) {
-            const a = R.range(0, Math.PI * 2),
-              el = R.range(0.25, 1.2);
+            const angle = rng.range(0, Math.PI * 2),
+              el = rng.range(0.25, 1.2);
             rlMesh(
-              x,
-              new SphereGeometry(R.range(0.06, 0.12), 6, 4),
+              props,
+              new SphereGeometry(rng.range(0.06, 0.12), 6, 4),
               spot,
-              b.x + Math.cos(a) * Math.sin(el) * b.r,
-              1.18 + Math.cos(el) * b.r * 0.6,
-              b.y + Math.sin(a) * Math.sin(el) * b.r,
+              obstacle.x + Math.cos(angle) * Math.sin(el) * obstacle.r,
+              1.18 + Math.cos(el) * obstacle.r * 0.6,
+              obstacle.y + Math.sin(angle) * Math.sin(el) * obstacle.r,
             );
           }
-          A.rlEmit.push({ x: b.x, z: b.y, y: 1.2 + b.r * 0.6, k: "spore" });
+          view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 1.2 + obstacle.r * 0.6, k: "spore" });
         } else {
           // dead tree: bare trunk, crooked branches, roots and a collar of moss
-          rlMesh(x, new CylinderGeometry(b.r * 0.26, b.r * 0.55, 2.2, 7), bark, b.x, 1.1, b.y, R.range(0, 6));
+          rlMesh(
+            props,
+            new CylinderGeometry(obstacle.r * 0.26, obstacle.r * 0.55, 2.2, 7),
+            bark,
+            obstacle.x,
+            1.1,
+            obstacle.y,
+            rng.range(0, 6),
+          );
           for (let j = 0; j < 3; j++) {
-            const a = R.range(0, Math.PI * 2),
-              q = rlMesh(
-                x,
+            const angle = rng.range(0, Math.PI * 2),
+              branch = rlMesh(
+                props,
                 new CylinderGeometry(0.04, 0.1, 1.0, 5),
                 bark,
-                b.x + Math.cos(a) * 0.3,
-                R.range(1.5, 2.1),
-                b.y + Math.sin(a) * 0.3,
+                obstacle.x + Math.cos(angle) * 0.3,
+                rng.range(1.5, 2.1),
+                obstacle.y + Math.sin(angle) * 0.3,
               );
-            q.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
+            branch.rotation.set(Math.sin(angle) * 0.9, 0, -Math.cos(angle) * 0.9);
           }
           for (let j = 0; j < 4; j++) {
-            const a = (j / 4) * Math.PI * 2 + R.range(-0.3, 0.3),
-              q = rlMesh(
-                x,
-                new CylinderGeometry(0.05, b.r * 0.18, b.r * 0.9, 5),
+            const angle = (j / 4) * Math.PI * 2 + rng.range(-0.3, 0.3),
+              root = rlMesh(
+                props,
+                new CylinderGeometry(0.05, obstacle.r * 0.18, obstacle.r * 0.9, 5),
                 bark,
-                b.x + Math.cos(a) * b.r * 0.55,
+                obstacle.x + Math.cos(angle) * obstacle.r * 0.55,
                 0.16,
-                b.y + Math.sin(a) * b.r * 0.55,
+                obstacle.y + Math.sin(angle) * obstacle.r * 0.55,
               );
-            q.rotation.set(Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2);
+            root.rotation.set(Math.sin(angle) * 1.2, 0, -Math.cos(angle) * 1.2);
           }
-          const col = rlMesh(x, new TorusGeometry(b.r * 0.5, 0.14, 5, 14), moss, b.x, 0.14, b.y);
+          const col = rlMesh(
+            props,
+            new TorusGeometry(obstacle.r * 0.5, 0.14, 5, 14),
+            moss,
+            obstacle.x,
+            0.14,
+            obstacle.y,
+          );
           col.rotation.x = Math.PI / 2;
         }
-        rlFootRing(x, b.x, b.y, b.r * 1.08, ring);
+        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, ring);
       } else {
         // fallen log along the long side, moss on top, two small glowing mushrooms
-        const longX = b.w >= b.h,
-          L = Math.max(b.w, b.h) * 2,
-          rad = Math.max(0.3, Math.min(b.w, b.h) * 0.9),
-          log = rlMesh(x, new CylinderGeometry(rad, rad * 1.05, L, 10), bark, b.x, rad, b.y);
-        longX ? (log.rotation.z = Math.PI / 2) : (log.rotation.x = Math.PI / 2);
+        const longX = obstacle.w >= obstacle.h,
+          len = Math.max(obstacle.w, obstacle.h) * 2,
+          rad = Math.max(0.3, Math.min(obstacle.w, obstacle.h) * 0.9),
+          log = rlMesh(props, new CylinderGeometry(rad, rad * 1.05, len, 10), bark, obstacle.x, rad, obstacle.y);
+        if (longX) {
+          log.rotation.z = Math.PI / 2;
+        } else {
+          log.rotation.x = Math.PI / 2;
+        }
         rlMesh(
-          x,
-          new BoxGeometry(longX ? L * 0.8 : rad * 1.1, 0.1, longX ? rad * 1.1 : L * 0.8),
+          props,
+          new BoxGeometry(longX ? len * 0.8 : rad * 1.1, 0.1, longX ? rad * 1.1 : len * 0.8),
           moss,
-          b.x,
+          obstacle.x,
           rad * 1.95,
-          b.y,
+          obstacle.y,
         );
-        for (const s of [-1, 1]) {
-          const e = rlMesh(
-            x,
+        for (const side of [-1, 1]) {
+          const endCap = rlMesh(
+            props,
             new CircleGeometry(rad * 0.92, 12),
             wood,
-            b.x + (longX ? (s * L) / 2 + s * 0.02 : 0),
+            obstacle.x + (longX ? (side * len) / 2 + side * 0.02 : 0),
             rad,
-            b.y + (longX ? 0 : (s * L) / 2 + s * 0.02),
+            obstacle.y + (longX ? 0 : (side * len) / 2 + side * 0.02),
           );
-          longX ? (e.rotation.y = (s * Math.PI) / 2) : (e.rotation.y = s > 0 ? 0 : Math.PI);
+          if (longX) {
+            endCap.rotation.y = (side * Math.PI) / 2;
+          } else {
+            endCap.rotation.y = side > 0 ? 0 : Math.PI;
+          }
         }
         for (let j = 0; j < 2; j++) {
-          const f2 = R.range(-0.3, 0.3) * L,
-            mx = b.x + (longX ? f2 : 0),
-            mz = b.y + (longX ? 0 : f2);
-          rlMesh(x, new CylinderGeometry(0.04, 0.05, 0.25, 5), stem, mx, rad * 2 + 0.12, mz);
-          rlMesh(x, new SphereGeometry(0.13, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), spot, mx, rad * 2 + 0.24, mz);
+          const pos = rng.range(-0.3, 0.3) * len,
+            mx = obstacle.x + (longX ? pos : 0),
+            mz = obstacle.y + (longX ? 0 : pos);
+          rlMesh(props, new CylinderGeometry(0.04, 0.05, 0.25, 5), stem, mx, rad * 2 + 0.12, mz);
+          rlMesh(props, new SphereGeometry(0.13, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), spot, mx, rad * 2 + 0.24, mz);
         }
-        rlFootSlab(x, b, ring, 0.2);
+        rlFootSlab(props, obstacle, ring, 0.2);
       }
   },
   // Void Core: an energy barrier over the abyss, floating obelisks and hovering monoliths
-  void(A, t, W, H, obs, R) {
-    const g = A.group,
-      x = A.obsGroup,
-      obsid = new MeshLambertMaterial({ color: 0x2a1a4a, emissive: 0x12072a, flatShading: !0 }),
-      rim = rlGlow(t.grid),
-      hot = rlGlow(t.accent),
-      wall = additiveMaterial(null, { color: t.grid, opacity: 0.13, side: DoubleSide }),
-      f = 1.8;
+  void(view, biome, W, H, obs, rng) {
+    const group = view.group,
+      props = view.obsGroup,
+      obsid = new MeshLambertMaterial({ color: 0x2a1a4a, emissive: 0x12072a, flatShading: true }),
+      rim = rlGlow(biome.grid),
+      hot = rlGlow(biome.accent),
+      wall = additiveMaterial(null, { color: biome.grid, opacity: 0.13, side: DoubleSide }),
+      wallH = 1.8;
     for (const [bx, bz, len, rot] of [
       [0, -H, W * 2, 0],
       [0, H, W * 2, 0],
       [-W, 0, H * 2, Math.PI / 2],
       [W, 0, H * 2, Math.PI / 2],
     ]) {
-      rlMesh(g, new PlaneGeometry(len, f), wall, bx, f / 2, bz, rot);
-      rlMesh(g, new BoxGeometry(rot ? 0.06 : len, 0.05, rot ? len : 0.06), rim, bx, 0.03, bz);
-      rlMesh(g, new BoxGeometry(rot ? 0.04 : len, 0.03, rot ? len : 0.04), rim, bx, f, bz);
+      rlMesh(group, new PlaneGeometry(len, wallH), wall, bx, wallH / 2, bz, rot);
+      rlMesh(group, new BoxGeometry(rot ? 0.06 : len, 0.05, rot ? len : 0.06), rim, bx, 0.03, bz);
+      rlMesh(group, new BoxGeometry(rot ? 0.04 : len, 0.03, rot ? len : 0.04), rim, bx, wallH, bz);
     }
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        const q = rlMesh(g, new OctahedronGeometry(0.45), hot, sx * W, 1.3, sz * H);
-        q.scale.y = 1.8;
-        A.rlAnim.push({ o: q, k: "spin", s: 1.2, b: 1.3, ph: sx + sz * 2 });
+        const crystal = rlMesh(group, new OctahedronGeometry(0.45), hot, sx * W, 1.3, sz * H);
+        crystal.scale.y = 1.8;
+        view.rlAnim.push({ o: crystal, k: "spin", s: 1.2, b: 1.3, ph: sx + sz * 2 });
       }
     // rocks drifting in the abyss around the arena
     const rocks = [];
     for (let j = 0; j < 46; j++) {
-      const side = R.int(0, 3),
-        along = R.range(-1, 1),
-        out = R.range(1.6, 9),
+      const side = rng.int(0, 3),
+        along = rng.range(-1, 1),
+        out = rng.range(1.6, 9),
         px = side < 2 ? along * (W + 6) : (side === 2 ? -1 : 1) * (W + out),
         pz = side < 2 ? (side === 0 ? -1 : 1) * (H + out) : along * (H + 6),
-        s = R.range(0.3, 1.3);
+        size = rng.range(0.3, 1.3);
       rocks.push({
         x: px,
-        y: R.range(-3, 0.4),
+        y: rng.range(-3, 0.4),
         z: pz,
-        rx: R.range(0, 6),
-        ry: R.range(0, 6),
-        sx: s,
-        sy: s * R.range(0.6, 1.2),
-        sz: s,
-        c: R.pick([0x2a1c44, 0x1e1434, 0x352654]),
+        rx: rng.range(0, 6),
+        ry: rng.range(0, 6),
+        sx: size,
+        sy: size * rng.range(0.6, 1.2),
+        sz: size,
+        c: rng.pick([0x2a1c44, 0x1e1434, 0x352654]),
       });
     }
     const drift = new Group();
-    g.add(drift);
+    group.add(drift);
     rlInst(
       drift,
       new DodecahedronGeometry(0.8),
-      new MeshLambertMaterial({ emissive: 0x0a0418, flatShading: !0 }),
+      new MeshLambertMaterial({ emissive: 0x0a0418, flatShading: true }),
       rocks,
     );
-    A.rlAnim.push({ o: drift, k: "bob", b: 0, ph: 0, a: 0.25, s: 0.35 });
-    for (const b of obs)
-      if (b.t === "c") {
+    view.rlAnim.push({ o: drift, k: "bob", b: 0, ph: 0, a: 0.25, s: 0.35 });
+    for (const obstacle of obs)
+      if (obstacle.t === "c") {
         // floating obelisk with an orbiting ring over a rune circle
-        const ob = rlMesh(x, new OctahedronGeometry(b.r * 0.72), obsid, b.x, 1.6, b.y);
-        ob.scale.y = 2.3;
-        A.rlAnim.push({ o: ob, k: "spinbob", s: 0.6, b: 1.6, ph: b.x * 1.7 + b.y, a: 0.12 });
-        const orb = rlMesh(x, new TorusGeometry(b.r * 0.95, 0.04, 4, 32), hot, b.x, 1.6, b.y);
+        const obelisk = rlMesh(props, new OctahedronGeometry(obstacle.r * 0.72), obsid, obstacle.x, 1.6, obstacle.y);
+        obelisk.scale.y = 2.3;
+        view.rlAnim.push({ o: obelisk, k: "spinbob", s: 0.6, b: 1.6, ph: obstacle.x * 1.7 + obstacle.y, a: 0.12 });
+        const orb = rlMesh(props, new TorusGeometry(obstacle.r * 0.95, 0.04, 4, 32), hot, obstacle.x, 1.6, obstacle.y);
         orb.rotation.x = 1.2;
-        A.rlAnim.push({ o: orb, k: "spin", s: 1.4, b: 1.6, ph: b.y });
-        rlFootRing(x, b.x, b.y, b.r * 1.08, rim);
+        view.rlAnim.push({ o: orb, k: "spin", s: 1.4, b: 1.6, ph: obstacle.y });
+        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, rim);
         const pad = rlMesh(
-          x,
-          new CircleGeometry(b.r * 0.95, 24),
-          additiveMaterial(null, { color: t.accent, opacity: 0.16 }),
-          b.x,
+          props,
+          new CircleGeometry(obstacle.r * 0.95, 24),
+          additiveMaterial(null, { color: biome.accent, opacity: 0.16 }),
+          obstacle.x,
           0.04,
-          b.y,
+          obstacle.y,
         );
         pad.rotation.x = -Math.PI / 2;
-        A.rlEmit.push({ x: b.x, z: b.y, y: 0.6, k: "mote" });
+        view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 0.6, k: "mote" });
       } else {
         // monolith hovering above its outline, glowing seams on the edges
-        const v = 2.0,
+        const height = 2.0,
           mono = new Group();
-        mono.position.set(b.x, 0.3 + v / 2, b.y);
-        x.add(mono);
-        rlMesh(mono, new BoxGeometry(b.w * 2 * 0.92, v, b.h * 2 * 0.92), obsid, 0, 0, 0);
+        mono.position.set(obstacle.x, 0.3 + height / 2, obstacle.y);
+        props.add(mono);
+        rlMesh(mono, new BoxGeometry(obstacle.w * 2 * 0.92, height, obstacle.h * 2 * 0.92), obsid, 0, 0, 0);
         for (const sx of [-1, 1])
           for (const sz of [-1, 1])
-            rlMesh(mono, new BoxGeometry(0.05, v + 0.02, 0.05), rim, sx * b.w * 0.92, 0, sz * b.h * 0.92);
-        for (const s of [-1, 1]) {
-          rlMesh(mono, new BoxGeometry(b.w * 2 * 0.92 + 0.04, 0.05, 0.05), hot, 0, v / 2, s * b.h * 0.92);
-          rlMesh(mono, new BoxGeometry(0.05, 0.05, b.h * 2 * 0.92 + 0.04), hot, s * b.w * 0.92, v / 2, 0);
+            rlMesh(
+              mono,
+              new BoxGeometry(0.05, height + 0.02, 0.05),
+              rim,
+              sx * obstacle.w * 0.92,
+              0,
+              sz * obstacle.h * 0.92,
+            );
+        for (const side of [-1, 1]) {
+          rlMesh(
+            mono,
+            new BoxGeometry(obstacle.w * 2 * 0.92 + 0.04, 0.05, 0.05),
+            hot,
+            0,
+            height / 2,
+            side * obstacle.h * 0.92,
+          );
+          rlMesh(
+            mono,
+            new BoxGeometry(0.05, 0.05, obstacle.h * 2 * 0.92 + 0.04),
+            hot,
+            side * obstacle.w * 0.92,
+            height / 2,
+            0,
+          );
         }
-        A.rlAnim.push({ o: mono, k: "bob", b: 0.3 + v / 2, ph: b.x + b.y * 0.7, a: 0.1, s: 1.1 });
-        rlFootSlab(x, b, rim, 0.2);
+        view.rlAnim.push({ o: mono, k: "bob", b: 0.3 + height / 2, ph: obstacle.x + obstacle.y * 0.7, a: 0.1, s: 1.1 });
+        rlFootSlab(props, obstacle, rim, 0.2);
       }
   },
-};
-
-/* The arena is rebuilt from scratch for every layout (as before); build() now asks the biome
- for its border and props and switches the floor shader's style. */
-ArenaView.prototype.build = function (t, e, n = !1) {
-  if (((e = e || { key: t.id + ":classic", W: t.W, H: t.H, obs: t.obstacles, deco: 0 }), this.layKey === e.key)) return;
-  const first = this.layKey == null;
-  if (!this.rlFloor) {
-    // same uniforms, new fragment shader with one branch per biome style
-    this.uniforms.uStyle = { value: 0 };
-    this.floorMat.dispose();
-    this.floorMat = new ShaderMaterial({
-      uniforms: this.uniforms,
-      vertexShader: floorVertexShader,
-      fragmentShader: RL_FLOOR_FRAG,
-      fog: !0,
-    });
-    this.rlFloor = !0;
-  }
-  ((this.layKey = e.key), (this.biomeId = t.id));
-  this.group.traverse((b) => {
-    (b.geometry && b.geometry.dispose(), b.material && b.material !== this.floorMat && b.material.dispose());
-  });
-  this.group.clear();
-  const look = RL_BIOME_LOOK[t.id] || RL_BIOME_LOOK.yard,
-    r = this.uniforms;
-  (r.uBase.value.setHex(t.floor),
-    r.uGrid.value.setHex(t.grid),
-    r.uAccent.value.setHex(t.accent),
-    r.uHalf.value.set(e.W, e.H),
-    (r.uDeco.value = look.style === 0 ? e.deco || 0 : 0),
-    (r.uStyle.value = look.style));
-  const floor = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
-  ((floor.rotation.x = -Math.PI / 2), this.group.add(floor));
-  const x = new Group();
-  (this.group.add(x), (this.obsGroup = x));
-  this.rlAnim = [];
-  this.rlEmit = [];
-  (RL_BIOME_BUILD[t.id] || RL_BIOME_BUILD.yard)(this, t, e.W, e.H, e.obs, makeRng(hashString(e.key + ":look")));
-  ((this.rise = n && !first ? 0 : 1), (x.position.y = this.rise < 1 ? -2.6 : 0));
-};
-const _rlArenaUpdate240 = ArenaView.prototype.update;
-ArenaView.prototype.update = function (t, e, n, s) {
-  _rlArenaUpdate240.call(this, t, e, n, s);
-  const T = this.uniforms.uTime.value;
-  for (const a of this.rlAnim || []) {
-    const o = a.o;
-    if (a.k === "spin" || a.k === "spinbob") o.rotation.y += t * a.s;
-    if (a.k === "bob" || a.k === "spinbob") o.position.y = a.b + Math.sin(T * (a.s || 1) + a.ph) * (a.a || 0.1);
-  }
 };
 
 // Ambient particles: the air of the biome, around the camera, plus sparks/spores/glints from props.
@@ -973,28 +1057,28 @@ const RL_C = {
   snow: new Color(0xdceeff),
   white: new Color(0xffffff),
 };
-function rlAmbient(R, dt, w, opt) {
-  const b = R.biome,
-    A = R.arena;
-  if (!b || !(dt > 0) || dt > 0.25) return;
-  const k = Math.min(1, R.maxParticles / 1400) * (opt.menu || !w ? 0.6 : 1),
-    W = A.uniforms.uHalf.value.x,
-    H = A.uniforms.uHalf.value.y,
-    cx = opt.menu || !w ? 0 : R.camX,
-    cz = opt.menu || !w ? 0 : R.camZ,
+function rlAmbient(renderer, dt, world, opt) {
+  const biome = renderer.biome,
+    arena = renderer.arena;
+  if (!biome || !(dt > 0) || dt > 0.25) return;
+  const density = Math.min(1, renderer.maxParticles / 1400) * (opt.menu || !world ? 0.6 : 1),
+    W = arena.uniforms.uHalf.value.x,
+    H = arena.uniforms.uHalf.value.y,
+    cx = opt.menu || !world ? 0 : renderer.camX,
+    cz = opt.menu || !world ? 0 : renderer.camZ,
     count = (rate) => {
-      const c = rate * dt * k,
-        m = Math.floor(c);
-      return m + (Math.random() < c - m ? 1 : 0);
+      const want = rate * dt * density,
+        whole = Math.floor(want);
+      return whole + (Math.random() < want - whole ? 1 : 0);
     },
-    rx = (s = 15) => clamp(cx + (Math.random() * 2 - 1) * s, -W, W),
-    rz = (s = 12) => clamp(cz + (Math.random() * 2 - 1) * s - 2, -H, H),
-    grid = hexColor(b.grid),
-    acc = hexColor(b.accent);
-  switch (b.id) {
+    rx = (spread = 15) => clamp(cx + (Math.random() * 2 - 1) * spread, -W, W),
+    rz = (spread = 12) => clamp(cz + (Math.random() * 2 - 1) * spread - 2, -H, H),
+    grid = hexColor(biome.grid),
+    acc = hexColor(biome.accent);
+  switch (biome.id) {
     case "works":
       for (let j = count(24); j--; )
-        R.emit(
+        renderer.emit(
           rx(),
           0.1,
           rz(),
@@ -1009,7 +1093,7 @@ function rlAmbient(R, dt, w, opt) {
       break;
     case "vault":
       for (let j = count(42); j--; )
-        R.emit(
+        renderer.emit(
           rx(17),
           2.5 + Math.random() * 6,
           rz(14),
@@ -1024,7 +1108,7 @@ function rlAmbient(R, dt, w, opt) {
       break;
     case "marsh":
       for (let j = count(14); j--; )
-        R.emit(
+        renderer.emit(
           rx(),
           0.3 + Math.random() * 1.3,
           rz(),
@@ -1037,7 +1121,7 @@ function rlAmbient(R, dt, w, opt) {
           { drag: 0.2 },
         );
       for (let j = count(4); j--; )
-        R.emit(
+        renderer.emit(
           rx(),
           0.25,
           rz(),
@@ -1055,7 +1139,7 @@ function rlAmbient(R, dt, w, opt) {
       break;
     case "void":
       for (let j = count(20); j--; )
-        R.emit(
+        renderer.emit(
           rx(18),
           0.05,
           rz(15),
@@ -1070,17 +1154,17 @@ function rlAmbient(R, dt, w, opt) {
       break;
     default:
       for (let j = count(6); j--; )
-        R.emit(rx(), 0.2 + Math.random() * 0.8, rz(), 0, 0.3, 0, 3, 0.12, grid, { drag: 0 });
+        renderer.emit(rx(), 0.2 + Math.random() * 0.8, rz(), 0, 0.3, 0, 3, 0.12, grid, { drag: 0 });
   }
-  if (!(A.rise >= 1) || !A.rlEmit) return;
-  for (const q of A.rlEmit) {
-    if (Math.abs(q.x - cx) > 22 || Math.abs(q.z - cz) > 18) continue;
-    if (q.k === "spark")
-      count(5) &&
-        R.emit(
-          q.x + (Math.random() - 0.5) * 0.4,
-          q.y,
-          q.z + (Math.random() - 0.5) * 0.4,
+  if (!(arena.rise >= 1) || !arena.rlEmit) return;
+  for (const src of arena.rlEmit) {
+    if (Math.abs(src.x - cx) > 22 || Math.abs(src.z - cz) > 18) continue;
+    if (src.k === "spark") {
+      if (count(5)) {
+        renderer.emit(
+          src.x + (Math.random() - 0.5) * 0.4,
+          src.y,
+          src.z + (Math.random() - 0.5) * 0.4,
           (Math.random() - 0.5) * 0.6,
           1.6 + Math.random() * 1.4,
           (Math.random() - 0.5) * 0.6,
@@ -1089,26 +1173,28 @@ function rlAmbient(R, dt, w, opt) {
           RL_C.ember,
           { drag: 0.6, grow: 1.2 },
         );
-    else if (q.k === "glint")
-      count(1.5) &&
-        R.emit(
-          q.x + (Math.random() - 0.5),
-          q.y * Math.random(),
-          q.z + (Math.random() - 0.5),
+      }
+    } else if (src.k === "glint") {
+      if (count(1.5)) {
+        renderer.emit(
+          src.x + (Math.random() - 0.5),
+          src.y * Math.random(),
+          src.z + (Math.random() - 0.5),
           0,
           0.2,
           0,
           0.6,
           0.2,
           RL_C.white,
-          { spark: !0, drag: 0 },
+          { spark: true, drag: 0 },
         );
-    else if (q.k === "spore")
-      count(2.5) &&
-        R.emit(
-          q.x + (Math.random() - 0.5),
-          q.y,
-          q.z + (Math.random() - 0.5),
+      }
+    } else if (src.k === "spore") {
+      if (count(2.5)) {
+        renderer.emit(
+          src.x + (Math.random() - 0.5),
+          src.y,
+          src.z + (Math.random() - 0.5),
           (Math.random() - 0.5) * 0.3,
           0.4 + Math.random() * 0.3,
           (Math.random() - 0.5) * 0.3,
@@ -1117,16 +1203,17 @@ function rlAmbient(R, dt, w, opt) {
           acc,
           { drag: 0.1 },
         );
-    else if (q.k === "mote") {
+      }
+    } else if (src.k === "mote") {
       if (count(3)) {
-        const a = Math.random() * TAU;
-        R.emit(
-          q.x + Math.cos(a) * 1.1,
-          q.y,
-          q.z + Math.sin(a) * 1.1,
-          -Math.cos(a) * 0.5,
+        const angle = Math.random() * TAU;
+        renderer.emit(
+          src.x + Math.cos(angle) * 1.1,
+          src.y,
+          src.z + Math.sin(angle) * 1.1,
+          -Math.cos(angle) * 0.5,
           0.9,
-          -Math.sin(a) * 0.5,
+          -Math.sin(angle) * 0.5,
           1.4,
           0.12,
           grid,
@@ -1145,7 +1232,7 @@ function rlAmbient(R, dt, w, opt) {
    Toxin Marsh  slime running down with glowing toxic spots, green drops
    Void Core    violet rim glow and star specks, motes rising
  The skin is only visual; how an enemy fights does not change. ---- */
-var RL_SKIN = { uSkin: { value: 0 }, uSkinT: { value: 0 } };
+const RL_SKIN = { uSkin: { value: 0 }, uSkinT: { value: 0 } };
 const RL_SKIN_VERT_HEAD = `
 varying vec3 vRlP;
 varying vec3 vRlN;`;
@@ -1202,10 +1289,10 @@ if (rlS == 1) {
 }`;
 // Adds the skin (and, for enemy bodies, the hit flash they already had) to a Lambert material.
 function rlSkinMaterial(mat, flash) {
-  mat.onBeforeCompile = (e) => {
-    e.uniforms.uSkin = RL_SKIN.uSkin;
-    e.uniforms.uSkinT = RL_SKIN.uSkinT;
-    e.vertexShader = e.vertexShader
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uSkin = RL_SKIN.uSkin;
+    shader.uniforms.uSkinT = RL_SKIN.uSkinT;
+    shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
         `#include <common>${RL_SKIN_VERT_HEAD}${flash ? "\nattribute float aFlash;\nvarying float vFlash;" : ""}`,
@@ -1214,7 +1301,7 @@ function rlSkinMaterial(mat, flash) {
         "#include <begin_vertex>",
         `#include <begin_vertex>${RL_SKIN_VERT_BODY}${flash ? "\nvFlash = aFlash;" : ""}`,
       );
-    e.fragmentShader = e.fragmentShader
+    shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>${RL_SKIN_FRAG_HEAD}${flash ? "\nvarying float vFlash;" : ""}`)
       .replace(
         "#include <opaque_fragment>",
@@ -1222,36 +1309,36 @@ function rlSkinMaterial(mat, flash) {
       );
   };
   mat.customProgramCacheKey = () => (flash ? "flashLambertSkin" : "lambertSkin");
-  mat.needsUpdate = !0;
-  mat.rlSkin = !0;
+  mat.needsUpdate = true;
+  mat.rlSkin = true;
 }
 const RL_SKIN_FX = {
-  1: { c: new Color(0xff8a30), vy: 1.4, grav: 0, life: 0.7, size: 0.15, spark: !1 },
-  2: { c: new Color(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: !0 },
-  3: { c: new Color(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: !1 },
-  4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: !1 },
+  1: { c: new Color(0xff8a30), vy: 1.4, grav: 0, life: 0.7, size: 0.15, spark: false },
+  2: { c: new Color(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: true },
+  3: { c: new Color(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: false },
+  4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: false },
 };
-function rlSkinParticles(R, dt, w) {
+function rlSkinParticles(renderer, dt, world) {
   const fx = RL_SKIN_FX[RL_SKIN.uSkin.value];
-  if (!fx || !w || !(dt > 0) || dt > 0.25) return;
-  const n = w.enemies.length,
-    k = Math.min(1, R.maxParticles / 1400),
-    rate = Math.min(2.2, 70 / Math.max(1, n)) * k;
-  for (const e of w.enemies) {
-    if (e.dead || e.ghost || e.spawnT > 0) continue;
-    const big = e.boss ? 6 : 1;
+  if (!fx || !world || !(dt > 0) || dt > 0.25) return;
+  const count = world.enemies.length,
+    density = Math.min(1, renderer.maxParticles / 1400),
+    rate = Math.min(2.2, 70 / Math.max(1, count)) * density;
+  for (const enemy of world.enemies) {
+    if (enemy.dead || enemy.ghost || enemy.spawnT > 0) continue;
+    const big = enemy.boss ? 6 : 1;
     if (Math.random() >= rate * big * dt) continue;
-    const a = Math.random() * TAU,
-      d = Math.random() * e.r * 0.8;
-    R.emit(
-      e.x + Math.cos(a) * d,
-      0.3 + e.r * (e.boss ? 1.4 : 0.9),
-      e.y + Math.sin(a) * d,
+    const angle = Math.random() * TAU,
+      dist = Math.random() * enemy.r * 0.8;
+    renderer.emit(
+      enemy.x + Math.cos(angle) * dist,
+      0.3 + enemy.r * (enemy.boss ? 1.4 : 0.9),
+      enemy.y + Math.sin(angle) * dist,
       (Math.random() - 0.5) * 0.4,
       fx.vy * (0.7 + Math.random() * 0.6),
       (Math.random() - 0.5) * 0.4,
       fx.life,
-      fx.size * (e.boss ? 1.6 : 1),
+      fx.size * (enemy.boss ? 1.6 : 1),
       fx.c,
       { drag: 0.4, grav: fx.grav, spark: fx.spark },
     );

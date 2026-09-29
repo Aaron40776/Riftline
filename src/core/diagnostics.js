@@ -1,35 +1,24 @@
-// Error log, runtime counters, health checks, the deep self-test, the live run monitor and the
-// post-run audit (Settings → Diagnostics).
+// Error log, runtime counters, health checks, the live run monitor and the post-run audit
+// (Settings → Diagnostics). The deep self-test lives in selftest.js.
 
 import { GameUI, RL_TOUCH_CLICK_GUARD } from "../ui/ui.js";
-import { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices, SoundEngine } from "../audio/sound.js";
-import {
-  RL_RETIRE_NOTE,
-  SAVE_KEY,
-  rlMigrateRetired,
-  set_RL_RETIRE_NOTE,
-  cleanRun,
-  RL_MODULE_NOTE,
-  rlMigrateModules,
-  set_RL_MODULE_NOTE,
-} from "./save.js";
+import { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices } from "../audio/sound.js";
+import { SAVE_KEY, cleanRun } from "./save.js";
 import { RL_MESH_TYPES } from "../render/models.js";
-import { enemyDefs, bossOrder, RL_ENEMY_TIPS, biomeVariants, bossDefs, bossByWave, bossByBiome } from "../data/enemies.js";
+import { enemyDefs, RL_ENEMY_TIPS, bossDefs } from "../data/enemies.js";
 import { ui, store, game, safeAreaInsets, input, renderer } from "../main.js";
-import { BUILD_ID, hashString, GAME_VERSION, makeRng, formatTime } from "./util.js";
-import { updateEnemy, findOpenSpot } from "./ai.js";
-import { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, biomeList } from "../data/biomes.js";
+import { BUILD_ID, GAME_VERSION, formatTime } from "./util.js";
+import { biomesById, biomeList } from "../data/biomes.js";
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
-import { waveEvents, planWave, set_RL_BIOME_MIX_CUR } from "./waves.js";
+import { waveEvents } from "./waves.js";
 import { World } from "./world.js";
-import { threatMods, workshopModules, modulesById, RL_RETIRED_MODULES } from "../data/progression.js";
+import { threatMods, workshopModules } from "../data/progression.js";
 import { upgradeList, upgradesById } from "../data/upgrades.js";
-import { hitsObstacle, buildLayout, isConnected } from "./arena.js";
-import { computeStats } from "./stats.js";
+import { hitsObstacle } from "./arena.js";
 
 const RL_LOG_VERSION = __RL_VERSION__,
   LOG_KEY = "riftline.log.v4";
-var errorLog = [],
+let errorLog = [],
   logListeners = new Set(),
   logContext = {},
   RL_RT = {
@@ -49,37 +38,44 @@ var errorLog = [],
   };
 function saveErrorLog() {
   try {
-    globalThis.localStorage && localStorage.setItem(LOG_KEY, JSON.stringify(errorLog));
+    if (globalThis.localStorage) {
+      localStorage.setItem(LOG_KEY, JSON.stringify(errorLog));
+    }
   } catch {}
 }
 try {
-  let i = globalThis.localStorage && localStorage.getItem(LOG_KEY);
-  if (i) {
-    let t = JSON.parse(i);
-    Array.isArray(t) &&
-      t.slice(-30).forEach((e) => {
-        e && e.v === RL_LOG_VERSION && errorLog.push(e);
+  let saved = globalThis.localStorage && localStorage.getItem(LOG_KEY);
+  if (saved) {
+    let entries = JSON.parse(saved);
+    if (Array.isArray(entries)) {
+      entries.slice(-30).forEach((entry) => {
+        if (entry && entry.v === RL_LOG_VERSION) {
+          errorLog.push(entry);
+        }
       });
+    }
   }
 } catch {}
 try {
   if (globalThis.localStorage)
-    for (let j = localStorage.length - 1; j >= 0; j--) {
-      let q = localStorage.key(j);
-      q && (q.startsWith("riftline.log.v2.") || q === "riftline.log.v3") && localStorage.removeItem(q);
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      let key = localStorage.key(i);
+      if (key && (key.startsWith("riftline.log.v2.") || key === "riftline.log.v3")) {
+        localStorage.removeItem(key);
+      }
     }
 } catch {}
-function setLogContext(i) {
-  logContext = { ...logContext, ...i };
+function setLogContext(context) {
+  logContext = { ...logContext, ...context };
 }
-function logError(i, t) {
-  let e = t && typeof t === "object" ? t : null,
-    n = e && e.error ? e.error : e && e.reason ? e.reason : t,
-    s = String((n && n.message) || (e && e.message) || n || "unknown").slice(0, 300),
-    r = String((e && (e.filename || e.fileName || "")) || "").slice(0, 500),
-    a = Number(e && (e.lineno || e.line || 0)) || 0,
-    o = Number(e && (e.colno || e.column || 0)) || 0,
-    c = String((n && n.stack) || "")
+function logError(where, error) {
+  let errorObj = error && typeof error === "object" ? error : null,
+    cause = errorObj && errorObj.error ? errorObj.error : errorObj && errorObj.reason ? errorObj.reason : error,
+    msg = String((cause && cause.message) || (errorObj && errorObj.message) || cause || "unknown").slice(0, 300),
+    file = String((errorObj && (errorObj.filename || errorObj.fileName || "")) || "").slice(0, 500),
+    line = Number(errorObj && (errorObj.lineno || errorObj.line || 0)) || 0,
+    col = Number(errorObj && (errorObj.colno || errorObj.column || 0)) || 0,
+    stack = String((cause && cause.stack) || "")
       .split(
         `
 `,
@@ -90,48 +86,57 @@ function logError(i, t) {
 `,
       )
       .slice(0, 1000),
-    h = r ? `${r}:${a}:${o}` : "";
-  if (h && s.endsWith("Script error.")) s += ` @ ${h}`;
-  let l = new Date().toISOString(),
-    u = errorLog.find((d) => d.msg === s && d.where === i && d.file === r && d.line === a && d.col === o);
-  if (u) (u.n++, (u.last = l));
-  else {
+    location = file ? `${file}:${line}:${col}` : "";
+  if (location && msg.endsWith("Script error.")) msg += ` @ ${location}`;
+  let now = new Date().toISOString(),
+    existing = errorLog.find(
+      (item) =>
+        item.msg === msg && item.where === where && item.file === file && item.line === line && item.col === col,
+    );
+  if (existing) {
+    existing.n++;
+    existing.last = now;
+  } else {
     for (
       errorLog.push({
-        where: i,
-        msg: s,
-        stack: c,
+        where: where,
+        msg: msg,
+        stack: stack,
         n: 1,
-        first: l,
-        last: l,
+        first: now,
+        last: now,
         v: logContext.version || RL_LOG_VERSION,
-        file: r,
-        line: a,
-        col: o,
+        file: file,
+        line: line,
+        col: col,
       });
       errorLog.length > 30;
     )
       errorLog.shift();
-    typeof console < "u" && console.error("[riftline]", i, t);
+    if (typeof console < "u") {
+      console.error("[riftline]", where, error);
+    }
   }
   saveErrorLog();
-  for (let d of logListeners)
+  for (let listener of logListeners)
     try {
-      d();
+      listener();
     } catch {}
 }
 function getErrorLog() {
   return errorLog;
 }
-function onLogChange(i) {
-  return (logListeners.add(i), () => logListeners.delete(i));
+function onLogChange(listener) {
+  logListeners.add(listener);
+  return () => logListeners.delete(listener);
 }
 function clearErrorLog() {
-  ((errorLog.length = 0), saveErrorLog());
-  for (let i of logListeners) i();
+  errorLog.length = 0;
+  saveErrorLog();
+  for (let listener of logListeners) listener();
 }
 function buildReport() {
-  let i = [
+  let lines = [
     "Riftline " + (logContext.version || RL_LOG_VERSION) + " " + (logContext.build || ""),
     "Mode: " + (logContext.mode || "?"),
     "UA: " + (typeof navigator < "u" ? navigator.userAgent : "node"),
@@ -142,9 +147,9 @@ function buildReport() {
     rlHealthSummary(),
     "Health checks:",
   ];
-  for (let h of RL_HEALTH) i.push(`[${h.status}] ${h.id}: ${h.detail}`);
-  rlAuditReportLines(i);
-  i.push(
+  for (let check of RL_HEALTH) lines.push(`[${check.status}] ${check.id}: ${check.detail}`);
+  rlAuditReportLines(lines);
+  lines.push(
     "",
     "Runtime: pointer " +
       RL_RT.pointerdown +
@@ -166,25 +171,30 @@ function buildReport() {
       " · ui-dedupes " +
       RL_RT.uiGuardDrops,
   );
-  errorLog.length || i.push("", "Errors: none recorded.");
-  for (let t of errorLog) {
-    let e = t.file ? ` @ ${t.file}:${t.line || 0}:${t.col || 0}` : "";
-    (i.push(`[${t.where}] ${t.msg}  (x${t.n}, v${t.v}${e}, first ${t.first}, last ${t.last})`),
-      t.stack &&
-        i.push(
-          t.stack
-            .split(
-              `
-`,
-            )
-            .map((n) => "    " + n.trim()).join(`
-`),
-        ));
+  if (!errorLog.length) {
+    lines.push("", "Errors: none recorded.");
   }
-  return i.join(`
+  for (let item of errorLog) {
+    let location = item.file ? ` @ ${item.file}:${item.line || 0}:${item.col || 0}` : "";
+    lines.push(
+      `[${item.where}] ${item.msg}  (x${item.n}, v${item.v}${location}, first ${item.first}, last ${item.last})`,
+    );
+    if (item.stack) {
+      lines.push(
+        item.stack
+          .split(
+            `
+`,
+          )
+          .map((line) => "    " + line.trim()).join(`
+`),
+      );
+    }
+  }
+  return lines.join(`
 `);
 }
-var RL_REQUIRED_DOM = [
+let RL_REQUIRED_DOM = [
     "abandonBtn",
     "backupBtn",
     "bank",
@@ -304,346 +314,13 @@ var RL_REQUIRED_DOM = [
     "wsList",
   ],
   RL_HEALTH = [];
-function rlHealthAdd(i, t, e) {
-  RL_HEALTH.push({ id: i, status: t, detail: String(e || "") });
+function rlHealthAdd(id, status, detail) {
+  RL_HEALTH.push({ id: id, status: status, detail: String(detail || "") });
 }
-var RL_SELFTEST = null;
-function rlSelfTest() {
-  if (RL_SELFTEST && RL_SELFTEST.version === GAME_VERSION) return RL_SELFTEST;
-  const selftestStarted = performance.now?.() || 0;
-  let fail = [],
-    warn = [],
-    worlds = 0,
-    waves = 0,
-    weapons = 0,
-    bosses = 0,
-    det = 0,
-    frames = 0,
-    enemyTypes = 0,
-    biomeCases = 0,
-    threatCases = 0,
-    upgradeChecks = 0,
-    snapshotCases = 0,
-    safePointCases = 0;
-  const bad = (id, msg) => fail.push(`${id}: ${msg}`);
-  const finite = (v) => Number.isFinite(v);
-  try {
-    const seeds = [0x13579bdf, 0x2468ace0, 0x10203040, 0x55667788, 0xa5a5a5a5];
-    for (const seed of seeds) {
-      const a = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
-        b = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
-      for (let wave = 1; wave <= 20; wave++) {
-        a.startWave(wave);
-        b.startWave(wave);
-        worlds++;
-        waves++;
-        if (a.arena.key !== b.arena.key || a.arena.W !== b.arena.W || a.arena.H !== b.arena.H)
-          bad("determinism", `seed ${seed} wave ${wave} arena mismatch`);
-        else det++;
-        const currentBiome = a.biomeFor(wave)?.id,
-          previousBiome = wave > 1 ? a.biomeFor(wave - 1)?.id : null;
-        // 2.4.0: one biome per boss cycle — it changes right after each boss wave (5, 10, 15 …)
-        if (wave > 1 && (currentBiome === previousBiome) !== ((wave - 1) % 5 !== 0))
-          bad("biome-route", `biome must change exactly after boss waves (seed ${seed}, wave ${wave - 1}/${wave})`);
-        if (a.event && (!waveEvents[a.event] || a.event === "dark"))
-          bad("events", `invalid/removed event ${a.event} at seed ${seed} wave ${wave}`);
-        if (a.boss && a.event) bad("events", `boss wave received event ${a.event} at seed ${seed} wave ${wave}`);
-        if (!Array.isArray(a.arena.obs)) bad("arena", `missing obstacle array at seed ${seed} wave ${wave}`);
-        if (
-          wave >= 2 &&
-          !a.boss &&
-          (!a.arena.director || !Number.isFinite(a.arena.director.obstacles) || a.arena.director.obstacles < 0)
-        )
-          bad("director", `missing dynamic wave director at seed ${seed} wave ${wave}`);
-        const featureSets = { vents: a.arena.vents || [], ice: a.arena.ice || [], acid: a.arena.acid || [] };
-        for (const [featureType, items] of Object.entries(featureSets))
-          for (const q of items) {
-            if (![q.x, q.y, q.r].every(finite)) bad("features", `non-finite ${featureType} seed ${seed} wave ${wave}`);
-            if (hitsObstacle(a.arena.obs, q.x, q.y, (q.r || 0) + 0.8))
-              bad("features", `${featureType} overlaps obstacle at seed ${seed} wave ${wave}`);
-          }
-        const portals = a.arena.portals || [],
-          portalPts = [];
-        for (let pi = 0; pi < portals.length; pi++) {
-          const q = portals[pi],
-            pair = [
-              { x: q.ax, y: q.ay },
-              { x: q.bx, y: q.by },
-            ];
-          if (![q.ax, q.ay, q.bx, q.by].every(finite))
-            bad("portal", `non-finite portal pair at seed ${seed} wave ${wave}`);
-          const pairDist = Math.hypot(q.ax - q.bx, q.ay - q.by);
-          if (finite(pairDist) && pairDist < 7.0)
-            bad("portal", `portal pair too close (${pairDist.toFixed(2)}) at seed ${seed} wave ${wave}`);
-          for (const p of pair) {
-            if (![p.x, p.y].every(finite) || hitsObstacle(a.arena.obs, p.x, p.y, 1.5))
-              bad("portal", `invalid portal endpoint at seed ${seed} wave ${wave}`);
-            if (Math.abs(p.x) > a.arena.W - 3.6 || Math.abs(p.y) > a.arena.H - 3.6)
-              bad("portal", `portal endpoint out of safe bounds at seed ${seed} wave ${wave}`);
-            for (const prev of portalPts) {
-              const d = Math.hypot(p.x - prev.x, p.y - prev.y);
-              if (d < 4.0)
-                bad("portal", `portal endpoints overlap/cluster (${d.toFixed(2)}) at seed ${seed} wave ${wave}`);
-            }
-            portalPts.push(p);
-          }
-        }
-        const spawnProbeRng = makeRng(hashString(seed + ":spawn-probe:" + wave));
-        for (const [clearance, dist] of [
-          [7, 1],
-          [9, 1.6],
-          [3, 0.4],
-        ]) {
-          const p = a.arena.freePoint(spawnProbeRng, a.player.x, a.player.y, clearance, dist);
-          if (
-            !p ||
-            !finite(p.x) ||
-            !finite(p.y) ||
-            a.arena.blocked(p.x, p.y, dist + 0.4) ||
-            a.arena.featureBlocked(p.x, p.y, dist * 0.3)
-          )
-            bad("spawn-safe", `freePoint failed at seed ${seed} wave ${wave}`);
-        }
-        const helperRng = makeRng(hashString(seed + ":safe-point-probe:" + wave));
-        for (const [minD, maxD] of [
-          [2, 6],
-          [4, 10],
-          [1.5, 5],
-        ]) {
-          const p = findOpenSpot({ rng: helperRng, arena: a.arena }, a.player.x, a.player.y, minD, maxD);
-          if (
-            p &&
-            (!finite(p.x) ||
-              !finite(p.y) ||
-              a.arena.outside(p.x, p.y, 2) ||
-              a.arena.blocked(p.x, p.y, 2) ||
-              a.arena.featureBlocked(p.x, p.y, 0.6))
-          )
-            bad("safe-point", `unsafe helper point seed ${seed} wave ${wave}`);
-          else if (p) safePointCases++;
-        }
-      }
-    }
-    for (const b of biomeList)
-      for (const seed of seeds) {
-        const a = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
-        if (!a.route?.includes(b.id)) bad("biome-route", `seed ${seed} route is missing biome ${b.id}`);
-      }
-    for (const id of Object.keys(weaponDefs)) {
-      const w = new World({ seed: 0x7f4a7c15, weapon: id, threat: 0, ws: {} });
-      for (let f = 0; f < 12; f++) {
-        w.step(1 / 60, {
-          mx: 1,
-          my: 0.15,
-          aim: true,
-          ax: 1,
-          ay: 0.15,
-          fire: true,
-          assist: false,
-          dash: f === 1,
-          nova: f === 5,
-        });
-        frames++;
-        if (![w.player.x, w.player.y, w.player.vx, w.player.vy, w.player.hp].every(finite))
-          bad("weapon-runtime", `${id} produced non-finite player state`);
-        for (const q of w.pb || [])
-          if (![q.x, q.y, q.vx, q.vy, q.life].every(finite))
-            bad("weapon-runtime", `${id} produced non-finite projectile state`);
-      }
-      weapons++;
-    }
-    for (const id of bossOrder) {
-      const w = new World({ seed: 0x31415926, weapon: "pulse", threat: 0, ws: {} });
-      w.startWave(bossByWave[5] === id ? 5 : bossByWave[10] === id ? 10 : bossByWave[15] === id ? 15 : 20);
-      const boss = w.spawnBoss(id);
-      bosses++;
-      if (!boss || !finite(boss.hp) || !finite(boss.x) || !finite(boss.y)) bad("boss-runtime", `${id} failed spawn`);
-      for (let f = 0; f < 4; f++) {
-        w.step(1 / 60, { mx: 0, my: 0, aim: true, ax: 1, ay: 0, fire: true, assist: false });
-        frames++;
-        if (!w.boss || !finite(w.boss.hp)) bad("boss-runtime", `${id} failed during step`);
-      }
-    }
-    for (const id of Object.keys(enemyDefs)) {
-      const def = enemyDefs[id],
-        w = new World({
-          seed: hashString("enemy-probe:" + id),
-          weapon: "pulse",
-          threat: Math.min(5, Math.floor((def.from || 1) / 5)),
-          ws: {},
-        });
-      w.startWave(Math.max(1, Math.min(50, def.from || 1)));
-      const p = w.arena.freePoint(makeRng(hashString("enemy-spawn:" + id)), w.player.x, w.player.y, 6, 0.45);
-      if (!p || !finite(p.x) || !finite(p.y)) bad("enemy-spawn", `${id} has no safe spawn point`);
-      else {
-        const q = w.spawnEnemy(id, p.x, p.y);
-        if (!q || q.type !== id) bad("enemy-spawn", `${id} failed direct spawn`);
-        else {
-          q.t = 0;
-          for (let f = 0; f < 60; f++) {
-            w.step(1 / 60, { mx: 0.15, my: 0.05, aim: true, ax: 1, ay: 0.05, fire: true, assist: false });
-            frames++;
-            if (![q.x, q.y, q.vx, q.vy, q.hp, q.t, q.t2].every(finite))
-              bad("enemy-runtime", `${id} produced non-finite state at frame ${f}`);
-          }
-          enemyTypes++;
-        }
-      }
-    }
-    for (const b of biomeList) {
-      for (const seed of [0x10101, 0x20202, 0x30303]) {
-        const a = new World({ seed, weapon: "pulse", threat: 2, ws: {} }),
-          idx = a.route.indexOf(b.id),
-          w = 1 + 5 * idx; // 2.4.0: first wave of that biome's boss cycle
-        a.startWave(w);
-        if (a.arena.biome?.id !== b.id)
-          bad("biome-runtime", `route for seed ${seed} did not resolve ${b.id} at wave ${w}`);
-        const p = a.arena.freePoint(makeRng(hashString(seed + ":" + b.id)), a.player.x, a.player.y, 4, 0.45);
-        if (!p || a.arena.blocked(p.x, p.y, 0.85)) bad("biome-runtime", `unsafe spawn space in ${b.id} seed ${seed}`);
-        biomeCases++;
-      }
-    }
-    for (let threat = 0; threat <= 5; threat++)
-      for (const seed of [0x4141, 0x5151]) {
-        const w = new World({ seed, weapon: "pulse", threat, ws: {} });
-        for (let wave = 1; wave <= 12; wave++) {
-          w.startWave(wave);
-          for (let f = 0; f < 8; f++) {
-            w.step(1 / 60, {
-              mx: f % 2 ? 0.4 : 0,
-              my: f % 3 ? 0.2 : 0,
-              aim: true,
-              ax: 1,
-              ay: 0,
-              fire: true,
-              assist: false,
-              dash: f === 3,
-              nova: f === 6,
-            });
-            frames++;
-            if (![w.player.x, w.player.y, w.player.hp, w.time, w.kills, w.shards].every(finite))
-              bad("threat-runtime", `Threat ${threat} wave ${wave} became non-finite`);
-          }
-        }
-        threatCases++;
-      }
-    {
-      const base = computeStats("pulse", {}, {}),
-        boost = computeStats("pulse", { rate: 3, velocity: 2 }, {}); // 2.5.0: was Overclock Matrix
-      if (!(boost.rateMul > base.rateMul && boost.velMul > base.velMul))
-        bad("upgrade-runtime", "Rapid Cycler and Long Barrel do not alter rate and velocity");
-      else upgradeChecks++;
-      for (const def of upgradeList) {
-        const testUp = {};
-        testUp[def.id] = 1;
-        const stats = computeStats(def.weapon || "pulse", testUp, {
-          hull: 1,
-          power: 1,
-          thrust: 1,
-          dash: 1,
-          magnet: 1,
-          salvage: 1,
-          reroll: 1,
-          nova: 1,
-          insight: 1,
-          revive: 1,
-        });
-        const finiteNumbers = Object.entries(stats)
-          .filter(([k]) => k !== "weapon")
-          .every(([, v]) => typeof v !== "number" || Number.isFinite(v));
-        if (!finiteNumbers) bad("upgrade-runtime", `${def.id} produced non-finite stat`);
-        else upgradeChecks++;
-      }
-      const w = new World({ seed: 0x1ce55eed, weapon: "pulse", threat: 0, ws: {} });
-      w.startWave(13);
-      w.stats = computeStats("pulse", { bounty: 2, capacitor: 2 }, {});
-      const p = w.arena.freePoint(makeRng(hashString("upgrade-kill-probe")), w.player.x, w.player.y, 6, 0.45),
-        enemy = p && w.spawnEnemy("turret", p.x, p.y, { elite: !0 });
-      if (!enemy) bad("upgrade-runtime", "could not spawn elite turret probe");
-      else {
-        const shardBefore = w.pickups.filter((q) => q.kind === "shard").reduce((n, q) => n + (q.v || 0), 0),
-          novaBefore = w.player.nova;
-        w.killEnemy(enemy);
-        const shardAfter = w.pickups.filter((q) => q.kind === "shard").reduce((n, q) => n + (q.v || 0), 0),
-          novaAfter = w.player.nova;
-        if (shardAfter - shardBefore < 4) bad("upgrade-runtime", "Bounty Protocol did not add its bonus shards");
-        else upgradeChecks++;
-        if (novaAfter - novaBefore < 43.4) bad("upgrade-runtime", "Capacitor Bank did not add its bonus Nova charge");
-        else upgradeChecks++;
-      }
-    }
-    {
-      const director = new World({ seed: 0x5a17c0de, weapon: "rocket", threat: 2, ws: {} });
-      let dynamic = 0,
-        caches = 0;
-      for (let wave = 2; wave <= 28; wave++) {
-        director.startWave(wave);
-        dynamic += Math.max(0, director.arena.obs.length - (director.arena.biome.obstacles?.length || 0));
-        caches += director.pickups.filter((q) => q.cache).length;
-        for (const q of director.arena.obs)
-          if (![q.x, q.y].every(finite)) bad("director-runtime", `non-finite dynamic obstacle at wave ${wave}`);
-        for (const k of ["vents", "ice", "acid", "portals"])
-          for (const q of director.arena[k] || [])
-            for (const v of Object.values(q))
-              if (typeof v === "number" && !finite(v)) bad("director-runtime", `non-finite ${k} value at wave ${wave}`);
-      }
-      if (dynamic < 8) bad("director-runtime", `too few dynamic obstacle cases (${dynamic})`);
-      else det++;
-      if (caches < 12) bad("director-runtime", `too few wave caches (${caches})`);
-      else det++;
-    }
-    {
-      const a = new World({ seed: 0xdecafbad, weapon: "pulse", threat: 3, ws: {} });
-      a.startWave(7);
-      for (let f = 0; f < 20; f++) {
-        a.step(1 / 60, { mx: 0.3, my: 0.1, aim: true, ax: 1, ay: 0, fire: true, assist: false, dash: f === 4 });
-        frames++;
-      }
-      const snap = a.snapshot(),
-        b = new World({ snap, ws: {} });
-      if (
-        b.wave !== a.wave ||
-        b.seed !== a.seed ||
-        b.weapon !== a.weapon ||
-        b.hp !== a.hp ||
-        JSON.stringify(b.up) !== JSON.stringify(a.up)
-      )
-        bad("snapshot", "extended snapshot roundtrip mismatch");
-      else snapshotCases++;
-    }
-    const offerWorld = new World({ seed: 0xabcdef01, weapon: "pulse", threat: 0, ws: {} }),
-      offer = offerWorld.makeOffer();
-    if (!Array.isArray(offer) || offer.length < 1 || offer.some((id) => !upgradesById[id]))
-      bad("upgrade-offer", "invalid generated offer");
-    else det++;
-  } catch (e) {
-    bad("selftest-exception", (e && e.message) || String(e));
-  }
-  RL_SELFTEST = {
-    version: GAME_VERSION,
-    ok: fail.length === 0,
-    fail,
-    warn,
-    worlds,
-    waves,
-    weapons,
-    bosses,
-    det,
-    frames,
-    enemyTypes,
-    biomeCases,
-    threatCases,
-    upgradeChecks,
-    snapshotCases,
-    safePointCases,
-    ms: Math.max(0, Math.round((performance.now?.() || selftestStarted) - selftestStarted)),
-  };
-  return RL_SELFTEST;
-}
-var RL_LAST_RUN_AUDIT = null;
+let RL_LAST_RUN_AUDIT = null;
 // assigned from other modules (an imported binding cannot be assigned)
-function set_RL_LAST_RUN_AUDIT(v) {
-  return (RL_LAST_RUN_AUDIT = v);
+function set_RL_LAST_RUN_AUDIT(value) {
+  return (RL_LAST_RUN_AUDIT = value);
 }
 /* ==========================================================================
  Riftline 2.2.3 diagnostics
@@ -655,35 +332,35 @@ function set_RL_LAST_RUN_AUDIT(v) {
                  on demand ({deep:true}) so startup and run end never block
                  the UI thread.
  ========================================================================== */
-function rlRunAudit(w, outcome, abandoned) {
+function rlRunAudit(world, outcome, abandoned) {
   const fail = [],
     warn = [],
-    finite = (v) => Number.isFinite(v),
+    finite = (value) => Number.isFinite(value),
     add = (id, msg) => fail.push(`${id}: ${msg}`),
-    aw = (id, msg) => warn.push(`${id}: ${msg}`);
+    addWarn = (id, msg) => warn.push(`${id}: ${msg}`);
   try {
-    if (!w) {
+    if (!world) {
       add("world", "world missing");
       return (RL_LAST_RUN_AUDIT = { ok: false, fail, warn, checks: [], outcome: "missing" });
     }
-    const arena = w.arena;
+    const arena = world.arena;
     if (!arena || !finite(arena.W) || !finite(arena.H) || !Array.isArray(arena.obs))
       add("arena", "invalid arena geometry");
     if (arena) {
       if (!arena.biome || !biomesById[arena.biome.id]) add("biome", "unknown live biome");
-      for (const enemy of w.enemies || [])
+      for (const enemy of world.enemies || [])
         if (!enemy?.type || !(enemyDefs[enemy.type] || (enemy.boss && bossDefs[enemy.type])))
           add("enemy", "unknown live enemy type");
       const checkObj = (arr, id) => {
         if (!Array.isArray(arr)) return;
-        for (const q of arr) {
-          for (const k of ["x", "y"]) {
-            if (k in q && !finite(q[k])) {
-              add(id, `non-finite ${k}`);
+        for (const item of arr) {
+          for (const key of ["x", "y"]) {
+            if (key in item && !finite(item[key])) {
+              add(id, `non-finite ${key}`);
               break;
             }
           }
-          if ("r" in q && !finite(q.r)) add(id, "non-finite radius");
+          if ("r" in item && !finite(item.r)) add(id, "non-finite radius");
         }
       };
       checkObj(arena.obs, "obstacle");
@@ -691,72 +368,73 @@ function rlRunAudit(w, outcome, abandoned) {
       checkObj(arena.ice, "ice");
       checkObj(arena.acid, "acid");
       const pts = [];
-      for (const q of arena.portals || []) {
-        if (![q.ax, q.ay, q.bx, q.by].every(finite)) {
+      for (const portal of arena.portals || []) {
+        if (![portal.ax, portal.ay, portal.bx, portal.by].every(finite)) {
           add("portal", "non-finite endpoint");
           continue;
         }
-        const d = Math.hypot(q.ax - q.bx, q.ay - q.by);
-        if (d < 7) add("portal", `pair distance ${d.toFixed(2)} < 7.00`);
-        for (const p of [
-          { x: q.ax, y: q.ay },
-          { x: q.bx, y: q.by },
+        const dist = Math.hypot(portal.ax - portal.bx, portal.ay - portal.by);
+        if (dist < 7) add("portal", `pair distance ${dist.toFixed(2)} < 7.00`);
+        for (const end of [
+          { x: portal.ax, y: portal.ay },
+          { x: portal.bx, y: portal.by },
         ]) {
-          if (Math.abs(p.x) > arena.W - 3.6 || Math.abs(p.y) > arena.H - 3.6)
+          if (Math.abs(end.x) > arena.W - 3.6 || Math.abs(end.y) > arena.H - 3.6)
             add("portal", "endpoint outside safe bounds");
-          if (hitsObstacle(arena.obs, p.x, p.y, 1.5)) add("portal", "endpoint overlaps obstacle");
+          if (hitsObstacle(arena.obs, end.x, end.y, 1.5)) add("portal", "endpoint overlaps obstacle");
           for (const old of pts) {
-            const dd = Math.hypot(p.x - old.x, p.y - old.y);
-            if (dd < 4) add("portal", `endpoint spacing ${dd.toFixed(2)} < 4.00`);
+            const gap = Math.hypot(end.x - old.x, end.y - old.y);
+            if (gap < 4) add("portal", `endpoint spacing ${gap.toFixed(2)} < 4.00`);
           }
-          pts.push(p);
+          pts.push(end);
         }
       }
     }
-    const finiteState = (q, id) => {
-      if (!q || typeof q !== "object") return;
-      for (const k of ["x", "y", "vx", "vy", "hp", "life", "t"]) {
-        if (k in q && !finite(q[k])) {
-          add(id, `non-finite ${k}`);
+    const finiteState = (obj, id) => {
+      if (!obj || typeof obj !== "object") return;
+      for (const key of ["x", "y", "vx", "vy", "hp", "life", "t"]) {
+        if (key in obj && !finite(obj[key])) {
+          add(id, `non-finite ${key}`);
           break;
         }
       }
     };
-    for (const q of w.enemies || []) finiteState(q, "enemy");
-    for (const q of w.pb || []) finiteState(q, "projectile");
-    for (const q of w.eb || []) finiteState(q, "enemy-shot");
-    for (const q of w.hazards || []) finiteState(q, "hazard");
-    for (const q of w.markers || []) finiteState(q, "marker");
-    for (const q of w.pickups || []) finiteState(q, "pickup");
-    if (w.boss) finiteState(w.boss, "boss");
-    const p = w.player;
-    if (!p || ![p.x, p.y, p.vx, p.vy, p.hp].every(finite)) add("player", "non-finite final player state");
-    if (!finite(w.time) || !finite(w.shards) || !finite(w.kills)) add("run-state", "non-finite run totals");
-    if (!["dead", "victory"].includes(w.state) && !abandoned) aw("state", `run ended in state ${w.state}`);
-    if (w.event && (!waveEvents[w.event] || w.event === "dark"))
+    for (const enemy of world.enemies || []) finiteState(enemy, "enemy");
+    for (const shot of world.pb || []) finiteState(shot, "projectile");
+    for (const shot of world.eb || []) finiteState(shot, "enemy-shot");
+    for (const hazard of world.hazards || []) finiteState(hazard, "hazard");
+    for (const marker of world.markers || []) finiteState(marker, "marker");
+    for (const pickup of world.pickups || []) finiteState(pickup, "pickup");
+    if (world.boss) finiteState(world.boss, "boss");
+    const player = world.player;
+    if (!player || ![player.x, player.y, player.vx, player.vy, player.hp].every(finite))
+      add("player", "non-finite final player state");
+    if (!finite(world.time) || !finite(world.shards) || !finite(world.kills)) add("run-state", "non-finite run totals");
+    if (!["dead", "victory"].includes(world.state) && !abandoned) addWarn("state", `run ended in state ${world.state}`);
+    if (world.event && (!waveEvents[world.event] || world.event === "dark"))
       add("event", "removed/invalid event reached at runtime");
-  } catch (e) {
-    add("audit-exception", (e && e.message) || String(e));
+  } catch (err) {
+    add("audit-exception", (err && err.message) || String(err));
   }
-  const a = {
+  const audit = {
     ok: fail.length === 0,
     fail,
     warn,
     checks: [],
     outcome: abandoned ? "abandoned" : outcome ? "victory" : "defeat",
-    wave: w?.wave || 0,
-    time: w?.time || 0,
-    kills: w?.kills || 0,
-    shards: w?.shards || 0,
+    wave: world?.wave || 0,
+    time: world?.time || 0,
+    kills: world?.kills || 0,
+    shards: world?.shards || 0,
   };
-  RL_LAST_RUN_AUDIT = a;
-  return a;
+  RL_LAST_RUN_AUDIT = audit;
+  return audit;
 }
 
 /* ---- event contract: every event the simulation emits must have a consumer
  (renderer, sound or UI) or be explicitly internal. Boss events must only be
  emitted while a boss is alive — enemy code once reused "phase"/"dash". ---- */
-var RL_EVENT_KINDS = new Set([
+const RL_EVENT_KINDS = new Set([
   "aim",
   "beamWarn",
   "blink",
@@ -819,9 +497,9 @@ var RL_EVENT_KINDS = new Set([
   "wingShot",
   "zap",
 ]);
-var RL_BOSS_EVENTS = new Set(["phase", "enrage", "bossAtk"]);
+const RL_BOSS_EVENTS = new Set(["phase", "enrage", "bossAtk"]);
 /* positional payload the renderer reads for each event (missing -> NaN geometry) */
-var RL_EVENT_FIELDS = {
+const RL_EVENT_FIELDS = {
   warp: ["x", "y", "tx", "ty"],
   kill: ["x", "y"],
   spawn: ["x", "y"],
@@ -835,30 +513,34 @@ var RL_EVENT_FIELDS = {
   dmg: ["x", "y"],
   chain: ["pts"],
 };
-function rlEventPayloadError(ev) {
-  const f = Number.isFinite,
-    need = RL_EVENT_FIELDS[ev.k];
+function rlEventPayloadError(event) {
+  const finite = Number.isFinite,
+    need = RL_EVENT_FIELDS[event.k];
   if (need)
-    for (const q of need)
-      if (q === "pts" ? !Array.isArray(ev.pts) || !ev.pts.every(f) : !f(ev[q])) return `"${ev.k}" is missing ${q}`;
-  if (ev.k === "mend" && !(f(ev.x) && f(ev.y) && ((f(ev.tx) && f(ev.ty)) || f(ev.r))))
+    for (const field of need)
+      if (field === "pts" ? !Array.isArray(event.pts) || !event.pts.every(finite) : !finite(event[field]))
+        return `"${event.k}" is missing ${field}`;
+  if (
+    event.k === "mend" &&
+    !(finite(event.x) && finite(event.y) && ((finite(event.tx) && finite(event.ty)) || finite(event.r)))
+  )
     return `"mend" needs a target (tx/ty) or a radius`;
-  if ("x" in ev && !(f(ev.x) && f(ev.y))) return `"${ev.k}" has a non-finite position`;
+  if ("x" in event && !(finite(event.x) && finite(event.y))) return `"${event.k}" has a non-finite position`;
   return "";
 }
-var RL_MON = null;
-function rlMonErrKey(e) {
-  return `${e.where}|${e.msg}|${e.file}|${e.line}`;
+let RL_MON = null;
+function rlMonErrKey(entry) {
+  return `${entry.where}|${entry.msg}|${entry.file}|${entry.line}`;
 }
-function rlMonStart(w, resume) {
+function rlMonStart(world, resume) {
   RL_MON = {
-    w,
+    w: world,
     resume: !!resume,
     t0: Date.now(),
-    startWave: w.wave,
-    weapon: w.weapon,
-    threat: w.threat,
-    errBase: new Map(errorLog.map((e) => [rlMonErrKey(e), e.n])),
+    startWave: world.wave,
+    weapon: world.weapon,
+    threat: world.threat,
+    errBase: new Map(errorLog.map((entry) => [rlMonErrKey(entry), entry.n])),
     inputBase: RL_RT.pointerdown + RL_RT.keydown,
     frames: 0,
     dtSum: 0,
@@ -879,419 +561,460 @@ function rlMonStart(w, resume) {
     snaps: { checked: 0, ok: 0 },
     pendingSnap: 0,
     pendingSnapFrames: 0,
-    shards: w.shards,
-    kills: w.kills,
+    shards: world.shards,
+    kills: world.kills,
   };
-  rlMonBeginWave(w);
+  rlMonBeginWave(world);
   // Resumed at the upgrade choice (or continuing into endless): that wave is already won.
-  if (w.state === "choose" || w.state === "victory") RL_MON.cur.cleared = true;
+  if (world.state === "choose" || world.state === "victory") RL_MON.cur.cleared = true;
 }
 function rlMonIssue(sev, id, msg) {
-  const m = RL_MON;
-  if (!m) return;
-  const k = sev + "|" + id + "|" + msg,
-    q = m.issues.get(k);
-  if (q) q.n++;
-  else if (m.issues.size < 80) m.issues.set(k, { sev, id, msg, n: 1, wave: m.w?.wave || 0 });
+  const mon = RL_MON;
+  if (!mon) return;
+  const key = sev + "|" + id + "|" + msg,
+    issue = mon.issues.get(key);
+  if (issue) issue.n++;
+  else if (mon.issues.size < 80) mon.issues.set(key, { sev, id, msg, n: 1, wave: mon.w?.wave || 0 });
 }
-function rlMonBeginWave(w) {
-  const m = RL_MON;
-  if (!m) return;
-  if (m.cur && !m.cur.cleared && m.cur.wave !== w.wave)
-    rlMonIssue("WARN", "waves", `wave ${m.cur.wave} was left without a clear`);
-  m.cur = {
-    wave: w.wave,
-    biome: w.arena?.biome?.id || "?",
-    mode: w.waveMode || "-",
-    boss: !!(w.bossPending || w.boss),
-    t0: w.time,
+function rlMonBeginWave(world) {
+  const mon = RL_MON;
+  if (!mon) return;
+  if (mon.cur && !mon.cur.cleared && mon.cur.wave !== world.wave)
+    rlMonIssue("WARN", "waves", `wave ${mon.cur.wave} was left without a clear`);
+  mon.cur = {
+    wave: world.wave,
+    biome: world.arena?.biome?.id || "?",
+    mode: world.waveMode || "-",
+    boss: !!(world.bossPending || world.boss),
+    t0: world.time,
     cleared: false,
     secs: 0,
-    planned: w.planTotal || 0,
+    planned: world.planTotal || 0,
   };
-  m.waves.push(m.cur);
+  mon.waves.push(mon.cur);
   // Spawn plan contract: every member must be {type, elite} with a known enemy type.
-  for (const g of w.plan || []) {
-    if (!g || !Array.isArray(g.members) || !Number.isFinite(g.gap)) {
-      rlMonIssue("FAIL", "spawn-plan", `wave ${w.wave}: malformed spawn group`);
+  for (const group of world.plan || []) {
+    if (!group || !Array.isArray(group.members) || !Number.isFinite(group.gap)) {
+      rlMonIssue("FAIL", "spawn-plan", `wave ${world.wave}: malformed spawn group`);
       continue;
     }
-    for (const q of g.members)
-      if (!q || typeof q !== "object" || !enemyDefs[q.type])
-        rlMonIssue("FAIL", "spawn-plan", `wave ${w.wave}: invalid plan member ${JSON.stringify(q)}`);
+    for (const member of group.members)
+      if (!member || typeof member !== "object" || !enemyDefs[member.type])
+        rlMonIssue("FAIL", "spawn-plan", `wave ${world.wave}: invalid plan member ${JSON.stringify(member)}`);
   }
-  if (w.bossPending && !bossDefs[w.bossPending])
-    rlMonIssue("FAIL", "spawn-plan", `wave ${w.wave}: unknown boss ${w.bossPending}`);
-  if (w.championPending && !enemyDefs[w.championPending])
-    rlMonIssue("FAIL", "spawn-plan", `wave ${w.wave}: unknown champion ${w.championPending}`);
-  for (const [k, v] of Object.entries(w.stats || {}))
-    if (typeof v === "number" && !Number.isFinite(v))
-      rlMonIssue("FAIL", "stats", `wave ${w.wave}: stat ${k} is not finite`);
-  m.pendingSnap = w.wave;
-  m.pendingSnapFrames = 0;
+  if (world.bossPending && !bossDefs[world.bossPending])
+    rlMonIssue("FAIL", "spawn-plan", `wave ${world.wave}: unknown boss ${world.bossPending}`);
+  if (world.championPending && !enemyDefs[world.championPending])
+    rlMonIssue("FAIL", "spawn-plan", `wave ${world.wave}: unknown champion ${world.championPending}`);
+  for (const [key, value] of Object.entries(world.stats || {}))
+    if (typeof value === "number" && !Number.isFinite(value))
+      rlMonIssue("FAIL", "stats", `wave ${world.wave}: stat ${key} is not finite`);
+  mon.pendingSnap = world.wave;
+  mon.pendingSnapFrames = 0;
 }
-function rlMonStep(w, n0, dash0, sh0, k0, dt) {
-  const m = RL_MON;
-  m.steps++;
-  const fx = w.fx;
-  for (let i = n0; i < fx.length; i++) {
-    const ev = fx[i],
-      k = ev && ev.k;
-    m.events++;
-    m.kinds[k] = (m.kinds[k] || 0) + 1;
-    if (!RL_EVENT_KINDS.has(k)) rlMonIssue("WARN", "events", `"${k}" has no consumer`);
+function rlMonStep(world, fxStart, dash0, sh0, killsStart, dt) {
+  const mon = RL_MON;
+  mon.steps++;
+  const fx = world.fx;
+  for (let i = fxStart; i < fx.length; i++) {
+    const event = fx[i],
+      kind = event && event.k;
+    mon.events++;
+    mon.kinds[kind] = (mon.kinds[kind] || 0) + 1;
+    if (!RL_EVENT_KINDS.has(kind)) rlMonIssue("WARN", "events", `"${kind}" has no consumer`);
     {
-      const pe = rlEventPayloadError(ev);
-      pe && rlMonIssue("FAIL", "events", pe);
+      const payloadError = rlEventPayloadError(event);
+      if (payloadError) {
+        rlMonIssue("FAIL", "events", payloadError);
+      }
     }
-    if (RL_BOSS_EVENTS.has(k) && !w.boss)
-      rlMonIssue("FAIL", "events", `boss event "${k}" emitted without an active boss`);
-    if (k === "phase" && w.boss && w.boss.type !== "core")
-      rlMonIssue("FAIL", "events", `"phase" emitted by ${w.boss.type}`);
-    if (k === "dash" && w.player.dashId === dash0)
+    if (RL_BOSS_EVENTS.has(kind) && !world.boss)
+      rlMonIssue("FAIL", "events", `boss event "${kind}" emitted without an active boss`);
+    if (kind === "phase" && world.boss && world.boss.type !== "core")
+      rlMonIssue("FAIL", "events", `"phase" emitted by ${world.boss.type}`);
+    if (kind === "dash" && world.player.dashId === dash0)
       rlMonIssue("FAIL", "events", `"dash" emitted although the player did not dash`);
-    if (k === "spawn" || k === "boss") {
-      const type = k === "boss" ? ev.id : ev.type,
-        known = k === "boss" ? !!bossDefs[type] : !!enemyDefs[type];
-      if (!known) rlMonIssue("FAIL", "spawns", `unknown ${k} type ${type}`);
+    if (kind === "spawn" || kind === "boss") {
+      const type = kind === "boss" ? event.id : event.type,
+        known = kind === "boss" ? !!bossDefs[type] : !!enemyDefs[type];
+      if (!known) rlMonIssue("FAIL", "spawns", `unknown ${kind} type ${type}`);
       else {
-        m.types.add(type);
-        if (k === "spawn" && renderer && !renderer.enemyPools[type])
+        mon.types.add(type);
+        if (kind === "spawn" && renderer && !renderer.enemyPools[type])
           rlMonIssue("FAIL", "render", `no mesh pool for enemy ${type}`);
       }
     }
-    if (k === "shot" && !weaponDefs[ev.w]) rlMonIssue("FAIL", "weapons", `shot from unknown weapon ${ev.w}`);
-    if (k === "cleared" && m.cur) {
-      m.cur.cleared = true;
-      m.cur.secs = w.time - m.cur.t0;
-      if (w.enemies.length || w.markers.length || w.planIdx < w.plan.length)
+    if (kind === "shot" && !weaponDefs[event.w]) rlMonIssue("FAIL", "weapons", `shot from unknown weapon ${event.w}`);
+    if (kind === "cleared" && mon.cur) {
+      mon.cur.cleared = true;
+      mon.cur.secs = world.time - mon.cur.t0;
+      if (world.enemies.length || world.markers.length || world.planIdx < world.plan.length)
         rlMonIssue(
           "FAIL",
           "wave-end",
-          `wave ${w.wave} cleared with ${w.enemies.length} enemies / ${w.markers.length} markers / ${w.plan.length - w.planIdx} groups left`,
+          `wave ${world.wave} cleared with ${world.enemies.length} enemies / ${world.markers.length} markers / ${world.plan.length - world.planIdx} groups left`,
         );
     }
   }
-  if (w.shards < sh0) rlMonIssue("FAIL", "economy", "run shards decreased during a step");
-  if (w.kills < k0) rlMonIssue("FAIL", "economy", "kill counter decreased during a step");
+  if (world.shards < sh0) rlMonIssue("FAIL", "economy", "run shards decreased during a step");
+  if (world.kills < killsStart) rlMonIssue("FAIL", "economy", "kill counter decreased during a step");
   // Soft-lock: nothing left to fight, but the wave does not end.
   const empty =
-    w.state === "fight" &&
-    w.planIdx >= w.plan.length &&
-    !w.bossPending &&
-    !w.championPending &&
-    !w.enemies.length &&
-    !w.markers.length;
-  m.idleT = empty ? m.idleT + dt : 0;
-  if (m.idleT > 4) rlMonIssue("FAIL", "wave-end", `wave ${w.wave} did not end although no enemies remain`);
-  if (w.state === "fight" && m.cur && w.time - m.cur.t0 > 480)
-    rlMonIssue("WARN", "waves", `wave ${w.wave} has lasted over 8 minutes`);
-  if (m.steps % 20 === 0) rlMonSample(w);
+    world.state === "fight" &&
+    world.planIdx >= world.plan.length &&
+    !world.bossPending &&
+    !world.championPending &&
+    !world.enemies.length &&
+    !world.markers.length;
+  mon.idleT = empty ? mon.idleT + dt : 0;
+  if (mon.idleT > 4) rlMonIssue("FAIL", "wave-end", `wave ${world.wave} did not end although no enemies remain`);
+  if (world.state === "fight" && mon.cur && world.time - mon.cur.t0 > 480)
+    rlMonIssue("WARN", "waves", `wave ${world.wave} has lasted over 8 minutes`);
+  if (mon.steps % 20 === 0) rlMonSample(world);
 }
-function rlMonSample(w) {
-  const m = RL_MON,
-    f = Number.isFinite,
-    p = w.player,
-    A = w.arena;
-  m.samples++;
-  if (![p.x, p.y, p.vx, p.vy, p.hp, p.nova].every(f))
+function rlMonSample(world) {
+  const mon = RL_MON,
+    finite = Number.isFinite,
+    player = world.player,
+    arena = world.arena;
+  mon.samples++;
+  if (![player.x, player.y, player.vx, player.vy, player.hp, player.nova].every(finite))
     rlMonIssue("FAIL", "invariants", "player state became non-finite");
   else {
-    if (Math.abs(p.x) > A.W + 0.05 || Math.abs(p.y) > A.H + 0.05)
+    if (Math.abs(player.x) > arena.W + 0.05 || Math.abs(player.y) > arena.H + 0.05)
       rlMonIssue("FAIL", "invariants", "player left the arena bounds");
-    if (p.hp > w.stats.maxHp + 0.5) rlMonIssue("FAIL", "invariants", "player HP above max HP");
-    if (p.nova < 0 || p.nova > 100.01) rlMonIssue("FAIL", "invariants", "nova charge outside 0–100");
+    if (player.hp > world.stats.maxHp + 0.5) rlMonIssue("FAIL", "invariants", "player HP above max HP");
+    if (player.nova < 0 || player.nova > 100.01) rlMonIssue("FAIL", "invariants", "nova charge outside 0–100");
   }
-  for (const e of w.enemies) {
-    if (!(enemyDefs[e.type] || (e.boss && bossDefs[e.type]))) {
-      rlMonIssue("FAIL", "invariants", `live enemy with unknown type ${e.type}`);
+  for (const enemy of world.enemies) {
+    if (!(enemyDefs[enemy.type] || (enemy.boss && bossDefs[enemy.type]))) {
+      rlMonIssue("FAIL", "invariants", `live enemy with unknown type ${enemy.type}`);
       continue;
     }
-    if (![e.x, e.y, e.hp, e.vx, e.vy].every(f)) {
-      rlMonIssue("FAIL", "invariants", `${e.type} state became non-finite`);
+    if (![enemy.x, enemy.y, enemy.hp, enemy.vx, enemy.vy].every(finite)) {
+      rlMonIssue("FAIL", "invariants", `${enemy.type} state became non-finite`);
       continue;
     }
-    if (Math.abs(e.x) > A.W + 1.5 || Math.abs(e.y) > A.H + 1.5)
-      rlMonIssue("WARN", "invariants", `${e.type} outside the arena`);
-    if (!e.boss && !e.ghost && A.blocked(e.x, e.y, -Math.min(0.3, e.r * 0.5)))
-      rlMonIssue("WARN", "invariants", `${e.type} inside a wall`);
+    if (Math.abs(enemy.x) > arena.W + 1.5 || Math.abs(enemy.y) > arena.H + 1.5)
+      rlMonIssue("WARN", "invariants", `${enemy.type} outside the arena`);
+    if (!enemy.boss && !enemy.ghost && arena.blocked(enemy.x, enemy.y, -Math.min(0.3, enemy.r * 0.5)))
+      rlMonIssue("WARN", "invariants", `${enemy.type} inside a wall`);
   }
-  for (const q of w.pb)
-    if (!f(q.x) || !f(q.y)) {
-      rlMonIssue("FAIL", "invariants", `projectile (${q.w}) became non-finite`);
+  for (const shot of world.pb)
+    if (!finite(shot.x) || !finite(shot.y)) {
+      rlMonIssue("FAIL", "invariants", `projectile (${shot.w}) became non-finite`);
       break;
     }
-  for (const q of w.eb)
-    if (!f(q.x) || !f(q.y)) {
+  for (const shot of world.eb)
+    if (!finite(shot.x) || !finite(shot.y)) {
       rlMonIssue("FAIL", "invariants", "enemy shot became non-finite");
       break;
     }
-  if (![w.shards, w.kills, w.time].every(f)) rlMonIssue("FAIL", "invariants", "run totals became non-finite");
-  const P = m.peak;
-  P.enemies = Math.max(P.enemies, w.enemies.length);
-  P.pb = Math.max(P.pb, w.pb.length);
-  P.eb = Math.max(P.eb, w.eb.length);
-  P.pickups = Math.max(P.pickups, w.pickups.length);
-  if (w.pb.length > 420 || w.eb.length > 360) rlMonIssue("FAIL", "invariants", "projectile pool cap exceeded");
-  if (w.enemies.length > 140) rlMonIssue("WARN", "invariants", `${w.enemies.length} enemies alive at once`);
-  if (w.pickups.length > 320) rlMonIssue("WARN", "invariants", `${w.pickups.length} pickups alive at once`);
+  if (![world.shards, world.kills, world.time].every(finite))
+    rlMonIssue("FAIL", "invariants", "run totals became non-finite");
+  const peak = mon.peak;
+  peak.enemies = Math.max(peak.enemies, world.enemies.length);
+  peak.pb = Math.max(peak.pb, world.pb.length);
+  peak.eb = Math.max(peak.eb, world.eb.length);
+  peak.pickups = Math.max(peak.pickups, world.pickups.length);
+  if (world.pb.length > 420 || world.eb.length > 360) rlMonIssue("FAIL", "invariants", "projectile pool cap exceeded");
+  if (world.enemies.length > 140) rlMonIssue("WARN", "invariants", `${world.enemies.length} enemies alive at once`);
+  if (world.pickups.length > 320) rlMonIssue("WARN", "invariants", `${world.pickups.length} pickups alive at once`);
 }
 /* Called once per rendered frame while a run is active and visible. */
 function rlMonFrame(workMs) {
-  const m = RL_MON;
+  const mon = RL_MON;
   if (
-    !m ||
-    game.world !== m.w ||
+    !mon ||
+    game.world !== mon.w ||
     game.mode !== "game" ||
     game.paused ||
     game.chooseShown ||
     game.overShown ||
     document.visibilityState === "hidden"
   ) {
-    if (m) m.lastT = 0;
+    if (mon) mon.lastT = 0;
   } else {
     const now = performance.now();
-    if (m.lastT) {
-      const dt = now - m.lastT;
+    if (mon.lastT) {
+      const dt = now - mon.lastT;
       if (dt < 1000) {
-        m.frames++;
-        m.dtSum += dt;
-        dt > 50 && m.slow++;
-        dt > m.worst && (m.worst = dt);
-        m.workSum += workMs;
+        mon.frames++;
+        mon.dtSum += dt;
+        if (dt > 50) {
+          mon.slow++;
+        }
+        if (dt > mon.worst) {
+          mon.worst = dt;
+        }
+        mon.workSum += workMs;
       }
     }
-    m.lastT = now;
+    mon.lastT = now;
   }
   // What is drawn must be the wave's own biome and layout (no mixed palettes / stale walls).
-  if (m && renderer && game.world === m.w && game.mode === "game" && renderer.biome && (m.frames & 15) === 0) {
-    const A = m.w.arena;
-    renderer.biome.id !== A.biome.id &&
-      rlMonIssue("FAIL", "render", `renderer shows biome ${renderer.biome.id} during a ${A.biome.id} wave`);
-    renderer.arena.layKey !== A.key &&
-      rlMonIssue("FAIL", "render", `renderer walls (${renderer.arena.layKey}) differ from the wave layout (${A.key})`);
-    renderer.arena.biomeId !== A.biome.id &&
-      rlMonIssue("FAIL", "render", `floor palette from ${renderer.arena.biomeId} during a ${A.biome.id} wave`);
+  if (mon && renderer && game.world === mon.w && game.mode === "game" && renderer.biome && (mon.frames & 15) === 0) {
+    const arena = mon.w.arena;
+    if (renderer.biome.id !== arena.biome.id) {
+      rlMonIssue("FAIL", "render", `renderer shows biome ${renderer.biome.id} during a ${arena.biome.id} wave`);
+    }
+    if (renderer.arena.layKey !== arena.key) {
+      rlMonIssue(
+        "FAIL",
+        "render",
+        `renderer walls (${renderer.arena.layKey}) differ from the wave layout (${arena.key})`,
+      );
+    }
+    if (renderer.arena.biomeId !== arena.biome.id) {
+      rlMonIssue("FAIL", "render", `floor palette from ${renderer.arena.biomeId} during a ${arena.biome.id} wave`);
+    }
   }
   // 2.3.2: while the run is being played the HUD (HP, pause, touch buttons) must be
   // on screen — Endless used to leave it hidden. 1.5 s of grace for transitions.
   if (
-    m &&
-    game.world === m.w &&
+    mon &&
+    game.world === mon.w &&
     game.mode === "game" &&
     !game.paused &&
     !game.chooseShown &&
     !game.overShown &&
-    !["choose", "victory", "dead"].includes(m.w.state)
+    !["choose", "victory", "dead"].includes(mon.w.state)
   ) {
     const hud = document.getElementById("hud");
     if (hud && (hud.hidden || hud.style.visibility === "hidden")) {
-      const t = performance.now();
-      m.hudOff || (m.hudOff = t);
-      t - m.hudOff > 1500 &&
-        rlMonIssue("FAIL", "hud", `HUD hidden during wave ${m.w.wave}${m.w.endless ? " (endless)" : ""}`);
-    } else m.hudOff = 0;
+      const now = performance.now();
+      if (!mon.hudOff) {
+        mon.hudOff = now;
+      }
+      if (now - mon.hudOff > 1500) {
+        rlMonIssue("FAIL", "hud", `HUD hidden during wave ${mon.w.wave}${mon.w.endless ? " (endless)" : ""}`);
+      }
+    } else mon.hudOff = 0;
   }
   // Every wave start writes a resumable snapshot; verify it with the real loader
   // (cheap cleanRun() per wave; the full world restore runs once at the end of the run).
-  if (m && m.pendingSnap && game.world === m.w) {
+  if (mon && mon.pendingSnap && game.world === mon.w) {
     const run = store.data.run;
-    if (run && run.wave === m.pendingSnap) {
-      m.snaps.checked++;
-      const wave = m.pendingSnap;
-      m.pendingSnap = 0;
+    if (run && run.wave === mon.pendingSnap) {
+      mon.snaps.checked++;
+      const wave = mon.pendingSnap;
+      mon.pendingSnap = 0;
       try {
-        const s = cleanRun(run);
-        s
-          ? (m.snaps.ok++, (m.lastSnap = s))
-          : rlMonIssue("FAIL", "save", `wave ${wave} snapshot is rejected by the loader`);
-      } catch (e) {
-        rlMonIssue("FAIL", "save", `wave ${wave} snapshot check threw: ${e.message}`);
+        const snap = cleanRun(run);
+        if (snap) {
+          mon.snaps.ok++;
+          mon.lastSnap = snap;
+        } else {
+          rlMonIssue("FAIL", "save", `wave ${wave} snapshot is rejected by the loader`);
+        }
+      } catch (err) {
+        rlMonIssue("FAIL", "save", `wave ${wave} snapshot check threw: ${err.message}`);
       }
-    } else if (++m.pendingSnapFrames > 90) {
-      rlMonIssue("FAIL", "save", `wave ${m.pendingSnap} snapshot was not written`);
-      m.pendingSnap = 0;
+    } else if (++mon.pendingSnapFrames > 90) {
+      rlMonIssue("FAIL", "save", `wave ${mon.pendingSnap} snapshot was not written`);
+      mon.pendingSnap = 0;
     }
   }
 }
-function rlMonPreEnd(w) {
-  const d = store.data,
-    s = d.stats;
+function rlMonPreEnd(world) {
+  const data = store.data,
+    stats = data.stats;
   return {
-    bank: d.shards,
-    kills: s.kills,
-    runs: s.runs,
-    deaths: s.deaths,
-    clears: s.clears,
-    bestWave: s.bestWave,
-    shards: w.shards,
-    runKills: w.kills,
-    threat: w.threat,
-    salvage: d.workshop.salvage || 0,
-    endless: !!w.endless,
-    wave: w.wave,
+    bank: data.shards,
+    kills: stats.kills,
+    runs: stats.runs,
+    deaths: stats.deaths,
+    clears: stats.clears,
+    bestWave: stats.bestWave,
+    shards: world.shards,
+    runKills: world.kills,
+    threat: world.threat,
+    salvage: data.workshop.salvage || 0,
+    endless: !!world.endless,
+    wave: world.wave,
   };
 }
 /* Builds the post-run audit: final state (rlRunAudit) + monitor + save/economy. */
-function rlMonFinish(w, pre, win, abandoned, silent, crashed) {
-  const m = RL_MON && RL_MON.w === w ? RL_MON : null,
-    fresh0 = !crashed && RL_LAST_RUN_AUDIT && RL_LAST_RUN_AUDIT.wave === w.wave && !RL_LAST_RUN_AUDIT.checks.length,
-    base = fresh0 ? RL_LAST_RUN_AUDIT : rlRunAudit(w, win, abandoned);
+function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
+  const mon = RL_MON && RL_MON.w === world ? RL_MON : null,
+    fresh0 = !crashed && RL_LAST_RUN_AUDIT && RL_LAST_RUN_AUDIT.wave === world.wave && !RL_LAST_RUN_AUDIT.checks.length,
+    base = fresh0 ? RL_LAST_RUN_AUDIT : rlRunAudit(world, win, abandoned);
   const checks = [],
-    C = (st, id, msg) => checks.push({ st, id, msg });
-  const issues = m ? [...m.issues.values()] : [],
-    byId = (id) => issues.filter((q) => q.id === id);
-  const fmt = (q) => `${q.msg}${q.n > 1 ? ` (×${q.n})` : ""}`;
+    addCheck = (status, id, msg) => checks.push({ st: status, id, msg });
+  const issues = mon ? [...mon.issues.values()] : [],
+    byId = (id) => issues.filter((issue) => issue.id === id);
+  const fmt = (issue) => `${issue.msg}${issue.n > 1 ? ` (×${issue.n})` : ""}`;
   const group = (id, okMsg, ids = [id]) => {
-    const qs = issues.filter((q) => ids.includes(q.id)),
-      f = qs.filter((q) => q.sev === "FAIL"),
-      wn = qs.filter((q) => q.sev === "WARN");
-    C(
-      f.length ? "FAIL" : wn.length ? "WARN" : "OK",
+    const matching = issues.filter((issue) => ids.includes(issue.id)),
+      fails = matching.filter((issue) => issue.sev === "FAIL"),
+      warns = matching.filter((issue) => issue.sev === "WARN");
+    addCheck(
+      fails.length ? "FAIL" : warns.length ? "WARN" : "OK",
       id,
-      f.length || wn.length
-        ? [...f, ...wn].slice(0, 4).map(fmt).join(" | ") +
-            (f.length + wn.length > 4 ? ` … +${f.length + wn.length - 4}` : "")
+      fails.length || warns.length
+        ? [...fails, ...warns].slice(0, 4).map(fmt).join(" | ") +
+            (fails.length + warns.length > 4 ? ` … +${fails.length + warns.length - 4}` : "")
         : okMsg,
     );
   };
-  if (crashed) C("FAIL", "crash", "the game loop crashed (3 consecutive frame errors)");
+  if (crashed) addCheck("FAIL", "crash", "the game loop crashed (3 consecutive frame errors)");
   // 1. runtime errors logged since the run started
-  const fresh = m ? errorLog.filter((e) => (m.errBase.get(rlMonErrKey(e)) || 0) < e.n) : [];
-  C(
+  const fresh = mon ? errorLog.filter((entry) => (mon.errBase.get(rlMonErrKey(entry)) || 0) < entry.n) : [];
+  addCheck(
     fresh.length ? "FAIL" : "OK",
     "runtime-errors",
     fresh.length
       ? fresh
           .slice(0, 3)
-          .map((e) => `[${e.where}] ${e.msg}`)
+          .map((entry) => `[${entry.where}] ${entry.msg}`)
           .join(" | ")
       : "none during this run",
   );
   // 2. final world state
-  C(
+  addCheck(
     base.fail.length ? "FAIL" : base.warn.length ? "WARN" : "OK",
     "final-state",
     base.fail.length || base.warn.length
       ? [...base.fail, ...base.warn].slice(0, 4).join(" | ")
       : "arena, entities and totals are finite and consistent",
   );
-  if (m) {
+  if (mon) {
     group(
       "invariants",
-      `${m.samples} samples over ${m.steps} steps · peak ${m.peak.enemies} enemies / ${m.peak.pb}+${m.peak.eb} shots / ${m.peak.pickups} pickups`,
+      `${mon.samples} samples over ${mon.steps} steps · peak ${mon.peak.enemies} enemies / ${mon.peak.pb}+${mon.peak.eb} shots / ${mon.peak.pickups} pickups`,
     );
-    group("spawn-plan", `${m.waves.length} wave plan(s) valid`, ["spawn-plan", "stats"]);
-    const done = m.waves.filter((q) => q.cleared),
-      longest = done.reduce((a, q) => (q.secs > a.secs ? q : a), { secs: 0, wave: 0 });
+    group("spawn-plan", `${mon.waves.length} wave plan(s) valid`, ["spawn-plan", "stats"]);
+    const done = mon.waves.filter((wave) => wave.cleared),
+      longest = done.reduce((best, wave) => (wave.secs > best.secs ? wave : best), { secs: 0, wave: 0 });
     group(
       "waves",
-      `${done.length}/${m.waves.length} cleared${done.length ? ` · avg ${Math.round(done.reduce((a, q) => a + q.secs, 0) / done.length)} s · longest ${Math.round(longest.secs)} s (wave ${longest.wave})` : ""}`,
+      `${done.length}/${mon.waves.length} cleared${done.length ? ` · avg ${Math.round(done.reduce((sum, wave) => sum + wave.secs, 0) / done.length)} s · longest ${Math.round(longest.secs)} s (wave ${longest.wave})` : ""}`,
       ["waves", "wave-end"],
     );
-    group("spawns", `${m.types.size} enemy/boss types seen · all with meshes`, ["spawns", "render"]);
-    group("events", `${m.events} events · ${Object.keys(m.kinds).length} kinds · all consumed`, ["events", "weapons"]);
+    group("spawns", `${mon.types.size} enemy/boss types seen · all with meshes`, ["spawns", "render"]);
+    group("events", `${mon.events} events · ${Object.keys(mon.kinds).length} kinds · all consumed`, [
+      "events",
+      "weapons",
+    ]);
     group("economy", "shards and kills only increased", ["economy"]);
     group("hud", "HUD visible whenever a wave was being played");
-    if (m.lastSnap)
+    if (mon.lastSnap)
       try {
-        const s = m.lastSnap,
-          t = new World({ snap: s, ws: store.data.workshop });
-        (t.wave !== s.wave || t.weapon !== s.weapon || JSON.stringify(t.up) !== JSON.stringify(s.up)) &&
-          rlMonIssue("FAIL", "save", `wave ${s.wave} snapshot restores a different run`);
-      } catch (e) {
-        rlMonIssue("FAIL", "save", `wave ${m.lastSnap.wave} snapshot restore threw: ${e.message}`);
+        const snap = mon.lastSnap,
+          restored = new World({ snap: snap, ws: store.data.workshop });
+        if (
+          restored.wave !== snap.wave ||
+          restored.weapon !== snap.weapon ||
+          JSON.stringify(restored.up) !== JSON.stringify(snap.up)
+        ) {
+          rlMonIssue("FAIL", "save", `wave ${snap.wave} snapshot restores a different run`);
+        }
+      } catch (err) {
+        rlMonIssue("FAIL", "save", `wave ${mon.lastSnap.wave} snapshot restore threw: ${err.message}`);
       }
-    const sq = [...m.issues.values()].filter((q) => q.id === "save");
-    C(
-      sq.some((q) => q.sev === "FAIL") ? "FAIL" : m.snaps.checked ? "OK" : "WARN",
+    const saveIssues = [...mon.issues.values()].filter((issue) => issue.id === "save");
+    addCheck(
+      saveIssues.some((issue) => issue.sev === "FAIL") ? "FAIL" : mon.snaps.checked ? "OK" : "WARN",
       "snapshots",
-      sq.length
-        ? sq.slice(0, 3).map(fmt).join(" | ")
-        : m.snaps.checked
-          ? `${m.snaps.ok}/${m.snaps.checked} wave snapshot(s) accepted by the loader · last one restored into a live world`
+      saveIssues.length
+        ? saveIssues.slice(0, 3).map(fmt).join(" | ")
+        : mon.snaps.checked
+          ? `${mon.snaps.ok}/${mon.snaps.checked} wave snapshot(s) accepted by the loader · last one restored into a live world`
           : "no wave snapshot was verified",
     );
-    const fps = m.dtSum > 0 ? m.frames / (m.dtSum / 1000) : 0,
-      slowPct = m.frames ? (m.slow / m.frames) * 100 : 0;
-    C(
-      m.frames < 120 ? "INFO" : fps < 40 || slowPct > 5 ? "WARN" : "OK",
+    const fps = mon.dtSum > 0 ? mon.frames / (mon.dtSum / 1000) : 0,
+      slowPct = mon.frames ? (mon.slow / mon.frames) * 100 : 0;
+    addCheck(
+      mon.frames < 120 ? "INFO" : fps < 40 || slowPct > 5 ? "WARN" : "OK",
       "performance",
-      m.frames
-        ? `${fps.toFixed(0)} fps avg · ${m.slow} slow frame(s) >50 ms (${slowPct.toFixed(1)}%) · worst ${Math.round(m.worst)} ms · JS ${(m.workSum / m.frames).toFixed(1)} ms/frame`
+      mon.frames
+        ? `${fps.toFixed(0)} fps avg · ${mon.slow} slow frame(s) >50 ms (${slowPct.toFixed(1)}%) · worst ${Math.round(mon.worst)} ms · JS ${(mon.workSum / mon.frames).toFixed(1)} ms/frame`
         : "no frames measured",
     );
-    const inp = RL_RT.pointerdown + RL_RT.keydown - m.inputBase;
-    C(
+    const inp = RL_RT.pointerdown + RL_RT.keydown - mon.inputBase;
+    addCheck(
       inp > 0 ? "OK" : "WARN",
       "input",
       inp > 0 ? `${inp} input event(s) during the run` : "no input events observed during this run",
     );
-  } else C("WARN", "monitor", "run monitor was not attached (run started before diagnostics were ready)");
+  } else addCheck("WARN", "monitor", "run monitor was not attached (run started before diagnostics were ready)");
   if (!crashed) {
     // 3. payout, records and persistence after endRun() ran
-    const d = store.data,
-      c = pre.shards,
-      bonus = win ? Math.round(c * 0.25) : 0,
-      expect = Math.round((c + bonus) * threatMods(pre.threat).shards * (1 + 0.1 * pre.salvage)),
-      got = d.shards - pre.bank;
-    C(
+    const data = store.data,
+      runShards = pre.shards,
+      bonus = win ? Math.round(runShards * 0.25) : 0,
+      expect = Math.round((runShards + bonus) * threatMods(pre.threat).shards * (1 + 0.1 * pre.salvage)),
+      got = data.shards - pre.bank;
+    addCheck(
       got === expect ? "OK" : "FAIL",
       "payout",
       got === expect ? `+${expect} shards credited` : `bank changed by ${got}, expected +${expect}`,
     );
-    const s = d.stats,
+    const stats = data.stats,
       rec = [];
-    s.kills - pre.kills !== pre.runKills && rec.push(`kills +${s.kills - pre.kills} (run had ${pre.runKills})`);
-    s.bestWave < (win ? 20 : pre.wave) && rec.push(`best wave ${s.bestWave} < reached ${win ? 20 : pre.wave}`);
-    win && !pre.endless && s.clears !== pre.clears + 1 && rec.push("clear not counted");
-    !win && !abandoned && s.deaths !== pre.deaths + 1 && rec.push("death not counted");
-    C(
+    if (stats.kills - pre.kills !== pre.runKills) {
+      rec.push(`kills +${stats.kills - pre.kills} (run had ${pre.runKills})`);
+    }
+    if (stats.bestWave < (win ? 20 : pre.wave)) {
+      rec.push(`best wave ${stats.bestWave} < reached ${win ? 20 : pre.wave}`);
+    }
+    if (win && !pre.endless && stats.clears !== pre.clears + 1) {
+      rec.push("clear not counted");
+    }
+    if (!win && !abandoned && stats.deaths !== pre.deaths + 1) {
+      rec.push("death not counted");
+    }
+    addCheck(
       rec.length ? "FAIL" : "OK",
       "records",
-      rec.length ? rec.join(" | ") : `kills +${pre.runKills} · best wave ${s.bestWave}`,
+      rec.length ? rec.join(" | ") : `kills +${pre.runKills} · best wave ${stats.bestWave}`,
     );
     const per = [];
-    d.run !== null && per.push("finished run is still stored as resumable");
+    if (data.run !== null) {
+      per.push("finished run is still stored as resumable");
+    }
     try {
-      const r = store.parse(JSON.stringify(d));
-      r.ok || per.push("save does not round-trip");
-    } catch (e) {
-      per.push("save round-trip threw: " + e.message);
+      const parsed = store.parse(JSON.stringify(data));
+      if (!parsed.ok) {
+        per.push("save does not round-trip");
+      }
+    } catch (err) {
+      per.push("save round-trip threw: " + err.message);
     }
     let stored = null;
     try {
       stored = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
     } catch {}
-    if (!store.storageOk) C("WARN", "persistence", "storage is blocked — progress only lives in memory");
+    if (!store.storageOk) addCheck("WARN", "persistence", "storage is blocked — progress only lives in memory");
     else {
-      (stored && stored.savedAt === d.savedAt && stored.shards === d.shards) ||
+      if (!(stored && stored.savedAt === data.savedAt && stored.shards === data.shards)) {
         per.push("localStorage does not match the in-memory save");
-      C(
+      }
+      addCheck(
         per.length ? "FAIL" : "OK",
         "persistence",
         per.length ? per.join(" | ") : "run cleared · save round-trips · localStorage in sync",
       );
     }
   }
-  const fail = checks.filter((q) => q.st === "FAIL").map((q) => `${q.id}: ${q.msg}`),
-    warn = checks.filter((q) => q.st === "WARN").map((q) => `${q.id}: ${q.msg}`);
-  const a = {
+  const fail = checks.filter((check) => check.st === "FAIL").map((check) => `${check.id}: ${check.msg}`),
+    warn = checks.filter((check) => check.st === "WARN").map((check) => `${check.id}: ${check.msg}`);
+  const audit = {
     ...base,
     ok: !fail.length,
     fail,
     warn,
     checks,
     outcome: crashed ? "crashed" : base.outcome,
-    wave: w.wave,
-    time: w.time,
-    kills: w.kills,
-    shards: w.shards,
-    weapon: w.weapon,
-    threat: w.threat,
+    wave: world.wave,
+    time: world.time,
+    kills: world.kills,
+    shards: world.shards,
+    weapon: world.weapon,
+    threat: world.threat,
     endScreen: null,
   };
-  RL_LAST_RUN_AUDIT = a;
+  RL_LAST_RUN_AUDIT = audit;
   RL_MON = null;
   if (!silent && !crashed) {
     // 4. end screen: visible, HUD hidden, every control reachable (checked two frames later)
@@ -1300,52 +1023,62 @@ function rlMonFinish(w, pre, win, abandoned, silent, crashed) {
         try {
           const over = document.getElementById("over"),
             hud = document.getElementById("hud"),
-            la = window.__riftLayoutAudit?.(),
+            layout = window.__riftLayoutAudit?.(),
             probs = [];
-          over.hidden && probs.push("run summary not shown");
-          hud.hidden || probs.push("HUD still visible");
-          la && !la.ok && probs.push(...la.findings.slice(0, 3));
-          const st = probs.length ? "FAIL" : "OK";
-          a.checks.push({
-            st,
+          if (over.hidden) {
+            probs.push("run summary not shown");
+          }
+          if (!hud.hidden) {
+            probs.push("HUD still visible");
+          }
+          if (layout && !layout.ok) {
+            probs.push(...layout.findings.slice(0, 3));
+          }
+          const status = probs.length ? "FAIL" : "OK";
+          audit.checks.push({
+            st: status,
             id: "end-screen",
-            msg: probs.length ? probs.join(" | ") : `${la ? la.checked : 0} controls reachable`,
+            msg: probs.length ? probs.join(" | ") : `${layout ? layout.checked : 0} controls reachable`,
           });
           if (probs.length) {
-            a.ok = !1;
-            a.fail.push("end-screen: " + probs.join(" | "));
+            audit.ok = false;
+            audit.fail.push("end-screen: " + probs.join(" | "));
           }
-        } catch (e) {
-          a.checks.push({ st: "WARN", id: "end-screen", msg: e.message });
+        } catch (err) {
+          audit.checks.push({ st: "WARN", id: "end-screen", msg: err.message });
         }
-        a.fail.length &&
+        if (audit.fail.length) {
           ui.toast(
-            `Diagnostics: ${a.fail.length} problem${a.fail.length === 1 ? "" : "s"} in this run — Settings › Diagnostics`,
+            `Diagnostics: ${audit.fail.length} problem${audit.fail.length === 1 ? "" : "s"} in this run — Settings › Diagnostics`,
             "warn",
             6000,
           );
-        rlRunHealth({ context: "post-run" }).catch((e) => logError("health", e));
+        }
+        rlRunHealth({ context: "post-run" }).catch((err) => logError("health", err));
       }),
     );
-  } else rlRunHealth({ context: "post-run" }).catch((e) => logError("health", e));
-  return a;
+  } else rlRunHealth({ context: "post-run" }).catch((err) => logError("health", err));
+  return audit;
 }
 function rlMonCrashed() {
   try {
-    const w = RL_MON && RL_MON.w;
-    w && rlMonFinish(w, rlMonPreEnd(w), !1, !1, !0, !0);
+    const world = RL_MON && RL_MON.w;
+    if (world) {
+      rlMonFinish(world, rlMonPreEnd(world), false, false, true, true);
+    }
   } catch {}
 }
 function rlAuditReportLines(out) {
-  const a = RL_LAST_RUN_AUDIT;
-  if (!a) return;
-  const f = a.checks.filter((q) => q.st === "FAIL").length,
-    w = a.checks.filter((q) => q.st === "WARN").length;
+  const audit = RL_LAST_RUN_AUDIT;
+  if (!audit) return;
+  const fails = audit.checks.filter((check) => check.st === "FAIL").length,
+    warns = audit.checks.filter((check) => check.st === "WARN").length;
   out.push(
     "",
-    `Post-run audit: ${String(a.outcome).toUpperCase()} · ${a.weapon ? weaponDefs[a.weapon]?.name + " · " : ""}wave ${a.wave} · ${formatTime(a.time || 0)} · ${a.checks.length} checks · ${f} FAIL · ${w} WARN`,
+    `Post-run audit: ${String(audit.outcome).toUpperCase()} · ${audit.weapon ? weaponDefs[audit.weapon]?.name + " · " : ""}wave ${audit.wave} · ${formatTime(audit.time || 0)} · ${audit.checks.length} checks · ${fails} FAIL · ${warns} WARN`,
   );
-  for (const q of a.checks) out.push(`  [${q.st}]${" ".repeat(Math.max(1, 5 - q.st.length))}${q.id}: ${q.msg}`);
+  for (const check of audit.checks)
+    out.push(`  [${check.st}]${" ".repeat(Math.max(1, 5 - check.st.length))}${check.id}: ${check.msg}`);
 }
 function rlUiButtonGuardSelfTest() {
   // Runs on a detached host: no document-level listeners fire, so the test
@@ -1353,19 +1086,21 @@ function rlUiButtonGuardSelfTest() {
   const host = document.createElement("div");
   host.setAttribute("data-rift-ui-test", "1");
   const fake = { sound: { play: () => {} }, store: { data: {} }, input: {} },
-    ui = { g: fake };
-  ui.click = GameUI.prototype.click;
+    testUi = { g: fake };
+  testUi.click = GameUI.prototype.click;
   let count = 0,
     steps = 0,
     pass = true;
   const drops = RL_RT.uiGuardDrops;
   const make = (key = "") => {
-    const b = document.createElement("button");
-    b.type = "button";
-    key && (b.dataset.buy = key);
-    host.appendChild(b);
-    ui.click.call(ui, b, () => count++);
-    return b;
+    const button = document.createElement("button");
+    button.type = "button";
+    if (key) {
+      button.dataset.buy = key;
+    }
+    host.appendChild(button);
+    testUi.click.call(testUi, button, () => count++);
+    return button;
   };
   const touch = (el, id, x, y, type = "touch") => {
     el.dispatchEvent(
@@ -1395,20 +1130,20 @@ function rlUiButtonGuardSelfTest() {
     RL_TOUCH_CLICK_GUARD.until = 0;
     RL_TOUCH_CLICK_GUARD.key = "";
     // 1. DOM replacement after a touch must not create a second activation.
-    let b = make("touch-test");
-    touch(b, 41, 12, 12);
+    let button = make("touch-test");
+    touch(button, 41, 12, 12);
     host.replaceChildren();
-    b = make("touch-test");
-    click(b, 12, 12);
+    button = make("touch-test");
+    click(button, 12, 12);
     if (count !== 1) pass = false;
     steps++;
     // 2. A later deliberate click remains available.
-    click(b, 12, 12);
+    click(button, 12, 12);
     if (count !== 2) pass = false;
     steps++;
     // 3. Pointer-id mismatch must not activate; the matching pointer does, and its ghost click is dropped.
-    b = make();
-    b.dispatchEvent(
+    button = make();
+    button.dispatchEvent(
       new PointerEvent("pointerdown", {
         bubbles: true,
         pointerId: 50,
@@ -1418,7 +1153,7 @@ function rlUiButtonGuardSelfTest() {
         clientY: 4,
       }),
     );
-    b.dispatchEvent(
+    button.dispatchEvent(
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 51,
@@ -1429,7 +1164,7 @@ function rlUiButtonGuardSelfTest() {
       }),
     );
     if (count !== 2) pass = false;
-    b.dispatchEvent(
+    button.dispatchEvent(
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 50,
@@ -1439,12 +1174,12 @@ function rlUiButtonGuardSelfTest() {
         clientY: 4,
       }),
     );
-    click(b, 4, 4);
+    click(button, 4, 4);
     if (count !== 3) pass = false;
     steps++;
     // 4. Pointer cancellation must not suppress the following ordinary click.
-    b = make();
-    b.dispatchEvent(
+    button = make();
+    button.dispatchEvent(
       new PointerEvent("pointerdown", {
         bubbles: true,
         pointerId: 60,
@@ -1454,7 +1189,7 @@ function rlUiButtonGuardSelfTest() {
         clientY: 8,
       }),
     );
-    b.dispatchEvent(
+    button.dispatchEvent(
       new PointerEvent("pointercancel", {
         bubbles: true,
         pointerId: 60,
@@ -1464,12 +1199,12 @@ function rlUiButtonGuardSelfTest() {
         clientY: 8,
       }),
     );
-    b.dispatchEvent(new PointerEvent("click", { bubbles: true, detail: 1, clientX: 8, clientY: 8 }));
+    button.dispatchEvent(new PointerEvent("click", { bubbles: true, detail: 1, clientX: 8, clientY: 8 }));
     if (count !== 4) pass = false;
     steps++;
     // 5. Secondary pointers cannot hijack the primary activation.
-    b = make();
-    b.dispatchEvent(
+    button = make();
+    button.dispatchEvent(
       new PointerEvent("pointerdown", {
         bubbles: true,
         pointerId: 70,
@@ -1479,7 +1214,7 @@ function rlUiButtonGuardSelfTest() {
         clientY: 10,
       }),
     );
-    b.dispatchEvent(
+    button.dispatchEvent(
       new PointerEvent("pointerdown", {
         bubbles: true,
         pointerId: 71,
@@ -1489,7 +1224,7 @@ function rlUiButtonGuardSelfTest() {
         clientY: 10,
       }),
     );
-    b.dispatchEvent(
+    button.dispatchEvent(
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 70,
@@ -1499,7 +1234,7 @@ function rlUiButtonGuardSelfTest() {
         clientY: 10,
       }),
     );
-    b.dispatchEvent(
+    button.dispatchEvent(
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 71,
@@ -1509,12 +1244,12 @@ function rlUiButtonGuardSelfTest() {
         clientY: 10,
       }),
     );
-    click(b, 10, 10);
+    click(button, 10, 10);
     if (count !== 5) pass = false;
     steps++;
     // 6. A button disabled between press and release must not arm a stale guard.
-    b = make();
-    b.dispatchEvent(
+    button = make();
+    button.dispatchEvent(
       new PointerEvent("pointerdown", {
         bubbles: true,
         pointerId: 75,
@@ -1524,8 +1259,8 @@ function rlUiButtonGuardSelfTest() {
         clientY: 90,
       }),
     );
-    b.disabled = true;
-    b.dispatchEvent(
+    button.disabled = true;
+    button.dispatchEvent(
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 75,
@@ -1535,25 +1270,25 @@ function rlUiButtonGuardSelfTest() {
         clientY: 90,
       }),
     );
-    b.disabled = false;
-    click(b, 90, 90);
+    button.disabled = false;
+    click(button, 90, 90);
     if (count !== 6 || RL_TOUCH_CLICK_GUARD.until !== 0) pass = false;
     steps++;
     // 7. Ghost click after a screen change: a DIFFERENT button now under the finger must not fire
     //    (2.2.2 bug: tapping Home on the run summary started a new run via START RUN).
-    const a = make("a");
-    touch(a, 80, 100, 100);
-    b = make("b");
-    click(b, 100, 100);
+    const first = make("a");
+    touch(first, 80, 100, 100);
+    button = make("b");
+    click(button, 100, 100);
     if (count !== 7) pass = false;
     steps++;
     // 8. A click far away from the last tap is a new, deliberate action.
-    touch(a, 81, 100, 100);
-    b = make("c");
-    click(b, 300, 300);
+    touch(first, 81, 100, 100);
+    button = make("c");
+    click(button, 300, 300);
     if (count !== 9) pass = false;
     steps++;
-  } catch (e) {
+  } catch (err) {
     pass = false;
   }
   RL_TOUCH_CLICK_GUARD.until = 0;
@@ -1565,23 +1300,23 @@ function rlUiButtonGuardSelfTest() {
 
 /* Health checks. Cheap by default; {deep:true} adds the simulation self-test.
  Concurrent calls share one run so the report never contains duplicates. */
-var RL_HEALTH_BUSY = null;
+let RL_HEALTH_BUSY = null;
 function rlRunHealth(opts) {
-  const o = typeof opts === "object" && opts ? opts : { context: opts || "startup" };
+  const options = typeof opts === "object" && opts ? opts : { context: opts || "startup" };
   if (RL_HEALTH_BUSY) {
-    if (!o.deep) return RL_HEALTH_BUSY;
-    return RL_HEALTH_BUSY.then(() => rlRunHealth(o));
+    if (!options.deep) return RL_HEALTH_BUSY;
+    return RL_HEALTH_BUSY.then(() => rlRunHealth(options));
   }
-  RL_HEALTH_BUSY = rlRunHealthNow(o).finally(() => {
+  RL_HEALTH_BUSY = rlRunHealthNow(options).finally(() => {
     RL_HEALTH_BUSY = null;
   });
   return RL_HEALTH_BUSY;
 }
 async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   RL_HEALTH = [];
-  let ok = (i, e, n) => rlHealthAdd(i, e ? "OK" : "FAIL", n),
-    warn = (i, n) => rlHealthAdd(i, "WARN", n),
-    info = (i, n) => rlHealthAdd(i, "INFO", n);
+  let ok = (id, pass, detail) => rlHealthAdd(id, pass ? "OK" : "FAIL", detail),
+    warn = (id, detail) => rlHealthAdd(id, "WARN", detail),
+    info = (id, detail) => rlHealthAdd(id, "INFO", detail);
   info("context", `${context}${deep ? " · deep" : ""} · ${new Date().toISOString()}`);
   try {
     ok(
@@ -1589,53 +1324,53 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
       GAME_VERSION === RL_LOG_VERSION && logContext.version === RL_LOG_VERSION,
       `JS ${GAME_VERSION} · logger ${RL_LOG_VERSION} · runtime ${logContext.version || "?"}`,
     );
-  } catch (e) {
-    rlHealthAdd("version-bundle", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("version-bundle", "FAIL", err.message);
   }
   try {
     let meta = document.querySelector('meta[name="riftline-version"]')?.content || "?",
       buildMeta = document.querySelector('meta[name="riftline-build"]')?.content || "?",
-      scripts = [...document.scripts].map((e) => e.src || e.getAttribute("src") || "").filter(Boolean),
-      gameSrc = scripts.find((e) => /game-v/i.test(e)) || "",
+      scripts = [...document.scripts].map((script) => script.src || script.getAttribute("src") || "").filter(Boolean),
+      gameSrc = scripts.find((src) => /game-v/i.test(src)) || "",
       file = gameSrc.split("/").pop() || "";
     ok(
       "version-contract",
       meta === GAME_VERSION && file === `game-v${GAME_VERSION}-final.js` && buildMeta === BUILD_ID,
       `HTML ${meta} · JS ${GAME_VERSION} · script ${file || "?"} · build ${buildMeta}${buildMeta === BUILD_ID ? "" : " ≠ " + BUILD_ID}`,
     );
-  } catch (e) {
-    rlHealthAdd("version-contract", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("version-contract", "FAIL", err.message);
   }
   try {
-    let m = RL_REQUIRED_DOM.filter((e) => !document.getElementById(e));
+    let missing = RL_REQUIRED_DOM.filter((id) => !document.getElementById(id));
     ok(
       "dom",
-      m.length === 0,
-      m.length
-        ? `${m.length} missing: ${m.slice(0, 8).join(", ")}${m.length > 8 ? "…" : ""}`
+      missing.length === 0,
+      missing.length
+        ? `${missing.length} missing: ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? "…" : ""}`
         : `${RL_REQUIRED_DOM.length} required nodes present`,
     );
-  } catch (e) {
-    rlHealthAdd("dom", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("dom", "FAIL", err.message);
   }
   try {
-    let ids = [...document.querySelectorAll("[id]")].map((e) => e.id),
-      dup = ids.filter((v, i) => ids.indexOf(v) !== i);
+    let ids = [...document.querySelectorAll("[id]")].map((el) => el.id),
+      dup = ids.filter((id, index) => ids.indexOf(id) !== index);
     ok(
       "dom-unique",
       dup.length === 0,
       dup.length ? `duplicate ids: ${[...new Set(dup)].join(", ")}` : `${ids.length} ids unique`,
     );
-  } catch (e) {
-    rlHealthAdd("dom-unique", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("dom-unique", "FAIL", err.message);
   }
   try {
-    let c = document.getElementById("gl"),
-      g = c && c.getContext && (c.getContext("webgl2") || c.getContext("webgl"));
-    if (!!renderer && !!g) rlHealthAdd("webgl", "OK", "renderer/context ready");
+    let canvas = document.getElementById("gl"),
+      gl = canvas && canvas.getContext && (canvas.getContext("webgl2") || canvas.getContext("webgl"));
+    if (!!renderer && !!gl) rlHealthAdd("webgl", "OK", "renderer/context ready");
     else rlHealthAdd("webgl", "WARN", "WebGL unavailable; gameplay start is disabled but the menu remains interactive");
-  } catch (e) {
-    rlHealthAdd("webgl", "WARN", e.message || "WebGL check unavailable");
+  } catch (err) {
+    rlHealthAdd("webgl", "WARN", err.message || "WebGL check unavailable");
   }
   try {
     ok(
@@ -1646,8 +1381,8 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
         Object.keys(enemyDefs).length >= 25,
       `${Object.keys(weaponDefs).length} weapons (${weaponOrder.length} selectable) · ${Object.keys(enemyDefs).length} enemies · ${biomeList.length} biomes · ${Object.keys(bossDefs).length} bosses · ${upgradeList.length} upgrades · ${workshopModules.length} modules`,
     );
-  } catch (e) {
-    rlHealthAdd("game-data", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("game-data", "FAIL", err.message);
   }
   try {
     const reqE = ["leaper", "turret", "charger", "minebot", "drone", "driller", "beacon", "weaver"],
@@ -1655,8 +1390,12 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
       // 2.5.0: Overclock Matrix, Overbore Caliber, Vector Stabilizer and Salvage Pulse were retired
       reqU = ["bounty", "capacitor", "hunter", "supply", "momentum", "laststand", "vector", "skates", "heatsink"],
       badE = Object.keys(enemyDefs).filter((id) => !enemyDefs[id] || (!(enemyDefs[id].from >= 1) && id !== "mite")),
-      badEvo = upgradeList.filter((u) => u.evo && Object.keys(u.evo).some((k) => !upgradesById[k])).map((u) => u.id),
-      badWpn = upgradeList.filter((u) => u.weapon && !weaponDefs[u.weapon]).map((u) => u.id),
+      badEvo = upgradeList
+        .filter((upgrade) => upgrade.evo && Object.keys(upgrade.evo).some((key) => !upgradesById[key]))
+        .map((upgrade) => upgrade.id),
+      badWpn = upgradeList
+        .filter((upgrade) => upgrade.weapon && !weaponDefs[upgrade.weapon])
+        .map((upgrade) => upgrade.id),
       miss = [
         ...reqE.filter((id) => !enemyDefs[id]),
         ...reqB.filter((id) => !biomesById[id]),
@@ -1672,21 +1411,21 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
         ? `problems: ${miss.join(", ")}`
         : "required content present · evolutions reference valid upgrades and weapons",
     );
-  } catch (e) {
-    rlHealthAdd("content-contract", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("content-contract", "FAIL", err.message);
   }
   try {
-    const noPool = renderer ? Object.keys(enemyDefs).filter((t) => !renderer.enemyPools[t]) : [],
-      noModel = Object.keys(enemyDefs).filter((t) => !RL_MESH_TYPES.includes(t)),
-      noSfx = Object.keys(weaponDefs).filter((w) => !RL_SFX_VOICES.includes(rlShotSfx(w))),
-      noMusic = biomeList.filter((b) => !musicChords[b.id] || !musicVoices[b.id]).map((b) => b.id),
-      noTip = Object.keys(enemyDefs).filter((t) => t !== "mite" && !RL_ENEMY_TIPS[t]),
+    const noPool = renderer ? Object.keys(enemyDefs).filter((type) => !renderer.enemyPools[type]) : [],
+      noModel = Object.keys(enemyDefs).filter((type) => !RL_MESH_TYPES.includes(type)),
+      noSfx = Object.keys(weaponDefs).filter((weapon) => !RL_SFX_VOICES.includes(rlShotSfx(weapon))),
+      noMusic = biomeList.filter((biome) => !musicChords[biome.id] || !musicVoices[biome.id]).map((biome) => biome.id),
+      noTip = Object.keys(enemyDefs).filter((type) => type !== "mite" && !RL_ENEMY_TIPS[type]),
       miss = [
-        ...noPool.map((t) => "mesh pool " + t),
-        ...noModel.map((t) => "model " + t),
-        ...noSfx.map((t) => "sound " + t),
-        ...noMusic.map((t) => "music " + t),
-        ...noTip.map((t) => "intro " + t),
+        ...noPool.map((type) => "mesh pool " + type),
+        ...noModel.map((type) => "model " + type),
+        ...noSfx.map((weapon) => "sound " + weapon),
+        ...noMusic.map((biome) => "music " + biome),
+        ...noTip.map((type) => "intro " + type),
       ];
     ok(
       "content-coverage",
@@ -1695,94 +1434,99 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
         ? `missing: ${miss.slice(0, 8).join(", ")}`
         : `${Object.keys(weaponDefs).length} weapons voiced · ${Object.keys(enemyDefs).length} enemies with own model + intro · ${biomeList.length}/${biomeList.length} biomes with own music theme`,
     );
-  } catch (e) {
-    rlHealthAdd("content-coverage", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("content-coverage", "FAIL", err.message);
   }
   try {
-    let v = [typeof game?.startRun, typeof game?.pause, typeof game?.resume, typeof game?.restart];
+    let types = [typeof game?.startRun, typeof game?.pause, typeof game?.resume, typeof game?.restart];
     ok(
       "game-state",
-      v.every((e) => e === "function"),
-      v.join(" | "),
+      types.every((type) => type === "function"),
+      types.join(" | "),
     );
-  } catch (e) {
-    rlHealthAdd("game-state", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("game-state", "FAIL", err.message);
   }
   try {
     if (typeof PointerEvent !== "undefined" && typeof MouseEvent !== "undefined") {
-      let r = rlUiButtonGuardSelfTest();
+      let guard = rlUiButtonGuardSelfTest();
       ok(
         "ui-input-dedupe",
-        r.ok,
-        `${r.steps}/8 pointer-gesture cases · ${r.count}/9 expected activations · ghost clicks after screen changes are dropped`,
+        guard.ok,
+        `${guard.steps}/8 pointer-gesture cases · ${guard.count}/9 expected activations · ghost clicks after screen changes are dropped`,
       );
     } else {
       rlHealthAdd("ui-input-dedupe", "WARN", "PointerEvent or MouseEvent unavailable in this browser");
     }
-  } catch (e) {
-    rlHealthAdd("ui-input-dedupe", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("ui-input-dedupe", "FAIL", err.message);
   }
   try {
     if (deep) {
-      const r = rlSelfTest(),
-        xf = [...(r.expansion21?.fail || []), ...(r.expansion22?.fail || []), ...(r.expansion23?.fail || [])],
-        all = [...r.fail, ...xf];
-      RL_SELFTEST_LAST = { r, at: Date.now() };
+      if (!RL_DEEP_SELFTEST) throw new Error("self-test module not loaded");
+      const result = RL_DEEP_SELFTEST(),
+        expansionFails = [
+          ...(result.expansion21?.fail || []),
+          ...(result.expansion22?.fail || []),
+          ...(result.expansion23?.fail || []),
+        ],
+        all = [...result.fail, ...expansionFails];
+      RL_SELFTEST_LAST = { r: result, at: Date.now() };
       rlHealthAdd(
         "self-test",
-        r.ok ? "OK" : "FAIL",
-        `${r.worlds} arena cases · ${r.expansion23?.planWaves || 0} wave plans / ${r.expansion23?.spawned || 0} spawns · ${r.expansion23?.eventKinds || 0} event kinds · ${r.weapons} weapons · ${r.bosses} bosses · ${r.enemyTypes} enemy probes · ${r.biomeCases} biome cases · ${r.threatCases} threat cases · ${r.upgradeChecks} upgrade checks · ${r.frames} sim frames · ${r.ms} ms` +
+        result.ok ? "OK" : "FAIL",
+        `${result.worlds} arena cases · ${result.expansion23?.planWaves || 0} wave plans / ${result.expansion23?.spawned || 0} spawns · ${result.expansion23?.eventKinds || 0} event kinds · ${result.weapons} weapons · ${result.bosses} bosses · ${result.enemyTypes} enemy probes · ${result.biomeCases} biome cases · ${result.threatCases} threat cases · ${result.upgradeChecks} upgrade checks · ${result.frames} sim frames · ${result.ms} ms` +
           (all.length ? ` · ${all.slice(0, 4).join(" | ")}` : " · deterministic + runtime checks passed"),
       );
     } else if (RL_SELFTEST_LAST) {
-      const r = RL_SELFTEST_LAST.r;
+      const result = RL_SELFTEST_LAST.r;
       rlHealthAdd(
         "self-test",
-        r.ok ? "OK" : "FAIL",
-        `last deep run ${new Date(RL_SELFTEST_LAST.at).toLocaleTimeString()} · ${r.ok ? "passed" : "failed: " + [...r.fail, ...(r.expansion21?.fail || []), ...(r.expansion22?.fail || []), ...(r.expansion23?.fail || [])].slice(0, 3).join(" | ")} · ${r.expansion23?.planWaves || 0} wave plans · ${r.expansion23?.spawned || 0} spawns · ${r.frames} sim frames (tap “Deep test” to re-run)`,
+        result.ok ? "OK" : "FAIL",
+        `last deep run ${new Date(RL_SELFTEST_LAST.at).toLocaleTimeString()} · ${result.ok ? "passed" : "failed: " + [...result.fail, ...(result.expansion21?.fail || []), ...(result.expansion22?.fail || []), ...(result.expansion23?.fail || [])].slice(0, 3).join(" | ")} · ${result.expansion23?.planWaves || 0} wave plans · ${result.expansion23?.spawned || 0} spawns · ${result.frames} sim frames (tap “Deep test” to re-run)`,
       );
     } else info("self-test", "not run in quick checks — tap “Deep test” in this dialog (takes a few seconds)");
-  } catch (e) {
-    rlHealthAdd("self-test", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("self-test", "FAIL", err.message);
   }
   try {
     if (RL_LAST_RUN_AUDIT) {
-      let a = RL_LAST_RUN_AUDIT,
-        f = a.checks.filter((q) => q.st === "FAIL"),
-        w = a.checks.filter((q) => q.st === "WARN");
+      let audit = RL_LAST_RUN_AUDIT,
+        fails = audit.checks.filter((check) => check.st === "FAIL"),
+        warns = audit.checks.filter((check) => check.st === "WARN");
       rlHealthAdd(
         "post-run-audit",
-        f.length ? "FAIL" : w.length ? "WARN" : "OK",
-        `${a.outcome} · wave ${a.wave} · ${a.checks.length} checks · ${f.length} fail · ${w.length} warn` +
-          (f.length
-            ? ` · ${f
+        fails.length ? "FAIL" : warns.length ? "WARN" : "OK",
+        `${audit.outcome} · wave ${audit.wave} · ${audit.checks.length} checks · ${fails.length} fail · ${warns.length} warn` +
+          (fails.length
+            ? ` · ${fails
                 .slice(0, 2)
-                .map((q) => q.id)
+                .map((check) => check.id)
                 .join(", ")}`
-            : w.length
-              ? ` · ${w
+            : warns.length
+              ? ` · ${warns
                   .slice(0, 2)
-                  .map((q) => q.id)
+                  .map((check) => check.id)
                   .join(", ")}`
               : " · run verified"),
       );
     }
-  } catch (e) {
-    rlHealthAdd("post-run-audit", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("post-run-audit", "FAIL", err.message);
   }
   try {
-    let v =
+    let ready =
       typeof input?.sample === "function" &&
       typeof input?.reset === "function" &&
       typeof input?.press === "function" &&
       typeof input?.onBlur === "function";
-    ok("input-api", v, v ? "pointer + keyboard pipeline ready" : "missing input methods");
+    ok("input-api", ready, ready ? "pointer + keyboard pipeline ready" : "missing input methods");
     info(
       "input-runtime",
       `down ${RL_RT.pointerdown} · move ${RL_RT.pointermove} · up ${RL_RT.pointerup} · cancel ${RL_RT.pointercancel} · keys ${RL_RT.keydown}/${RL_RT.keyup} · resets ${RL_RT.reset}`,
     );
-  } catch (e) {
-    rlHealthAdd("input-api", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("input-api", "FAIL", err.message);
   }
   try {
     const rejected = cleanRun({ v: 1, seed: "oops", weapon: "pulse", wave: 12, hp: "oops", up: {} }),
@@ -1801,23 +1545,24 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
         dmgSrc: { turret: "bad" },
         offer: ["wat", "dmg", "dmg"],
       },
-      s = cleanRun(bad);
+      cleaned = cleanRun(bad);
     ok(
       "save-sanitize",
       !rejected &&
-        !!s &&
-        s.wave === 12 &&
-        s.weapon === "pulse" &&
-        s.hp === 999999 &&
-        s.up.dmg === 8 &&
-        s.bossKills.length === 1 &&
-        Number.isFinite(s.time) &&
-        Number.isFinite(s.shards) &&
-        s.offer.length === 1,
+        !!cleaned &&
+        cleaned.wave === 12 &&
+        cleaned.weapon === "pulse" &&
+        cleaned.hp === 999999 &&
+        // 2.5.1: the level is capped at the upgrade's max (12 since 2.5.0, the check still said 8)
+        cleaned.up.dmg === upgradesById.dmg.max &&
+        cleaned.bossKills.length === 1 &&
+        Number.isFinite(cleaned.time) &&
+        Number.isFinite(cleaned.shards) &&
+        cleaned.offer.length === 1,
       "invalid run rejected; bounded run snapshot sanitized",
     );
-  } catch (e) {
-    rlHealthAdd("save-sanitize", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("save-sanitize", "FAIL", err.message);
   }
   try {
     ok(
@@ -1826,30 +1571,30 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
         store.parse(JSON.stringify({ game: "riftline", v: 1 })).ok === true,
       "import requires the v1 save envelope",
     );
-  } catch (e) {
-    rlHealthAdd("save-envelope", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("save-envelope", "FAIL", err.message);
   }
   try {
-    let r = store.parse(JSON.stringify(store.data));
-    ok("save-roundtrip", !!r && r.ok, "current save serializes + parses successfully");
-  } catch (e) {
-    rlHealthAdd("save-roundtrip", "FAIL", e.message);
+    let parsed = store.parse(JSON.stringify(store.data));
+    ok("save-roundtrip", !!parsed && parsed.ok, "current save serializes + parses successfully");
+  } catch (err) {
+    rlHealthAdd("save-roundtrip", "FAIL", err.message);
   }
   try {
     const run = store.data.run;
     if (run) {
-      const s = cleanRun(run),
-        t = s && new World({ snap: s, ws: store.data.workshop });
+      const snap = cleanRun(run),
+        world = snap && new World({ snap: snap, ws: store.data.workshop });
       ok(
         "save-resume",
-        !!t && t.wave === s.wave,
-        t
-          ? `stored run (wave ${s.wave}, ${weaponDefs[s.weapon].name}) restores`
+        !!world && world.wave === snap.wave,
+        world
+          ? `stored run (wave ${snap.wave}, ${weaponDefs[snap.weapon].name}) restores`
           : "stored run is rejected by the loader",
       );
     } else info("save-resume", "no unfinished run stored");
-  } catch (e) {
-    rlHealthAdd("save-resume", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("save-resume", "FAIL", err.message);
   }
   try {
     let key = "__rift_health_" + GAME_VERSION,
@@ -1857,74 +1602,78 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     localStorage.setItem(key, "1");
     localStorage.removeItem(key);
     ok("storage", true, "write/remove test passed");
-    old !== null && localStorage.setItem(key, old);
-  } catch (e) {
+    if (old !== null) {
+      localStorage.setItem(key, old);
+    }
+  } catch (err) {
     warn("storage", "localStorage unavailable or restricted");
   }
   try {
-    let w = window.innerWidth,
-      h = window.innerHeight,
-      d = window.devicePixelRatio || 0,
+    let width = window.innerWidth,
+      height = window.innerHeight,
+      dpr = window.devicePixelRatio || 0,
       ins = safeAreaInsets();
     ok(
       "viewport",
-      w > 0 && h > 0 && d > 0 && [ins.t, ins.b, ins.l, ins.r].every(Number.isFinite),
-      `${w}×${h} @${d}; insets ${ins.t}/${ins.b}/${ins.l}/${ins.r} · ${document.body.dataset.device || "?"}/${document.body.dataset.orientation || "?"}`,
+      width > 0 && height > 0 && dpr > 0 && [ins.t, ins.b, ins.l, ins.r].every(Number.isFinite),
+      `${width}×${height} @${dpr}; insets ${ins.t}/${ins.b}/${ins.l}/${ins.r} · ${document.body.dataset.device || "?"}/${document.body.dataset.orientation || "?"}`,
     );
-  } catch (e) {
-    rlHealthAdd("viewport", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("viewport", "FAIL", err.message);
   }
   try {
-    let de = document.documentElement,
-      overflowX = de.scrollWidth > window.innerWidth + 1,
-      overflowY = de.scrollHeight > window.innerHeight + 1;
+    let root = document.documentElement,
+      overflowX = root.scrollWidth > window.innerWidth + 1,
+      overflowY = root.scrollHeight > window.innerHeight + 1;
     rlHealthAdd(
       "layout-overflow",
       overflowX || overflowY ? "WARN" : "OK",
-      `scroll ${de.scrollWidth}×${de.scrollHeight} vs viewport ${window.innerWidth}×${window.innerHeight}`,
+      `scroll ${root.scrollWidth}×${root.scrollHeight} vs viewport ${window.innerWidth}×${window.innerHeight}`,
     );
-  } catch (e) {
-    rlHealthAdd("layout-overflow", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("layout-overflow", "FAIL", err.message);
   }
   try {
     if (document.fonts && typeof document.fonts.check === "function") {
-      let a = document.fonts.check('16px "Chakra Petch"'),
-        b = document.fonts.check('16px "Barlow Semi Condensed"');
-      a && b
-        ? ok("fonts", true, "declared game fonts available")
-        : warn("fonts", `font check: Chakra ${a ? "OK" : "WARN"}, Barlow ${b ? "OK" : "WARN"}`);
+      let chakra = document.fonts.check('16px "Chakra Petch"'),
+        barlow = document.fonts.check('16px "Barlow Semi Condensed"');
+      if (chakra && barlow) {
+        ok("fonts", true, "declared game fonts available");
+      } else {
+        warn("fonts", `font check: Chakra ${chakra ? "OK" : "WARN"}, Barlow ${barlow ? "OK" : "WARN"}`);
+      }
     } else warn("fonts", "FontFaceSet API unavailable");
-  } catch (e) {
-    warn("fonts", e.message);
+  } catch (err) {
+    warn("fonts", err.message);
   }
   try {
-    let a = window.__riftLayoutAudit?.() || null;
+    let audit = window.__riftLayoutAudit?.() || null;
     rlHealthAdd(
       "layout-hit-test",
-      a?.ok ? "OK" : "FAIL",
-      a
-        ? `${a.checked} visible controls checked on “${ui?.screen || "?"}” · ${a.bad || 0} covered/misaligned${a.bad ? ": " + a.findings.slice(0, 3).join("; ") : ""}`
+      audit?.ok ? "OK" : "FAIL",
+      audit
+        ? `${audit.checked} visible controls checked on “${ui?.screen || "?"}” · ${audit.bad || 0} covered/misaligned${audit.bad ? ": " + audit.findings.slice(0, 3).join("; ") : ""}`
         : `layout audit unavailable`,
     );
-  } catch (e) {
-    rlHealthAdd("layout-hit-test", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("layout-hit-test", "FAIL", err.message);
   }
   try {
-    let p = typeof PointerEvent !== "undefined";
+    let hasPointer = typeof PointerEvent !== "undefined";
     ok(
       "device-input",
-      p,
-      `PointerEvent ${p ? "OK" : "missing"} · touch points ${navigator.maxTouchPoints || 0} · touch API ${"ontouchstart" in window ? "OK" : "n/a"}`,
+      hasPointer,
+      `PointerEvent ${hasPointer ? "OK" : "missing"} · touch points ${navigator.maxTouchPoints || 0} · touch API ${"ontouchstart" in window ? "OK" : "n/a"}`,
     );
-  } catch (e) {
-    rlHealthAdd("device-input", "FAIL", e.message);
+  } catch (err) {
+    rlHealthAdd("device-input", "FAIL", err.message);
   }
   try {
     if (typeof caches !== "undefined") {
       const prefix = `riftline-v${GAME_VERSION.replace(/\./g, "-")}-`;
       let keys = await caches.keys(),
-        current = keys.find((e) => e.startsWith(prefix)),
-        stale = keys.filter((e) => e.startsWith("riftline-") && !e.startsWith(prefix));
+        current = keys.find((key) => key.startsWith(prefix)),
+        stale = keys.filter((key) => key.startsWith("riftline-") && !key.startsWith(prefix));
       rlHealthAdd(
         "cache-version",
         current ? "OK" : "WARN",
@@ -1933,760 +1682,61 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
           : `current ${GAME_VERSION} cache not found yet (normal on the very first visit)${stale.length ? ` · stale: ${stale.join(", ")}` : ""}`,
       );
     } else warn("cache-version", "CacheStorage API unavailable");
-  } catch (e) {
-    warn("cache-version", e.message);
+  } catch (err) {
+    warn("cache-version", err.message);
   }
   try {
     if ("serviceWorker" in navigator) {
-      let r = await navigator.serviceWorker.getRegistration(),
-        active = !!r?.active,
+      let registration = await navigator.serviceWorker.getRegistration(),
+        active = !!registration?.active,
         controlled = !!navigator.serviceWorker.controller;
       rlHealthAdd(
         "service-worker",
         active ? "OK" : "WARN",
-        `${active ? "active" : "no active"} registration · page ${controlled ? "controlled" : "not controlled"}${r?.waiting ? " · update waiting" : ""}`,
+        `${active ? "active" : "no active"} registration · page ${controlled ? "controlled" : "not controlled"}${registration?.waiting ? " · update waiting" : ""}`,
       );
     } else warn("service-worker", "Service Worker API unavailable");
-  } catch (e) {
-    warn("service-worker", e.message);
+  } catch (err) {
+    warn("service-worker", err.message);
   }
   try {
     let res = await fetch(`./build-info.json?health=${Date.now()}`, { cache: "no-store" }),
-      b = res.ok ? await res.json() : null,
-      okBuild = !!b && b.version === GAME_VERSION && b.build_id === BUILD_ID;
+      info = res.ok ? await res.json() : null,
+      okBuild = !!info && info.version === GAME_VERSION && info.build_id === BUILD_ID;
     rlHealthAdd(
       "build-info-network",
       okBuild ? "OK" : "WARN",
-      b
-        ? `network build ${b.version} · ${b.build_id || "?"}${okBuild ? "" : ` (this page runs ${GAME_VERSION} · ${BUILD_ID})`}`
+      info
+        ? `network build ${info.version} · ${info.build_id || "?"}${okBuild ? "" : ` (this page runs ${GAME_VERSION} · ${BUILD_ID})`}`
         : `HTTP ${res.status}`,
     );
-  } catch (e) {
+  } catch (err) {
     warn("build-info-network", "offline or build-info fetch blocked");
   }
   try {
-    let a = RL_HEALTH.filter((e) => e.status === "OK").length,
-      w = RL_HEALTH.filter((e) => e.status === "WARN").length,
-      f = RL_HEALTH.filter((e) => e.status === "FAIL").length;
-    logContext.health = `${a} OK / ${w} WARN / ${f} FAIL`;
+    let oks = RL_HEALTH.filter((check) => check.status === "OK").length,
+      warns = RL_HEALTH.filter((check) => check.status === "WARN").length,
+      fails = RL_HEALTH.filter((check) => check.status === "FAIL").length;
+    logContext.health = `${oks} OK / ${warns} WARN / ${fails} FAIL`;
   } catch {}
   return RL_HEALTH;
 }
-var RL_SELFTEST_LAST = null;
+let RL_SELFTEST_LAST = null;
+/* The deep self-test (rlSelfTest) lives in selftest.js, which registers it here when it loads, so
+ this module does not import the self-test (2.5.0 refactor). */
+let RL_DEEP_SELFTEST = null;
+function setDeepSelfTest(fn) {
+  RL_DEEP_SELFTEST = fn;
+}
 function rlHealthSummary() {
-  let a = RL_HEALTH.filter((e) => e.status === "OK").length,
-    w = RL_HEALTH.filter((e) => e.status === "WARN").length,
-    f = RL_HEALTH.filter((e) => e.status === "FAIL").length;
-  return `Health: ${a} OK · ${w} WARN · ${f} FAIL`;
+  let oks = RL_HEALTH.filter((check) => check.status === "OK").length,
+    warns = RL_HEALTH.filter((check) => check.status === "WARN").length,
+    fails = RL_HEALTH.filter((check) => check.status === "FAIL").length;
+  return `Health: ${oks} OK · ${warns} WARN · ${fails} FAIL`;
 }
 
-/* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
- slipped through 2.2.2 (plan members, event names, save loader, texts, arena features).
- Every section runs in its own try so one failure cannot hide the others. ---- */
-const _rlSelfTestCore = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTestCore(),
-    t0 = performance.now(),
-    f = Number.isFinite,
-    cats = new Map();
-  const bad = (cat, ex) => {
-    const q = cats.get(cat);
-    q ? (q.n++, q.all.length < 8 && q.all.push(ex)) : cats.set(cat, { n: 1, ex, all: [ex] });
-  };
-  const section = (cat, fn) => {
-    try {
-      fn();
-    } catch (e) {
-      bad(cat + "-exception", String((e && e.message) || e));
-    }
-  };
-  let planWaves = 0,
-    spawned = 0,
-    eventKinds = new Set(),
-    featureLayouts = 0,
-    features = 0,
-    snaps = 0;
-  // 1. every wave's spawn plan (incl. director bonus groups) must be valid and spawn, waves 2–60
-  section("plan", () => {
-    for (const threat of [0, 5]) {
-      const w = new World({ seed: 0x51, weapon: "pulse", threat, ws: { fieldSupply: 3 } });
-      for (let wave = 2; wave <= 60; wave++) {
-        w.startWave(wave);
-        planWaves++;
-        for (const g of w.plan)
-          for (let gi = 0; gi < g.members.length; gi++) {
-            const q = g.members[gi];
-            if (!q || typeof q !== "object" || !enemyDefs[q.type]) {
-              bad("plan-member", `wave ${wave}: ${JSON.stringify(q)}`);
-              continue;
-            }
-            if (gi) continue; // every member is type-checked; one per group is spawned for real
-            const p = w.arena.freePoint(w.rng, w.player.x, w.player.y, 4, 0.5),
-              e = w.spawnEnemy(q.type, p.x, p.y, { elite: q.elite });
-            spawned++;
-            if (!e || ![e.x, e.y, e.hp].every(f)) bad("plan-spawn", `${q.type} @ wave ${wave}`);
-          }
-        if (w.bossPending && !bossDefs[w.bossPending]) bad("plan-boss", `${w.bossPending} @ wave ${wave}`);
-        w.enemies.length = 0;
-      }
-    }
-  });
-  // 2. event contract: every enemy type fights for 7 s near a stationary player, no boss present
-  section("events", () => {
-    for (const id of Object.keys(enemyDefs)) {
-      const w = new World({ seed: hashString("ev:" + id), weapon: "pulse", threat: 0, ws: {} });
-      w.startWave(41);
-      w.god = !0;
-      w.hold = !0;
-      w.plan = [];
-      w.bossPending = null;
-      w.championPending = null;
-      w.fx.length = 0;
-      let p = null;
-      for (let a = 0; a < 12 && !p; a++) {
-        const x = w.player.x + Math.cos(a * 0.52) * 7,
-          y = w.player.y + Math.sin(a * 0.52) * 7;
-        w.arena.blocked(x, y, 1) || w.arena.outside(x, y, 1) || (p = { x, y });
-      }
-      p = p || w.arena.freePoint(w.rng, w.player.x, w.player.y, 5, 0.6);
-      w.spawnEnemy(id, p.x, p.y, {}).spawnT = 0;
-      for (let k = 0; k < 420; k++) {
-        const d0 = w.player.dashId,
-          n0 = w.fx.length;
-        w.step(1 / 60, { mx: 0, my: 0, aim: !1, fire: !1, auto: !1 });
-        for (let i = n0; i < w.fx.length; i++) {
-          const q = w.fx[i].k;
-          eventKinds.add(q);
-          RL_EVENT_KINDS.has(q) || bad("event-unconsumed", `"${q}" from ${id}`);
-          {
-            const pe = rlEventPayloadError(w.fx[i]);
-            pe && bad("event-payload", `${pe} (${id})`);
-          }
-          RL_BOSS_EVENTS.has(q) && !w.boss && bad("event-boss-only", `"${q}" from ${id}`);
-          q === "dash" && w.player.dashId === d0 && bad("event-player-dash", `"dash" from ${id}`);
-        }
-        w.fx.length = 0;
-      }
-    }
-  });
-  // 2b. the sound engine gives every weapon a voice (exercises the real consumer)
-  section("sfx", () => {
-    const s = new SoundEngine(),
-      heard = [];
-    s.ctx = { state: "running" };
-    s.play = (n) => heard.push(n);
-    for (const id of Object.keys(weaponDefs)) {
-      heard.length = 0;
-      s.consume([{ k: "shot", w: id }]);
-      RL_SFX_VOICES.includes(heard[0]) || bad("sfx-silent-weapon", id);
-    }
-  });
-  // 2e. every biome has one coherent palette and valid champion variants
-  section("palette", () => {
-    for (const b of biomeList) {
-      const p = rlPaletteIssues(b);
-      p.length && bad("biome-palette", `${b.id}: ${p.join(", ")}`);
-    }
-    for (const q of rlBiomeDistinct()) bad("biome-lookalike", q);
-    for (const [id, v] of Object.entries(biomeVariants))
-      ["scorch", "frost", "phase", "toxic"].includes(v.id) || bad("variant-dead", `${id} → ${v.id}`);
-    for (const [id, v] of Object.entries(biomeVariants))
-      for (const t of v.types) enemyDefs[t] || bad("variant-type", `${id}: ${t}`);
-  });
-  // 2c. music: every biome has its own theme and every step of fight/boss/menu music schedules cleanly
-  section("music", () => {
-    const O = typeof OfflineAudioContext !== "undefined" ? OfflineAudioContext : null;
-    for (const b of biomeList) {
-      if (!musicChords[b.id] || !musicVoices[b.id]) {
-        bad("music-missing", b.id);
-        continue;
-      }
-      if (!O) continue;
-      const s = new SoundEngine(),
-        c = new O(1, 2205, 22050);
-      s.ctx = c;
-      s.mus = c.createGain();
-      s.delay = c.createDelay(1);
-      s.sfx = c.createGain();
-      s.mus.connect(c.destination);
-      s.delay.connect(s.mus);
-      s.sfx.connect(c.destination);
-      s.noiseBuf = c.createBuffer(1, 2205, 22050);
-      s.biome = b.id;
-      for (const [mode, n] of [
-        ["fight", 64],
-        ["menu", 16],
-      ]) {
-        s.mode = mode;
-        s.intensity = 0.9;
-        s.cycle = 0;
-        for (let t = 0; t < n; t++) s.note(t, 0);
-      }
-    }
-  });
-  // 2d. stragglers: a hunting enemy of every type closes in on a stationary player
-  section("hunt", () => {
-    for (const id of Object.keys(enemyDefs)) {
-      if (id === "mite" || id === "hive") continue;
-      const w = new World({ seed: hashString("hunt:" + id), weapon: "pulse", threat: 0, ws: {} });
-      w.startWave(41);
-      w.god = !0;
-      w.hold = !0;
-      w.plan = [];
-      w.bossPending = null;
-      w.championPending = null;
-      let p = null;
-      for (let a = 0; a < 24 && !p; a++) {
-        const x = w.player.x + Math.cos(a * 0.26) * 12,
-          y = w.player.y + Math.sin(a * 0.26) * 12;
-        w.arena.blocked(x, y, 1.2) || w.arena.outside(x, y, 1.2) || (p = { x, y });
-      }
-      p = p || w.arena.freePoint(w.rng, w.player.x, w.player.y, 9, 0.6);
-      const e = w.spawnEnemy(id, p.x, p.y, {});
-      e.spawnT = 0;
-      e.hunt = !0;
-      e.hp = e.maxHp = 1e9;
-      const d0 = Math.hypot(e.x - w.player.x, e.y - w.player.y);
-      let dmin = d0;
-      for (let k = 0; k < 480; k++) {
-        w.step(1 / 60, { mx: 0, my: 0, fire: !1, auto: !1 });
-        e.hunt = !0;
-        dmin = Math.min(dmin, Math.hypot(e.x - w.player.x, e.y - w.player.y));
-      }
-      dmin > 6 &&
-        bad("straggler-kites", `${id} stayed ${dmin.toFixed(1)} m away (start ${d0.toFixed(1)}) while hunting`);
-    }
-  });
-  // 3. save loader: live snapshots must pass cleanRun() and restore the same run
-  section("snapshot", () => {
-    for (const wave of [1, 7, 19, 33]) {
-      const w = new World({ seed: 0x77 + wave, weapon: "tesla", threat: 1, ws: { hull: 2 } });
-      w.startWave(wave);
-      w.up = { dmg: 2, orbit: 1 };
-      w.stats = computeStats(w.weapon, w.up, w.ws);
-      const s = cleanRun(JSON.parse(JSON.stringify(w.snapshot()))),
-        b = s && new World({ snap: s, ws: { hull: 2 } });
-      if (!b || b.wave !== wave || b.weapon !== "tesla" || b.up.dmg !== 2)
-        bad("snapshot", `wave ${wave} does not restore`);
-      else snaps++;
-    }
-  });
-  // 4. upgrade texts describe the level you are about to take (no "+0 %")
-  section("desc", () => {
-    for (const u of upgradeList) {
-      const t = u.desc(0);
-      /(^|[^\d.])[+\-]?0(%|\s|\))/.test(t) && bad("desc-zero", `${u.id}: “${t}”`);
-    }
-  });
-  // 5. every weapon has a firing voice; every enemy has a mesh pool
-  section("coverage", () => {
-    if (renderer) for (const id of Object.keys(enemyDefs)) renderer.enemyPools[id] || bad("mesh", id);
-  });
-  // 6. arena features (vents, ice, acid, portals) of every biome, waves 21–60: no overlap with obstacles, portals valid
-  section("features", () => {
-    for (const b of biomeList)
-      for (const wave of [21, 33, 47, 58]) {
-        const lay = buildLayout(b, 0x33 + wave, wave, !1),
-          F = lay.features || {};
-        featureLayouts++;
-        for (const k of ["vents", "ice", "acid"])
-          for (const q of F[k] || []) {
-            features++;
-            if (![q.x, q.y, q.r].every(f) || hitsObstacle(lay.obstacles, q.x, q.y, (q.r || 0) + 0.8))
-              bad("feature-overlap", `${k} in ${b.id} wave ${wave}`);
-          }
-        for (const q of F.portals || []) {
-          features++;
-          for (const [x, y] of [
-            [q.ax, q.ay],
-            [q.bx, q.by],
-          ])
-            if (
-              !f(x) ||
-              !f(y) ||
-              hitsObstacle(lay.obstacles, x, y, 1.5) ||
-              Math.abs(x) > lay.W - 3.6 ||
-              Math.abs(y) > lay.H - 3.6
-            )
-              bad("portal", `${b.id} wave ${wave}`);
-        }
-        if ("pads" in F) bad("pads-removed", `${b.id} still generates jump pads`);
-        const theme = RL_BIOME_HAZARD[b.id] ?? "";
-        for (const k of ["vents", "ice", "acid", "portals"])
-          (F[k] || []).length && k !== theme && bad("hazard-theme", `${k} in ${b.id} (theme: ${theme || "none"})`);
-      }
-  });
-  const fail = [...cats].map(([c, q]) => `${c}${q.n > 1 ? ` ×${q.n}` : ""} (${q.all.join("; ")})`);
-  return {
-    ...r,
-    ok: r.ok && !fail.length,
-    expansion23: {
-      ok: !fail.length,
-      fail,
-      planWaves,
-      spawned,
-      eventKinds: eventKinds.size,
-      snapshots: snaps,
-      featureLayouts,
-      features,
-      ms: Math.round(performance.now() - t0),
-    },
-  };
-};
-function rlLum(c) {
-  return (0.2126 * ((c >> 16) & 255) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255;
-}
-function rlPaletteIssues(b) {
-  const L = rlLum,
-    out = [];
-  L(b.floor) > 0.1 && out.push(`floor too bright (${L(b.floor).toFixed(2)})`);
-  L(b.fog) > 0.08 && out.push(`fog too bright (${L(b.fog).toFixed(2)})`);
-  L(b.ground) > 0.1 && out.push(`ground light too bright (${L(b.ground).toFixed(2)})`);
-  L(b.wall) > 0.2 && out.push(`walls too bright (${L(b.wall).toFixed(2)})`);
-  L(b.grid) < 0.4 && out.push(`grid too dark (${L(b.grid).toFixed(2)})`);
-  L(b.accent) < 0.35 && out.push(`accent too dark (${L(b.accent).toFixed(2)})`);
-  (L(b.sky) < 0.12 || L(b.sky) > 0.55) && out.push(`sky light out of range (${L(b.sky).toFixed(2)})`);
-  return out;
-}
-/* 2.3.3: biomes must be told apart at a glance. The floor is near-black in every
- biome, so identity rests on the grid colour: CIE76 ΔE between the grids of any
- two biomes must be >= 30 (≈ clearly different hue or lightness). */
-function rlLab(c) {
-  const lin = (v) => ((v /= 255) <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4),
-    r = lin((c >> 16) & 255),
-    g = lin((c >> 8) & 255),
-    b = lin(c & 255);
-  const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
-  const x = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047),
-    y = f(r * 0.2126 + g * 0.7152 + b * 0.0722),
-    z = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883);
-  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
-}
-function rlBiomeDistinct(min = 30) {
-  const out = [];
-  for (let i = 0; i < biomeList.length; i++)
-    for (let j = i + 1; j < biomeList.length; j++) {
-      const a = rlLab(biomeList[i].grid),
-        b = rlLab(biomeList[j].grid),
-        d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-      d < min && out.push(`${biomeList[i].id}/${biomeList[j].id} ΔE ${d.toFixed(0)}`);
-    }
-  return out;
-}
-const _rlSelfTest22 = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest22(),
-    fail = [];
-  const weapons = Object.keys(weaponDefs),
-    enemies = Object.keys(enemyDefs),
-    biomes = Object.keys(biomesById),
-    upgrades = Object.keys(upgradesById),
-    modules = Object.keys(modulesById);
-  if (!["drone", "driller", "beacon", "weaver"].every((k) => enemies.includes(k))) fail.push("missing-v22-enemy");
-  // 2.5.0: of the 2.2 upgrades only Salvager Core is left; the others were copies (retired)
-  if (!upgrades.includes("salvager")) fail.push("missing-v22-upgrade");
-  // 2.5.0 B: Route Scanner and Reactor Core were merged into Field Supply and Nova Cell
-  if (!["fieldSupply", "nova"].every((k) => modules.includes(k))) fail.push("missing-v22-workshop");
-  // 2.4.0: every selectable weapon (the 2.2 weapons are gone)
-  for (const id of weaponOrder) {
-    const w = new World({ seed: 0x2200 + id.length, weapon: id, threat: 0, ws: {} });
-    w.startWave(2);
-    w.fire(0);
-    if (!w.pb.length) fail.push("weapon-fire:" + id);
-    for (const q of w.pb)
-      if (![q.x, q.y, q.vx, q.vy, q.r, q.dmg, q.life].every(Number.isFinite)) fail.push("weapon-finite:" + id);
-  }
-  for (const id of ["drone", "driller", "beacon", "weaver"]) {
-    const w = new World({ seed: 0x3300 + id.length, weapon: "pulse", threat: 0, ws: {} });
-    w.startWave(28);
-    const e = w.spawnEnemy(id, 8, 0, {});
-    for (let k = 0; k < 90; k++) {
-      updateEnemy(w, e, 0.05);
-      e.x += e.vx * 0.05;
-      e.y += e.vy * 0.05;
-      if (![e.x, e.y, e.vx, e.vy, e.hp].every(Number.isFinite)) fail.push("enemy-finite:" + id);
-    }
-  }
-  const modes = new Set();
-  // 2.4.0: every hazard biome for every wave (picking one biome by (seed + wave) % count only
-  // reached 9 of the 12 modes once there were four biomes)
-  for (let seed = 1; seed <= 4; seed++)
-    for (let wave = 2; wave <= 38; wave++)
-      for (const b of biomeList.slice(1)) {
-        const lay = buildLayout(b, seed, wave, false);
-        if (!lay.director?.mode) fail.push("director-missing");
-        else modes.add(lay.director.mode);
-        if (!isConnected(lay.obstacles, lay.W, lay.H)) fail.push("director-connectivity");
-        for (const key of ["vents", "ice", "acid"]) {
-          for (const q of lay.features?.[key] || [])
-            if (hitsObstacle(lay.obstacles, q.x, q.y, (q.r || 0) + 0.8)) fail.push("feature-overlap:" + key);
-        }
-        for (const q of lay.features?.portals || []) {
-          for (const [x, y] of [
-            [q.ax, q.ay],
-            [q.bx, q.by],
-          ])
-            if (hitsObstacle(lay.obstacles, x, y, 1.5) || Math.abs(x) > lay.W - 3.6 || Math.abs(y) > lay.H - 3.6)
-              fail.push("portal-overlap");
-        }
-      }
-  if (modes.size < 10) fail.push("director-variety");
-  let minCache = Infinity,
-    maxCache = 0;
-  for (let wave = 2; wave <= 30; wave++) {
-    const w = new World({ seed: 0x4400 + wave, weapon: "pulse", threat: 0, ws: { fieldSupply: 1 } });
-    w.startWave(wave);
-    const c = w.pickups.filter((p) => p.cache).length;
-    if (w.bossPending) {
-      c && fail.push("cache-in-boss-wave:" + wave);
-      continue;
-    }
-    minCache = Math.min(minCache, c);
-    maxCache = Math.max(maxCache, c);
-    if (c < 1) fail.push("cache-missing:" + wave);
-  }
-  const haz = new World({ seed: 0x5500, weapon: "pulse", threat: 0, ws: { hazardSeal: 3 } });
-  if (!(haz.stats.hazardResist > 0.4)) fail.push("hazard-resist");
-  const guard = rlUiButtonGuardSelfTest();
-  if (!guard.ok || guard.count !== 9 || guard.steps !== 8) fail.push("ui-guard");
-  const counts = {
-    weaponCount: weapons.length,
-    enemyCount: enemies.length,
-    biomeCount: biomes.length,
-    upgradeCount: upgrades.length,
-    workshopCount: modules.length,
-    directorModes: [...modes],
-    cacheRange: [minCache, maxCache],
-  };
-  return { ...r, ok: r.ok && fail.length === 0, expansion22: { ok: fail.length === 0, fail, ...counts } };
-};
-const _rlSelfTest21 = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest21(),
-    fail = [];
-  const weapons = Object.keys(weaponDefs),
-    enemies = Object.keys(enemyDefs),
-    biomes = Object.keys(biomesById),
-    upgrades = Object.keys(upgradesById);
-  if (!["sapper", "phantom", "sentinel", "carrier"].every((k) => enemies.includes(k))) fail.push("missing-v21-enemy");
-  if (
-    // 2.5.0: Dead Focus, Fortify, Nanite Leech and Scavenger Net were retired
-    !["overload", "resonance", "hazmat", "echo"].every((k) => upgrades.includes(k))
-  )
-    fail.push("missing-v21-upgrade");
-  // 2.4.0: every weapon with a blast (was Graviton Core, Nova Bloom and Vortex)
-  for (const k of weaponOrder.filter((id) => weaponDefs[id].explode)) {
-    const w = new World({ seed: 0x21 + k.length, weapon: k, threat: 0, ws: {} });
-    w.startWave(2);
-    w.bulletBurst({ x: 0, y: 0, w: k, dmg: 10, hits: [], bomblet: false, wing: false }, null);
-    if (!w.fx.some((q) => q.k === "boom")) fail.push("burst:" + k);
-  }
-  const modes = new Set();
-  for (let seed = 1; seed <= 4; seed++)
-    for (let wave = 2; wave <= 28; wave++) {
-      const b = biomeList[1 + ((seed + wave) % (biomeList.length - 1))],
-        lay = buildLayout(b, seed, wave, false);
-      if (!lay.director?.mode) fail.push("director-missing");
-      else modes.add(lay.director.mode);
-      if (!isConnected(lay.obstacles, lay.W, lay.H)) fail.push("director-connectivity");
-    }
-  if (modes.size < 6) fail.push("director-variety");
-  return {
-    ...r,
-    ok: r.ok && fail.length === 0,
-    expansion21: {
-      ok: fail.length === 0,
-      fail,
-      weaponCount: weapons.length,
-      enemyCount: enemies.length,
-      biomeCount: biomes.length,
-      upgradeCount: upgrades.length,
-      directorModes: [...modes],
-    },
-  };
-};
-const _rlSelfTest240 = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest240(),
-    fail = [];
-  if (weaponOrder.length !== 7 || Object.keys(weaponDefs).length !== 7) fail.push("weapon-count:" + weaponOrder.length);
-  if (biomeList.length !== 5) fail.push("biome-count:" + biomeList.length);
-  for (const u of upgradeList) if (u.weapon && !weaponDefs[u.weapon]) fail.push("evo-weapon:" + u.id);
-  // route: Neon Yard first, then one biome per boss cycle, all five by wave 21
-  for (const seed of [11, 222, 3333, 44444]) {
-    const w = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
-      seen = new Set();
-    for (let wave = 1; wave <= 30; wave++) {
-      const b = w.biomeFor(wave).id;
-      wave <= 21 && seen.add(b);
-      wave <= 5 && b !== "yard" && fail.push(`route-start:${seed}:${wave}`);
-      if (wave > 1 && (b === w.biomeFor(wave - 1).id) !== ((wave - 1) % 5 !== 0))
-        fail.push(`route-cycle:${seed}:${wave}`);
-    }
-    seen.size !== 5 && fail.push(`route-coverage:${seed}:${seen.size}`);
-  }
-  // every hazard biome has its hazard in a normal wave, and only that one
-  const want = { works: "vents", vault: "ice", marsh: "acid", void: "portals" };
-  for (const [id, kind] of Object.entries(want)) {
-    const w = new World({ seed: 0x240 + id.length, weapon: "pulse", threat: 0, ws: {} }),
-      wave = 2 + 5 * w.route.indexOf(id);
-    w.startWave(wave);
-    if (w.arena.biome.id !== id) fail.push("hazard-biome:" + id);
-    if (!w.arena[kind].length) fail.push("hazard-missing:" + id);
-    for (const k of ["vents", "ice", "acid", "portals"])
-      k !== kind && w.arena[k].length && fail.push(`hazard-foreign:${id}:${k}`);
-  }
-  // Cryo Vault: the drone drifts (lower grip than anywhere else)
-  const drift = (id) => {
-    const w = new World({ seed: 0x2401, weapon: "pulse", threat: 0, ws: {} });
-    w.startWave(1 + 5 * w.route.indexOf(id));
-    w.arena.ice.length = 0;
-    w.enemies.length = 0;
-    w.plan = [];
-    w.step(1 / 60, { mx: 1, my: 0 });
-    return w.player.vx;
-  };
-  if (!(drift("vault") < drift("yard") * 0.6)) fail.push("vault-grip");
-  // enemy mix: each biome spawns more of its own enemies than Neon Yard does
-  for (const [id, info] of Object.entries(RL_BIOME_INFO)) {
-    if (!info.mix) continue;
-    const own = Object.keys(info.mix).filter((k) => info.mix[k] > 1),
-      count = (mix) => {
-        let n = 0;
-        set_RL_BIOME_MIX_CUR(mix);
-        try {
-          for (let s = 1; s <= 12; s++)
-            for (const g of planWave(makeRng(hashString("mix:" + s)), 30, threatMods(0), !1, {}))
-              n += g.members.filter((m) => own.includes(m.type)).length;
-        } finally {
-          set_RL_BIOME_MIX_CUR(null);
-        }
-        return n;
-      };
-    if (!(count(info.mix) > count(null) * 1.3)) fail.push("enemy-mix:" + id);
-  }
-  // old saves: retired weapons become their original + refund, run and selection follow
-  const note = RL_RETIRE_NOTE,
-    m = rlMigrateRetired({
-      shards: 100,
-      weapon: "ion",
-      weapons: { pulse: true, ion: true, voidlance: true, rail: true },
-      run: { weapon: "cyclone", wave: 4 },
-    });
-  set_RL_RETIRE_NOTE(note);
-  if (
-    m.weapon !== "tesla" ||
-    m.run.weapon !== "disc" ||
-    !m.weapons.tesla ||
-    m.weapons.ion ||
-    m.weapons.voidlance ||
-    m.shards !== 100 + (1250 - weaponDefs.tesla.cost) + 1950
-  )
-    fail.push("migrate:" + JSON.stringify(m));
-  if (rlMigrateRetired(m) !== m) fail.push("migrate-twice");
-  return { ...r, ok: r.ok && fail.length === 0, v240: { ok: fail.length === 0, fail } };
-};
-// 2.4.6: one boss per biome, Void Core always waves 16–20 with the Rift Core as the final boss.
-const _rlSelfTest246 = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest246(),
-    fail = [];
-  for (const [biome, id] of Object.entries(bossByBiome)) {
-    if (!biomesById[biome]) fail.push("boss-biome:" + biome);
-    if (!bossDefs[id]) fail.push("boss-def:" + id);
-  }
-  if (Object.keys(bossByBiome).length !== biomeList.length) fail.push("boss-per-biome");
-  for (const seed of [11, 222, 3333, 44444, 0x246]) {
-    const w = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
-      mid = new Set([w.biomeFor(6).id, w.biomeFor(11).id]);
-    if (w.biomeFor(16).id !== "void" || w.biomeFor(20).id !== "void") fail.push(`void-last:${seed}`);
-    if (w.bossFor(20) !== "core") fail.push(`final-boss:${seed}`);
-    if (w.bossFor(5) !== "warden") fail.push(`first-boss:${seed}`);
-    if (mid.size !== 2 || mid.has("void") || mid.has("yard")) fail.push(`mid-biomes:${seed}`);
-    if (w.biomeFor(21).id === "void" || w.biomeFor(21).id === "yard" || mid.has(w.biomeFor(21).id))
-      fail.push(`endless-biome:${seed}`);
-    for (let wave = 5; wave <= 60; wave += 5)
-      if (w.bossFor(wave) !== bossByBiome[w.biomeFor(wave).id]) fail.push(`boss-mismatch:${seed}:${wave}`);
-  }
-  // the hull of a boss in waves 5–20 follows its slot, whichever boss it is
-  const hull = (id, wave) => {
-    const w = new World({ seed: 0x2460, weapon: "pulse", threat: 0, ws: {} });
-    w.startWave(wave);
-    return w.spawnBoss(id).maxHp;
-  };
-  for (const wave of [10, 15])
-    for (const id of ["prism", "forge"])
-      if (!(Math.abs(hull(id, wave) - hull("queen", wave)) < 1e-6)) fail.push(`slot-hull:${id}:${wave}`);
-  if (!(hull("queen", 15) > hull("queen", 10))) fail.push("slot-hull-order");
-  return { ...r, ok: r.ok && fail.length === 0, v246: { ok: fail.length === 0, fail } };
-};
-// 2.5.0 A: retired upgrades are gone and migrate, the six new upgrades do what their card says.
-import { RL_RETIRED_UPGRADES } from "../data/upgrades.js";
-import { rlMigrateUpgrades, rlSanitizeHistory } from "./save.js";
-const _rlSelfTest250A = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest250A(),
-    fail = [],
-    NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
-  if (upgradeList.length !== 59) fail.push("count:" + upgradeList.length);
-  for (const [id, q] of Object.entries(RL_RETIRED_UPGRADES)) {
-    if (upgradesById[id]) fail.push("still-offered:" + id);
-    const to = upgradesById[q.to];
-    if (!to || to.evo || to.repeat || !(q.k > 0 && q.k <= 1.5)) fail.push("retired-target:" + id);
-  }
-  for (const id of NEW) if (!upgradesById[id] || upgradesById[id].evo) fail.push("new-missing:" + id);
-  // a run saved mid-way with retired upgrades and a pending offer of retired ids
-  const old = {
-      v: 1,
-      seed: 2500,
-      weapon: "pulse",
-      threat: 1,
-      wave: 7,
-      up: { caliber: 3, kinetic: 2, dmg: 2, fortify: 5, hp: 6, coolant: 3, afterburner: 3, scavenger: 2, focus: 1 },
-      hp: 60,
-      offer: ["fortify", "flux", "crit"],
-      offerBoss: false,
-    },
-    run = cleanRun(old),
-    want = { dmg: 6, hp: 10, vector: 6, supply: 2, crit: 1 };
-  if (!run || Object.keys(run.up).length !== 5 || Object.entries(want).some(([k, v]) => run.up[k] !== v))
-    fail.push("migrate-up:" + JSON.stringify(run && run.up));
-  // Fortify → Reinforced Hull is maxed, so a common takes its place; Flux Capacitor → Overcharge
-  if (!run || JSON.stringify(run.offer) !== JSON.stringify(["dmg", "overcharge", "crit"]))
-    fail.push("migrate-offer:" + JSON.stringify(run && run.offer));
-  if (old.up.caliber !== 3 || old.offer[0] !== "fortify") fail.push("migrate-mutates");
-  if (run && rlMigrateUpgrades(run) !== run) fail.push("migrate-twice");
-  const boss = cleanRun({ ...old, up: { rate: 10 }, offer: ["overclock", "leech", "arc"], offerBoss: true });
-  if (!boss || boss.offer.length !== 3 || boss.offer.some((id) => upgradesById[id].rarity < 2))
-    fail.push("migrate-boss-offer:" + JSON.stringify(boss && boss.offer));
-  if (run) {
-    const w = new World({ snap: run, ws: {} });
-    if (w.state !== "choose" || w.offer.length !== 3 || w.stats.maxHp !== 300) fail.push("resume:" + w.state);
-    w.choose(w.offer[0]);
-    for (let f = 0; f < 120; f++) w.step(1 / 60, { mx: 0.4, my: 0.2, fire: true, auto: true, dash: f === 30 });
-    if (w.wave !== 8 || ![w.player.hp, w.player.x, w.player.nova].every(Number.isFinite)) fail.push("resume-play");
-  }
-  const hist = rlSanitizeHistory([
-    { t: 1, weapon: "pulse", threat: 0, wave: 9, outcome: "dead", build: ["caliber", "dmg", "fortify", "flux"] },
-  ]);
-  if (JSON.stringify(hist[0]?.build) !== JSON.stringify(["dmg", "hp", "overcharge"])) fail.push("history-build");
-  // the new mechanics
-  const mk = (up, wave = 2) => {
-    const w = new World({ seed: 0x250a, weapon: "pulse", threat: 0, ws: {} });
-    w.up = { ...up };
-    w.stats = computeStats("pulse", w.up, {});
-    w.startWave(wave);
-    w.plan = [];
-    w.enemies = [];
-    w.player.iT = 0;
-    w.player.shield = false;
-    return w;
-  };
-  const foe = (w, x, y) => {
-    const e = w.spawnEnemy("brute", x, y, {});
-    e.spawnT = 0;
-    w.enemies.includes(e) || w.enemies.push(e);
-    w.hash.build(w.enemies);
-    return e;
-  };
-  // Cryo Skates: dash recharges 35%/level faster on ice
-  {
-    const w = mk({ skates: 2 }),
-      p = w.player;
-    p.dashCdT = 1;
-    p.onIce = true;
-    w.step(0.1, {});
-    if (!(Math.abs(p.dashCdT - (1 - 0.1 - 0.07)) < 1e-6)) fail.push("skates-dash:" + p.dashCdT.toFixed(3));
-    if (!(computeStats("pulse", { skates: 1 }, {}).speed > computeStats("pulse", {}, {}).speed))
-      fail.push("skates-speed");
-  }
-  // Acid Coating: hits leave acid that marks enemies but never hurts the player
-  {
-    const w = mk({ acidcoat: 2 }),
-      p = w.player,
-      e = foe(w, 4, 2);
-    e.hp = e.maxHp = 1e6;
-    for (let k = 0; k < 60 && !w.arena.acid.some((q) => q.mine); k++) {
-      w.time += 2;
-      w.bulletHit({ x: e.x, y: e.y, vx: 1, vy: 0, dmg: 1, hits: [], w: "pulse", pierce: 0, bounce: 0, life: 1 }, e);
-    }
-    const q = w.arena.acid.find((a) => a.mine);
-    if (!q) fail.push("acid-none");
-    else {
-      p.x = q.x;
-      p.y = q.y;
-      e.x = q.x + 0.3;
-      e.y = q.y;
-      const hp = p.hp;
-      for (let f = 0; f < 60; f++) w.updateFeatures(1 / 60);
-      if (p.hp !== hp || p.inAcid) fail.push("acid-hurts-player");
-      if (!e.corrode) fail.push("acid-no-corrode");
-      for (let f = 0; f < 300; f++) w.updateFeatures(1 / 60);
-      if (w.arena.acid.some((a) => a.mine) || e.corrode) fail.push("acid-stays");
-    }
-  }
-  // Heat Sink: hazard damage heats up (fire rate) and charges Nova
-  {
-    const w = mk({ heatsink: 1 }),
-      p = w.player;
-    p.nova = 0;
-    w.hurtPlayer(4, null, null, "lava", true);
-    if (!(p.heatT === 3 && p.nova > 0)) fail.push("heat-hazard");
-    const cold = mk({}),
-      shots = (x) => {
-        x.player.fireT = 0;
-        let n = 0;
-        for (let f = 0; f < 60; f++) {
-          const before = x.player.shotN || 0;
-          x.player.heatT = x === cold ? 0 : 3;
-          x.step(1 / 60, { aim: true, ax: 1, ay: 0 });
-          n += (x.player.shotN || 0) - before;
-        }
-        return n;
-      };
-    if (!(shots(w) > shots(cold))) fail.push("heat-rate");
-  }
-  // Slipstream: shots right after a dash hit harder
-  {
-    const w = mk({ slipstream: 2 }),
-      p = w.player;
-    w.step(1 / 60, { dash: true });
-    if (!(p.slipT > 1)) fail.push("slip-timer");
-    w.pb.length = 0;
-    w.fire(0);
-    const hot = w.pb[0]?.dmg;
-    p.slipT = 0;
-    w.pb.length = 0;
-    w.fire(0);
-    const cold = w.pb[0]?.dmg;
-    if (!(Math.abs(hot / cold - 1.5) < 1e-6)) fail.push("slip-dmg:" + hot + "/" + cold);
-  }
-  // Combo Surge: the 15th combo kill releases a shockwave
-  {
-    const w = mk({ surge: 1 }),
-      e = foe(w, 2, 2);
-    e.hp = e.maxHp = 1e6;
-    w.combo = 14;
-    w.fx.length = 0;
-    w.addCombo();
-    if (!w.fx.some((q) => q.k === "boom" && q.kind === "surge") || !(e.hp < 1e6)) fail.push("surge");
-    if (!(w.comboT > 2.2)) fail.push("surge-combo-time");
-  }
-  // Reactive Plating: a hit pushes enemies away and clears enemy shots; costs fire rate
-  {
-    const w = mk({ reactive: 1 }),
-      p = w.player,
-      e = foe(w, p.x + 1.5, p.y);
-    e.hp = e.maxHp = 1e6;
-    w.eb.push({ x: p.x + 1, y: p.y, vx: 0, vy: 0, r: 0.2, dmg: 5, life: 2 });
-    w.hurtPlayer(5, e.x, e.y, "brute");
-    if (!(e.hp < 1e6) || w.eb[0].life > 0) fail.push("reactive");
-    if (!(w.stats.rateMul < computeStats("pulse", {}, {}).rateMul)) fail.push("reactive-cost");
-  }
-  return { ...r, ok: r.ok && fail.length === 0, v250A: { ok: fail.length === 0, fail } };
-};
-window.addEventListener("error", (i) => logError("window", i));
-window.addEventListener("unhandledrejection", (i) => logError("promise", i.reason || i));
+window.addEventListener("error", (event) => logError("window", event));
+window.addEventListener("unhandledrejection", (event) => logError("promise", event.reason || event));
 (() => {
   addEventListener(
     "orientationchange",
@@ -2697,256 +1747,19 @@ window.addEventListener("unhandledrejection", (i) => logError("promise", i.reaso
   );
   document.addEventListener(
     "pointerup",
-    (e) => {
-      const b = e.target?.closest?.("button,[role=button],a");
-      if (b && !b.disabled) {
+    (event) => {
+      const button = event.target?.closest?.("button,[role=button],a");
+      if (button && !button.disabled) {
         RL_RT.buttonActivations++;
-        RL_RT.lastButton = (b.id || b.dataset.go || b.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80);
+        RL_RT.lastButton = (button.id || button.dataset.go || button.textContent || "")
+          .trim()
+          .replace(/\s+/g, " ")
+          .slice(0, 80);
       }
     },
     true,
   );
 })();
-
-// ---- 2.5.0 C: stronger biomes — hazard count, size and fairness, one biome event per visit of a
-// hazard biome and what it does, signature enemies from the biome's first wave, old saved runs.
-import { RL_BIOME_EVENT, rlEnemyFrom } from "./waves.js";
-import { RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
-const _rlSelfTest250C = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest250C(),
-    fail = [],
-    bad = (k) => fail.length < 40 && fail.push(k),
-    theme = { works: "vents", vault: "ice", marsh: "acid" },
-    // fairness of one arena: hazards off obstacles and walls, the spawn ring clear, portals valid
-    fair = (A, tag) => {
-      for (const k of ["vents", "ice", "acid"])
-        for (const q of A[k]) {
-          if (q.life != null) continue;
-          if (hitsObstacle(A.obs, q.x, q.y, q.r + 0.8)) bad("hazard-on-obstacle:" + tag);
-          if (Math.hypot(q.x - rlSpawnZone.x, q.y - rlSpawnZone.y) < q.r + rlSpawnZone.r) bad("hazard-in-spawn:" + tag);
-          if (Math.abs(q.x) + q.r > A.W - 1.4 || Math.abs(q.y) + q.r > A.H - 1.4) bad("hazard-at-wall:" + tag);
-        }
-      const ends = [];
-      for (const q of A.portals) {
-        if (Math.hypot(q.ax - q.bx, q.ay - q.by) < 7) bad("portal-pair-close:" + tag);
-        for (const [x, y] of [
-          [q.ax, q.ay],
-          [q.bx, q.by],
-        ]) {
-          if (hitsObstacle(A.obs, x, y, 1.5) || Math.abs(x) > A.W - 3.6 || Math.abs(y) > A.H - 3.6)
-            bad("portal-bad:" + tag);
-          ends.some((e) => Math.hypot(e[0] - x, e[1] - y) < 4) && bad("portal-cluster:" + tag);
-          ends.push([x, y]);
-        }
-      }
-    };
-  // 1. hazards: about five per wave, 25–30% bigger than 2.4.6, fair; Void Core mostly two portal pairs
-  const count = { vents: [0, 0], ice: [0, 0], acid: [0, 0] },
-    pairs = [0, 0];
-  for (let seed = 1; seed <= 24; seed++) {
-    const w = new World({ seed: 0x2500 + seed, weapon: "pulse", threat: 0, ws: {} });
-    for (let wave = 6; wave <= 24; wave++) {
-      if (w.bossFor(wave)) continue;
-      w.startWave(wave);
-      const A = w.arena,
-        id = A.biome.id,
-        k = theme[id];
-      fair(A, `${seed}:${wave}`);
-      if (w.event && waveEvents[w.event].biome) continue; // the event adds its own
-      if (k) {
-        count[k][0] += A[k].length;
-        count[k][1]++;
-        for (const q of A[k])
-          (q.r < RL_HAZARD_SIZE_250[k][0] - 1e-9 || q.r > RL_HAZARD_SIZE_250[k][1] + 1e-9) && bad("hazard-size:" + k);
-      } else if (id === "void") (pairs[0] += A.portals.length >= 2 ? 1 : 0), pairs[1]++;
-    }
-  }
-  for (const [k, [n, waves]] of Object.entries(count)) waves && n / waves < 4.3 && bad(`hazard-count:${k}:${(n / waves).toFixed(2)}`);
-  pairs[1] && pairs[0] / pairs[1] < 0.7 && bad("portal-pairs:" + (pairs[0] / pairs[1]).toFixed(2));
-  // 2. biome events: one per visit of a hazard biome, in wave 2–4 of the visit, only there, never
-  // next to another event
-  for (let seed = 1; seed <= 30; seed++) {
-    const w = new World({ seed: 0x25c0 + seed, weapon: "pulse", threat: 0, ws: {} }),
-      evs = [];
-    for (let wave = 1; wave <= 40; wave++) evs[wave] = w.eventFor(wave);
-    for (let start = 1; start <= 36; start += 5) {
-      const id = w.biomeFor(start).id,
-        want = RL_BIOME_EVENT[id],
-        got = [1, 2, 3, 4, 5].map((k) => evs[start + k - 1]).filter((e) => e && waveEvents[e].biome);
-      if (want ? got.length !== 1 || got[0] !== want : got.length) bad(`biome-event:${seed}:${start}:${got}`);
-      if (evs[start] || evs[start + 4]) bad(`event-first-or-boss:${seed}:${start}`);
-    }
-    for (let wave = 2; wave <= 40; wave++) evs[wave] && evs[wave - 1] && bad(`event-adjacent:${seed}:${wave}`);
-  }
-  for (const [id, e] of Object.entries(RL_BIOME_EVENT))
-    (!waveEvents[e] || waveEvents[e].biome !== id || !waveEvents[e].name || !waveEvents[e].desc) && bad("event-def:" + e);
-  // 3. what the events do (run in the world with a god-mode player standing still)
-  const eventWorld = (biome, seed = 0x25e0) => {
-    for (let s = seed; s < seed + 40; s++) {
-      const w = new World({ seed: s, weapon: "pulse", threat: 0, ws: {} }),
-        i = w.route.indexOf(biome);
-      if (i < 0 || i > 3) continue;
-      const at = w.biomeEventWave(1 + 5 * i);
-      if (!at) continue;
-      w.god = !0;
-      w.startWave(at);
-      return w;
-    }
-    return null;
-  };
-  const run = (w, sec) => {
-    for (let t = 0; t < sec; t += 1 / 30) w.step(1 / 30, { mx: 0, my: 0 });
-  };
-  const melt = eventWorld("works");
-  if (!melt || melt.event !== "meltdown") bad("meltdown-missing");
-  else {
-    const V = melt.arena.vents;
-    V.length < 6 && bad("meltdown-vents:" + V.length);
-    V.some((q) => q.period !== V[0].period || q.phase !== V[0].phase) && bad("meltdown-sync");
-    fair(melt.arena, "meltdown");
-    run(melt, 2.5);
-    V.every((q) => melt.arena.ventState(q, melt.waveT) === "erupt") || bad("meltdown-erupt-together");
-  }
-  const white = eventWorld("vault");
-  if (!white || white.event !== "whiteout") bad("whiteout-missing");
-  else {
-    const lay = buildLayout(white.arena.biome, white.seed, white.wave, !1);
-    white.arena.ice.length > (lay.features?.ice || []).length || bad("whiteout-ice");
-    fair(white.arena, "whiteout");
-  }
-  const bloom = eventWorld("marsh");
-  if (!bloom || bloom.event !== "bloom") bad("bloom-missing");
-  else {
-    const n0 = bloom.arena.acid.filter((q) => q.life == null).length,
-      r0 = bloom.arena.acid.reduce((a, q) => a + q.r, 0);
-    run(bloom, 20);
-    const own = bloom.arena.acid.filter((q) => q.life == null);
-    own.length > n0 || bad("bloom-no-sprout");
-    own.slice(0, n0).reduce((a, q) => a + q.r, 0) > r0 + 0.5 || bad("bloom-no-growth");
-    fair(bloom.arena, "bloom");
-    // a pool never sprouts under the player
-    own.some((q) => Math.hypot(q.x - bloom.player.x, q.y - bloom.player.y) < q.r) && bad("bloom-on-player");
-  }
-  const storm = eventWorld("void");
-  if (!storm || storm.event !== "riftstorm") bad("riftstorm-missing");
-  else {
-    const at0 = storm.arena.portals.map((q) => [q.ax, q.ay]);
-    run(storm, 5);
-    storm.arena.portals.every((q) => q.next) || bad("riftstorm-no-telegraph");
-    run(storm, 1.2);
-    storm.arena.portals.some((q, k) => q.ax !== at0[k][0] || q.ay !== at0[k][1]) || bad("riftstorm-no-move");
-    fair(storm.arena, "riftstorm");
-  }
-  // 4. signature enemies: every mix enemy of a biome can spawn from the biome's first wave; the
-  // enemy table itself is not changed, and Neon Yard keeps the global unlock waves
-  const before = JSON.stringify(Object.values(enemyDefs).map((d) => d.from)),
-    seen = {};
-  for (let seed = 1; seed <= 40; seed++) {
-    const w = new World({ seed: 0x25f0 + seed, weapon: "pulse", threat: 0, ws: {} });
-    for (let wave = 1; wave <= 19; wave++) {
-      if (w.bossFor(wave)) continue;
-      w.startWave(wave);
-      const id = w.arena.biome.id;
-      for (const g of w.plan)
-        for (const m of g.members) {
-          (seen[id] || (seen[id] = new Set())).add(m.type);
-          id === "yard" && enemyDefs[m.type].from > wave && bad(`yard-early:${m.type}:${wave}`);
-          w.enemyFrom(m.type, wave) > wave && bad(`too-early:${m.type}:${wave}`);
-        }
-    }
-  }
-  JSON.stringify(Object.values(enemyDefs).map((d) => d.from)) !== before && bad("enemy-from-mutated");
-  for (const [id, info] of Object.entries(RL_BIOME_INFO))
-    for (const [type, m] of Object.entries(info.mix || {})) {
-      if (!(m >= 1)) continue;
-      rlEnemyFrom(type, id, 6) > 6 && bad(`from:${id}:${type}`);
-      seen[id] && !seen[id].has(type) && bad(`never-seen:${id}:${type}`);
-    }
-  // 5. an old saved run (2.4.6 snapshot, no event fields) in an event wave loads and plays it
-  const probe = eventWorld("void");
-  if (probe) {
-    const old = cleanRun({
-      v: 1,
-      seed: probe.seed,
-      weapon: "pulse",
-      threat: 0,
-      wave: probe.wave,
-      endless: !1,
-      up: { dmg: 2 },
-      hp: 80,
-      shards: 30,
-      kills: 50,
-      time: 300,
-      rerolls: 1,
-      revived: !1,
-      nova: 20,
-      bossKills: ["warden"],
-    });
-    const w = old && new World({ snap: old, ws: {} });
-    if (!w || w.event !== "riftstorm" || !w.bioEv) bad("old-save-event");
-    else {
-      run(w, 7);
-      w.state === "fight" || w.state === "choose" || bad("old-save-state:" + w.state);
-      const snap = w.snapshot(),
-        w2 = new World({ snap, ws: {} });
-      w2.event !== "riftstorm" && bad("resave-event");
-    }
-  }
-  return { ...r, ok: r.ok && fail.length === 0, v250C: { ok: fail.length === 0, fail } };
-};
-
-// 2.5.0 D: biome title card, boss intro card and Codex data. Every biome card names its hazard and
-// its boss; the Codex has one entry per enemy, boss and upgrade, hides unseen ones, reads old saves
-// without Codex keys (defeated bosses, builds in the history and the saved run count as seen) and
-// never throws on broken save data.
-import { rlCodexEntries, rlBiomeCardInfo } from "../ui/ui.js";
-const _rlSelfTest250D = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest250D(),
-    fail = [];
-  try {
-    for (const b of biomeList) {
-      const c = rlBiomeCardInfo(b);
-      if (c.name !== b.name) fail.push("card-name:" + b.id);
-      if (!c.hazard) fail.push("card-hazard:" + b.id);
-      if (!c.boss || c.boss !== (bossDefs[bossByBiome[b.id]] || {}).name) fail.push("card-boss:" + b.id);
-      if (!/^#[0-9a-f]{6}$/.test(c.color)) fail.push("card-color:" + b.id);
-    }
-    const count = (c) => [c.enemies.length, c.bosses.length, c.upgrades.length].join("/"),
-      want = [Object.keys(enemyDefs).length, Object.keys(bossDefs).length, upgradeList.length].join("/"),
-      flat = (c) => [...c.enemies, ...c.bosses, ...c.upgrades];
-    const none = rlCodexEntries({ seen: {} });
-    if (count(none) !== want) fail.push(`codex-count:${count(none)}!=${want}`);
-    if (flat(none).some((e) => e.seen)) fail.push("codex-unseen");
-    const keys = flat(none).map((e) => e.key);
-    if (new Set(keys).size !== keys.length) fail.push("codex-keys");
-    const all = rlCodexEntries({ seen: Object.fromEntries(keys.map((k) => [k, !0])) });
-    for (const e of flat(all)) if (!e.seen || !e.name || !e.desc) fail.push("codex-entry:" + e.key);
-    // an old save: no Codex keys, but a defeated boss, a build in the history and a saved run
-    const old = rlCodexEntries({
-        seen: { tutorial: !0 },
-        stats: { bosses: { warden: 1 } },
-        history: [{ build: [upgradeList[0].id] }],
-        run: { up: { [upgradeList[1].id]: 1 }, offer: [upgradeList[2].id] },
-      }),
-      seenKeys = flat(old)
-        .filter((e) => e.seen)
-        .map((e) => e.key)
-        .sort()
-        .join(),
-      wantKeys = ["boss_warden", ...upgradeList.slice(0, 3).map((u) => "up_" + u.id)].sort().join();
-    if (seenKeys !== wantKeys) fail.push(`codex-old-save:${seenKeys}`);
-    for (const bad of [null, undefined, {}, { seen: null, history: "x", run: 5, stats: { bosses: null } }])
-      rlCodexEntries(bad);
-    for (const m of ["biomeCard", "bossCard", "releaseTitleCard", "clearTitleCard", "renderCodex", "recordsTab", "markSeen"])
-      typeof GameUI.prototype[m] !== "function" && fail.push("ui:" + m);
-  } catch (e) {
-    fail.push("exception:" + (e && e.message));
-  }
-  return { ...r, ok: r.ok && fail.length === 0, v250D: { ok: fail.length === 0, fail } };
-};
-
 export {
   RL_EVENT_KINDS,
   RL_HEALTH,
@@ -2956,7 +1769,6 @@ export {
   errorLog,
   setLogContext,
   clearErrorLog,
-  rlBiomeDistinct,
   rlMonBeginWave,
   rlMonCrashed,
   rlMonFinish,
@@ -2965,11 +1777,12 @@ export {
   rlMonPreEnd,
   rlMonStart,
   rlMonStep,
-  rlPaletteIssues,
   rlRunAudit,
   rlRunHealth,
-  rlSelfTest,
   rlUiButtonGuardSelfTest,
+  RL_BOSS_EVENTS,
+  rlEventPayloadError,
+  setDeepSelfTest,
   onLogChange,
   set_RL_LAST_RUN_AUDIT,
   getErrorLog,
@@ -2978,90 +1791,7 @@ export {
 };
 
 /* ==========================================================================
-   2.5.0 B: workshop merge (refund migration) and the three new modules
+   2.5.0 B: event kinds of the workshop modules (self-test in selftest.js)
    ========================================================================== */
 RL_EVENT_KINDS.add("kit");
 RL_EVENT_KINDS.add("barrier");
-const _rlSelfTest250B = rlSelfTest;
-rlSelfTest = function () {
-  const r = _rlSelfTest250B(),
-    fail = [],
-    ids = workshopModules.map((m) => m.id);
-  for (const id of Object.keys(RL_RETIRED_MODULES)) {
-    if (ids.includes(id) || modulesById[id]) fail.push("retired-listed:" + id);
-    if (!modulesById[RL_RETIRED_MODULES[id].to]) fail.push("retired-target:" + id);
-  }
-  for (const id of ["nova", "fieldSupply", "starterKit", "hazardAttune", "emergencyShield"])
-    modulesById[id] || fail.push("module-missing:" + id);
-  // old save: every bought level of a removed module is refunded at full price, kept modules keep
-  // their levels, over-range levels are capped, the run is left alone; a second pass changes nothing
-  const note = RL_MODULE_NOTE,
-    run = { v: 1, weapon: "pulse", wave: 7, hp: 50 },
-    raw = {
-      shards: 50,
-      workshop: { nova: 2, fieldSupply: 1, hull: 3, riftBattery: 2, reactorCore: 9, routeScanner: 1 },
-      run,
-    },
-    m = rlMigrateModules(raw);
-  const want = 50 + 260 + 540 + (1600 + 3400 + 6200) + 1800;
-  if (
-    m.shards !== want ||
-    m.workshop.nova !== 2 ||
-    m.workshop.fieldSupply !== 1 ||
-    m.workshop.hull !== 3 ||
-    "riftBattery" in m.workshop ||
-    "reactorCore" in m.workshop ||
-    "routeScanner" in m.workshop ||
-    m.run !== run ||
-    raw.workshop.riftBattery !== 2 ||
-    !RL_MODULE_NOTE ||
-    RL_MODULE_NOTE.refund !== want - 50 ||
-    RL_MODULE_NOTE.names.length !== 3
-  )
-    fail.push("migrate:" + JSON.stringify({ m, note: RL_MODULE_NOTE }));
-  set_RL_MODULE_NOTE(null);
-  if (rlMigrateModules(m) !== m || RL_MODULE_NOTE) fail.push("migrate-twice");
-  const zero = rlMigrateModules({ shards: 5, workshop: { routeScanner: 0 } });
-  if (zero.shards !== 5 || "routeScanner" in zero.workshop || RL_MODULE_NOTE) fail.push("migrate-zero");
-  set_RL_MODULE_NOTE(note);
-  // a saved run with the kept Nova Cell level resumes (no kit on resume)
-  const snap = cleanRun({ v: 1, seed: 9, weapon: "pulse", wave: 7, hp: 60, nova: 10, up: { dmg: 1 } }),
-    resumed = snap && new World({ snap, ws: { nova: 2, starterKit: 3 } });
-  if (!resumed || resumed.wave !== 7 || resumed.up.dmg !== 1 || Object.keys(resumed.up).length !== 1)
-    fail.push("resume");
-  // Starter Kit: one distinct common upgrade per level on a new run
-  const kit = new World({ seed: 0x250b, weapon: "pulse", threat: 0, ws: { starterKit: 3 } }),
-    kitIds = Object.keys(kit.up);
-  if (kitIds.length !== 3 || !kitIds.every((id) => upgradesById[id].rarity === 1 && kit.up[id] === 1))
-    fail.push("kit:" + kitIds.join(","));
-  if (Math.round(kit.player.hp) !== Math.round(kit.stats.maxHp)) fail.push("kit-hp");
-  if (Object.keys(new World({ seed: 0x250b, weapon: "pulse", threat: 0, ws: {} }).up).length) fail.push("kit-free");
-  // Hazard Attunement: close to a pool (edge within 2 m) raises damage and repair only while there
-  const at = new World({ seed: 0x250c, weapon: "pulse", threat: 0, ws: { hazardAttune: 2 } });
-  at.startWave(2);
-  at.hold = !0;
-  const d0 = at.stats.dmgMul;
-  at.arena.acid.push({ x: at.player.x + 3.2, y: at.player.y, r: 1.5 });
-  at.step(1 / 60, {});
-  const on = at.attuned;
-  at.arena.acid.pop();
-  at.step(1 / 60, {});
-  if (!on || at.attuned || at.stats.dmgMul !== d0) fail.push("attune");
-  // Emergency Shield: once per wave below 30% hull, blocks damage while up, ready again next wave
-  const es = new World({ seed: 0x250d, weapon: "pulse", threat: 0, ws: { emergencyShield: 1 } }),
-    p = es.player;
-  es.state = "fight";
-  p.iT = 0;
-  p.shield = !1;
-  es.hurtPlayer(p.hp - 20, null, null, "grunt", !0);
-  const healed = p.hp,
-    blocked = es.hurtPlayer(5, null, null, "grunt", !0) === !1;
-  es.barrierT = 0;
-  const hpNow = p.hp;
-  es.hurtPlayer(2, null, null, "grunt", !0);
-  if (healed !== 20 + Math.round(es.stats.maxHp * 0.08) || !blocked || p.hp !== hpNow - 2 || !es.barrierUsed)
-    fail.push("barrier:" + [healed, blocked, hpNow, p.hp]);
-  es.startWave(2);
-  if (es.barrierUsed) fail.push("barrier-wave");
-  return { ...r, ok: r.ok && fail.length === 0, v250B: { ok: fail.length === 0, fail } };
-};
