@@ -260,7 +260,7 @@ var musicChords = {
         case "combo":
           [0, 0.06, 0.12].forEach((at, i) =>
             this.tone(midiToFreq(76 + Math.min(12, arg || 0) + [0, 4, 7][i]), 0.14, "square", 0.035, {
-              at: at,
+              at,
               lp: 4e3,
             }),
           );
@@ -270,7 +270,7 @@ var musicChords = {
           break;
         case "evolve":
           ([0, 0.09, 0.18, 0.27, 0.45].forEach((at, i) =>
-            this.tone(midiToFreq(67 + [0, 4, 7, 11, 14][i]), 0.4, "triangle", 0.08, { at: at }),
+            this.tone(midiToFreq(67 + [0, 4, 7, 11, 14][i]), 0.4, "triangle", 0.08, { at }),
           ),
             this.noise(0.8, 0.06, { type: "highpass", f: 5e3, attack: 0.2 }));
           break;
@@ -349,12 +349,12 @@ var musicChords = {
           break;
         case "wave":
           [0, 0.14, 0.28].forEach((at, i) =>
-            this.tone(midiToFreq(57 + [0, 3, 7][i]), 0.35, "sawtooth", 0.06, { at: at, lp: 1800 }),
+            this.tone(midiToFreq(57 + [0, 3, 7][i]), 0.35, "sawtooth", 0.06, { at, lp: 1800 }),
           );
           break;
         case "cleared":
           [0, 0.1, 0.2, 0.3].forEach((at, i) =>
-            this.tone(midiToFreq(69 + [0, 4, 7, 12][i]), 0.3, "triangle", 0.08, { at: at }),
+            this.tone(midiToFreq(69 + [0, 4, 7, 12][i]), 0.3, "triangle", 0.08, { at }),
           );
           break;
         case "boss":
@@ -364,7 +364,7 @@ var musicChords = {
           break;
         case "pick":
           [0, 0.07, 0.14].forEach((at, i) =>
-            this.tone(midiToFreq(72 + [0, 4, 7][i]), 0.2, "square", 0.04, { at: at, lp: 3e3 }),
+            this.tone(midiToFreq(72 + [0, 4, 7][i]), 0.2, "square", 0.04, { at, lp: 3e3 }),
           );
           break;
         case "click":
@@ -372,7 +372,7 @@ var musicChords = {
           break;
         case "event":
           [0, 0.12, 0.24].forEach((at, i) =>
-            this.tone(midiToFreq(62 + [0, 6, 12][i]), 0.3, "sawtooth", 0.05, { at: at, lp: 2400 }),
+            this.tone(midiToFreq(62 + [0, 6, 12][i]), 0.3, "sawtooth", 0.05, { at, lp: 2400 }),
           );
           break;
         case "erupt":
@@ -411,7 +411,7 @@ var musicChords = {
           break;
         case "victory":
           [0, 0.15, 0.3, 0.45, 0.75].forEach((at, i) =>
-            this.tone(midiToFreq(64 + [0, 4, 7, 12, 16][i]), 0.5, "triangle", 0.09, { at: at }),
+            this.tone(midiToFreq(64 + [0, 4, 7, 12, 16][i]), 0.5, "triangle", 0.09, { at }),
           );
           break;
         case "thud":
@@ -583,29 +583,28 @@ var musicChords = {
         let level = boss ? Math.max(0.7, this.intensity) : this.intensity,
           cycle = this.cycle,
           fill = cycle % 2 === 1 && bar === 3 && beat >= 12;
-        (beat % 4 === 0 && !(fill && beat > 12) && this.tone(150, 0.14, "sine", 0.5, { to: 42, dest: dest, at: at }),
-          level > 0.62 && beat % 8 === 7 && this.tone(140, 0.1, "sine", 0.3, { to: 45, dest: dest, at: at }),
-          beat % 4 === 2 && this.noise(0.03, 0.07, { type: "highpass", f: 7500, dest: dest, at: at }),
+        (beat % 4 === 0 && !(fill && beat > 12) && this.tone(150, 0.14, "sine", 0.5, { to: 42, dest, at }),
+          level > 0.62 && beat % 8 === 7 && this.tone(140, 0.1, "sine", 0.3, { to: 45, dest, at }),
+          beat % 4 === 2 && this.noise(0.03, 0.07, { type: "highpass", f: 7500, dest, at }),
           (level > 0.32 || boss) &&
             beat % 2 === 1 &&
-            this.noise(0.02, 0.03 + level * 0.02, { type: "highpass", f: 9e3, dest: dest, at: at }),
+            this.noise(0.02, 0.03 + level * 0.02, { type: "highpass", f: 9e3, dest, at }),
           fill
             ? this.noise(0.08, 0.06 + (beat - 12) * 0.025, {
                 type: "bandpass",
                 f: 1500 + (beat - 12) * 250,
                 q: 0.9,
-                dest: dest,
-                at: at,
+                dest,
+                at,
               })
-            : (beat === 4 || beat === 12) &&
-              this.noise(0.14, 0.14, { type: "bandpass", f: 1800, q: 0.8, dest: dest, at: at }));
+            : (beat === 4 || beat === 12) && this.noise(0.14, 0.14, { type: "bandpass", f: 1800, q: 0.8, dest, at }));
         let voice = musicVoices[this.biome] || musicVoices.yard;
         if (
           (beat % 2 === 0 &&
             this.tone(midiToFreq(root - 24 + (beat % 8 === 6 ? 12 : 0)), 0.16, voice.bass, 0.11, {
               lp: (boss ? 700 : 520) + level * 380,
-              dest: dest,
-              at: at,
+              dest,
+              at,
             }),
           beat % 2 === 0 || boss || level > 0.8)
         ) {
@@ -615,7 +614,7 @@ var musicChords = {
           this.tone(midiToFreq(midi), 0.1, voice.arp, voice.arp === "sine" ? 0.045 : 0.025, {
             lp: voice.lp + level * 1600,
             dest: this.delay,
-            at: at,
+            at,
           });
         }
         if ((level > 0.45 || boss) && cycle % 2 === 0) {
@@ -626,7 +625,7 @@ var musicChords = {
               0.22,
               voice.lead,
               voice.lead === "sawtooth" || voice.lead === "square" ? 0.028 : 0.045,
-              { dest: this.delay, at: at, attack: 0.01, lp: 3e3 },
+              { dest: this.delay, at, attack: 0.01, lp: 3e3 },
             );
         }
       } else {
@@ -635,21 +634,21 @@ var musicChords = {
             (this.tone(midiToFreq(midi - 12), stepSeconds(100) * 16, "sawtooth", 0.025, {
               lp: 800,
               attack: 0.6,
-              dest: dest,
-              at: at,
+              dest,
+              at,
               detune: 7,
             }),
               this.tone(midiToFreq(midi - 12), stepSeconds(100) * 16, "sawtooth", 0.02, {
                 lp: 800,
                 attack: 0.6,
-                dest: dest,
-                at: at,
+                dest,
+                at,
                 detune: -7,
               }));
         (beat % 4 === 0 &&
           (step * 7) % 3 !== 0 &&
-          this.tone(midiToFreq(chord[((step / 4) % 4) | 0] + 12), 0.4, "triangle", 0.04, { dest: this.delay, at: at }),
-          beat === 0 && this.tone(midiToFreq(root - 24), 1.6, "sine", 0.12, { dest: dest, at: at, attack: 0.05 }));
+          this.tone(midiToFreq(chord[((step / 4) % 4) | 0] + 12), 0.4, "triangle", 0.04, { dest: this.delay, at }),
+          beat === 0 && this.tone(midiToFreq(root - 24), 1.6, "sine", 0.12, { dest, at, attack: 0.05 }));
       }
     }
   };

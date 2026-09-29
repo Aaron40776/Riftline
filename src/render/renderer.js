@@ -54,21 +54,21 @@ import { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinPar
 
 var tmpColor = new Color(),
   InstancePool = class {
-    constructor(t, e, n, s = {}) {
-      ((this.max = n),
-        (this.mesh = new InstancedMesh(t, e, n)),
+    constructor(geo, mat, max, opts = {}) {
+      ((this.max = max),
+        (this.mesh = new InstancedMesh(geo, mat, max)),
         this.mesh.instanceMatrix.setUsage(DynamicDrawUsage),
         (this.mesh.frustumCulled = !1),
         (this.mesh.count = 0),
         (this.m = this.mesh.instanceMatrix.array),
-        s.color !== !1 &&
-          ((this.mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(n * 3).fill(1), 3)),
+        opts.color !== !1 &&
+          ((this.mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(max * 3).fill(1), 3)),
           this.mesh.instanceColor.setUsage(DynamicDrawUsage),
           (this.c = this.mesh.instanceColor.array)),
-        s.flash &&
-          ((this.fAttr = new InstancedBufferAttribute(new Float32Array(n), 1)),
+        opts.flash &&
+          ((this.fAttr = new InstancedBufferAttribute(new Float32Array(max), 1)),
           this.fAttr.setUsage(DynamicDrawUsage),
-          t.setAttribute("aFlash", this.fAttr),
+          geo.setAttribute("aFlash", this.fAttr),
           (this.f = this.fAttr.array)),
         (this.n = 0));
     }
@@ -81,100 +81,105 @@ var tmpColor = new Color(),
         this.c && (this.mesh.instanceColor.needsUpdate = !0),
         this.f && (this.fAttr.needsUpdate = !0));
     }
-    y(t, e, n, s, r, a = r, o = r) {
+    y(x, y, z, angle, sx, sy = sx, sz = sx) {
       if (this.n >= this.max) return -1;
-      let c = this.n++,
-        h = this.m,
-        l = c * 16,
-        u = Math.cos(-s),
-        d = Math.sin(-s);
+      let idx = this.n++,
+        arr = this.m,
+        off = idx * 16,
+        cos = Math.cos(-angle),
+        sin = Math.sin(-angle);
       return (
-        (h[l] = u * r),
-        (h[l + 1] = 0),
-        (h[l + 2] = -d * r),
-        (h[l + 3] = 0),
-        (h[l + 4] = 0),
-        (h[l + 5] = a),
-        (h[l + 6] = 0),
-        (h[l + 7] = 0),
-        (h[l + 8] = d * o),
-        (h[l + 9] = 0),
-        (h[l + 10] = u * o),
-        (h[l + 11] = 0),
-        (h[l + 12] = t),
-        (h[l + 13] = e),
-        (h[l + 14] = n),
-        (h[l + 15] = 1),
-        c
+        (arr[off] = cos * sx),
+        (arr[off + 1] = 0),
+        (arr[off + 2] = -sin * sx),
+        (arr[off + 3] = 0),
+        (arr[off + 4] = 0),
+        (arr[off + 5] = sy),
+        (arr[off + 6] = 0),
+        (arr[off + 7] = 0),
+        (arr[off + 8] = sin * sz),
+        (arr[off + 9] = 0),
+        (arr[off + 10] = cos * sz),
+        (arr[off + 11] = 0),
+        (arr[off + 12] = x),
+        (arr[off + 13] = y),
+        (arr[off + 14] = z),
+        (arr[off + 15] = 1),
+        idx
       );
     }
-    bb(t, e, n, s, r, a = 0) {
+    bb(x, y, z, size, basis, rot = 0) {
       if (this.n >= this.max) return -1;
-      let o = this.n++,
-        c = this.m,
-        h = o * 16,
-        l = r.rx,
-        u = r.ry,
-        d = r.rz,
-        f = r.ux,
-        p = r.uy,
-        x = r.uz;
-      if (a) {
-        let m = Math.cos(a),
-          g = Math.sin(a),
-          M = l * m + f * g,
-          b = u * m + p * g,
-          v = d * m + x * g;
-        ((f = f * m - l * g), (p = p * m - u * g), (x = x * m - d * g), (l = M), (u = b), (d = v));
+      let idx = this.n++,
+        arr = this.m,
+        off = idx * 16,
+        rx = basis.rx,
+        ry = basis.ry,
+        rz = basis.rz,
+        ux = basis.ux,
+        uy = basis.uy,
+        uz = basis.uz;
+      if (rot) {
+        let cos = Math.cos(rot),
+          sin = Math.sin(rot),
+          nrx = rx * cos + ux * sin,
+          nry = ry * cos + uy * sin,
+          nrz = rz * cos + uz * sin;
+        ((ux = ux * cos - rx * sin),
+          (uy = uy * cos - ry * sin),
+          (uz = uz * cos - rz * sin),
+          (rx = nrx),
+          (ry = nry),
+          (rz = nrz));
       }
       return (
-        (c[h] = l * s),
-        (c[h + 1] = u * s),
-        (c[h + 2] = d * s),
-        (c[h + 3] = 0),
-        (c[h + 4] = f * s),
-        (c[h + 5] = p * s),
-        (c[h + 6] = x * s),
-        (c[h + 7] = 0),
-        (c[h + 8] = r.fx),
-        (c[h + 9] = r.fy),
-        (c[h + 10] = r.fz),
-        (c[h + 11] = 0),
-        (c[h + 12] = t),
-        (c[h + 13] = e),
-        (c[h + 14] = n),
-        (c[h + 15] = 1),
-        o
+        (arr[off] = rx * size),
+        (arr[off + 1] = ry * size),
+        (arr[off + 2] = rz * size),
+        (arr[off + 3] = 0),
+        (arr[off + 4] = ux * size),
+        (arr[off + 5] = uy * size),
+        (arr[off + 6] = uz * size),
+        (arr[off + 7] = 0),
+        (arr[off + 8] = basis.fx),
+        (arr[off + 9] = basis.fy),
+        (arr[off + 10] = basis.fz),
+        (arr[off + 11] = 0),
+        (arr[off + 12] = x),
+        (arr[off + 13] = y),
+        (arr[off + 14] = z),
+        (arr[off + 15] = 1),
+        idx
       );
     }
-    seg(t, e, n, s, r, a, o) {
-      let c = n - t,
-        h = s - e,
-        l = Math.hypot(c, h);
-      return l < 1e-4 ? -1 : this.y(t, r, e, Math.atan2(h, c), l, o, a);
+    seg(x0, z0, x1, z1, y, width, height) {
+      let dx = x1 - x0,
+        dz = z1 - z0,
+        len = Math.hypot(dx, dz);
+      return len < 1e-4 ? -1 : this.y(x0, y, z0, Math.atan2(dz, dx), len, height, width);
     }
-    col(t, e, n, s) {
-      if (t < 0 || !this.c) return;
-      let r = t * 3;
-      ((this.c[r] = e), (this.c[r + 1] = n), (this.c[r + 2] = s));
+    col(idx, r, g, b) {
+      if (idx < 0 || !this.c) return;
+      let off = idx * 3;
+      ((this.c[off] = r), (this.c[off + 1] = g), (this.c[off + 2] = b));
     }
-    colC(t, e, n = 1) {
-      if (t < 0 || !this.c) return;
-      let s = t * 3;
-      ((this.c[s] = e.r * n), (this.c[s + 1] = e.g * n), (this.c[s + 2] = e.b * n));
+    colC(idx, color, mul = 1) {
+      if (idx < 0 || !this.c) return;
+      let off = idx * 3;
+      ((this.c[off] = color.r * mul), (this.c[off + 1] = color.g * mul), (this.c[off + 2] = color.b * mul));
     }
-    colHex(t, e, n = 1) {
-      (tmpColor.setHex(e), this.colC(t, tmpColor, n));
+    colHex(idx, hex, mul = 1) {
+      (tmpColor.setHex(hex), this.colC(idx, tmpColor, mul));
     }
-    flash(t, e) {
-      t >= 0 && this.f && (this.f[t] = e);
+    flash(idx, value) {
+      idx >= 0 && this.f && (this.f[idx] = value);
     }
   };
-function makeFlashMaterial(i) {
-  let t = new MeshLambertMaterial(i);
+function makeFlashMaterial(params) {
+  let mat = new MeshLambertMaterial(params);
   return (
-    (t.onBeforeCompile = (e) => {
-      ((e.vertexShader = e.vertexShader
+    (mat.onBeforeCompile = (shader) => {
+      ((shader.vertexShader = shader.vertexShader
         .replace(
           "#include <common>",
           `#include <common>
@@ -186,7 +191,7 @@ varying float vFlash;`,
           `#include <begin_vertex>
 vFlash = aFlash;`,
         )),
-        (e.fragmentShader = e.fragmentShader
+        (shader.fragmentShader = shader.fragmentShader
           .replace(
             "#include <common>",
             `#include <common>
@@ -198,90 +203,90 @@ varying float vFlash;`,
 #include <opaque_fragment>`,
           )));
     }),
-    (t.customProgramCacheKey = () => "flashLambert"),
-    t
+    (mat.customProgramCacheKey = () => "flashLambert"),
+    mat
   );
 }
-function additiveMaterial(i, t = {}) {
+function additiveMaterial(map, opts = {}) {
   return new MeshBasicMaterial({
-    map: i || null,
+    map: map || null,
     transparent: !0,
     depthWrite: !1,
     blending: AdditiveBlending,
     toneMapped: !1,
-    ...t,
+    ...opts,
   });
 }
-function makeCanvasTexture(i, t) {
-  let e = document.createElement("canvas");
-  e.width = e.height = i;
-  let n = e.getContext("2d");
-  t(n, i);
-  let s = new CanvasTexture(e);
-  return ((s.colorSpace = SRGBColorSpace), (s.needsUpdate = !0), s);
+function makeCanvasTexture(size, draw) {
+  let canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  let ctx = canvas.getContext("2d");
+  draw(ctx, size);
+  let tex = new CanvasTexture(canvas);
+  return ((tex.colorSpace = SRGBColorSpace), (tex.needsUpdate = !0), tex);
 }
 function makeGlowTexture() {
-  return makeCanvasTexture(128, (i, t) => {
-    let e = t / 2,
-      n = i.createRadialGradient(e, e, 0, e, e, e);
-    (n.addColorStop(0, "rgba(255,255,255,1)"),
-      n.addColorStop(0.18, "rgba(255,255,255,0.85)"),
-      n.addColorStop(0.45, "rgba(255,255,255,0.25)"),
-      n.addColorStop(1, "rgba(255,255,255,0)"),
-      (i.fillStyle = n),
-      i.fillRect(0, 0, t, t));
+  return makeCanvasTexture(128, (ctx, size) => {
+    let half = size / 2,
+      grad = ctx.createRadialGradient(half, half, 0, half, half, half);
+    (grad.addColorStop(0, "rgba(255,255,255,1)"),
+      grad.addColorStop(0.18, "rgba(255,255,255,0.85)"),
+      grad.addColorStop(0.45, "rgba(255,255,255,0.25)"),
+      grad.addColorStop(1, "rgba(255,255,255,0)"),
+      (ctx.fillStyle = grad),
+      ctx.fillRect(0, 0, size, size));
   });
 }
 function makeShadowTexture() {
-  return makeCanvasTexture(64, (i, t) => {
-    let e = t / 2,
-      n = i.createRadialGradient(e, e, 0, e, e, e);
-    (n.addColorStop(0, "rgba(0,0,0,0.75)"),
-      n.addColorStop(0.6, "rgba(0,0,0,0.35)"),
-      n.addColorStop(1, "rgba(0,0,0,0)"),
-      (i.fillStyle = n),
-      i.fillRect(0, 0, t, t));
+  return makeCanvasTexture(64, (ctx, size) => {
+    let half = size / 2,
+      grad = ctx.createRadialGradient(half, half, 0, half, half, half);
+    (grad.addColorStop(0, "rgba(0,0,0,0.75)"),
+      grad.addColorStop(0.6, "rgba(0,0,0,0.35)"),
+      grad.addColorStop(1, "rgba(0,0,0,0)"),
+      (ctx.fillStyle = grad),
+      ctx.fillRect(0, 0, size, size));
   });
 }
 function makeSparkTexture() {
-  return makeCanvasTexture(64, (i, t) => {
-    let e = i.createRadialGradient(t / 2, t / 2, 0, t / 2, t / 2, t / 2);
-    (e.addColorStop(0, "rgba(255,255,255,1)"),
-      e.addColorStop(0.35, "rgba(255,255,255,0.6)"),
-      e.addColorStop(1, "rgba(255,255,255,0)"),
-      (i.fillStyle = e),
-      i.beginPath(),
-      i.moveTo(t / 2, 0),
-      i.lineTo(t * 0.62, t / 2),
-      i.lineTo(t / 2, t),
-      i.lineTo(t * 0.38, t / 2),
-      i.closePath(),
-      i.fill(),
-      i.beginPath(),
-      i.moveTo(0, t / 2),
-      i.lineTo(t / 2, t * 0.6),
-      i.lineTo(t, t / 2),
-      i.lineTo(t / 2, t * 0.4),
-      i.closePath(),
-      i.fill());
+  return makeCanvasTexture(64, (ctx, size) => {
+    let grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    (grad.addColorStop(0, "rgba(255,255,255,1)"),
+      grad.addColorStop(0.35, "rgba(255,255,255,0.6)"),
+      grad.addColorStop(1, "rgba(255,255,255,0)"),
+      (ctx.fillStyle = grad),
+      ctx.beginPath(),
+      ctx.moveTo(size / 2, 0),
+      ctx.lineTo(size * 0.62, size / 2),
+      ctx.lineTo(size / 2, size),
+      ctx.lineTo(size * 0.38, size / 2),
+      ctx.closePath(),
+      ctx.fill(),
+      ctx.beginPath(),
+      ctx.moveTo(0, size / 2),
+      ctx.lineTo(size / 2, size * 0.6),
+      ctx.lineTo(size, size / 2),
+      ctx.lineTo(size / 2, size * 0.4),
+      ctx.closePath(),
+      ctx.fill());
   });
 }
 function makeColumnTexture() {
-  return makeCanvasTexture(64, (i, t) => {
-    let e = i.createLinearGradient(0, t, 0, 0);
-    (e.addColorStop(0, "rgba(255,255,255,0.95)"),
-      e.addColorStop(0.25, "rgba(255,255,255,0.45)"),
-      e.addColorStop(1, "rgba(255,255,255,0)"),
-      (i.fillStyle = e),
-      i.fillRect(0, 0, t, t));
+  return makeCanvasTexture(64, (ctx, size) => {
+    let grad = ctx.createLinearGradient(0, size, 0, 0);
+    (grad.addColorStop(0, "rgba(255,255,255,0.95)"),
+      grad.addColorStop(0.25, "rgba(255,255,255,0.45)"),
+      grad.addColorStop(1, "rgba(255,255,255,0)"),
+      (ctx.fillStyle = grad),
+      ctx.fillRect(0, 0, size, size));
   });
 }
 var MAX_PARTICLES = 1400,
   goldColor = new Color(16762954),
   colorCache = new Map(),
-  hexColor = (i) => {
-    let t = colorCache.get(i);
-    return (t || ((t = new Color(i)), colorCache.set(i, t)), t);
+  hexColor = (hex) => {
+    let color = colorCache.get(hex);
+    return (color || ((color = new Color(hex)), colorCache.set(hex, color)), color);
   },
   // 2.4.6: slag, the molten orbs of the Crucible
   enemyShotColors = {
@@ -303,17 +308,17 @@ var MAX_PARTICLES = 1400,
   },
   beamColor = new Color(16732064),
   Renderer = class {
-    constructor(t, e = {}) {
-      ((this.canvas = t),
+    constructor(canvas, opts = {}) {
+      ((this.canvas = canvas),
         (this.renderer = new WebGLRenderer({
-          canvas: t,
+          canvas,
           antialias: !0,
           powerPreference: "high-performance",
           stencil: !1,
         })),
         (this.renderer.outputColorSpace = SRGBColorSpace),
         this.renderer.setClearColor(329485, 1),
-        (this.dprCap = e.dpr || 1.5),
+        (this.dprCap = opts.dpr || 1.5),
         (this.zoom = 1),
         (this.scene = new Scene()),
         (this.scene.fog = new Fog(395798, 30, 75)),
@@ -330,7 +335,7 @@ var MAX_PARTICLES = 1400,
         (this.camInit = !1),
         (this.B = { rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: 1 }),
         (this.nums = []),
-        (this.maxParticles = e.particles || MAX_PARTICLES),
+        (this.maxParticles = opts.particles || MAX_PARTICLES),
         this.initPools(),
         this.initParticles(),
         (this.lines = []),
@@ -345,31 +350,32 @@ var MAX_PARTICLES = 1400,
         this.resize());
     }
     initPools() {
-      let t = this.scene;
+      let scene = this.scene;
       ((this.texGlow = makeGlowTexture()),
         (this.texShadow = makeShadowTexture()),
         (this.texSpark = makeSparkTexture()));
-      let e = new PlaneGeometry(1, 1);
-      ((this.sprites = new InstancePool(e, additiveMaterial(this.texGlow), 2200)),
-        (this.sparks = new InstancePool(e.clone(), additiveMaterial(this.texSpark), 700)));
-      let n = new RingGeometry(0.86, 1, 48, 1);
-      (n.rotateX(-Math.PI / 2),
-        (this.ringPool = new InstancePool(n, additiveMaterial(null, { side: DoubleSide }), 260)));
-      let s = new CircleGeometry(1, 40);
-      (s.rotateX(-Math.PI / 2), (this.discs = new InstancePool(s, additiveMaterial(null, { side: DoubleSide }), 120)));
-      let r = new BoxGeometry(1, 1, 1);
-      (r.translate(0.5, 0, 0), (this.beams = new InstancePool(r, additiveMaterial(null), 500)));
-      let a = new PlaneGeometry(1, 1);
-      (a.rotateX(-Math.PI / 2),
+      let quad = new PlaneGeometry(1, 1);
+      ((this.sprites = new InstancePool(quad, additiveMaterial(this.texGlow), 2200)),
+        (this.sparks = new InstancePool(quad.clone(), additiveMaterial(this.texSpark), 700)));
+      let ringGeo = new RingGeometry(0.86, 1, 48, 1);
+      (ringGeo.rotateX(-Math.PI / 2),
+        (this.ringPool = new InstancePool(ringGeo, additiveMaterial(null, { side: DoubleSide }), 260)));
+      let discGeo = new CircleGeometry(1, 40);
+      (discGeo.rotateX(-Math.PI / 2),
+        (this.discs = new InstancePool(discGeo, additiveMaterial(null, { side: DoubleSide }), 120)));
+      let beamGeo = new BoxGeometry(1, 1, 1);
+      (beamGeo.translate(0.5, 0, 0), (this.beams = new InstancePool(beamGeo, additiveMaterial(null), 500)));
+      let floorQuad = new PlaneGeometry(1, 1);
+      (floorQuad.rotateX(-Math.PI / 2),
         (this.shadows = new InstancePool(
-          a,
+          floorQuad,
           new MeshBasicMaterial({ map: this.texShadow, transparent: !0, depthWrite: !1, color: 16777215 }),
           320,
           { color: !1 },
         )));
-      let o = new SphereGeometry(1, 10, 6);
-      ((this.pbCore = new InstancePool(o, new MeshBasicMaterial({ toneMapped: !1 }), 460)),
-        (this.ebCore = new InstancePool(o.clone(), new MeshBasicMaterial({ toneMapped: !1 }), 380)),
+      let sphere = new SphereGeometry(1, 10, 6);
+      ((this.pbCore = new InstancePool(sphere, new MeshBasicMaterial({ toneMapped: !1 }), 460)),
+        (this.ebCore = new InstancePool(sphere.clone(), new MeshBasicMaterial({ toneMapped: !1 }), 380)),
         (this.shardPool = new InstancePool(shardGeometry(), new MeshBasicMaterial({ toneMapped: !1 }), 300)),
         (this.healPool = new InstancePool(
           healCrossGeometry(),
@@ -388,14 +394,14 @@ var MAX_PARTICLES = 1400,
         )),
         (this.debris = new InstancePool(debrisGeometry(), new MeshLambertMaterial({ flatShading: !0 }), 320)),
         (this.scorch = new InstancePool(
-          a.clone(),
+          floorQuad.clone(),
           new MeshBasicMaterial({ map: this.texShadow, transparent: !0, depthWrite: !1, color: 16777215 }),
           70,
           { color: !1 },
         )));
-      let c = new CylinderGeometry(1, 1, 1, 16, 1, !0);
-      (c.translate(0, 0.5, 0),
-        (this.columns = new InstancePool(c, additiveMaterial(makeColumnTexture(), { side: DoubleSide }), 60)),
+      let columnGeo = new CylinderGeometry(1, 1, 1, 16, 1, !0);
+      (columnGeo.translate(0, 0.5, 0),
+        (this.columns = new InstancePool(columnGeo, additiveMaterial(makeColumnTexture(), { side: DoubleSide }), 60)),
         (this.scorch.mesh.renderOrder = 0),
         (this.columns.mesh.renderOrder = 4),
         (this.shieldPool.mesh.renderOrder = 5),
@@ -406,18 +412,20 @@ var MAX_PARTICLES = 1400,
         (this.sprites.mesh.renderOrder = 6),
         (this.sparks.mesh.renderOrder = 7),
         (this.enemyPools = {}));
-      for (let h in enemyDefs) {
-        let l = enemyDefs[h],
-          u = enemyGeometry(h, l.color),
-          d = l.r > 0.9 ? 40 : 120,
-          f = new InstancePool(u.body, makeFlashMaterial({ vertexColors: !0, flatShading: !0 }), d, { flash: !0 }),
-          p = new InstancePool(u.glow, new MeshBasicMaterial({ toneMapped: !1, vertexColors: !0 }), d);
-        ((this.enemyPools[h] = { body: f, glow: p, color: hexColor(l.color) }), t.add(f.mesh, p.mesh));
+      for (let type in enemyDefs) {
+        let def = enemyDefs[type],
+          geo = enemyGeometry(type, def.color),
+          max = def.r > 0.9 ? 40 : 120,
+          body = new InstancePool(geo.body, makeFlashMaterial({ vertexColors: !0, flatShading: !0 }), max, {
+            flash: !0,
+          }),
+          glow = new InstancePool(geo.glow, new MeshBasicMaterial({ toneMapped: !1, vertexColors: !0 }), max);
+        ((this.enemyPools[type] = { body, glow, color: hexColor(def.color) }), scene.add(body.mesh, glow.mesh));
       }
-      for (let h of this.allPools()) t.add(h.mesh);
+      for (let pool of this.allPools()) scene.add(pool.mesh);
       ((this.pLight = new PointLight(4846335, 0, 9, 2)),
         (this.bLight = new PointLight(16747069, 0, 12, 2)),
-        t.add(this.pLight, this.bLight),
+        scene.add(this.pLight, this.bLight),
         (this.flashes = []),
         (this.D = []),
         (this.scorches = []),
@@ -446,76 +454,80 @@ var MAX_PARTICLES = 1400,
       ];
     }
     initParticles() {
-      let t = this.maxParticles;
+      let max = this.maxParticles;
       this.P = {
         n: 0,
-        x: new Float32Array(t),
-        y: new Float32Array(t),
-        z: new Float32Array(t),
-        vx: new Float32Array(t),
-        vy: new Float32Array(t),
-        vz: new Float32Array(t),
-        life: new Float32Array(t),
-        max: new Float32Array(t),
-        size: new Float32Array(t),
-        grow: new Float32Array(t),
-        r: new Float32Array(t),
-        g: new Float32Array(t),
-        b: new Float32Array(t),
-        drag: new Float32Array(t),
-        grav: new Float32Array(t),
-        spark: new Uint8Array(t),
+        x: new Float32Array(max),
+        y: new Float32Array(max),
+        z: new Float32Array(max),
+        vx: new Float32Array(max),
+        vy: new Float32Array(max),
+        vz: new Float32Array(max),
+        life: new Float32Array(max),
+        max: new Float32Array(max),
+        size: new Float32Array(max),
+        grow: new Float32Array(max),
+        r: new Float32Array(max),
+        g: new Float32Array(max),
+        b: new Float32Array(max),
+        drag: new Float32Array(max),
+        grav: new Float32Array(max),
+        spark: new Uint8Array(max),
       };
     }
-    setQuality(t, e) {
-      ((this.dprCap = t),
-        e && e !== this.maxParticles && ((this.maxParticles = e), this.initParticles()),
+    setQuality(dprCap, particles) {
+      ((this.dprCap = dprCap),
+        particles && particles !== this.maxParticles && ((this.maxParticles = particles), this.initParticles()),
         this.resize(!0));
     }
-    resize(t) {
-      let e = this.canvas,
-        n = Math.max(1, e.clientWidth || window.innerWidth),
-        s = Math.max(1, e.clientHeight || window.innerHeight),
-        r = Math.min(window.devicePixelRatio || 1, this.dprCap);
-      (!t && n === this.w && s === this.h && r === this.dpr) ||
-        ((this.w = n),
-        (this.h = s),
-        (this.dpr = r),
-        this.renderer.setPixelRatio(r),
-        this.renderer.setSize(n, s, !1),
-        (this.camera.aspect = n / s),
-        (this.camera.fov = n / s < 1 ? 50 : 40),
+    resize(force) {
+      let canvas = this.canvas,
+        w = Math.max(1, canvas.clientWidth || window.innerWidth),
+        h = Math.max(1, canvas.clientHeight || window.innerHeight),
+        dpr = Math.min(window.devicePixelRatio || 1, this.dprCap);
+      (!force && w === this.w && h === this.h && dpr === this.dpr) ||
+        ((this.w = w),
+        (this.h = h),
+        (this.dpr = dpr),
+        this.renderer.setPixelRatio(dpr),
+        this.renderer.setSize(w, h, !1),
+        (this.camera.aspect = w / h),
+        (this.camera.fov = w / h < 1 ? 50 : 40),
         this.camera.updateProjectionMatrix());
     }
     camDistance() {
-      let t = this.w / this.h,
-        e = (this.camera.fov * Math.PI) / 360,
-        n = Math.atan(Math.tan(e) * t),
-        s = t < 1 ? 15.5 : 26,
-        r = t < 1 ? 19 : 13;
-      return Math.max(s / 2 / Math.tan(n), r / 2 / Math.tan(e)) * this.zoom;
+      let aspect = this.w / this.h,
+        halfV = (this.camera.fov * Math.PI) / 360,
+        halfH = Math.atan(Math.tan(halfV) * aspect),
+        fitW = aspect < 1 ? 15.5 : 26,
+        fitD = aspect < 1 ? 19 : 13;
+      return Math.max(fitW / 2 / Math.tan(halfH), fitD / 2 / Math.tan(halfV)) * this.zoom;
     }
-    setBiome(t, e) {
-      let n = this.arena.layKey;
+    setBiome(biome, layout) {
+      let prevKey = this.arena.layKey;
       if (
-        (this.arena.build(t, e ? { key: e.key, W: e.W, H: e.H, obs: e.obs, deco: e.deco } : null, !!e),
-        e && n != null && n !== this.arena.layKey)
+        (this.arena.build(
+          biome,
+          layout ? { key: layout.key, W: layout.W, H: layout.H, obs: layout.obs, deco: layout.deco } : null,
+          !!layout,
+        ),
+        layout && prevKey != null && prevKey !== this.arena.layKey)
       ) {
-        let s = hexColor(t.grid);
-        for (let r of e.obs) {
-          let a = r.t === "c" ? r.r : Math.max(r.w, r.h);
-          (this.burst(r.x, r.y, 0.2, 10, 3 + a, s, 0.7, 0.45, { up: 1.5, drag: 3 }),
-            this.ring(r.x, r.y, a * 0.6, a * 1.8, s, 0.5));
+        let color = hexColor(biome.grid);
+        for (let obstacle of layout.obs) {
+          let size = obstacle.t === "c" ? obstacle.r : Math.max(obstacle.w, obstacle.h);
+          (this.burst(obstacle.x, obstacle.y, 0.2, 10, 3 + size, color, 0.7, 0.45, { up: 1.5, drag: 3 }),
+            this.ring(obstacle.x, obstacle.y, size * 0.6, size * 1.8, color, 0.5));
         }
         (this.addShake(0.12), (this.mapChanged = !0));
       }
-      (this.scene.fog.color.setHex(t.fog),
-        this.renderer.setClearColor(t.fog, 1),
-        this.hemi.color.setHex(t.sky),
-        this.hemi.groundColor.setHex(t.ground),
-        (this.biome = t));
+      (this.scene.fog.color.setHex(biome.fog),
+        this.renderer.setClearColor(biome.fog, 1),
+        this.hemi.color.setHex(biome.sky),
+        this.hemi.groundColor.setHex(biome.ground),
+        (this.biome = biome));
       // 2.4.0: sun colour and fog density of the biome look
-      const look = RL_BIOME_LOOK[t.id] || RL_BIOME_LOOK.yard,
+      const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.yard,
         fog = this.scene.fog;
       this.sun.color.setHex(look.sun);
       if (look.fog) {
@@ -525,254 +537,269 @@ var MAX_PARTICLES = 1400,
       } else ((fog.near = 30), (fog.far = 75));
       // 2.5.0 C: in a Whiteout the fog closes in and turns pale
       const whiteK = this.rlWhiteK || 0;
-      if (!(whiteK > 0) || t.id !== "vault") return;
+      if (!(whiteK > 0) || biome.id !== "vault") return;
       const camDist = this.camDistance();
       ((fog.near += (camDist * RL_WHITEOUT_FOG[0] - fog.near) * whiteK),
         (fog.far += (camDist * RL_WHITEOUT_FOG[1] - fog.far) * whiteK),
         fog.color.lerp(RL_WHITEOUT_TINT, 0.8 * whiteK),
         this.renderer.setClearColor(fog.color, 1));
     }
-    ensurePlayer(t) {
-      (this.playerWeapon === t && this.player) ||
+    ensurePlayer(weapon) {
+      (this.playerWeapon === weapon && this.player) ||
         (this.player &&
           (this.scene.remove(this.player.group),
-          this.player.group.traverse((e) => {
-            e.geometry && e.geometry.dispose();
+          this.player.group.traverse((obj) => {
+            obj.geometry && obj.geometry.dispose();
           })),
-        (this.player = buildPlayerModel(t, weaponDefs[t].color)),
-        (this.playerWeapon = t),
+        (this.player = buildPlayerModel(weapon, weaponDefs[weapon].color)),
+        (this.playerWeapon = weapon),
         this.scene.add(this.player.group));
     }
-    emit(t, e, n, s, r, a, o, c, h, l = {}) {
-      let u = this.P;
+    emit(x, y, z, vx, vy, vz, life, size, color, opts = {}) {
+      let parts = this.P;
       if (
-        u.n >= this.maxParticles ||
-        (u.n > this.maxParticles * 0.6 && Math.random() < (u.n / this.maxParticles - 0.6) * 2)
+        parts.n >= this.maxParticles ||
+        (parts.n > this.maxParticles * 0.6 && Math.random() < (parts.n / this.maxParticles - 0.6) * 2)
       )
         return;
-      let d = u.n++;
-      ((u.x[d] = t),
-        (u.y[d] = e),
-        (u.z[d] = n),
-        (u.vx[d] = s),
-        (u.vy[d] = r),
-        (u.vz[d] = a),
-        (u.life[d] = o),
-        (u.max[d] = o),
-        (u.size[d] = c),
-        (u.grow[d] = l.grow || 0),
-        (u.r[d] = h.r),
-        (u.g[d] = h.g),
-        (u.b[d] = h.b),
-        (u.drag[d] = l.drag ?? 2.5),
-        (u.grav[d] = l.grav ?? 0),
-        (u.spark[d] = l.spark ? 1 : 0));
+      let i = parts.n++;
+      ((parts.x[i] = x),
+        (parts.y[i] = y),
+        (parts.z[i] = z),
+        (parts.vx[i] = vx),
+        (parts.vy[i] = vy),
+        (parts.vz[i] = vz),
+        (parts.life[i] = life),
+        (parts.max[i] = life),
+        (parts.size[i] = size),
+        (parts.grow[i] = opts.grow || 0),
+        (parts.r[i] = color.r),
+        (parts.g[i] = color.g),
+        (parts.b[i] = color.b),
+        (parts.drag[i] = opts.drag ?? 2.5),
+        (parts.grav[i] = opts.grav ?? 0),
+        (parts.spark[i] = opts.spark ? 1 : 0));
     }
-    burst(t, e, n, s, r, a, o = 0.5, c = 0.35, h = {}) {
-      for (let l = 0; l < s; l++) {
-        let u = Math.random() * TAU,
-          d = r * (0.35 + Math.random() * 0.65),
-          f = h.up != null ? h.up : (Math.random() - 0.3) * r * 0.5;
+    burst(x, z, y, count, speed, color, life = 0.5, size = 0.35, opts = {}) {
+      for (let i = 0; i < count; i++) {
+        let angle = Math.random() * TAU,
+          spd = speed * (0.35 + Math.random() * 0.65),
+          vy = opts.up != null ? opts.up : (Math.random() - 0.3) * speed * 0.5;
         this.emit(
-          t,
-          n,
-          e,
-          Math.cos(u) * d,
-          f,
-          Math.sin(u) * d,
-          o * (0.6 + Math.random() * 0.6),
-          c * (0.6 + Math.random() * 0.7),
-          a,
-          h,
+          x,
+          y,
+          z,
+          Math.cos(angle) * spd,
+          vy,
+          Math.sin(angle) * spd,
+          life * (0.6 + Math.random() * 0.6),
+          size * (0.6 + Math.random() * 0.7),
+          color,
+          opts,
         );
       }
     }
-    line(t, e, n, s, r, a, o = 0.12, c = 0.7, h = 0) {
-      this.lines.length > 120 ||
-        this.lines.push({ x1: t, z1: e, x2: n, z2: s, col: r, life: a, max: a, w: o, y: c, jag: h });
+    line(x1, z1, x2, z2, color, life, width = 0.12, y = 0.7, jag = 0) {
+      this.lines.length > 120 || this.lines.push({ x1, z1, x2, z2, col: color, life, max: life, w: width, y, jag });
     }
-    ring(t, e, n, s, r, a, o = 0.06) {
-      this.rings.length > 100 || this.rings.push({ x: t, z: e, r0: n, r1: s, col: r, life: a, max: a, y: o });
+    ring(x, z, r0, r1, color, life, y = 0.06) {
+      this.rings.length > 100 || this.rings.push({ x, z, r0, r1, col: color, life, max: life, y });
     }
-    addShake(t) {
-      this.shake = Math.min(1, this.shake + t);
+    addShake(amount) {
+      this.shake = Math.min(1, this.shake + amount);
     }
-    flash(t, e, n, s, r, a = 6) {
+    flash(x, z, radius, intensity, color, decay = 6) {
       (this.flashes.length > 24 && this.flashes.shift(),
-        this.flashes.push({ x: t, z: e, r: n, i: s * this.flashK, col: r, decay: a }));
+        this.flashes.push({ x, z, r: radius, i: intensity * this.flashK, col: color, decay }));
     }
-    updateLights(t, e) {
-      let n = this.flashes;
-      for (let h of n) h.i -= h.i * Math.min(1, h.decay * t) + t * 0.05;
-      n.length && n.some((h) => h.i <= 0.02) && (this.flashes = n.filter((h) => h.i > 0.02));
-      let s = this.flashes.slice().sort((h, l) => l.i - h.i),
-        r = this.arena.uniforms;
-      for (let h = 0; h < 6; h++) {
-        let l = s[h];
-        l ? (r.uL.value[h].set(l.x, l.z, l.r, Math.min(1.6, l.i)), r.uLC.value[h].copy(l.col)) : (r.uL.value[h].w = 0);
+    updateLights(dt, world) {
+      let flashes = this.flashes;
+      for (let flash of flashes) flash.i -= flash.i * Math.min(1, flash.decay * dt) + dt * 0.05;
+      flashes.length &&
+        flashes.some((flash) => flash.i <= 0.02) &&
+        (this.flashes = flashes.filter((flash) => flash.i > 0.02));
+      let sorted = this.flashes.slice().sort((a, b) => b.i - a.i),
+        uniforms = this.arena.uniforms;
+      for (let i = 0; i < 6; i++) {
+        let flash = sorted[i];
+        flash
+          ? (uniforms.uL.value[i].set(flash.x, flash.z, flash.r, Math.min(1.6, flash.i)),
+            uniforms.uLC.value[i].copy(flash.col))
+          : (uniforms.uL.value[i].w = 0);
       }
-      let a = e && e.player;
-      ((this.muzzle = Math.max(0, (this.muzzle || 0) - t * 14)),
-        a && this.pLight.position.set(a.x + Math.cos(a.aim) * 0.8, 1.3, a.y + Math.sin(a.aim) * 0.8));
+      let player = world && world.player;
+      ((this.muzzle = Math.max(0, (this.muzzle || 0) - dt * 14)),
+        player &&
+          this.pLight.position.set(player.x + Math.cos(player.aim) * 0.8, 1.3, player.y + Math.sin(player.aim) * 0.8));
       ((this.hemi.intensity = 1.9), (this.sun.intensity = 1.5), (this.pLight.intensity = this.muzzle * 6));
-      let c = s.find((h) => !h.muzzle);
-      c
-        ? (this.bLight.position.set(c.x, 1.6, c.z),
-          this.bLight.color.copy(c.col),
-          (this.bLight.intensity = Math.min(1.5, c.i) * 10),
-          (this.bLight.distance = c.r * 3))
+      let big = sorted.find((flash) => !flash.muzzle);
+      big
+        ? (this.bLight.position.set(big.x, 1.6, big.z),
+          this.bLight.color.copy(big.col),
+          (this.bLight.intensity = Math.min(1.5, big.i) * 10),
+          (this.bLight.distance = big.r * 3))
         : (this.bLight.intensity = 0);
       // 2.4.0: light intensities of the biome look
       const look = this.biome && RL_BIOME_LOOK[this.biome.id];
       look && ((this.hemi.intensity = look.hemi), (this.sun.intensity = look.sunI));
     }
-    debrisBurst(t, e, n, s, r, a, o) {
-      let c = this.D;
-      for (let h = 0; h < s && c.length < 300; h++) {
-        let l = Math.random() * TAU,
-          u = o * (0.4 + Math.random() * 0.8);
-        c.push({
-          x: t + Math.cos(l) * 0.2,
-          y: n,
-          z: e + Math.sin(l) * 0.2,
-          vx: Math.cos(l) * u,
-          vy: 3 + Math.random() * o * 0.9,
-          vz: Math.sin(l) * u,
+    debrisBurst(x, z, y, count, color, size, speed) {
+      let list = this.D;
+      for (let i = 0; i < count && list.length < 300; i++) {
+        let angle = Math.random() * TAU,
+          spd = speed * (0.4 + Math.random() * 0.8);
+        list.push({
+          x: x + Math.cos(angle) * 0.2,
+          y,
+          z: z + Math.sin(angle) * 0.2,
+          vx: Math.cos(angle) * spd,
+          vy: 3 + Math.random() * speed * 0.9,
+          vz: Math.sin(angle) * spd,
           rx: Math.random() * 6,
           ry: Math.random() * 6,
           rz: Math.random() * 6,
           sx: (Math.random() - 0.5) * 16,
           sy: (Math.random() - 0.5) * 16,
           sz: (Math.random() - 0.5) * 16,
-          s: a * (0.5 + Math.random() * 0.7),
+          s: size * (0.5 + Math.random() * 0.7),
           life: 0.9 + Math.random() * 0.7,
-          col: r,
+          col: color,
         });
       }
     }
-    drawDebris(t) {
-      let e = this.D,
-        n = this.debris,
-        s = n.m,
-        r = this._e || (this._e = new Euler()),
-        a = this._q || (this._q = new Quaternion()),
-        o = this._m || (this._m = new Matrix4()),
-        c = this._p || (this._p = new Vector3()),
-        h = this._s || (this._s = new Vector3());
-      for (let l of e) {
+    drawDebris(dt) {
+      let list = this.D,
+        pool = this.debris,
+        arr = pool.m,
+        euler = this._e || (this._e = new Euler()),
+        quat = this._q || (this._q = new Quaternion()),
+        mat = this._m || (this._m = new Matrix4()),
+        pos = this._p || (this._p = new Vector3()),
+        scale = this._s || (this._s = new Vector3());
+      for (let piece of list) {
         if (
-          ((l.life -= t),
-          (l.vy -= 22 * t),
-          (l.x += l.vx * t),
-          (l.y += l.vy * t),
-          (l.z += l.vz * t),
-          l.y < l.s * 0.5 &&
-            ((l.y = l.s * 0.5),
-            (l.vy *= -0.35),
-            (l.vx *= 0.7),
-            (l.vz *= 0.7),
-            (l.sx *= 0.6),
-            (l.sy *= 0.6),
-            (l.sz *= 0.6)),
-          (l.rx += l.sx * t),
-          (l.ry += l.sy * t),
-          (l.rz += l.sz * t),
-          n.n >= n.max)
+          ((piece.life -= dt),
+          (piece.vy -= 22 * dt),
+          (piece.x += piece.vx * dt),
+          (piece.y += piece.vy * dt),
+          (piece.z += piece.vz * dt),
+          piece.y < piece.s * 0.5 &&
+            ((piece.y = piece.s * 0.5),
+            (piece.vy *= -0.35),
+            (piece.vx *= 0.7),
+            (piece.vz *= 0.7),
+            (piece.sx *= 0.6),
+            (piece.sy *= 0.6),
+            (piece.sz *= 0.6)),
+          (piece.rx += piece.sx * dt),
+          (piece.ry += piece.sy * dt),
+          (piece.rz += piece.sz * dt),
+          pool.n >= pool.max)
         )
           continue;
-        let u = n.n++,
-          d = l.life < 0.3 ? Math.max(0, l.life / 0.3) : 1;
-        (r.set(l.rx, l.ry, l.rz),
-          a.setFromEuler(r),
-          o.compose(c.set(l.x, l.y, l.z), a, h.setScalar(l.s * d)),
-          o.toArray(s, u * 16),
-          n.colC(u, l.col, 1));
+        let idx = pool.n++,
+          fade = piece.life < 0.3 ? Math.max(0, piece.life / 0.3) : 1;
+        (euler.set(piece.rx, piece.ry, piece.rz),
+          quat.setFromEuler(euler),
+          mat.compose(pos.set(piece.x, piece.y, piece.z), quat, scale.setScalar(piece.s * fade)),
+          mat.toArray(arr, idx * 16),
+          pool.colC(idx, piece.col, 1));
       }
-      e.length && e.some((l) => l.life <= 0) && (this.D = e.filter((l) => l.life > 0));
+      list.length && list.some((piece) => piece.life <= 0) && (this.D = list.filter((piece) => piece.life > 0));
     }
-    addScorch(t, e, n) {
+    addScorch(x, z, radius) {
       (this.scorches.length >= 60 && this.scorches.shift(),
-        this.scorches.push({ x: t, z: e, r: n, life: 7, a: Math.random() * TAU }));
+        this.scorches.push({ x, z, r: radius, life: 7, a: Math.random() * TAU }));
     }
-    drawScorch(t) {
-      for (let e of this.scorches) {
-        e.life -= t;
-        let n = e.life < 1.5 ? Math.max(0, e.life / 1.5) : 1;
-        this.scorch.y(e.x, 0.015, e.z, e.a, e.r * 2 * n);
+    drawScorch(dt) {
+      for (let mark of this.scorches) {
+        mark.life -= dt;
+        let fade = mark.life < 1.5 ? Math.max(0, mark.life / 1.5) : 1;
+        this.scorch.y(mark.x, 0.015, mark.z, mark.a, mark.r * 2 * fade);
       }
-      this.scorches.length && this.scorches[0].life <= 0 && (this.scorches = this.scorches.filter((e) => e.life > 0));
+      this.scorches.length &&
+        this.scorches[0].life <= 0 &&
+        (this.scorches = this.scorches.filter((mark) => mark.life > 0));
     }
-    consume(t, e, n) {
-      let s = n.numbers !== !1,
-        r = n.shake === !1 ? 0 : 1;
-      for (let a of t)
-        switch (a.k) {
+    consume(events, world, opts) {
+      let showNumbers = opts.numbers !== !1,
+        shakeK = opts.shake === !1 ? 0 : 1;
+      for (let ev of events)
+        switch (ev.k) {
           case "shot": {
-            let o = weaponDefs[a.w],
-              c = hexColor(o.color),
-              h = Math.cos(a.a),
-              l = Math.sin(a.a);
+            let def = weaponDefs[ev.w],
+              color = hexColor(def.color),
+              dirX = Math.cos(ev.a),
+              dirZ = Math.sin(ev.a);
             if (
-              (o.id !== "flame" &&
-                this.emit(a.x, 0.8, a.y, h * 2, 0, l * 2, 0.07, o.id === "scatter" ? 1.3 : 0.9, c, { drag: 0 }),
-              (this.muzzle = Math.min(1, (this.muzzle || 0) + (o.id === "flame" ? 0.12 : 0.6))),
-              this.pLight.color.copy(c),
+              (def.id !== "flame" &&
+                this.emit(ev.x, 0.8, ev.y, dirX * 2, 0, dirZ * 2, 0.07, def.id === "scatter" ? 1.3 : 0.9, color, {
+                  drag: 0,
+                }),
+              (this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "flame" ? 0.12 : 0.6))),
+              this.pLight.color.copy(color),
               !this.lastMuzzleT || this.time - this.lastMuzzleT > 0.05)
             ) {
               this.lastMuzzleT = this.time;
-              let u = {
-                x: a.x + h * 0.6,
-                z: a.y + l * 0.6,
-                r: o.id === "rail" ? 3.2 : 2.2,
-                i: (o.id === "flame" ? 0.35 : 0.55) * this.flashK,
-                col: c,
+              let muzzleFlash = {
+                x: ev.x + dirX * 0.6,
+                z: ev.y + dirZ * 0.6,
+                r: def.id === "rail" ? 3.2 : 2.2,
+                i: (def.id === "flame" ? 0.35 : 0.55) * this.flashK,
+                col: color,
                 decay: 16,
                 muzzle: !0,
               };
-              this.flashes.push(u);
+              this.flashes.push(muzzleFlash);
             }
             if (
-              (o.shake > 0.04 && r && ((this.kick = Math.min(0.6, this.kick + o.shake * 2.2)), (this.kickA = a.a)),
-              o.rail)
+              (def.shake > 0.04 &&
+                shakeK &&
+                ((this.kick = Math.min(0.6, this.kick + def.shake * 2.2)), (this.kickA = ev.a)),
+              def.rail)
             ) {
-              let u = e.stats.lance ? e.stats.range : e.arena.rayLen(a.x, a.y, a.a, e.stats.range);
-              (this.line(a.x, a.y, a.x + h * u, a.y + l * u, c, 0.2, 0.16, 0.8),
-                this.line(a.x, a.y, a.x + h * u, a.y + l * u, whiteColor, 0.08, 0.05, 0.8));
+              let len = world.stats.lance ? world.stats.range : world.arena.rayLen(ev.x, ev.y, ev.a, world.stats.range);
+              (this.line(ev.x, ev.y, ev.x + dirX * len, ev.y + dirZ * len, color, 0.2, 0.16, 0.8),
+                this.line(ev.x, ev.y, ev.x + dirX * len, ev.y + dirZ * len, whiteColor, 0.08, 0.05, 0.8));
             }
-            this.addShake(o.shake * 0.3 * r);
+            this.addShake(def.shake * 0.3 * shakeK);
             break;
           }
           case "wingShot":
-            this.emit(a.x, 0.9, a.y, 0, 0, 0, 0.06, 0.6, hexColor(4846335), { drag: 0 });
+            this.emit(ev.x, 0.9, ev.y, 0, 0, 0, 0.06, 0.6, hexColor(4846335), { drag: 0 });
             break;
           case "dmg": {
-            if (s) {
-              let o = a.id
-                ? this.nums.find((c) => c.id === a.id && c.life > 0.45 && !c.burn == !a.burn && !c.shield == !a.shield)
+            if (showNumbers) {
+              let existing = ev.id
+                ? this.nums.find(
+                    (num) => num.id === ev.id && num.life > 0.45 && !num.burn == !ev.burn && !num.shield == !ev.shield,
+                  )
                 : null;
-              o
-                ? ((o.v += a.v), (o.crit = o.crit || a.crit), (o.life = Math.max(o.life, 0.55)))
+              existing
+                ? ((existing.v += ev.v),
+                  (existing.crit = existing.crit || ev.crit),
+                  (existing.life = Math.max(existing.life, 0.55)))
                 : this.nums.length < 60 &&
                   this.nums.push({
-                    id: a.id,
-                    x: a.x + (Math.random() - 0.5) * 0.4,
-                    z: a.y,
+                    id: ev.id,
+                    x: ev.x + (Math.random() - 0.5) * 0.4,
+                    z: ev.y,
                     y: 1.4,
-                    v: a.v,
-                    crit: a.crit,
-                    burn: a.burn,
-                    shield: a.shield,
-                    life: a.crit ? 0.8 : 0.6,
+                    v: ev.v,
+                    crit: ev.crit,
+                    burn: ev.burn,
+                    shield: ev.shield,
+                    life: ev.crit ? 0.8 : 0.6,
                   });
             }
-            a.burn ||
+            ev.burn ||
               this.burst(
-                a.x,
-                a.y,
+                ev.x,
+                ev.y,
                 0.6,
-                a.crit ? 4 : 2,
+                ev.crit ? 4 : 2,
                 5,
-                a.crit ? hexColor(16767050) : hexColor(weaponDefs[e.weapon].color),
+                ev.crit ? hexColor(16767050) : hexColor(weaponDefs[world.weapon].color),
                 0.18,
                 0.18,
                 {
@@ -783,275 +810,302 @@ var MAX_PARTICLES = 1400,
             break;
           }
           case "kill": {
-            let o = a.boss ? hexColor(bossDefs[a.type].color) : a.elite ? goldColor : hexColor(enemyDefs[a.type].color),
-              c = a.boss ? 4 : a.elite ? 1.8 : Math.max(0.8, a.r * 1.4);
-            (this.burst(a.x, a.y, 0.6, Math.round(10 * c), 7 * Math.sqrt(c), o, 0.55, 0.45 * Math.sqrt(c)),
-              this.burst(a.x, a.y, 0.6, Math.round(6 * c), 10 * Math.sqrt(c), whiteColor, 0.3, 0.22, {
+            let color = ev.boss
+                ? hexColor(bossDefs[ev.type].color)
+                : ev.elite
+                  ? goldColor
+                  : hexColor(enemyDefs[ev.type].color),
+              scale = ev.boss ? 4 : ev.elite ? 1.8 : Math.max(0.8, ev.r * 1.4);
+            (this.burst(
+              ev.x,
+              ev.y,
+              0.6,
+              Math.round(10 * scale),
+              7 * Math.sqrt(scale),
+              color,
+              0.55,
+              0.45 * Math.sqrt(scale),
+            ),
+              this.burst(ev.x, ev.y, 0.6, Math.round(6 * scale), 10 * Math.sqrt(scale), whiteColor, 0.3, 0.22, {
                 spark: !0,
                 drag: 5,
               }),
-              this.ring(a.x, a.y, 0.2, 1.6 * c, o, 0.35),
-              this.emit(a.x, 0.8, a.y, 0, 0, 0, 0.12, 2.2 * c, o, { drag: 0 }));
-            let h = hexColor(a.boss ? bossDefs[a.type].color : enemyDefs[a.type].color),
-              l = this._dk || (this._dk = new Color());
-            (l.copy(h).multiplyScalar(0.55),
+              this.ring(ev.x, ev.y, 0.2, 1.6 * scale, color, 0.35),
+              this.emit(ev.x, 0.8, ev.y, 0, 0, 0, 0.12, 2.2 * scale, color, { drag: 0 }));
+            let base = hexColor(ev.boss ? bossDefs[ev.type].color : enemyDefs[ev.type].color),
+              dark = this._dk || (this._dk = new Color());
+            (dark.copy(base).multiplyScalar(0.55),
               this.debrisBurst(
-                a.x,
-                a.y,
+                ev.x,
+                ev.y,
                 0.6,
-                Math.round(Math.min(18, 4 + c * 5)),
-                l.clone(),
-                0.14 + 0.12 * Math.sqrt(c),
-                3 + c * 2,
+                Math.round(Math.min(18, 4 + scale * 5)),
+                dark.clone(),
+                0.14 + 0.12 * Math.sqrt(scale),
+                3 + scale * 2,
               ),
-              (a.r >= 0.5 || a.elite || a.boss) && this.addScorch(a.x, a.y, a.r * 1.3 + 0.3),
-              this.flash(a.x, a.y, 2 + c * 1.6, 0.7 + c * 0.2, o, 5),
-              this.addShake((a.boss ? 0.9 : a.elite ? 0.18 : 0.04) * r));
+              (ev.r >= 0.5 || ev.elite || ev.boss) && this.addScorch(ev.x, ev.y, ev.r * 1.3 + 0.3),
+              this.flash(ev.x, ev.y, 2 + scale * 1.6, 0.7 + scale * 0.2, color, 5),
+              this.addShake((ev.boss ? 0.9 : ev.elite ? 0.18 : 0.04) * shakeK));
             break;
           }
           case "boom": {
-            let o =
-                a.kind === "nova"
+            let color =
+                ev.kind === "nova"
                   ? hexColor(8386303)
-                  : a.kind === "pop"
+                  : ev.kind === "pop"
                     ? hexColor(16769354)
-                    : a.kind === "payload"
+                    : ev.kind === "payload"
                       ? hexColor(16752957)
-                      : a.kind === "rocket"
+                      : ev.kind === "rocket"
                         ? hexColor(16738877)
-                        : a.kind === "frost" || a.kind === "glacier" // 2.4.6: Frost Prism ice
+                        : ev.kind === "frost" || ev.kind === "glacier" // 2.4.6: Frost Prism ice
                           ? hexColor(12578815)
                           : hexColor(16734778),
-              c = a.r;
-            (a.kind !== "nova" &&
-              (this.burst(a.x, a.y, 0.5, Math.round(6 + c * 5), c * 5, o, 0.45, 0.5 + c * 0.12),
-              this.emit(a.x, 0.6, a.y, 0, 0, 0, 0.15, c * 2.4, o, { drag: 0 })),
-              this.ring(a.x, a.y, c * 0.3, c, o, 0.3),
+              radius = ev.r;
+            (ev.kind !== "nova" &&
+              (this.burst(ev.x, ev.y, 0.5, Math.round(6 + radius * 5), radius * 5, color, 0.45, 0.5 + radius * 0.12),
+              this.emit(ev.x, 0.6, ev.y, 0, 0, 0, 0.15, radius * 2.4, color, { drag: 0 })),
+              this.ring(ev.x, ev.y, radius * 0.3, radius, color, 0.3),
               this.addShake(
-                (a.kind === "payload"
+                (ev.kind === "payload"
                   ? 0.02
-                  : a.kind === "rain" || a.kind === "stomp" || a.kind === "mortar"
+                  : ev.kind === "rain" || ev.kind === "stomp" || ev.kind === "mortar"
                     ? 0.25
-                    : 0.1) * r,
+                    : 0.1) * shakeK,
               ),
-              (a.kind !== "payload" || Math.random() < 0.3) &&
-                this.flash(a.x, a.y, c * 1.6, a.kind === "payload" ? 0.5 : 1.1, o, 4.5),
-              a.kind !== "payload" &&
-                a.kind !== "nova" &&
-                a.kind !== "pop" &&
-                a.kind !== "frost" &&
-                a.kind !== "glacier" &&
-                this.addScorch(a.x, a.y, c * 0.7),
-              (a.kind === "frost" || a.kind === "glacier") &&
-                this.burst(a.x, a.y, 0.2, Math.round(8 + c * 4), c * 1.6, whiteColor, 0.6, 0.22, { spark: !0 }),
-              (a.kind === "rocket" || a.kind === "bomber" || a.kind === "mortar" || a.kind === "volatile") &&
-                this.debrisBurst(a.x, a.y, 0.3, 5, hexColor(3811874), 0.12, 5));
+              (ev.kind !== "payload" || Math.random() < 0.3) &&
+                this.flash(ev.x, ev.y, radius * 1.6, ev.kind === "payload" ? 0.5 : 1.1, color, 4.5),
+              ev.kind !== "payload" &&
+                ev.kind !== "nova" &&
+                ev.kind !== "pop" &&
+                ev.kind !== "frost" &&
+                ev.kind !== "glacier" &&
+                this.addScorch(ev.x, ev.y, radius * 0.7),
+              (ev.kind === "frost" || ev.kind === "glacier") &&
+                this.burst(ev.x, ev.y, 0.2, Math.round(8 + radius * 4), radius * 1.6, whiteColor, 0.6, 0.22, {
+                  spark: !0,
+                }),
+              (ev.kind === "rocket" || ev.kind === "bomber" || ev.kind === "mortar" || ev.kind === "volatile") &&
+                this.debrisBurst(ev.x, ev.y, 0.3, 5, hexColor(3811874), 0.12, 5));
             break;
           }
           case "nova":
-            (this.ring(a.x, a.y, 0.5, a.r, hexColor(8386303), 0.45),
-              this.ring(a.x, a.y, 0.3, a.r * 0.8, whiteColor, 0.3),
-              this.burst(a.x, a.y, 0.7, 40, 16, hexColor(8386303), 0.5, 0.5),
+            (this.ring(ev.x, ev.y, 0.5, ev.r, hexColor(8386303), 0.45),
+              this.ring(ev.x, ev.y, 0.3, ev.r * 0.8, whiteColor, 0.3),
+              this.burst(ev.x, ev.y, 0.7, 40, 16, hexColor(8386303), 0.5, 0.5),
               (this.flashT = 0.25),
-              this.addShake(0.5 * r),
-              this.flash(a.x, a.y, a.r * 1.4, 1.6, hexColor(8386303), 3));
+              this.addShake(0.5 * shakeK),
+              this.flash(ev.x, ev.y, ev.r * 1.4, 1.6, hexColor(8386303), 3));
             break;
           case "chain": {
-            let o = a.pts;
-            for (let c = 0; c + 3 < o.length; c += 2)
-              this.line(o[c], o[c + 1], o[c + 2], o[c + 3], hexColor(13019391), 0.16, 0.09, 0.7, 0.5);
+            let pts = ev.pts;
+            for (let i = 0; i + 3 < pts.length; i += 2)
+              this.line(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], hexColor(13019391), 0.16, 0.09, 0.7, 0.5);
             break;
           }
           case "zap":
-            this.burst(a.x, a.y, 0.6, 6, 6, hexColor(8386303), 0.25, 0.3, { spark: !0 });
+            this.burst(ev.x, ev.y, 0.6, 6, 6, hexColor(8386303), 0.25, 0.3, { spark: !0 });
             break;
           case "freeze":
-            this.burst(a.x, a.y, 0.8, 4, 3, hexColor(12580095), 0.4, 0.3);
+            this.burst(ev.x, ev.y, 0.8, 4, 3, hexColor(12580095), 0.4, 0.3);
             break;
           case "spark":
-            this.burst(a.x, a.y, 0.7, 3, 4, hexColor(weaponDefs[a.w] ? weaponDefs[a.w].color : 16777215), 0.2, 0.2, {
-              spark: !0,
-            });
+            this.burst(
+              ev.x,
+              ev.y,
+              0.7,
+              3,
+              4,
+              hexColor(weaponDefs[ev.w] ? weaponDefs[ev.w].color : 16777215),
+              0.2,
+              0.2,
+              {
+                spark: !0,
+              },
+            );
             break;
           case "pop":
-            this.burst(a.x, a.y, 0.7, 3, 3, hexColor(16740250), 0.2, 0.25);
+            this.burst(ev.x, ev.y, 0.7, 3, 3, hexColor(16740250), 0.2, 0.25);
             break;
           case "bounce":
-            this.burst(a.x, a.y, 0.7, 3, 5, whiteColor, 0.2, 0.2, { spark: !0 });
+            this.burst(ev.x, ev.y, 0.7, 3, 5, whiteColor, 0.2, 0.2, { spark: !0 });
             break;
           case "ping":
-            this.burst(a.x, a.y, 1.2, 2, 4, hexColor(10466520), 0.2, 0.25, { spark: !0 });
+            this.burst(ev.x, ev.y, 1.2, 2, 4, hexColor(10466520), 0.2, 0.25, { spark: !0 });
             break;
           case "dash":
-            this.ring(e.player.x, e.player.y, 0.3, 1.4, hexColor(8386303), 0.25);
+            this.ring(world.player.x, world.player.y, 0.3, 1.4, hexColor(8386303), 0.25);
             break;
           case "edash":
             {
-              let o = hexColor(enemyDefs[a.type] ? enemyDefs[a.type].color : 16777215);
-              (this.ring(a.x, a.y, 0.2, 1.3, o, 0.25), this.burst(a.x, a.y, 0.5, 8, 6, o, 0.3, 0.25, { spark: !0 }));
+              let color = hexColor(enemyDefs[ev.type] ? enemyDefs[ev.type].color : 16777215);
+              (this.ring(ev.x, ev.y, 0.2, 1.3, color, 0.25),
+                this.burst(ev.x, ev.y, 0.5, 8, 6, color, 0.3, 0.25, { spark: !0 }));
             }
             break;
           case "supplyDrop":
-            this.ring(a.x, a.y, 0.3, 1.8, goldColor, 0.35);
+            this.ring(ev.x, ev.y, 0.3, 1.8, goldColor, 0.35);
             break;
           case "hurt":
-            (this.addShake(0.35 * r), this.burst(a.x, a.y, 0.7, 10, 6, hurtColor, 0.35, 0.3));
+            (this.addShake(0.35 * shakeK), this.burst(ev.x, ev.y, 0.7, 10, 6, hurtColor, 0.35, 0.3));
             break;
           case "shieldBreak":
-            (this.ring(a.x, a.y, 0.5, 2.2, hexColor(8386303), 0.35),
-              this.burst(a.x, a.y, 0.7, 14, 7, hexColor(8386303), 0.35, 0.28, { spark: !0 }),
-              this.addShake(0.15 * r));
+            (this.ring(ev.x, ev.y, 0.5, 2.2, hexColor(8386303), 0.35),
+              this.burst(ev.x, ev.y, 0.7, 14, 7, hexColor(8386303), 0.35, 0.28, { spark: !0 }),
+              this.addShake(0.15 * shakeK));
             break;
           case "heal":
-            this.burst(a.x, a.y, 0.5, 8, 2.5, healColor, 0.6, 0.3, { up: 3 });
+            this.burst(ev.x, ev.y, 0.5, 8, 2.5, healColor, 0.6, 0.3, { up: 3 });
             break;
           case "revive":
-            (this.ring(a.x, a.y, 0.5, 6, healColor, 0.6), this.burst(a.x, a.y, 0.7, 40, 9, healColor, 0.7, 0.45));
+            (this.ring(ev.x, ev.y, 0.5, 6, healColor, 0.6), this.burst(ev.x, ev.y, 0.7, 40, 9, healColor, 0.7, 0.45));
             break;
           case "die":
-            (this.burst(a.x, a.y, 0.7, 60, 12, hexColor(8386303), 0.9, 0.5),
-              this.ring(a.x, a.y, 0.5, 5, hurtColor, 0.5),
-              this.addShake(0.8 * r));
+            (this.burst(ev.x, ev.y, 0.7, 60, 12, hexColor(8386303), 0.9, 0.5),
+              this.ring(ev.x, ev.y, 0.5, 5, hurtColor, 0.5),
+              this.addShake(0.8 * shakeK));
             break;
           case "spawn": {
-            let o = a.elite ? goldColor : hexColor(enemyDefs[a.type] ? enemyDefs[a.type].color : 16777215);
-            (this.ring(a.x, a.y, 0.2, 1.4, o, 0.3), this.burst(a.x, a.y, 0.3, 8, 4, o, 0.4, 0.3, { up: 5 }));
+            let color = ev.elite ? goldColor : hexColor(enemyDefs[ev.type] ? enemyDefs[ev.type].color : 16777215);
+            (this.ring(ev.x, ev.y, 0.2, 1.4, color, 0.3),
+              this.burst(ev.x, ev.y, 0.3, 8, 4, color, 0.4, 0.3, { up: 5 }));
             break;
           }
           case "thud":
-            (this.addShake((a.big ? 0.4 : 0.15) * r),
-              this.ring(a.x, a.y, 0.5, a.big ? 3.5 : 1.8, hexColor(16756896), 0.3));
+            (this.addShake((ev.big ? 0.4 : 0.15) * shakeK),
+              this.ring(ev.x, ev.y, 0.5, ev.big ? 3.5 : 1.8, hexColor(16756896), 0.3));
             break;
           case "hatch":
-            this.burst(a.x, a.y, 1.2, a.big ? 16 : 6, 4, hexColor(13041469), 0.4, 0.3);
+            this.burst(ev.x, ev.y, 1.2, ev.big ? 16 : 6, 4, hexColor(13041469), 0.4, 0.3);
             break;
           case "blink":
-            if (a.small) {
-              let o = hexColor(a.phase ? 16732120 : enemyDefs.striker.color);
-              (this.burst(a.x, a.y, 0.8, 12, 6, o, 0.35, 0.3), this.ring(a.x, a.y, 0.3, 1.6, o, 0.25));
+            if (ev.small) {
+              let color = hexColor(ev.phase ? 16732120 : enemyDefs.striker.color);
+              (this.burst(ev.x, ev.y, 0.8, 12, 6, color, 0.35, 0.3), this.ring(ev.x, ev.y, 0.3, 1.6, color, 0.25));
             } else
-              (this.burst(a.x, a.y, 2.2, 24, 8, hexColor(9431295), 0.45, 0.4),
-                this.ring(a.x, a.y, 0.4, 3, hexColor(9431295), 0.35));
+              (this.burst(ev.x, ev.y, 2.2, 24, 8, hexColor(9431295), 0.45, 0.4),
+                this.ring(ev.x, ev.y, 0.4, 3, hexColor(9431295), 0.35));
             break;
           case "block":
-            this.burst(a.x, a.y, 0.9, 3, 5, hexColor(10475775), 0.2, 0.25, { spark: !0, drag: 6 });
+            this.burst(ev.x, ev.y, 0.9, 3, 5, hexColor(10475775), 0.2, 0.25, { spark: !0, drag: 6 });
             break;
           case "guardBreak":
-            (this.burst(a.x, a.y, 0.9, 22, 8, hexColor(5941503), 0.45, 0.35, { spark: !0 }),
-              this.ring(a.x, a.y, 0.3, 2.4, hexColor(10475775), 0.35),
-              this.addShake(0.08 * r));
+            (this.burst(ev.x, ev.y, 0.9, 22, 8, hexColor(5941503), 0.45, 0.35, { spark: !0 }),
+              this.ring(ev.x, ev.y, 0.3, 2.4, hexColor(10475775), 0.35),
+              this.addShake(0.08 * shakeK));
             break;
           case "guardUp":
-            this.ring(a.x, a.y, 2, 0.6, hexColor(5941503), 0.35);
+            this.ring(ev.x, ev.y, 2, 0.6, hexColor(5941503), 0.35);
             break;
           case "shieldPop":
-            (this.burst(a.x, a.y, 0.8, 16, 6, hexColor(eliteAffixes.shielded.color), 0.4, 0.3, { spark: !0 }),
-              this.ring(a.x, a.y, 0.3, a.r * 2.6, hexColor(eliteAffixes.shielded.color), 0.3));
+            (this.burst(ev.x, ev.y, 0.8, 16, 6, hexColor(eliteAffixes.shielded.color), 0.4, 0.3, { spark: !0 }),
+              this.ring(ev.x, ev.y, 0.3, ev.r * 2.6, hexColor(eliteAffixes.shielded.color), 0.3));
             break;
           case "lob":
-            (this.burst(a.x, a.y, 1.4, 8, 3, hexColor(12099712), 0.5, 0.45, { up: 4, drag: 3 }),
-              this.flash(a.x, a.y, 2, 0.6, hexColor(16752957), 8));
+            (this.burst(ev.x, ev.y, 1.4, 8, 3, hexColor(12099712), 0.5, 0.45, { up: 4, drag: 3 }),
+              this.flash(ev.x, ev.y, 2, 0.6, hexColor(16752957), 8));
             break;
           case "phase":
           case "enrage":
-            (this.ring(a.x, a.y, 1, 7, hexColor(16732120), 0.5), this.addShake(0.4 * r));
+            (this.ring(ev.x, ev.y, 1, 7, hexColor(16732120), 0.5), this.addShake(0.4 * shakeK));
             break;
           case "bossDown":
-            ((this.flashT = 0.35), this.addShake(1 * r), this.ring(a.x, a.y, 1, 16, whiteColor, 0.8));
+            ((this.flashT = 0.35), this.addShake(1 * shakeK), this.ring(ev.x, ev.y, 1, 16, whiteColor, 0.8));
             break;
           case "wave":
             this.pulse = 1;
             break;
           case "mend":
-            a.tx == null
-              ? (this.ring(a.x, a.y, 0.5, a.r || 6, hexColor(7208904), 0.5),
-                this.burst(a.x, a.y, 1, 14, 3, hexColor(7208904), 0.5, 0.3, { up: 3 }))
-              : (this.line(a.x, a.y, a.tx, a.ty, hexColor(7208904), 0.35, 0.12, 0.9, 0.3),
-                this.burst(a.tx, a.ty, 0.8, 10, 2, hexColor(7208904), 0.5, 0.3, { up: 3 }));
+            ev.tx == null
+              ? (this.ring(ev.x, ev.y, 0.5, ev.r || 6, hexColor(7208904), 0.5),
+                this.burst(ev.x, ev.y, 1, 14, 3, hexColor(7208904), 0.5, 0.3, { up: 3 }))
+              : (this.line(ev.x, ev.y, ev.tx, ev.ty, hexColor(7208904), 0.35, 0.12, 0.9, 0.3),
+                this.burst(ev.tx, ev.ty, 0.8, 10, 2, hexColor(7208904), 0.5, 0.3, { up: 3 }));
             break;
           case "chill":
-            this.burst(a.x, a.y, 0.6, 12, 3, hexColor(11462911), 0.5, 0.3, { spark: !0 });
+            this.burst(ev.x, ev.y, 0.6, 12, 3, hexColor(11462911), 0.5, 0.3, { spark: !0 });
             break;
           case "champion":
-            (this.ring(a.x, a.y, 0.5, 5, goldColor, 0.6),
-              this.burst(a.x, a.y, 0.5, 30, 7, goldColor, 0.6, 0.45, { up: 4 }),
-              this.addShake(0.25 * r));
+            (this.ring(ev.x, ev.y, 0.5, 5, goldColor, 0.6),
+              this.burst(ev.x, ev.y, 0.5, 30, 7, goldColor, 0.6, 0.45, { up: 4 }),
+              this.addShake(0.25 * shakeK));
             break;
           case "championDown":
-            (this.ring(a.x, a.y, 1, 9, goldColor, 0.6), this.flash(a.x, a.y, 6, 1.4, goldColor, 3));
+            (this.ring(ev.x, ev.y, 1, 9, goldColor, 0.6), this.flash(ev.x, ev.y, 6, 1.4, goldColor, 3));
             break;
           case "erupt": {
-            let o = hexColor(16738858);
-            (this.burst(a.x, a.y, 0.3, 26, 5, o, 0.8, 0.6, { up: 7, grav: 9, drag: 1.5 }),
-              this.burst(a.x, a.y, 0.3, 10, 3, hexColor(16765562), 0.5, 0.4, { up: 9, spark: !0 }),
-              this.ring(a.x, a.y, a.r * 0.4, a.r * 1.4, o, 0.4),
-              this.flash(a.x, a.y, a.r * 3, 1.3, o, 3),
-              this.addShake(0.12 * r));
+            let color = hexColor(16738858);
+            (this.burst(ev.x, ev.y, 0.3, 26, 5, color, 0.8, 0.6, { up: 7, grav: 9, drag: 1.5 }),
+              this.burst(ev.x, ev.y, 0.3, 10, 3, hexColor(16765562), 0.5, 0.4, { up: 9, spark: !0 }),
+              this.ring(ev.x, ev.y, ev.r * 0.4, ev.r * 1.4, color, 0.4),
+              this.flash(ev.x, ev.y, ev.r * 3, 1.3, color, 3),
+              this.addShake(0.12 * shakeK));
             break;
           }
           case "warp": {
-            let o = hexColor(16732120),
-              c = a.who === "player" ? 18 : 5;
-            (this.burst(a.x, a.y, 0.6, c, 4, o, 0.4, 0.35, { spark: !0 }),
-              this.burst(a.tx, a.ty, 0.6, c, 4, hexColor(8386303), 0.4, 0.35, { spark: !0 }),
-              a.who === "player" && (this.ring(a.tx, a.ty, 0.3, 2, hexColor(8386303), 0.35), (this.camInit = !1)));
+            let color = hexColor(16732120),
+              count = ev.who === "player" ? 18 : 5;
+            (this.burst(ev.x, ev.y, 0.6, count, 4, color, 0.4, 0.35, { spark: !0 }),
+              this.burst(ev.tx, ev.ty, 0.6, count, 4, hexColor(8386303), 0.4, 0.35, { spark: !0 }),
+              ev.who === "player" && (this.ring(ev.tx, ev.ty, 0.3, 2, hexColor(8386303), 0.35), (this.camInit = !1)));
             break;
           }
         }
     }
-    updateCamera(t, e, n) {
-      let s = this.camera,
-        r = this.w < this.h ? 1.08 : 0.98,
-        a = this.camDistance();
-      if (n) {
-        this.menuA += t * 0.12;
-        let h = 22 * this.zoom,
-          l = 15 * this.zoom;
-        (s.position.set(Math.sin(this.menuA) * h, l, Math.cos(this.menuA) * h), s.lookAt(0, 0.5, 0));
+    updateCamera(dt, world, menu) {
+      let cam = this.camera,
+        tilt = this.w < this.h ? 1.08 : 0.98,
+        dist = this.camDistance();
+      if (menu) {
+        this.menuA += dt * 0.12;
+        let radius = 22 * this.zoom,
+          height = 15 * this.zoom;
+        (cam.position.set(Math.sin(this.menuA) * radius, height, Math.cos(this.menuA) * radius), cam.lookAt(0, 0.5, 0));
       } else {
-        let h = e.player,
-          l = e.arena,
-          u = h.x,
-          d = h.y;
-        (h.firing && ((u += Math.cos(h.aim) * 1.2), (d += Math.sin(h.aim) * 1.2)),
-          (u += h.vx * 0.12),
-          (d += h.vy * 0.12),
-          (u = clamp(u, -l.W + 3, l.W - 3)),
-          (d = clamp(d, -l.H + 3, l.H - 3)),
-          this.camInit || ((this.camX = u), (this.camZ = d), (this.camInit = !0)));
-        let f = dampFactor(5, t);
+        let player = world.player,
+          arena = world.arena,
+          tx = player.x,
+          tz = player.y;
+        (player.firing && ((tx += Math.cos(player.aim) * 1.2), (tz += Math.sin(player.aim) * 1.2)),
+          (tx += player.vx * 0.12),
+          (tz += player.vy * 0.12),
+          (tx = clamp(tx, -arena.W + 3, arena.W - 3)),
+          (tz = clamp(tz, -arena.H + 3, arena.H - 3)),
+          this.camInit || ((this.camX = tx), (this.camZ = tz), (this.camInit = !0)));
+        let damp = dampFactor(5, dt);
         if (this.focus) {
-          let g = clamp(this.focusK || 0, 0, 1),
-            M = g < 0.3 ? smoothstep(g / 0.3) : g > 0.75 ? smoothstep((1 - g) / 0.25) : 1;
-          ((u += (clamp(this.focus.x, -l.W + 3, l.W - 3) - u) * M),
-            (d += (clamp(this.focus.z, -l.H + 3, l.H - 3) - d) * M),
-            (f = dampFactor(12, t)));
+          let k = clamp(this.focusK || 0, 0, 1),
+            blend = k < 0.3 ? smoothstep(k / 0.3) : k > 0.75 ? smoothstep((1 - k) / 0.25) : 1;
+          ((tx += (clamp(this.focus.x, -arena.W + 3, arena.W - 3) - tx) * blend),
+            (tz += (clamp(this.focus.z, -arena.H + 3, arena.H - 3) - tz) * blend),
+            (damp = dampFactor(12, dt)));
         }
-        ((this.camX += (u - this.camX) * f), (this.camZ += (d - this.camZ) * f));
-        let p = this.shake * this.shake * 0.55,
-          x = (Math.random() - 0.5) * p - Math.cos(this.kickA) * this.kick * 0.35,
-          m = (Math.random() - 0.5) * p - Math.sin(this.kickA) * this.kick * 0.35;
-        (s.position.set(this.camX + x, Math.sin(r) * a, this.camZ + Math.cos(r) * a + m),
-          s.lookAt(this.camX + x, 0, this.camZ + m - 1));
+        ((this.camX += (tx - this.camX) * damp), (this.camZ += (tz - this.camZ) * damp));
+        let amp = this.shake * this.shake * 0.55,
+          shakeX = (Math.random() - 0.5) * amp - Math.cos(this.kickA) * this.kick * 0.35,
+          shakeZ = (Math.random() - 0.5) * amp - Math.sin(this.kickA) * this.kick * 0.35;
+        (cam.position.set(this.camX + shakeX, Math.sin(tilt) * dist, this.camZ + Math.cos(tilt) * dist + shakeZ),
+          cam.lookAt(this.camX + shakeX, 0, this.camZ + shakeZ - 1));
       }
-      ((this.shake = Math.max(0, this.shake - t * 2.2)),
-        (this.kick = Math.max(0, this.kick - t * (4 + this.kick * 10))),
-        s.updateMatrixWorld());
-      let o = s.matrixWorld.elements,
-        c = this.B;
-      ((c.rx = o[0]),
-        (c.ry = o[1]),
-        (c.rz = o[2]),
-        (c.ux = o[4]),
-        (c.uy = o[5]),
-        (c.uz = o[6]),
-        (c.fx = o[8]),
-        (c.fy = o[9]),
-        (c.fz = o[10]));
+      ((this.shake = Math.max(0, this.shake - dt * 2.2)),
+        (this.kick = Math.max(0, this.kick - dt * (4 + this.kick * 10))),
+        cam.updateMatrixWorld());
+      let elements = cam.matrixWorld.elements,
+        basis = this.B;
+      ((basis.rx = elements[0]),
+        (basis.ry = elements[1]),
+        (basis.rz = elements[2]),
+        (basis.ux = elements[4]),
+        (basis.uy = elements[5]),
+        (basis.uz = elements[6]),
+        (basis.fx = elements[8]),
+        (basis.fy = elements[9]),
+        (basis.fz = elements[10]));
       // 2.3.6: on the two-column home screen the drone is shown in the free band of the title
       // column instead of the screen centre (see homeViewSpot below the class)
       let want = null;
-      if (n && ui.screen === "home") {
+      if (menu && ui.screen === "home") {
         dirty && ((homeViewSpot = measureHomeViewSpot()), (dirty = !1));
         want = homeViewSpot;
       }
@@ -1062,19 +1116,25 @@ var MAX_PARTICLES = 1400,
         ? this.camera.setViewOffset(this.w, this.h, this.w / 2 - want.x, this.h / 2 - want.y, this.w, this.h)
         : this.camera.clearViewOffset();
     }
-    frame(t, e, n = {}) {
+    frame(dt, world, opts = {}) {
       // 2.5.0 C: Whiteout (Cryo Vault) blows wind-driven snow across the view; it fades in and out
       // over about a second and scales with the particle budget of the quality setting
       const want =
-        !n.menu && e && e.event === "whiteout" && e.state === "fight" && e.arena?.biome?.id === "vault" ? 1 : 0;
-      this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 1 : -1) * (t || 0) * 0.9, 0, 1);
-      if (this.rlWhiteK > 0.02 && t > 0 && t < 0.25) {
-        const k = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
-          c = 70 * t * k,
-          m = Math.floor(c) + (Math.random() < c - Math.floor(c) ? 1 : 0),
-          W = e.arena.W,
-          H = e.arena.H;
-        for (let j = 0; j < m; j++)
+        !opts.menu &&
+        world &&
+        world.event === "whiteout" &&
+        world.state === "fight" &&
+        world.arena?.biome?.id === "vault"
+          ? 1
+          : 0;
+      this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 1 : -1) * (dt || 0) * 0.9, 0, 1);
+      if (this.rlWhiteK > 0.02 && dt > 0 && dt < 0.25) {
+        const density = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
+          amount = 70 * dt * density,
+          count = Math.floor(amount) + (Math.random() < amount - Math.floor(amount) ? 1 : 0),
+          W = world.arena.W,
+          H = world.arena.H;
+        for (let j = 0; j < count; j++)
           this.emit(
             clamp(this.camX + (Math.random() * 2 - 1) * 18, -W - 2, W + 2),
             0.6 + Math.random() * 5,
@@ -1094,65 +1154,65 @@ var MAX_PARTICLES = 1400,
         this.rlSkinned = !0;
       }
       const look = this.biome && RL_BIOME_LOOK[this.biome.id];
-      ((RL_SKIN.uSkin.value = look ? look.style : 0), (RL_SKIN.uSkinT.value += t || 0));
+      ((RL_SKIN.uSkin.value = look ? look.style : 0), (RL_SKIN.uSkinT.value += dt || 0));
       if (this.bossView && !this.bossView.rlSkin) {
         for (const mat of this.bossView.mats) rlSkinMaterial(mat, !1);
         this.bossView.rlSkin = !0;
       }
       try {
-        n.menu || rlSkinParticles(this, t, e);
+        opts.menu || rlSkinParticles(this, dt, world);
       } catch (err) {
         this.rlSkinErr || (logError("skin", err), (this.rlSkinErr = !0));
       }
       // 2.4.0: ambient particles of the biome
       try {
-        rlAmbient(this, t, e, n);
+        rlAmbient(this, dt, world, opts);
       } catch (err) {
         this.rlAmbErr || (logError("ambient", err), (this.rlAmbErr = !0));
       }
-      ((this.time += t), this.resize());
-      let s = !e || n.menu;
-      if (s) {
-        let c = n.biome || biomeList[0];
-        (this.setBiome(c), this.ensurePlayer(n.weapon || "pulse"));
-      } else (this.setBiome(e.arena.biome, e.arena), this.ensurePlayer(e.weapon));
-      (this.updateCamera(t, e, s), (this.pulse = Math.max(0, (this.pulse || 0) - t * 1.5)));
-      let r = s ? 0 : e.player.x,
-        a = s ? 0 : e.player.y;
-      this.arena.update(t, r, a, this.pulse);
-      let o = this.allPools();
-      for (let c of o) c.begin();
-      for (let c in this.enemyPools) (this.enemyPools[c].body.begin(), this.enemyPools[c].glow.begin());
-      (s ? this.drawMenuPlayer(t) : this.drawWorld(t, e),
-        this.updateLights(t, s ? null : e),
-        this.drawDebris(t),
-        this.drawScorch(t),
-        this.drawParticles(t),
-        this.drawTransient(t));
-      for (let c of o) c.end();
-      for (let c in this.enemyPools) (this.enemyPools[c].body.end(), this.enemyPools[c].glow.end());
-      for (let c of this.nums) ((c.life -= t), (c.y += t * 1.6));
-      (this.nums.length && this.nums[0].life <= 0 && (this.nums = this.nums.filter((c) => c.life > 0)),
-        (this.flashT = Math.max(0, this.flashT - t)),
+      ((this.time += dt), this.resize());
+      let menu = !world || opts.menu;
+      if (menu) {
+        let biome = opts.biome || biomeList[0];
+        (this.setBiome(biome), this.ensurePlayer(opts.weapon || "pulse"));
+      } else (this.setBiome(world.arena.biome, world.arena), this.ensurePlayer(world.weapon));
+      (this.updateCamera(dt, world, menu), (this.pulse = Math.max(0, (this.pulse || 0) - dt * 1.5)));
+      let px = menu ? 0 : world.player.x,
+        pz = menu ? 0 : world.player.y;
+      this.arena.update(dt, px, pz, this.pulse);
+      let pools = this.allPools();
+      for (let pool of pools) pool.begin();
+      for (let type in this.enemyPools) (this.enemyPools[type].body.begin(), this.enemyPools[type].glow.begin());
+      (menu ? this.drawMenuPlayer(dt) : this.drawWorld(dt, world),
+        this.updateLights(dt, menu ? null : world),
+        this.drawDebris(dt),
+        this.drawScorch(dt),
+        this.drawParticles(dt),
+        this.drawTransient(dt));
+      for (let pool of pools) pool.end();
+      for (let type in this.enemyPools) (this.enemyPools[type].body.end(), this.enemyPools[type].glow.end());
+      for (let num of this.nums) ((num.life -= dt), (num.y += dt * 1.6));
+      (this.nums.length && this.nums[0].life <= 0 && (this.nums = this.nums.filter((num) => num.life > 0)),
+        (this.flashT = Math.max(0, this.flashT - dt)),
         this.renderer.render(this.scene, this.camera));
     }
-    drawMenuPlayer(t) {
-      let e = this.player;
-      ((e.group.visible = !0),
-        e.group.position.set(0, 0.25 + Math.sin(this.time * 2) * 0.08, 0),
-        (e.base.rotation.y = this.time * 0.3),
-        (e.turret.rotation.y = Math.sin(this.time * 0.7) * 1.2),
-        (e.shield.visible = !1));
-      for (let r of e.mats) r.emissive.setScalar(0);
-      let n = this.shadows.y(0, 0.02, 0, 0, 2.2),
-        s = this.sprites.bb(0, 0.15, 0, 2.2, this.B);
-      if ((this.sprites.colC(s, hexColor(weaponDefs[this.playerWeapon].color), 0.35), Math.random() < t * 30)) {
-        let r = Math.random() * TAU,
-          a = 3 + Math.random() * 14;
+    drawMenuPlayer(dt) {
+      let drone = this.player;
+      ((drone.group.visible = !0),
+        drone.group.position.set(0, 0.25 + Math.sin(this.time * 2) * 0.08, 0),
+        (drone.base.rotation.y = this.time * 0.3),
+        (drone.turret.rotation.y = Math.sin(this.time * 0.7) * 1.2),
+        (drone.shield.visible = !1));
+      for (let mat of drone.mats) mat.emissive.setScalar(0);
+      let shadow = this.shadows.y(0, 0.02, 0, 0, 2.2),
+        glow = this.sprites.bb(0, 0.15, 0, 2.2, this.B);
+      if ((this.sprites.colC(glow, hexColor(weaponDefs[this.playerWeapon].color), 0.35), Math.random() < dt * 30)) {
+        let angle = Math.random() * TAU,
+          dist = 3 + Math.random() * 14;
         this.emit(
-          Math.cos(r) * a,
+          Math.cos(angle) * dist,
           0.1,
-          Math.sin(r) * a,
+          Math.sin(angle) * dist,
           0,
           0.6 + Math.random(),
           0,
@@ -1166,157 +1226,168 @@ var MAX_PARTICLES = 1400,
       }
       this.bossView && (this.bossView.group.visible = !1);
     }
-    drawWorld(t, e) {
-      let n = this.B,
-        s = this.time,
-        r = e.player,
-        a = this.player;
-      if (((a.group.visible = r.alive), r.alive)) {
-        let l = Math.sin(s * 5) * 0.05;
-        (a.group.position.set(r.x, 0.22 + l, r.y),
-          (a.base.rotation.y = -r.face),
-          (a.turret.rotation.y = -r.aim),
-          (a.shield.visible = r.shield),
-          (a.shield.material.opacity = 0.12 + Math.sin(s * 6) * 0.04));
-        let u = r.iT > 0 && r.hurtT <= 0 && e.state === "fight" && Math.floor(s * 20) % 2 ? 0.35 : 0,
-          d = r.hurtT > 0 ? r.hurtT / 0.3 : 0;
-        for (let x of a.mats) x.emissive.setRGB(d * 0.9 + u, u * 0.8, u);
-        if ((this.shadows.y(r.x, 0.02, r.y, 0, 1.9), r.manual)) {
-          let x = e.arena.rayLen(r.x, r.y, r.aim, Math.min(e.stats.range, 16)),
-            m = Math.cos(r.aim),
-            g = Math.sin(r.aim),
-            M = this.beams.seg(r.x + m * 0.9, r.y + g * 0.9, r.x + m * x, r.y + g * x, 0.08, 0.07, 0.02);
-          this.beams.colC(M, hexColor(weaponDefs[e.weapon].color), 0.22);
+    drawWorld(dt, world) {
+      let basis = this.B,
+        time = this.time,
+        player = world.player,
+        drone = this.player;
+      if (((drone.group.visible = player.alive), player.alive)) {
+        let bob = Math.sin(time * 5) * 0.05;
+        (drone.group.position.set(player.x, 0.22 + bob, player.y),
+          (drone.base.rotation.y = -player.face),
+          (drone.turret.rotation.y = -player.aim),
+          (drone.shield.visible = player.shield),
+          (drone.shield.material.opacity = 0.12 + Math.sin(time * 6) * 0.04));
+        let blink =
+            player.iT > 0 && player.hurtT <= 0 && world.state === "fight" && Math.floor(time * 20) % 2 ? 0.35 : 0,
+          hurt = player.hurtT > 0 ? player.hurtT / 0.3 : 0;
+        for (let mat of drone.mats) mat.emissive.setRGB(hurt * 0.9 + blink, blink * 0.8, blink);
+        if ((this.shadows.y(player.x, 0.02, player.y, 0, 1.9), player.manual)) {
+          let reach = world.arena.rayLen(player.x, player.y, player.aim, Math.min(world.stats.range, 16)),
+            cos = Math.cos(player.aim),
+            sin = Math.sin(player.aim),
+            aimBeam = this.beams.seg(
+              player.x + cos * 0.9,
+              player.y + sin * 0.9,
+              player.x + cos * reach,
+              player.y + sin * reach,
+              0.08,
+              0.07,
+              0.02,
+            );
+          this.beams.colC(aimBeam, hexColor(weaponDefs[world.weapon].color), 0.22);
         }
-        let f = this.sprites.bb(r.x, 0.2, r.y, 2, n);
-        if ((this.sprites.colC(f, hexColor(weaponDefs[e.weapon].color), 0.3), r.dashT > 0))
-          for (let x = 0; x < 3; x++)
+        let glow = this.sprites.bb(player.x, 0.2, player.y, 2, basis);
+        if ((this.sprites.colC(glow, hexColor(weaponDefs[world.weapon].color), 0.3), player.dashT > 0))
+          for (let i = 0; i < 3; i++)
             this.emit(
-              r.x + (Math.random() - 0.5) * 0.4,
+              player.x + (Math.random() - 0.5) * 0.4,
               0.6,
-              r.y + (Math.random() - 0.5) * 0.4,
-              -r.vx * 0.1,
+              player.y + (Math.random() - 0.5) * 0.4,
+              -player.vx * 0.1,
               0,
-              -r.vy * 0.1,
+              -player.vy * 0.1,
               0.25,
               0.7,
               hexColor(8386303),
               { drag: 4 },
             );
-        else if (r.moving && Math.random() < t * 30) {
-          let x = r.x - Math.cos(r.face) * 0.55,
-            m = r.y - Math.sin(r.face) * 0.55;
+        else if (player.moving && Math.random() < dt * 30) {
+          let ex = player.x - Math.cos(player.face) * 0.55,
+            ez = player.y - Math.sin(player.face) * 0.55;
           this.emit(
-            x,
+            ex,
             0.45,
-            m,
-            -Math.cos(r.face) * 2,
+            ez,
+            -Math.cos(player.face) * 2,
             0.2,
-            -Math.sin(r.face) * 2,
+            -Math.sin(player.face) * 2,
             0.25,
             0.35,
-            hexColor(weaponDefs[e.weapon].color),
+            hexColor(weaponDefs[world.weapon].color),
             {
               drag: 3,
             },
           );
         }
-        let p = e.stats.orbit;
-        for (let x = 0; x < p; x++) {
-          let m = e.time * 3.3 + (x * TAU) / p,
-            g = r.x + Math.cos(m) * e.stats.orbitR,
-            M = r.y + Math.sin(m) * e.stats.orbitR,
-            b = this.blades.y(g, 0, M, m + Math.PI / 2, 1.2 * e.stats.bladeScale);
-          this.blades.colHex(b, 10483967);
-          let v = this.sprites.bb(g, 0.62, M, 1.1, n);
-          this.sprites.colHex(v, 4846335, 0.55);
+        let count = world.stats.orbit;
+        for (let i = 0; i < count; i++) {
+          let angle = world.time * 3.3 + (i * TAU) / count,
+            bx = player.x + Math.cos(angle) * world.stats.orbitR,
+            bz = player.y + Math.sin(angle) * world.stats.orbitR,
+            blade = this.blades.y(bx, 0, bz, angle + Math.PI / 2, 1.2 * world.stats.bladeScale);
+          this.blades.colHex(blade, 10483967);
+          let halo = this.sprites.bb(bx, 0.62, bz, 1.1, basis);
+          this.sprites.colHex(halo, 4846335, 0.55);
         }
-        for (let x of r.wings) {
-          this.wing.y(x.x, Math.sin(s * 4 + x.x) * 0.1, x.y, r.aim, 1.3);
-          let m = this.sprites.bb(x.x, 0.9, x.y, 1, n);
-          (this.sprites.colHex(m, 4846335, 0.5), this.shadows.y(x.x, 0.02, x.y, 0, 0.9));
+        for (let wing of player.wings) {
+          this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);
+          let halo = this.sprites.bb(wing.x, 0.9, wing.y, 1, basis);
+          (this.sprites.colHex(halo, 4846335, 0.5), this.shadows.y(wing.x, 0.02, wing.y, 0, 0.9));
         }
       }
-      let o = null;
-      for (let l of e.enemies) {
-        if (l.boss) {
-          o = l;
+      let boss = null;
+      for (let enemy of world.enemies) {
+        if (enemy.boss) {
+          boss = enemy;
           continue;
         }
-        let u = this.enemyPools[l.type];
-        if (!u) continue;
-        let d = l.spawnT > 0 ? 1 - l.spawnT / 0.35 : 1,
-          f = (l.r / enemyDefs[l.type].r) * easeOutBack(clamp(d, 0, 1)),
-          p = f,
-          x = 0;
-        if (l.type === "bomber" && l.st === 1) {
-          let S = 1 + Math.sin(s * 40) * 0.08;
-          ((f *= S), (p *= S));
+        let pools = this.enemyPools[enemy.type];
+        if (!pools) continue;
+        let grow = enemy.spawnT > 0 ? 1 - enemy.spawnT / 0.35 : 1,
+          scale = (enemy.r / enemyDefs[enemy.type].r) * easeOutBack(clamp(grow, 0, 1)),
+          scaleY = scale,
+          lift = 0;
+        if (enemy.type === "bomber" && enemy.st === 1) {
+          let pulse = 1 + Math.sin(time * 40) * 0.08;
+          ((scale *= pulse), (scaleY *= pulse));
         }
         if (
-          ((l.type === "swarmer" || l.type === "mite") && (x = Math.sin(s * 9 + l.phase) * 0.06),
-          l.type === "hive" && (p *= 1 + Math.sin(s * 3 + l.phase) * 0.05),
-          l.type === "brute" && l.st === 1 && (p *= 0.9),
-          l.type === "mortar" && l.st === 1 && (p *= 0.88),
-          l.type === "striker" && l.st === 1)
+          ((enemy.type === "swarmer" || enemy.type === "mite") && (lift = Math.sin(time * 9 + enemy.phase) * 0.06),
+          enemy.type === "hive" && (scaleY *= 1 + Math.sin(time * 3 + enemy.phase) * 0.05),
+          enemy.type === "brute" && enemy.st === 1 && (scaleY *= 0.9),
+          enemy.type === "mortar" && enemy.st === 1 && (scaleY *= 0.88),
+          enemy.type === "striker" && enemy.st === 1)
         ) {
-          let S = Math.floor(s * 30) % 2 ? 0.9 : 1.05;
-          f *= S;
+          let jitter = Math.floor(time * 30) % 2 ? 0.9 : 1.05;
+          scale *= jitter;
         }
-        l.flash > 0 && ((f *= 1 + l.flash * 0.1), (p *= 1 - l.flash * 0.06));
-        let m = u.body.y(l.x, x, l.y, l.face, f, p, f);
-        u.body.flash(m, l.flash > 0 ? l.flash : l.slowT > 0 ? 0.25 : 0);
-        let g = l.variant ? variantColors[l.variant] : null;
-        l.slowT > 0
-          ? u.body.col(m, 0.7, 0.9, 1.3)
-          : l.corrode
-            ? u.body.col(m, 0.9, 1.3, 0.6)
-            : g
-              ? u.body.col(m, 0.55 + g.r * 0.7, 0.55 + g.g * 0.7, 0.55 + g.b * 0.7)
-              : l.elite
-                ? u.body.col(m, 1.25, 1.05, 0.7)
-                : u.body.col(m, 1, 1, 1);
-        let M = u.glow.y(l.x, x, l.y, l.face, f, p, f),
-          b = 1;
+        enemy.flash > 0 && ((scale *= 1 + enemy.flash * 0.1), (scaleY *= 1 - enemy.flash * 0.06));
+        let bodyIdx = pools.body.y(enemy.x, lift, enemy.y, enemy.face, scale, scaleY, scale);
+        pools.body.flash(bodyIdx, enemy.flash > 0 ? enemy.flash : enemy.slowT > 0 ? 0.25 : 0);
+        let tint = enemy.variant ? variantColors[enemy.variant] : null;
+        enemy.slowT > 0
+          ? pools.body.col(bodyIdx, 0.7, 0.9, 1.3)
+          : enemy.corrode
+            ? pools.body.col(bodyIdx, 0.9, 1.3, 0.6)
+            : tint
+              ? pools.body.col(bodyIdx, 0.55 + tint.r * 0.7, 0.55 + tint.g * 0.7, 0.55 + tint.b * 0.7)
+              : enemy.elite
+                ? pools.body.col(bodyIdx, 1.25, 1.05, 0.7)
+                : pools.body.col(bodyIdx, 1, 1, 1);
+        let glowIdx = pools.glow.y(enemy.x, lift, enemy.y, enemy.face, scale, scaleY, scale),
+          glowK = 1;
         if (
-          ((l.type === "gunner" || l.type === "sniper") && l.st === 1 && (b = 1.6 + Math.sin(s * 30) * 0.4),
-          l.type === "bomber" && l.st === 1 && (b = 2),
-          u.glow.colC(M, g || (l.elite ? goldColor : u.color), b),
-          l.champion)
+          ((enemy.type === "gunner" || enemy.type === "sniper") &&
+            enemy.st === 1 &&
+            (glowK = 1.6 + Math.sin(time * 30) * 0.4),
+          enemy.type === "bomber" && enemy.st === 1 && (glowK = 2),
+          pools.glow.colC(glowIdx, tint || (enemy.elite ? goldColor : pools.color), glowK),
+          enemy.champion)
         ) {
-          let S = this.ringPool.y(l.x, 0.06, l.y, s * 1.5, 7);
-          this.ringPool.colC(S, goldColor, 0.18 + Math.sin(s * 4) * 0.06);
-          let T = this.ringPool.y(l.x, 1.6 + l.r, l.y, -s * 3, l.r * 0.8);
-          this.ringPool.colC(T, goldColor, 1);
+          let ring = this.ringPool.y(enemy.x, 0.06, enemy.y, time * 1.5, 7);
+          this.ringPool.colC(ring, goldColor, 0.18 + Math.sin(time * 4) * 0.06);
+          let crown = this.ringPool.y(enemy.x, 1.6 + enemy.r, enemy.y, -time * 3, enemy.r * 0.8);
+          this.ringPool.colC(crown, goldColor, 1);
         }
-        (l.rallyT > 0 &&
-          !l.champion &&
-          Math.random() < t * 6 &&
-          this.emit(l.x, 0.3, l.y, 0, 1.5, 0, 0.35, 0.3, goldColor, { drag: 1 }),
-          g &&
-            Math.random() < t * 5 &&
+        (enemy.rallyT > 0 &&
+          !enemy.champion &&
+          Math.random() < dt * 6 &&
+          this.emit(enemy.x, 0.3, enemy.y, 0, 1.5, 0, 0.35, 0.3, goldColor, { drag: 1 }),
+          tint &&
+            Math.random() < dt * 5 &&
             this.emit(
-              l.x + (Math.random() - 0.5) * l.r,
+              enemy.x + (Math.random() - 0.5) * enemy.r,
               0.5,
-              l.y + (Math.random() - 0.5) * l.r,
+              enemy.y + (Math.random() - 0.5) * enemy.r,
               0,
               1,
               0,
               0.4,
               0.25,
-              g,
+              tint,
               { drag: 1 },
             ),
-          this.shadows.y(l.x, 0.02, l.y, 0, l.r * 2.8 * f));
-        let v = this.sprites.bb(l.x, 0.35, l.y, l.r * (l.elite ? 4.4 : 3.4) * f, n);
+          this.shadows.y(enemy.x, 0.02, enemy.y, 0, enemy.r * 2.8 * scale));
+        let halo = this.sprites.bb(enemy.x, 0.35, enemy.y, enemy.r * (enemy.elite ? 4.4 : 3.4) * scale, basis);
         if (
-          (this.sprites.colC(v, l.elite ? goldColor : u.color, l.elite ? 0.3 : 0.2),
-          l.burnT > 0 &&
-            Math.random() < t * 14 &&
+          (this.sprites.colC(halo, enemy.elite ? goldColor : pools.color, enemy.elite ? 0.3 : 0.2),
+          enemy.burnT > 0 &&
+            Math.random() < dt * 14 &&
             this.emit(
-              l.x + (Math.random() - 0.5) * l.r,
+              enemy.x + (Math.random() - 0.5) * enemy.r,
               0.6,
-              l.y + (Math.random() - 0.5) * l.r,
+              enemy.y + (Math.random() - 0.5) * enemy.r,
               0,
               1.8,
               0,
@@ -1325,454 +1396,537 @@ var MAX_PARTICLES = 1400,
               hexColor(16742958),
               { drag: 1 },
             ),
-          l.type === "sniper" && l.st === 1 && this.aimLine(e, l.x, l.y, l.ta, l.t2 < 0.35, 1 - l.t2 / 1.25),
-          l.type === "brute" && l.st === 1 && this.chargeLine(l.x, l.y, l.ta, 9.5, 1.7, 1 - l.t2 / 0.8),
-          l.type === "leaper" && l.st === 1 && this.chargeLine(l.x, l.y, l.ta, 7.5, 1.35, 1 - l.t2 / 0.55),
-          l.type === "bomber" && l.st === 1)
+          enemy.type === "sniper" &&
+            enemy.st === 1 &&
+            this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.35, 1 - enemy.t2 / 1.25),
+          enemy.type === "brute" &&
+            enemy.st === 1 &&
+            this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.7, 1 - enemy.t2 / 0.8),
+          enemy.type === "leaper" &&
+            enemy.st === 1 &&
+            this.chargeLine(enemy.x, enemy.y, enemy.ta, 7.5, 1.35, 1 - enemy.t2 / 0.55),
+          enemy.type === "bomber" && enemy.st === 1)
         ) {
-          let S = 1 - l.t2 / 0.55,
-            T = this.ringPool.y(l.x, 0.05, l.y, 0, 2.6);
-          this.ringPool.colC(T, warnColor, 0.6 + Math.sin(s * 40) * 0.3);
-          let R = this.discs.y(l.x, 0.04, l.y, 0, 2.6 * S);
-          this.discs.colC(R, warnColor, 0.25);
+          let k = 1 - enemy.t2 / 0.55,
+            ring = this.ringPool.y(enemy.x, 0.05, enemy.y, 0, 2.6);
+          this.ringPool.colC(ring, warnColor, 0.6 + Math.sin(time * 40) * 0.3);
+          let disc = this.discs.y(enemy.x, 0.04, enemy.y, 0, 2.6 * k);
+          this.discs.colC(disc, warnColor, 0.25);
         }
-        if (l.type === "gunner" && l.st === 1) {
-          let S = l.x + Math.cos(l.face) * 0.95,
-            T = l.y + Math.sin(l.face) * 0.95,
-            R = this.sprites.bb(S, 0.62, T, 0.5 + (1 - l.t2 / 0.45) * 0.9, n);
-          this.sprites.colC(R, u.color, 1);
+        if (enemy.type === "gunner" && enemy.st === 1) {
+          let gx = enemy.x + Math.cos(enemy.face) * 0.95,
+            gz = enemy.y + Math.sin(enemy.face) * 0.95,
+            flare = this.sprites.bb(gx, 0.62, gz, 0.5 + (1 - enemy.t2 / 0.45) * 0.9, basis);
+          this.sprites.colC(flare, pools.color, 1);
         }
-        l.type === "turret" && l.st === 1 && this.aimLine(e, l.x, l.y, l.ta, l.t2 < 0.22, 1 - l.t2 / 0.62);
-        if (l.type === "bulwark") {
-          let S = l.guardDown <= 0,
-            T = S ? 0.35 + 0.35 * clamp(l.guard / l.guardMax, 0, 1) + (l.guardFlash > 0 ? l.guardFlash * 0.6 : 0) : 0;
-          if (S) {
-            let R = this.shieldPool.y(l.x, 0, l.y, l.face, ((l.r + 0.5) / 1.35) * f, f, ((l.r + 0.5) / 1.35) * f);
-            this.shieldPool.colC(R, u.color, T);
+        enemy.type === "turret" &&
+          enemy.st === 1 &&
+          this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.22, 1 - enemy.t2 / 0.62);
+        if (enemy.type === "bulwark") {
+          let guardUp = enemy.guardDown <= 0,
+            alpha = guardUp
+              ? 0.35 +
+                0.35 * clamp(enemy.guard / enemy.guardMax, 0, 1) +
+                (enemy.guardFlash > 0 ? enemy.guardFlash * 0.6 : 0)
+              : 0;
+          if (guardUp) {
+            let shield = this.shieldPool.y(
+              enemy.x,
+              0,
+              enemy.y,
+              enemy.face,
+              ((enemy.r + 0.5) / 1.35) * scale,
+              scale,
+              ((enemy.r + 0.5) / 1.35) * scale,
+            );
+            this.shieldPool.colC(shield, pools.color, alpha);
           } else
-            Math.random() < t * 20 &&
-              this.emit(l.x, 1.2, l.y, (Math.random() - 0.5) * 3, 1, (Math.random() - 0.5) * 3, 0.3, 0.25, u.color, {
-                spark: !0,
-              });
+            Math.random() < dt * 20 &&
+              this.emit(
+                enemy.x,
+                1.2,
+                enemy.y,
+                (Math.random() - 0.5) * 3,
+                1,
+                (Math.random() - 0.5) * 3,
+                0.3,
+                0.25,
+                pools.color,
+                {
+                  spark: !0,
+                },
+              );
         }
-        if (l.type === "striker" && l.st === 1) {
-          let S = 1 - l.t2 / 0.7,
-            T = this.ringPool.y(l.tx, 0.05, l.ty, s * 4, 1.4 - S * 0.6);
-          this.ringPool.colC(T, u.color, 0.6 + S * 0.6);
-          let R = this.discs.y(l.tx, 0.04, l.ty, 0, 0.9 * S);
-          this.discs.colC(R, u.color, 0.25);
+        if (enemy.type === "striker" && enemy.st === 1) {
+          let k = 1 - enemy.t2 / 0.7,
+            ring = this.ringPool.y(enemy.tx, 0.05, enemy.ty, time * 4, 1.4 - k * 0.6);
+          this.ringPool.colC(ring, pools.color, 0.6 + k * 0.6);
+          let disc = this.discs.y(enemy.tx, 0.04, enemy.ty, 0, 0.9 * k);
+          this.discs.colC(disc, pools.color, 0.25);
         }
-        if ((l.type === "striker" && l.st === 2 && this.chargeLine(l.x, l.y, l.ta, 4.2, 1, 1 - l.t2 / 0.32), l.affix)) {
-          let S = hexColor(eliteAffixes[l.affix].color);
-          if (l.affix === "shielded" && l.shield > 0) {
-            let T = this.ringPool.y(l.x, 0.9, l.y, s, l.r * 1.7 * f);
-            this.ringPool.colC(T, S, 0.35 + 0.4 * (l.shield / l.shieldMax));
-            let R = this.sprites.bb(l.x, 0.8, l.y, l.r * 4.2 * f, n);
-            this.sprites.colC(R, S, 0.18);
-          } else if (l.affix === "hasted" && Math.random() < t * 25)
-            this.emit(l.x, 0.5, l.y, -l.vx * 0.2, 0.2, -l.vy * 0.2, 0.3, l.r * 1.4, S, { drag: 2 });
-          else if (l.affix === "volatile") {
-            let T = this.ringPool.y(l.x, 0.06, l.y, 0, l.r * 1.9);
-            this.ringPool.colC(T, S, 0.35 + Math.sin(s * 9 + l.phase) * 0.25);
+        if (
+          (enemy.type === "striker" &&
+            enemy.st === 2 &&
+            this.chargeLine(enemy.x, enemy.y, enemy.ta, 4.2, 1, 1 - enemy.t2 / 0.32),
+          enemy.affix)
+        ) {
+          let color = hexColor(eliteAffixes[enemy.affix].color);
+          if (enemy.affix === "shielded" && enemy.shield > 0) {
+            let ring = this.ringPool.y(enemy.x, 0.9, enemy.y, time, enemy.r * 1.7 * scale);
+            this.ringPool.colC(ring, color, 0.35 + 0.4 * (enemy.shield / enemy.shieldMax));
+            let halo = this.sprites.bb(enemy.x, 0.8, enemy.y, enemy.r * 4.2 * scale, basis);
+            this.sprites.colC(halo, color, 0.18);
+          } else if (enemy.affix === "hasted" && Math.random() < dt * 25)
+            this.emit(enemy.x, 0.5, enemy.y, -enemy.vx * 0.2, 0.2, -enemy.vy * 0.2, 0.3, enemy.r * 1.4, color, {
+              drag: 2,
+            });
+          else if (enemy.affix === "volatile") {
+            let ring = this.ringPool.y(enemy.x, 0.06, enemy.y, 0, enemy.r * 1.9);
+            this.ringPool.colC(ring, color, 0.35 + Math.sin(time * 9 + enemy.phase) * 0.25);
           }
         }
       }
-      this.drawBoss(t, e, o);
-      let c = hexColor(16765562),
-        h = hexColor(16734746);
-      for (let l of e.pb) {
-        let u = weaponDefs[l.w],
-          d = hexColor(u.color),
-          f = Math.atan2(l.vy, l.vx);
-        if (l.drag) {
-          let M = clamp(l.age / 0.5, 0, 1),
-            b = 1 - M * 0.55,
-            v = this.sprites.bb(l.x, 0.7 + M * 0.4, l.y, l.r * 4.6, n, l.id);
+      this.drawBoss(dt, world, boss);
+      let flameHot = hexColor(16765562),
+        flameCool = hexColor(16734746);
+      for (let shot of world.pb) {
+        let def = weaponDefs[shot.w],
+          color = hexColor(def.color),
+          angle = Math.atan2(shot.vy, shot.vx);
+        if (shot.drag) {
+          let age = clamp(shot.age / 0.5, 0, 1),
+            fade = 1 - age * 0.55,
+            puff = this.sprites.bb(shot.x, 0.7 + age * 0.4, shot.y, shot.r * 4.6, basis, shot.id);
           if (
             (this.sprites.col(
-              v,
-              (c.r + (h.r - c.r) * M) * b,
-              (c.g + (h.g - c.g) * M) * b * 0.8,
-              (c.b + (h.b - c.b) * M) * b * 0.6,
+              puff,
+              (flameHot.r + (flameCool.r - flameHot.r) * age) * fade,
+              (flameHot.g + (flameCool.g - flameHot.g) * age) * fade * 0.8,
+              (flameHot.b + (flameCool.b - flameHot.b) * age) * fade * 0.6,
             ),
-            M < 0.6)
+            age < 0.6)
           ) {
-            let S = this.sprites.bb(l.x, 0.72, l.y, l.r * 2.2, n);
-            this.sprites.col(S, 1, 0.92, 0.6 * (1 - M));
+            let core = this.sprites.bb(shot.x, 0.72, shot.y, shot.r * 2.2, basis);
+            this.sprites.col(core, 1, 0.92, 0.6 * (1 - age));
           }
-          M > 0.6 &&
+          age > 0.6 &&
             Math.random() < 0.08 &&
-            this.emit(l.x, 1.1, l.y, l.vx * 0.2, 1.4, l.vy * 0.2, 0.5, l.r * 2.2, hexColor(3811876), {
+            this.emit(shot.x, 1.1, shot.y, shot.vx * 0.2, 1.4, shot.vy * 0.2, 0.5, shot.r * 2.2, hexColor(3811876), {
               drag: 2,
               grow: 1,
             });
           continue;
         }
-        if (l.boom) {
-          l.spin = (l.spin || 0) + t * 22;
-          let M = this.discPool.y(l.x, 0.7, l.y, l.spin, l.r, 1, l.r);
-          this.discPool.colC(M, d, 1);
-          let b = this.sprites.bb(l.x, 0.7, l.y, l.r * 5, n);
-          this.sprites.colC(b, d, 0.55);
+        if (shot.boom) {
+          shot.spin = (shot.spin || 0) + dt * 22;
+          let disc = this.discPool.y(shot.x, 0.7, shot.y, shot.spin, shot.r, 1, shot.r);
+          this.discPool.colC(disc, color, 1);
+          let halo = this.sprites.bb(shot.x, 0.7, shot.y, shot.r * 5, basis);
+          this.sprites.colC(halo, color, 0.55);
           continue;
         }
-        let p = l.r * (u.rail ? 9 : u.id === "rocket" ? 2.4 : 3.2),
-          x = l.r * 0.9;
-        (l.heavy && Math.random() < 0.5 && this.emit(l.x, 0.75, l.y, 0, 0, 0, 0.18, l.r * 3, d, { drag: 0 }),
-          l.wing && ((p = 0.5), (x = 0.1)));
-        let m = this.pbCore.y(l.x, 0.75, l.y, f, p, x, x);
-        this.pbCore.col(m, 0.55 + d.r * 0.6, 0.55 + d.g * 0.6, 0.55 + d.b * 0.6);
-        let g = this.sprites.bb(l.x, 0.75, l.y, l.r * (u.rail ? 7 : 6.5), n);
-        (this.sprites.colC(g, d, 0.75),
-          u.id === "rocket" &&
-            Math.random() < (l.bomblet ? 0.3 : 0.6) &&
+        let len = shot.r * (def.rail ? 9 : def.id === "rocket" ? 2.4 : 3.2),
+          thick = shot.r * 0.9;
+        (shot.heavy &&
+          Math.random() < 0.5 &&
+          this.emit(shot.x, 0.75, shot.y, 0, 0, 0, 0.18, shot.r * 3, color, { drag: 0 }),
+          shot.wing && ((len = 0.5), (thick = 0.1)));
+        let core = this.pbCore.y(shot.x, 0.75, shot.y, angle, len, thick, thick);
+        this.pbCore.col(core, 0.55 + color.r * 0.6, 0.55 + color.g * 0.6, 0.55 + color.b * 0.6);
+        let halo = this.sprites.bb(shot.x, 0.75, shot.y, shot.r * (def.rail ? 7 : 6.5), basis);
+        (this.sprites.colC(halo, color, 0.75),
+          def.id === "rocket" &&
+            Math.random() < (shot.bomblet ? 0.3 : 0.6) &&
             this.emit(
-              l.x - l.vx * 0.02,
+              shot.x - shot.vx * 0.02,
               0.75,
-              l.y - l.vy * 0.02,
-              -l.vx * 0.05 + (Math.random() - 0.5),
+              shot.y - shot.vy * 0.02,
+              -shot.vx * 0.05 + (Math.random() - 0.5),
               0.3,
-              -l.vy * 0.05 + (Math.random() - 0.5),
+              -shot.vy * 0.05 + (Math.random() - 0.5),
               0.35,
-              l.bomblet ? 0.25 : 0.4,
+              shot.bomblet ? 0.25 : 0.4,
               hexColor(16752736),
               { drag: 3, grow: 1.5 },
             ),
-          u.id === "tesla" &&
+          def.id === "tesla" &&
             Math.random() < 0.3 &&
-            this.emit(l.x, 0.75, l.y, (Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3, 0.12, 0.3, d, {
+            this.emit(shot.x, 0.75, shot.y, (Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3, 0.12, 0.3, color, {
               spark: !0,
             }));
       }
-      for (let l of e.trails) {
-        let u = this.sprites.bb(l.x, 0.3, l.y, 1.3 * Math.min(1, l.life), n);
-        this.sprites.colHex(u, 8386303, 0.35 * Math.min(1, l.life));
+      for (let trail of world.trails) {
+        let puff = this.sprites.bb(trail.x, 0.3, trail.y, 1.3 * Math.min(1, trail.life), basis);
+        this.sprites.colHex(puff, 8386303, 0.35 * Math.min(1, trail.life));
       }
-      for (let l of e.eb) {
-        let u = enemyShotColors[l.kind] || enemyShotColors.orb;
-        if (l.kind === "fast") {
-          let f = Math.atan2(l.vy, l.vx),
-            p = this.ebCore.y(l.x, 0.75, l.y, f, l.r * 5, l.r * 0.8, l.r * 0.8);
-          this.ebCore.col(p, 1, 0.75, 0.75);
+      for (let shot of world.eb) {
+        let color = enemyShotColors[shot.kind] || enemyShotColors.orb;
+        if (shot.kind === "fast") {
+          let angle = Math.atan2(shot.vy, shot.vx),
+            core = this.ebCore.y(shot.x, 0.75, shot.y, angle, shot.r * 5, shot.r * 0.8, shot.r * 0.8);
+          this.ebCore.col(core, 1, 0.75, 0.75);
         } else {
-          let f = 1 + Math.sin(s * 14 + l.x) * 0.08,
-            p = this.ebCore.y(l.x, 0.75, l.y, 0, l.r * 0.85 * f);
-          this.ebCore.col(p, 1, 0.82 + u.g * 0.2, 0.9 + u.b * 0.1);
+          let pulse = 1 + Math.sin(time * 14 + shot.x) * 0.08,
+            core = this.ebCore.y(shot.x, 0.75, shot.y, 0, shot.r * 0.85 * pulse);
+          this.ebCore.col(core, 1, 0.82 + color.g * 0.2, 0.9 + color.b * 0.1);
         }
-        let d = this.sprites.bb(l.x, 0.75, l.y, l.r * 7.5, n);
-        this.sprites.colC(d, u, 0.95);
+        let halo = this.sprites.bb(shot.x, 0.75, shot.y, shot.r * 7.5, basis);
+        this.sprites.colC(halo, color, 0.95);
       }
-      for (let l of e.pickups) {
-        let u = 0.45 + Math.sin(s * 4 + l.id) * 0.12;
+      for (let pickup of world.pickups) {
+        let lift = 0.45 + Math.sin(time * 4 + pickup.id) * 0.12;
         if (
-          (l.rain &&
-            l.t < 0.6 &&
-            ((u += (0.6 - l.t) * 16),
-            Math.random() < 0.5 && this.emit(l.x, u + 0.4, l.y, 0, 2, 0, 0.25, 0.3, shardColors[1], { drag: 1 })),
-          l.rain && l.t >= 0.6 && !l.landed && ((l.landed = !0), this.ring(l.x, l.y, 0.2, 1.1, shardColors[1], 0.3)),
-          l.kind === "shard")
+          (pickup.rain &&
+            pickup.t < 0.6 &&
+            ((lift += (0.6 - pickup.t) * 16),
+            Math.random() < 0.5 &&
+              this.emit(pickup.x, lift + 0.4, pickup.y, 0, 2, 0, 0.25, 0.3, shardColors[1], { drag: 1 })),
+          pickup.rain &&
+            pickup.t >= 0.6 &&
+            !pickup.landed &&
+            ((pickup.landed = !0), this.ring(pickup.x, pickup.y, 0.2, 1.1, shardColors[1], 0.3)),
+          pickup.kind === "shard")
         ) {
-          let d = shardColors[l.v] || shardColors[1],
-            f = l.v >= 25 ? 1.8 : l.v >= 5 ? 1.35 : 1,
-            p = this.shardPool.y(l.x, u, l.y, s * 3 + l.id, f);
-          this.shardPool.colC(p, d, 1);
-          let x = this.sprites.bb(l.x, u, l.y, 0.9 * f, n);
-          this.sprites.colC(x, d, 0.45);
+          let color = shardColors[pickup.v] || shardColors[1],
+            scale = pickup.v >= 25 ? 1.8 : pickup.v >= 5 ? 1.35 : 1,
+            shard = this.shardPool.y(pickup.x, lift, pickup.y, time * 3 + pickup.id, scale);
+          this.shardPool.colC(shard, color, 1);
+          let halo = this.sprites.bb(pickup.x, lift, pickup.y, 0.9 * scale, basis);
+          this.sprites.colC(halo, color, 0.45);
         } else {
-          if (l.t > 11 && !l.pull && Math.floor(s * (l.t > 13 ? 12 : 6)) % 2) continue;
-          let d = this.healPool.y(l.x, u + 0.2, l.y, s * 2, 1);
-          this.healPool.colC(d, healColor, 1);
-          let f = this.sprites.bb(l.x, u + 0.2, l.y, 1.6, n);
-          this.sprites.colC(f, healColor, 0.5 + Math.sin(s * 6) * 0.15);
+          if (pickup.t > 11 && !pickup.pull && Math.floor(time * (pickup.t > 13 ? 12 : 6)) % 2) continue;
+          let cross = this.healPool.y(pickup.x, lift + 0.2, pickup.y, time * 2, 1);
+          this.healPool.colC(cross, healColor, 1);
+          let halo = this.sprites.bb(pickup.x, lift + 0.2, pickup.y, 1.6, basis);
+          this.sprites.colC(halo, healColor, 0.5 + Math.sin(time * 6) * 0.15);
         }
       }
-      this.drawFeatures(t, e);
-      for (let l of e.markers) {
-        let u = clamp(l.t / l.dur, 0, 1),
-          d = l.fake
+      this.drawFeatures(dt, world);
+      for (let marker of world.markers) {
+        let k = clamp(marker.t / marker.dur, 0, 1),
+          color = marker.fake
             ? hexColor(9431295)
-            : l.elite
+            : marker.elite
               ? goldColor
-              : hexColor(enemyDefs[l.type] ? enemyDefs[l.type].color : 16777215),
-          f = l.fake ? 2.2 : 1.2 - u * 0.5,
-          p = this.ringPool.y(l.x, 0.05, l.y, s * 2, f);
-        this.ringPool.colC(p, d, 0.5 + u * 0.6);
-        let x = this.discs.y(l.x, 0.04, l.y, 0, f * 0.9);
-        if ((this.discs.colC(x, d, 0.12 + u * 0.2), !l.fake)) {
-          let m = this.columns.y(l.x, 0, l.y, 0, 0.55 + u * 0.25, 2 + u * 5, 0.55 + u * 0.25);
-          this.columns.colC(m, d, 0.25 + u * 0.45);
+              : hexColor(enemyDefs[marker.type] ? enemyDefs[marker.type].color : 16777215),
+          size = marker.fake ? 2.2 : 1.2 - k * 0.5,
+          ring = this.ringPool.y(marker.x, 0.05, marker.y, time * 2, size);
+        this.ringPool.colC(ring, color, 0.5 + k * 0.6);
+        let disc = this.discs.y(marker.x, 0.04, marker.y, 0, size * 0.9);
+        if ((this.discs.colC(disc, color, 0.12 + k * 0.2), !marker.fake)) {
+          let column = this.columns.y(marker.x, 0, marker.y, 0, 0.55 + k * 0.25, 2 + k * 5, 0.55 + k * 0.25);
+          this.columns.colC(column, color, 0.25 + k * 0.45);
         }
-        Math.random() < t * 20 &&
+        Math.random() < dt * 20 &&
           this.emit(
-            l.x + (Math.random() - 0.5) * f,
+            marker.x + (Math.random() - 0.5) * size,
             0.1,
-            l.y + (Math.random() - 0.5) * f,
+            marker.y + (Math.random() - 0.5) * size,
             0,
             3 + Math.random() * 3,
             0,
             0.4,
             0.3,
-            d,
+            color,
             { drag: 0 },
           );
       }
-      for (let l of e.hazards) {
-        let u = clamp(l.t / l.delay, 0, 1);
-        if (!l.done && l.sx != null) {
-          let d = l.sx + (l.x - l.sx) * u,
-            f = l.sy + (l.y - l.sy) * u,
-            p = 0.8 + Math.sin(Math.PI * u) * 7,
-            x = this.ebCore.y(d, p, f, 0, 0.26);
-          this.ebCore.col(x, 1, 0.85, 0.6);
-          let m = this.sprites.bb(d, p, f, 1.6, n);
-          (this.sprites.colHex(m, 16752957, 0.9),
-            Math.random() < 0.5 && this.emit(d, p, f, 0, 0, 0, 0.3, 0.35, hexColor(6965808), { drag: 1, grow: 1.2 }));
+      for (let hazard of world.hazards) {
+        let k = clamp(hazard.t / hazard.delay, 0, 1);
+        if (!hazard.done && hazard.sx != null) {
+          let hx = hazard.sx + (hazard.x - hazard.sx) * k,
+            hz = hazard.sy + (hazard.y - hazard.sy) * k,
+            hy = 0.8 + Math.sin(Math.PI * k) * 7,
+            core = this.ebCore.y(hx, hy, hz, 0, 0.26);
+          this.ebCore.col(core, 1, 0.85, 0.6);
+          let halo = this.sprites.bb(hx, hy, hz, 1.6, basis);
+          (this.sprites.colHex(halo, 16752957, 0.9),
+            Math.random() < 0.5 &&
+              this.emit(hx, hy, hz, 0, 0, 0, 0.3, 0.35, hexColor(6965808), { drag: 1, grow: 1.2 }));
         }
-        if (!l.done) {
-          let d = this.ringPool.y(l.x, 0.05, l.y, 0, l.r);
-          this.ringPool.colC(d, warnColor, 0.55 + Math.sin(s * 25) * 0.25 * u);
-          let f = this.discs.y(l.x, 0.04, l.y, 0, l.r * u);
-          if ((this.discs.colC(f, warnColor, 0.18 + u * 0.12), this.contrast)) {
-            let p = this.ringPool.y(l.x, 0.05, l.y, 0, l.r * 0.55);
-            this.ringPool.colC(p, warnColor, 0.7);
+        if (!hazard.done) {
+          let ring = this.ringPool.y(hazard.x, 0.05, hazard.y, 0, hazard.r);
+          this.ringPool.colC(ring, warnColor, 0.55 + Math.sin(time * 25) * 0.25 * k);
+          let disc = this.discs.y(hazard.x, 0.04, hazard.y, 0, hazard.r * k);
+          if ((this.discs.colC(disc, warnColor, 0.18 + k * 0.12), this.contrast)) {
+            let inner = this.ringPool.y(hazard.x, 0.05, hazard.y, 0, hazard.r * 0.55);
+            this.ringPool.colC(inner, warnColor, 0.7);
           }
         }
       }
-      for (let l of e.beams) {
-        let u = l.cur || l.len,
-          d = l.x + Math.cos(l.a) * u,
-          f = l.y + Math.sin(l.a) * u;
-        if (l.live) {
+      for (let beam of world.beams) {
+        let len = beam.cur || beam.len,
+          ex = beam.x + Math.cos(beam.a) * len,
+          ez = beam.y + Math.sin(beam.a) * len;
+        if (beam.live) {
           // 2.4.6: a beam can bring its own colour (Frost Prism: ice); Clear warnings keeps yellow
-          let p = 0.85 + Math.random() * 0.3,
-            x = this.beams.seg(l.x, l.y, d, f, 1, l.w * p, l.w * 0.6),
-            bc = l.color && !this.contrast ? hexColor(l.color) : beamColor;
-          this.beams.colC(x, bc, 0.8);
-          let m = this.beams.seg(l.x, l.y, d, f, 1, l.w * 0.35, l.w * 0.3);
-          if ((this.beams.colC(m, whiteColor, 1), Math.random() < 0.5)) {
-            let g = Math.random() * u;
+          let flicker = 0.85 + Math.random() * 0.3,
+            outer = this.beams.seg(beam.x, beam.y, ex, ez, 1, beam.w * flicker, beam.w * 0.6),
+            beamCol = beam.color && !this.contrast ? hexColor(beam.color) : beamColor;
+          this.beams.colC(outer, beamCol, 0.8);
+          let inner = this.beams.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.35, beam.w * 0.3);
+          if ((this.beams.colC(inner, whiteColor, 1), Math.random() < 0.5)) {
+            let along = Math.random() * len;
             this.emit(
-              l.x + Math.cos(l.a) * g,
+              beam.x + Math.cos(beam.a) * along,
               1,
-              l.y + Math.sin(l.a) * g,
+              beam.y + Math.sin(beam.a) * along,
               (Math.random() - 0.5) * 4,
               2,
               (Math.random() - 0.5) * 4,
               0.3,
               0.4,
-              l.color ? bc : hexColor(16732064),
+              beam.color ? beamCol : hexColor(16732064),
             );
           }
         } else {
-          let p = clamp(l.t / l.warn, 0, 1),
-            x = this.beams.seg(l.x, l.y, d, f, 0.3, 0.06 + p * 0.08, 0.04);
-          this.beams.colC(x, warnColor, 0.5 + (Math.floor(s * 16) % 2) * 0.4);
-          let m = this.beams.seg(l.x, l.y, d, f, 0.08, l.w * p, 0.02);
-          this.beams.colC(m, warnColor, 0.18);
+          let k = clamp(beam.t / beam.warn, 0, 1),
+            edge = this.beams.seg(beam.x, beam.y, ex, ez, 0.3, 0.06 + k * 0.08, 0.04);
+          this.beams.colC(edge, warnColor, 0.5 + (Math.floor(time * 16) % 2) * 0.4);
+          let fill = this.beams.seg(beam.x, beam.y, ex, ez, 0.08, beam.w * k, 0.02);
+          this.beams.colC(fill, warnColor, 0.18);
         }
       }
     }
-    drawFeatures(t, e) {
-      let n = e.arena,
-        s = this.time,
-        r = this.B,
-        a = hexColor(16734746),
-        o = hexColor(16756816);
-      for (let u of n.vents) {
-        let d = e.state === "fight" ? n.ventState(u, e.waveT) : "idle",
-          f = (e.waveT + u.phase) % u.period,
-          p = u.period - 2.7,
-          x = this.discs.y(u.x, 0.03, u.y, 0, u.r),
-          m = this.ringPool.y(u.x, 0.05, u.y, 0, u.r);
-        if (d === "idle")
-          (this.discs.colC(x, a, 0.1 + Math.sin(s * 2 + u.phase) * 0.03), this.ringPool.colC(m, a, 0.35));
-        else if (d === "warn") {
-          let g = clamp((f - p) / 1.2, 0, 1);
-          (this.discs.colC(x, o, 0.2 + g * 0.35 + Math.sin(s * 30) * 0.08 * g),
-            this.ringPool.colC(m, this.contrast ? warnColor : o, 0.6 + g * 0.5),
-            Math.random() < t * 18 &&
+    drawFeatures(dt, world) {
+      let arena = world.arena,
+        time = this.time,
+        basis = this.B,
+        ventCol = hexColor(16734746),
+        ventWarnCol = hexColor(16756816);
+      for (let vent of arena.vents) {
+        let state = world.state === "fight" ? arena.ventState(vent, world.waveT) : "idle",
+          cycle = (world.waveT + vent.phase) % vent.period,
+          warnStart = vent.period - 2.7,
+          disc = this.discs.y(vent.x, 0.03, vent.y, 0, vent.r),
+          ring = this.ringPool.y(vent.x, 0.05, vent.y, 0, vent.r);
+        if (state === "idle")
+          (this.discs.colC(disc, ventCol, 0.1 + Math.sin(time * 2 + vent.phase) * 0.03),
+            this.ringPool.colC(ring, ventCol, 0.35));
+        else if (state === "warn") {
+          let k = clamp((cycle - warnStart) / 1.2, 0, 1);
+          (this.discs.colC(disc, ventWarnCol, 0.2 + k * 0.35 + Math.sin(time * 30) * 0.08 * k),
+            this.ringPool.colC(ring, this.contrast ? warnColor : ventWarnCol, 0.6 + k * 0.5),
+            Math.random() < dt * 18 &&
               this.emit(
-                u.x + (Math.random() - 0.5) * u.r,
+                vent.x + (Math.random() - 0.5) * vent.r,
                 0.1,
-                u.y + (Math.random() - 0.5) * u.r,
+                vent.y + (Math.random() - 0.5) * vent.r,
                 0,
-                1.5 + g * 2,
+                1.5 + k * 2,
                 0,
                 0.4,
                 0.25,
-                o,
+                ventWarnCol,
                 { drag: 1 },
               ));
         } else {
-          (this.discs.colC(x, o, 0.75), this.ringPool.colC(m, whiteColor, 0.8));
-          let g = this.columns.y(u.x, 0, u.y, 0, u.r * 0.8, 3.2, u.r * 0.8);
-          (this.columns.colC(g, a, 0.9),
-            Math.random() < t * 40 &&
+          (this.discs.colC(disc, ventWarnCol, 0.75), this.ringPool.colC(ring, whiteColor, 0.8));
+          let column = this.columns.y(vent.x, 0, vent.y, 0, vent.r * 0.8, 3.2, vent.r * 0.8);
+          (this.columns.colC(column, ventCol, 0.9),
+            Math.random() < dt * 40 &&
               this.emit(
-                u.x + (Math.random() - 0.5) * u.r * 1.4,
+                vent.x + (Math.random() - 0.5) * vent.r * 1.4,
                 0.3,
-                u.y + (Math.random() - 0.5) * u.r * 1.4,
+                vent.y + (Math.random() - 0.5) * vent.r * 1.4,
                 (Math.random() - 0.5) * 2,
                 4 + Math.random() * 4,
                 (Math.random() - 0.5) * 2,
                 0.6,
                 0.5,
-                a,
+                ventCol,
                 { drag: 1.5, grav: 6, grow: 0.6 },
               ));
         }
       }
-      let c = hexColor(12580095);
-      for (let u of n.ice) {
-        let d = this.discs.y(u.x, 0.02, u.y, 0, u.r);
-        this.discs.colC(d, c, 0.09);
-        let f = this.ringPool.y(u.x, 0.03, u.y, 0, u.r);
-        if ((this.ringPool.colC(f, c, 0.22), Math.random() < t * 3 * u.r)) {
-          let p = Math.random() * TAU,
-            x = Math.random() * u.r;
-          this.emit(u.x + Math.cos(p) * x, 0.08, u.y + Math.sin(p) * x, 0, 0.3, 0, 0.5, 0.18, whiteColor, {
-            spark: !0,
-            drag: 0,
-          });
+      let iceCol = hexColor(12580095);
+      for (let patch of arena.ice) {
+        let disc = this.discs.y(patch.x, 0.02, patch.y, 0, patch.r);
+        this.discs.colC(disc, iceCol, 0.09);
+        let ring = this.ringPool.y(patch.x, 0.03, patch.y, 0, patch.r);
+        if ((this.ringPool.colC(ring, iceCol, 0.22), Math.random() < dt * 3 * patch.r)) {
+          let angle = Math.random() * TAU,
+            dist = Math.random() * patch.r;
+          this.emit(
+            patch.x + Math.cos(angle) * dist,
+            0.08,
+            patch.y + Math.sin(angle) * dist,
+            0,
+            0.3,
+            0,
+            0.5,
+            0.18,
+            whiteColor,
+            {
+              spark: !0,
+              drag: 0,
+            },
+          );
         }
       }
-      let h0 = hexColor(11861821),
+      let acidCol = hexColor(11861821),
         // 2.5.0: the player's own Acid Coating puddles are cyan, so they never read as a threat
-        hMine = hexColor(0x4de8ff);
-      for (let u of n.acid) {
-        let h = u.mine ? hMine : h0,
-          d = u.life != null ? Math.min(1, u.life / 1.2) : 1,
-          f = this.discs.y(u.x, 0.025, u.y, 0, u.r);
-        this.discs.colC(f, h, (0.16 + Math.sin(s * 2 + u.x) * 0.03) * d);
-        let p = this.ringPool.y(u.x, 0.03, u.y, 0, u.r);
-        if ((this.ringPool.colC(p, h, 0.35 * d), Math.random() < t * 2.5 * u.r)) {
-          let x = Math.random() * TAU,
-            m = Math.random() * u.r;
-          this.emit(u.x + Math.cos(x) * m, 0.1, u.y + Math.sin(x) * m, 0, 0.8, 0, 0.7, 0.25, h, {
-            drag: 1,
-            grow: 0.8,
-          });
+        mineCol = hexColor(0x4de8ff);
+      for (let puddle of arena.acid) {
+        let color = puddle.mine ? mineCol : acidCol,
+          fade = puddle.life != null ? Math.min(1, puddle.life / 1.2) : 1,
+          disc = this.discs.y(puddle.x, 0.025, puddle.y, 0, puddle.r);
+        this.discs.colC(disc, color, (0.16 + Math.sin(time * 2 + puddle.x) * 0.03) * fade);
+        let ring = this.ringPool.y(puddle.x, 0.03, puddle.y, 0, puddle.r);
+        if ((this.ringPool.colC(ring, color, 0.35 * fade), Math.random() < dt * 2.5 * puddle.r)) {
+          let angle = Math.random() * TAU,
+            dist = Math.random() * puddle.r;
+          this.emit(
+            puddle.x + Math.cos(angle) * dist,
+            0.1,
+            puddle.y + Math.sin(angle) * dist,
+            0,
+            0.8,
+            0,
+            0.7,
+            0.25,
+            color,
+            {
+              drag: 1,
+              grow: 0.8,
+            },
+          );
         }
       }
-      for (let u of n.portals)
-        for (let [d, f, p] of [
-          [u.ax, u.ay, hexColor(16732120)],
-          [u.bx, u.by, hexColor(8386303)],
+      for (let portal of arena.portals)
+        for (let [px, pz, color] of [
+          [portal.ax, portal.ay, hexColor(16732120)],
+          [portal.bx, portal.by, hexColor(8386303)],
         ]) {
-          let x = this.ringPool.y(d, 0.06, f, s * 2.4, 1.05);
-          this.ringPool.colC(x, p, 0.9);
-          let m = this.ringPool.y(d, 0.07, f, -s * 3.1, 0.7);
-          this.ringPool.colC(m, p, 0.6);
-          let g = this.discs.y(d, 0.03, f, 0, 0.95);
-          this.discs.colC(g, p, 0.2 + Math.sin(s * 5) * 0.05);
-          let M = this.columns.y(d, 0, f, 0, 0.75, 1.6, 0.75);
-          this.columns.colC(M, p, 0.35);
-          let b = this.sprites.bb(d, 0.4, f, 2.2, r);
-          if ((this.sprites.colC(b, p, 0.35), Math.random() < t * 14)) {
-            let v = Math.random() * TAU;
+          let ring = this.ringPool.y(px, 0.06, pz, time * 2.4, 1.05);
+          this.ringPool.colC(ring, color, 0.9);
+          let inner = this.ringPool.y(px, 0.07, pz, -time * 3.1, 0.7);
+          this.ringPool.colC(inner, color, 0.6);
+          let disc = this.discs.y(px, 0.03, pz, 0, 0.95);
+          this.discs.colC(disc, color, 0.2 + Math.sin(time * 5) * 0.05);
+          let column = this.columns.y(px, 0, pz, 0, 0.75, 1.6, 0.75);
+          this.columns.colC(column, color, 0.35);
+          let glow = this.sprites.bb(px, 0.4, pz, 2.2, basis);
+          if ((this.sprites.colC(glow, color, 0.35), Math.random() < dt * 14)) {
+            let angle = Math.random() * TAU;
             this.emit(
-              d + Math.cos(v) * 1,
+              px + Math.cos(angle) * 1,
               0.2,
-              f + Math.sin(v) * 1,
-              -Math.cos(v) * 1.6,
+              pz + Math.sin(angle) * 1,
+              -Math.cos(angle) * 1.6,
               0.8,
-              -Math.sin(v) * 1.6,
+              -Math.sin(angle) * 1.6,
               0.5,
               0.22,
-              p,
+              color,
               { drag: 0 },
             );
           }
         }
       // 2.5.0 C: Rift Storm (Void Core): the spots the portals jump to glow ahead of the jump — a
       // shrinking ring in the portal colour and a faint line from the old spot
-      for (const portal of e.arena.portals) {
+      for (const portal of world.arena.portals) {
         const next = portal.next;
         if (!next) continue;
-        const u = clamp((portal.moveIn || 0) / 1.6, 0, 1),
-          blink = 0.45 + (Math.floor(s * 10) % 2) * 0.35;
+        const k = clamp((portal.moveIn || 0) / 1.6, 0, 1),
+          blink = 0.45 + (Math.floor(time * 10) % 2) * 0.35;
         for (const [x, y, ox, oy, col] of [
           [next.ax, next.ay, portal.ax, portal.ay, hexColor(16732120)],
           [next.bx, next.by, portal.bx, portal.by, hexColor(8386303)],
         ]) {
-          const ring = this.ringPool.y(x, 0.06, y, s * 3, 1.05 + u * 1.3);
+          const ring = this.ringPool.y(x, 0.06, y, time * 3, 1.05 + k * 1.3);
           this.ringPool.colC(ring, col, blink);
-          const inner = this.ringPool.y(x, 0.05, y, -s * 2, 0.6);
+          const inner = this.ringPool.y(x, 0.05, y, -time * 2, 0.6);
           this.ringPool.colC(inner, col, 0.5);
           const disc = this.discs.y(x, 0.03, y, 0, 1.05);
-          this.discs.colC(disc, col, 0.12 + (1 - u) * 0.2);
+          this.discs.colC(disc, col, 0.12 + (1 - k) * 0.2);
           const line = this.beams.seg(ox, oy, x, y, 0.08, 0.05, 0.05);
-          this.beams.colC(line, col, 0.18 + (1 - u) * 0.2);
+          this.beams.colC(line, col, 0.18 + (1 - k) * 0.2);
         }
       }
     }
-    aimLine(t, e, n, s, r, a) {
-      let o = 0.6,
-        c = Math.cos(s),
-        h = Math.sin(s);
-      for (; o < 32; ) {
-        let u = e + c * o,
-          d = n + h * o;
-        if (t.arena.outside(u, d) || t.arena.blocked(u, d, 0)) break;
-        o += 0.5;
+    aimLine(world, x, z, angle, locked, k) {
+      let dist = 0.6,
+        cos = Math.cos(angle),
+        sin = Math.sin(angle);
+      for (; dist < 32; ) {
+        let px = x + cos * dist,
+          pz = z + sin * dist;
+        if (world.arena.outside(px, pz) || world.arena.blocked(px, pz, 0)) break;
+        dist += 0.5;
       }
-      let l = this.beams.seg(e + c * 0.6, n + h * 0.6, e + c * o, n + h * o, 0.95, r ? 0.09 : 0.04, r ? 0.09 : 0.04);
-      this.beams.colC(l, warnColor, r ? (Math.floor(this.time * 24) % 2 ? 1.2 : 0.6) : 0.25 + a * 0.4);
+      let idx = this.beams.seg(
+        x + cos * 0.6,
+        z + sin * 0.6,
+        x + cos * dist,
+        z + sin * dist,
+        0.95,
+        locked ? 0.09 : 0.04,
+        locked ? 0.09 : 0.04,
+      );
+      this.beams.colC(idx, warnColor, locked ? (Math.floor(this.time * 24) % 2 ? 1.2 : 0.6) : 0.25 + k * 0.4);
     }
-    chargeLine(t, e, n, s, r, a) {
-      let o = t + Math.cos(n) * s,
-        c = e + Math.sin(n) * s,
-        h = this.beams.seg(t, e, o, c, 0.06, r, 0.02);
-      this.beams.colC(h, warnColor, 0.12 + a * 0.2);
-      let l = this.beams.seg(t, e, t + Math.cos(n) * s * a, e + Math.sin(n) * s * a, 0.07, r, 0.02);
-      this.beams.colC(l, warnColor, 0.25);
+    chargeLine(x, z, angle, len, width, k) {
+      let ex = x + Math.cos(angle) * len,
+        ez = z + Math.sin(angle) * len,
+        track = this.beams.seg(x, z, ex, ez, 0.06, width, 0.02);
+      this.beams.colC(track, warnColor, 0.12 + k * 0.2);
+      let fill = this.beams.seg(x, z, x + Math.cos(angle) * len * k, z + Math.sin(angle) * len * k, 0.07, width, 0.02);
+      this.beams.colC(fill, warnColor, 0.25);
     }
-    drawBoss(t, e, n) {
-      if (!n) {
+    drawBoss(dt, world, boss) {
+      if (!boss) {
         this.bossView && (this.bossView.group.visible = !1);
         return;
       }
-      if (!this.bossView || this.bossView.id !== n.type) {
+      if (!this.bossView || this.bossView.id !== boss.type) {
         this.bossView &&
           (this.scene.remove(this.bossView.group),
-          this.bossView.group.traverse((f) => {
-            (f.geometry && f.geometry.dispose(), f.material && [].concat(f.material).forEach((p) => p.dispose()));
+          this.bossView.group.traverse((obj) => {
+            (obj.geometry && obj.geometry.dispose(),
+              obj.material && [].concat(obj.material).forEach((mat) => mat.dispose()));
           }));
-        let d = buildBossModel(n.type, bossDefs[n.type].color);
-        ((d.id = n.type), (this.bossView = d), this.scene.add(d.group));
+        let model = buildBossModel(boss.type, bossDefs[boss.type].color);
+        ((model.id = boss.type), (this.bossView = model), this.scene.add(model.group));
       }
-      let s = this.bossView,
-        r = s.group,
-        a = this.time;
-      r.visible = !0;
-      let o = n.spawnT > 0 ? clamp(1 - n.spawnT / 1.2, 0, 1) : 1;
-      this.focus && (o = Math.max(o, clamp((this.focusK - 0.15) / 0.45, 0, 1)));
-      let c = easeOutBack(o);
-      (r.position.set(n.x, n.type === "prism" || n.type === "queen" ? Math.sin(a * 1.6) * 0.2 : 0, n.y),
-        r.scale.setScalar(Math.max(0.01, c)),
-        (r.rotation.y = -n.face));
-      for (let d of s.spin) d.m.rotation[d.ax] += d.v * t * (n.enraged ? 1.8 : 1);
-      let h = n.flash;
-      for (let d of s.mats) d.emissive.setRGB(h * 0.8 + (n.charging ? 0.25 : 0), h * 0.8, h * 0.8);
-      (s.glowMat.color.setHex(n.enraged ? 16732120 : bossDefs[n.type].color),
-        n.shielded && s.glowMat.color.setHex(16777215));
-      let l = n.ghost ? 0.12 : 1;
+      let view = this.bossView,
+        group = view.group,
+        time = this.time;
+      group.visible = !0;
+      let grow = boss.spawnT > 0 ? clamp(1 - boss.spawnT / 1.2, 0, 1) : 1;
+      this.focus && (grow = Math.max(grow, clamp((this.focusK - 0.15) / 0.45, 0, 1)));
+      let scale = easeOutBack(grow);
+      (group.position.set(
+        boss.x,
+        boss.type === "prism" || boss.type === "queen" ? Math.sin(time * 1.6) * 0.2 : 0,
+        boss.y,
+      ),
+        group.scale.setScalar(Math.max(0.01, scale)),
+        (group.rotation.y = -boss.face));
+      for (let part of view.spin) part.m.rotation[part.ax] += part.v * dt * (boss.enraged ? 1.8 : 1);
+      let flash = boss.flash;
+      for (let mat of view.mats)
+        mat.emissive.setRGB(flash * 0.8 + (boss.charging ? 0.25 : 0), flash * 0.8, flash * 0.8);
+      (view.glowMat.color.setHex(boss.enraged ? 16732120 : bossDefs[boss.type].color),
+        boss.shielded && view.glowMat.color.setHex(16777215));
+      let alpha = boss.ghost ? 0.12 : 1;
       // 2.4.6: a fade material can be translucent on its own (userData.opacity, Frost Prism ice)
-      if (r.userData.fadeMats) for (let d of r.userData.fadeMats) d.opacity = l * (d.userData.opacity ?? 1);
-      ((s.glowMat.opacity = n.ghost ? 0.15 : 1), this.shadows.y(n.x, 0.02, n.y, 0, n.r * 3.4 * c));
-      let u = this.sprites.bb(n.x, 1.2, n.y, n.r * 5, this.B);
-      if ((this.sprites.colHex(u, n.enraged ? 16732120 : bossDefs[n.type].color, 0.25), n.shielded)) {
-        let d = this.ringPool.y(n.x, 0.1, n.y, a, n.r * 1.6);
-        this.ringPool.colC(d, whiteColor, 0.8);
+      if (group.userData.fadeMats)
+        for (let mat of group.userData.fadeMats) mat.opacity = alpha * (mat.userData.opacity ?? 1);
+      ((view.glowMat.opacity = boss.ghost ? 0.15 : 1), this.shadows.y(boss.x, 0.02, boss.y, 0, boss.r * 3.4 * scale));
+      let glow = this.sprites.bb(boss.x, 1.2, boss.y, boss.r * 5, this.B);
+      if ((this.sprites.colHex(glow, boss.enraged ? 16732120 : bossDefs[boss.type].color, 0.25), boss.shielded)) {
+        let ring = this.ringPool.y(boss.x, 0.1, boss.y, time, boss.r * 1.6);
+        this.ringPool.colC(ring, whiteColor, 0.8);
       }
       // 2.4.6: cold mist drifts off the Frost Prism
-      n.type === "prism" &&
-        !n.ghost &&
-        Math.random() < t * 18 &&
+      boss.type === "prism" &&
+        !boss.ghost &&
+        Math.random() < dt * 18 &&
         this.emit(
-          n.x + (Math.random() - 0.5) * 2.6,
+          boss.x + (Math.random() - 0.5) * 2.6,
           1 + Math.random() * 2.4,
-          n.y + (Math.random() - 0.5) * 2.6,
+          boss.y + (Math.random() - 0.5) * 2.6,
           (Math.random() - 0.5) * 0.6,
           -0.5 - Math.random() * 0.6,
           (Math.random() - 0.5) * 0.6,
@@ -1781,22 +1935,22 @@ var MAX_PARTICLES = 1400,
           hexColor(12578815),
           { drag: 0.5 },
         );
-      n.type === "warden" &&
-        n.st === "charge" &&
-        n.sub === 0 &&
-        this.chargeLine(n.x, n.y, n.ta, 12, 3.4, clamp(n.subT / 0.85, 0, 1));
+      boss.type === "warden" &&
+        boss.st === "charge" &&
+        boss.sub === 0 &&
+        this.chargeLine(boss.x, boss.y, boss.ta, 12, 3.4, clamp(boss.subT / 0.85, 0, 1));
       // 2.4.6: the Crucible's chimneys throw embers, more while it winds up or is enraged
-      if (r.userData.chimneys && n.spawnT <= 0) {
-        const rate = (n.enraged ? 20 : 11) * (n.charging ? 2.2 : 1),
-          cf = Math.cos(n.face),
-          sf = Math.sin(n.face),
+      if (group.userData.chimneys && boss.spawnT <= 0) {
+        const rate = (boss.enraged ? 20 : 11) * (boss.charging ? 2.2 : 1),
+          cf = Math.cos(boss.face),
+          sf = Math.sin(boss.face),
           ember = this._emberColor || (this._emberColor = hexColor(16752957));
-        for (const [lx, ly, lz] of r.userData.chimneys)
-          Math.random() < t * rate &&
+        for (const [lx, ly, lz] of group.userData.chimneys)
+          Math.random() < dt * rate &&
             this.emit(
-              n.x + (lx * cf - lz * sf) * c,
-              ly * c,
-              n.y + (lx * sf + lz * cf) * c,
+              boss.x + (lx * cf - lz * sf) * scale,
+              ly * scale,
+              boss.y + (lx * sf + lz * cf) * scale,
               (Math.random() - 0.5) * 1.4,
               2.6 + Math.random() * 2.2,
               (Math.random() - 0.5) * 1.4,
@@ -1807,117 +1961,128 @@ var MAX_PARTICLES = 1400,
             );
       }
     }
-    drawParticles(t) {
-      let e = this.P,
-        n = this.B,
-        s = e.n;
-      for (let r = 0; r < s; r++) {
-        if (((e.life[r] -= t), e.life[r] <= 0)) {
-          (s--,
-            r !== s &&
-              ((e.x[r] = e.x[s]),
-              (e.y[r] = e.y[s]),
-              (e.z[r] = e.z[s]),
-              (e.vx[r] = e.vx[s]),
-              (e.vy[r] = e.vy[s]),
-              (e.vz[r] = e.vz[s]),
-              (e.life[r] = e.life[s]),
-              (e.max[r] = e.max[s]),
-              (e.size[r] = e.size[s]),
-              (e.grow[r] = e.grow[s]),
-              (e.r[r] = e.r[s]),
-              (e.g[r] = e.g[s]),
-              (e.b[r] = e.b[s]),
-              (e.drag[r] = e.drag[s]),
-              (e.grav[r] = e.grav[s]),
-              (e.spark[r] = e.spark[s]),
-              r--));
+    drawParticles(dt) {
+      let parts = this.P,
+        basis = this.B,
+        count = parts.n;
+      for (let i = 0; i < count; i++) {
+        if (((parts.life[i] -= dt), parts.life[i] <= 0)) {
+          (count--,
+            i !== count &&
+              ((parts.x[i] = parts.x[count]),
+              (parts.y[i] = parts.y[count]),
+              (parts.z[i] = parts.z[count]),
+              (parts.vx[i] = parts.vx[count]),
+              (parts.vy[i] = parts.vy[count]),
+              (parts.vz[i] = parts.vz[count]),
+              (parts.life[i] = parts.life[count]),
+              (parts.max[i] = parts.max[count]),
+              (parts.size[i] = parts.size[count]),
+              (parts.grow[i] = parts.grow[count]),
+              (parts.r[i] = parts.r[count]),
+              (parts.g[i] = parts.g[count]),
+              (parts.b[i] = parts.b[count]),
+              (parts.drag[i] = parts.drag[count]),
+              (parts.grav[i] = parts.grav[count]),
+              (parts.spark[i] = parts.spark[count]),
+              i--));
           continue;
         }
-        let a = 1 - Math.exp(-e.drag[r] * t);
-        ((e.vx[r] -= e.vx[r] * a),
-          (e.vy[r] -= e.vy[r] * a + e.grav[r] * t),
-          (e.vz[r] -= e.vz[r] * a),
-          (e.x[r] += e.vx[r] * t),
-          (e.y[r] += e.vy[r] * t),
-          (e.z[r] += e.vz[r] * t),
-          e.y[r] < 0.05 && ((e.y[r] = 0.05), (e.vy[r] *= -0.4)));
-        let o = e.life[r] / e.max[r],
-          c = e.size[r] * (1 + e.grow[r] * (1 - o)),
-          h = e.spark[r] ? this.sparks : this.sprites,
-          l = h.bb(e.x[r], e.y[r], e.z[r], c * (e.spark[r] ? 1 : 0.6 + 0.4 * o), n, e.spark[r] ? r : 0);
-        l >= 0 && h.col(l, e.r[r] * o, e.g[r] * o, e.b[r] * o);
+        let damp = 1 - Math.exp(-parts.drag[i] * dt);
+        ((parts.vx[i] -= parts.vx[i] * damp),
+          (parts.vy[i] -= parts.vy[i] * damp + parts.grav[i] * dt),
+          (parts.vz[i] -= parts.vz[i] * damp),
+          (parts.x[i] += parts.vx[i] * dt),
+          (parts.y[i] += parts.vy[i] * dt),
+          (parts.z[i] += parts.vz[i] * dt),
+          parts.y[i] < 0.05 && ((parts.y[i] = 0.05), (parts.vy[i] *= -0.4)));
+        let k = parts.life[i] / parts.max[i],
+          size = parts.size[i] * (1 + parts.grow[i] * (1 - k)),
+          pool = parts.spark[i] ? this.sparks : this.sprites,
+          idx = pool.bb(
+            parts.x[i],
+            parts.y[i],
+            parts.z[i],
+            size * (parts.spark[i] ? 1 : 0.6 + 0.4 * k),
+            basis,
+            parts.spark[i] ? i : 0,
+          );
+        idx >= 0 && pool.col(idx, parts.r[i] * k, parts.g[i] * k, parts.b[i] * k);
       }
-      e.n = s;
+      parts.n = count;
     }
-    drawTransient(t) {
-      for (let e of this.lines) {
-        e.life -= t;
-        let n = Math.max(0, e.life / e.max);
-        if (e.jag) {
-          let s = e.x1,
-            r = e.z1,
-            a = e.x2 - e.x1,
-            o = e.z2 - e.z1,
-            c = Math.hypot(a, o) || 1,
-            h = -o / c,
-            l = a / c;
-          for (let u = 1; u <= 4; u++) {
-            let d = u / 4,
-              f = u < 4 ? (Math.random() - 0.5) * e.jag * 2 : 0,
-              p = e.x1 + a * d + h * f,
-              x = e.z1 + o * d + l * f,
-              m = this.beams.seg(s, r, p, x, e.y, e.w, e.w);
-            (this.beams.colC(m, e.col, n * 1.3), (s = p), (r = x));
+    drawTransient(dt) {
+      for (let line of this.lines) {
+        line.life -= dt;
+        let k = Math.max(0, line.life / line.max);
+        if (line.jag) {
+          let px = line.x1,
+            pz = line.z1,
+            dx = line.x2 - line.x1,
+            dz = line.z2 - line.z1,
+            len = Math.hypot(dx, dz) || 1,
+            nx = -dz / len,
+            nz = dx / len;
+          for (let i = 1; i <= 4; i++) {
+            let frac = i / 4,
+              jitter = i < 4 ? (Math.random() - 0.5) * line.jag * 2 : 0,
+              qx = line.x1 + dx * frac + nx * jitter,
+              qz = line.z1 + dz * frac + nz * jitter,
+              seg = this.beams.seg(px, pz, qx, qz, line.y, line.w, line.w);
+            (this.beams.colC(seg, line.col, k * 1.3), (px = qx), (pz = qz));
           }
         } else {
-          let s = this.beams.seg(e.x1, e.z1, e.x2, e.z2, e.y, e.w * n, e.w * n);
-          this.beams.colC(s, e.col, n);
+          let seg = this.beams.seg(line.x1, line.z1, line.x2, line.z2, line.y, line.w * k, line.w * k);
+          this.beams.colC(seg, line.col, k);
         }
       }
-      this.lines.length && this.lines.some((e) => e.life <= 0) && (this.lines = this.lines.filter((e) => e.life > 0));
-      for (let e of this.rings) {
-        e.life -= t;
-        let n = Math.max(0, e.life / e.max),
-          s = e.r1 + (e.r0 - e.r1) * n,
-          r = this.ringPool.y(e.x, e.y, e.z, 0, s);
-        this.ringPool.colC(r, e.col, n);
+      this.lines.length &&
+        this.lines.some((line) => line.life <= 0) &&
+        (this.lines = this.lines.filter((line) => line.life > 0));
+      for (let ring of this.rings) {
+        ring.life -= dt;
+        let k = Math.max(0, ring.life / ring.max),
+          radius = ring.r1 + (ring.r0 - ring.r1) * k,
+          idx = this.ringPool.y(ring.x, ring.y, ring.z, 0, radius);
+        this.ringPool.colC(idx, ring.col, k);
       }
-      this.rings.length && this.rings.some((e) => e.life <= 0) && (this.rings = this.rings.filter((e) => e.life > 0));
+      this.rings.length &&
+        this.rings.some((ring) => ring.life <= 0) &&
+        (this.rings = this.rings.filter((ring) => ring.life > 0));
     }
-    project(t, e, n, s) {
-      let r = this._v || (this._v = new Vector3());
+    project(x, y, z, out) {
+      let ndc = this._v || (this._v = new Vector3());
       return (
-        r.set(t, e, n).project(this.camera),
-        (s.x = (r.x * 0.5 + 0.5) * this.w),
-        (s.y = (-r.y * 0.5 + 0.5) * this.h),
-        (s.vis = r.z < 1 && r.x > -1.05 && r.x < 1.05 && r.y > -1.05 && r.y < 1.05),
-        (s.nx = r.x),
-        (s.ny = r.y),
-        s
+        ndc.set(x, y, z).project(this.camera),
+        (out.x = (ndc.x * 0.5 + 0.5) * this.w),
+        (out.y = (-ndc.y * 0.5 + 0.5) * this.h),
+        (out.vis = ndc.z < 1 && ndc.x > -1.05 && ndc.x < 1.05 && ndc.y > -1.05 && ndc.y < 1.05),
+        (out.nx = ndc.x),
+        (out.ny = ndc.y),
+        out
       );
     }
-    groundAt(t, e) {
-      let n = this._ray || (this._ray = new Raycaster()),
-        s = this._nd || (this._nd = new Vector2());
-      (s.set((t / this.w) * 2 - 1, -(e / this.h) * 2 + 1), n.setFromCamera(s, this.camera));
-      let r = n.ray.origin,
-        a = n.ray.direction;
-      if (Math.abs(a.y) < 1e-4) return null;
-      let o = (0.75 - r.y) / a.y;
-      return { x: r.x + a.x * o, y: r.z + a.z * o };
+    groundAt(sx, sy) {
+      let caster = this._ray || (this._ray = new Raycaster()),
+        ndc = this._nd || (this._nd = new Vector2());
+      (ndc.set((sx / this.w) * 2 - 1, -(sy / this.h) * 2 + 1), caster.setFromCamera(ndc, this.camera));
+      let origin = caster.ray.origin,
+        dir = caster.ray.direction;
+      if (Math.abs(dir.y) < 1e-4) return null;
+      let dist = (0.75 - origin.y) / dir.y;
+      return { x: origin.x + dir.x * dist, y: origin.z + dir.z * dist };
     }
-    setAccess(t, e) {
-      ((this.contrast = !!t),
-        warnColor.setHex(t ? 16773226 : 16728160),
-        beamColor.setHex(t ? 16765498 : 16732064),
-        (this.flashK = e ? 0.35 : 1));
+    setAccess(contrast, reduceFlash) {
+      ((this.contrast = !!contrast),
+        warnColor.setHex(contrast ? 16773226 : 16728160),
+        beamColor.setHex(contrast ? 16765498 : 16732064),
+        (this.flashK = reduceFlash ? 0.35 : 1));
     }
     resetCamera() {
       ((this.camInit = !1), (this.shake = 0));
     }
-    focusOn(t, e) {
-      ((this.focus = t == null ? null : { x: t, z: e }), (this.focusK = 0));
+    focusOn(x, z) {
+      ((this.focus = x == null ? null : { x, z }), (this.focusK = 0));
     }
   };
 // 2.3.6: on landscape phones and tablets the home screen has two columns (title left, weapon
@@ -1928,22 +2093,22 @@ var MAX_PARTICLES = 1400,
 let homeViewSpot = null,
   dirty = !0;
 const measureHomeViewSpot = () => {
-  const q = (sel) => document.querySelector(sel),
-    brand = q("#home .brand"),
-    panel = q("#home .home-panel"),
-    top = q("#home .topbar"),
-    nav = q("#home .bottom-nav");
+  const query = (sel) => document.querySelector(sel),
+    brand = query("#home .brand"),
+    panel = query("#home .home-panel"),
+    top = query("#home .topbar"),
+    nav = query("#home .bottom-nav");
   if (!brand || !panel || !top || !nav) return null;
-  const b = brand.getBoundingClientRect(),
-    p = panel.getBoundingClientRect();
-  if (b.width < 1 || p.width < 1 || b.right > p.left) return null; // stacked: the centre is free
-  const t = top.getBoundingClientRect().bottom,
-    n = nav.getBoundingClientRect().top,
-    above = b.top - t,
-    below = n - b.bottom;
+  const brandBox = brand.getBoundingClientRect(),
+    panelBox = panel.getBoundingClientRect();
+  if (brandBox.width < 1 || panelBox.width < 1 || brandBox.right > panelBox.left) return null; // stacked: the centre is free
+  const topEdge = top.getBoundingClientRect().bottom,
+    navEdge = nav.getBoundingClientRect().top,
+    above = brandBox.top - topEdge,
+    below = navEdge - brandBox.bottom;
   return {
-    x: (b.left + b.right) / 2,
-    y: above > below ? b.top - Math.min(above / 2, 100) : b.bottom + Math.min(below / 2, 100),
+    x: (brandBox.left + brandBox.right) / 2,
+    y: above > below ? brandBox.top - Math.min(above / 2, 100) : brandBox.bottom + Math.min(below / 2, 100),
   };
 };
 /** Asks the home screen drone view for a new measurement (the UI calls it when a screen is shown). */

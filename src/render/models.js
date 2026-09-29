@@ -693,7 +693,7 @@ function buildPlayerModel(weapon, color) {
   let group = new Group(),
     hullMat = new MeshLambertMaterial({ color: 2898514, emissive: 0 }),
     trimMat = new MeshLambertMaterial({ color: 9348036, emissive: 0 }),
-    glowMat = new MeshBasicMaterial({ color: color, toneMapped: !1 }),
+    glowMat = new MeshBasicMaterial({ color, toneMapped: !1 }),
     base = new Group(),
     body = new Mesh(new CylinderGeometry(0.5, 0.62, 0.34, 6), hullMat);
   body.position.y = 0.52;
@@ -751,7 +751,7 @@ function buildPlayerModel(weapon, color) {
   let shield = new Mesh(
     new IcosahedronGeometry(1, 2),
     new MeshBasicMaterial({
-      color: color,
+      color,
       transparent: !0,
       opacity: 0.16,
       blending: AdditiveBlending,
@@ -762,14 +762,14 @@ function buildPlayerModel(weapon, color) {
   return (
     (shield.position.y = 0.6),
     group.add(shield),
-    { group: group, base: base, turret: turret, shield: shield, mats: [hullMat, trimMat], glowMat: glowMat }
+    { group, base, turret, shield, mats: [hullMat, trimMat], glowMat }
   );
 }
 function buildBossModel(type, color) {
   let group = new Group(),
     hullMat = new MeshLambertMaterial({ color: darken(color, 0.35), emissive: 0, flatShading: !0 }),
     darkMat = new MeshLambertMaterial({ color: 2435898, emissive: 0, flatShading: !0 }),
-    glowMat = new MeshBasicMaterial({ color: color, toneMapped: !1, transparent: !0 }),
+    glowMat = new MeshBasicMaterial({ color, toneMapped: !1, transparent: !0 }),
     spin = [],
     addMesh = (geo, mat, x, y, z, parent = group) => {
       let mesh = new Mesh(geo, mat);
@@ -914,7 +914,7 @@ function buildBossModel(type, color) {
     let groundRing = addMesh(new TorusGeometry(2.4, 0.08, 5, 44), glowMat, 0, 0.1, 0);
     groundRing.rotation.x = Math.PI / 2;
   }
-  return { group: group, mats: [hullMat, darkMat, ...(group.userData.mats || [])], glowMat: glowMat, spin: spin };
+  return { group, mats: [hullMat, darkMat, ...(group.userData.mats || [])], glowMat, spin };
 }
 function wingDroneGeometry() {
   return mergeParts([

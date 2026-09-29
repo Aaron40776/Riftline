@@ -384,7 +384,7 @@ const rlMesh = (group, geo, mat, x, y, z, ry = 0) => {
   return mesh;
 };
 const rlGlow = (color, opacity = 1) =>
-  new MeshBasicMaterial({ color: color, toneMapped: !1, transparent: opacity < 1, opacity });
+  new MeshBasicMaterial({ color, toneMapped: !1, transparent: opacity < 1, opacity });
 // A thin ring on the floor at the collision radius, so the footprint reads in every biome.
 const rlFootRing = (group, x, z, radius, mat) => {
   const ring = rlMesh(group, new TorusGeometry(radius, 0.04, 4, 32), mat, x, 0.05, z);
