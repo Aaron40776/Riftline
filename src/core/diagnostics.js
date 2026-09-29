@@ -3,7 +3,16 @@
 
 import { GameUI, RL_TOUCH_CLICK_GUARD } from "../ui/ui.js";
 import { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices, SoundEngine } from "../audio/sound.js";
-import { RL_RETIRE_NOTE, SAVE_KEY, rlMigrateRetired, set_RL_RETIRE_NOTE, cleanRun } from "./save.js";
+import {
+  RL_RETIRE_NOTE,
+  SAVE_KEY,
+  rlMigrateRetired,
+  set_RL_RETIRE_NOTE,
+  cleanRun,
+  RL_MODULE_NOTE,
+  rlMigrateModules,
+  set_RL_MODULE_NOTE,
+} from "./save.js";
 import { RL_MESH_TYPES } from "../render/models.js";
 import { enemyDefs, bossOrder, RL_ENEMY_TIPS, biomeVariants, bossDefs, bossByWave, bossByBiome } from "../data/enemies.js";
 import { ui, store, game, safeAreaInsets, input, renderer } from "../main.js";
@@ -13,7 +22,7 @@ import { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, biomeList } from "../data/b
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
 import { waveEvents, planWave, set_RL_BIOME_MIX_CUR } from "./waves.js";
 import { World } from "./world.js";
-import { threatMods, workshopModules, modulesById } from "../data/progression.js";
+import { threatMods, workshopModules, modulesById, RL_RETIRED_MODULES } from "../data/progression.js";
 import { upgradeList, upgradesById } from "../data/upgrades.js";
 import { hitsObstacle, buildLayout, isConnected } from "./arena.js";
 import { computeStats } from "./stats.js";
@@ -520,9 +529,9 @@ function rlSelfTest() {
       }
     {
       const base = computeStats("pulse", {}, {}),
-        boost = computeStats("pulse", { overclock: 3 }, {});
+        boost = computeStats("pulse", { rate: 3, velocity: 2 }, {}); // 2.5.0: was Overclock Matrix
       if (!(boost.rateMul > base.rateMul && boost.velMul > base.velMul))
-        bad("upgrade-runtime", "Overclock Matrix does not alter rate and velocity");
+        bad("upgrade-runtime", "Rapid Cycler and Long Barrel do not alter rate and velocity");
       else upgradeChecks++;
       for (const def of upgradeList) {
         const testUp = {};
@@ -795,7 +804,6 @@ var RL_EVENT_KINDS = new Set([
   "portal",
   "reroll",
   "revive",
-  "salvagePulse",
   "shard",
   "shieldBreak",
   "shieldPop",
@@ -1644,19 +1652,8 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   try {
     const reqE = ["leaper", "turret", "charger", "minebot", "drone", "driller", "beacon", "weaver"],
       reqB = ["works", "vault", "void", "marsh"],
-      reqU = [
-        "overclock",
-        "bounty",
-        "capacitor",
-        "caliber",
-        "stabilizer",
-        "hunter",
-        "supply",
-        "momentum",
-        "laststand",
-        "scavenger",
-        "vector",
-      ],
+      // 2.5.0: Overclock Matrix, Overbore Caliber, Vector Stabilizer and Salvage Pulse were retired
+      reqU = ["bounty", "capacitor", "hunter", "supply", "momentum", "laststand", "vector", "skates", "heatsink"],
       badE = Object.keys(enemyDefs).filter((id) => !enemyDefs[id] || (!(enemyDefs[id].from >= 1) && id !== "mite")),
       badEvo = upgradeList.filter((u) => u.evo && Object.keys(u.evo).some((k) => !upgradesById[k])).map((u) => u.id),
       badWpn = upgradeList.filter((u) => u.weapon && !weaponDefs[u.weapon]).map((u) => u.id),
@@ -2286,22 +2283,10 @@ rlSelfTest = function () {
     upgrades = Object.keys(upgradesById),
     modules = Object.keys(modulesById);
   if (!["drone", "driller", "beacon", "weaver"].every((k) => enemies.includes(k))) fail.push("missing-v22-enemy");
-  if (
-    ![
-      "kinetic",
-      "deadeye",
-      "thruster",
-      "nanorepair",
-      "salvager",
-      "phasecoat",
-      "flux",
-      "payloadMatrix",
-      "chainlink",
-      "afterburner",
-    ].every((k) => upgrades.includes(k))
-  )
-    fail.push("missing-v22-upgrade");
-  if (!["routeScanner", "reactorCore"].every((k) => modules.includes(k))) fail.push("missing-v22-workshop");
+  // 2.5.0: of the 2.2 upgrades only Salvager Core is left; the others were copies (retired)
+  if (!upgrades.includes("salvager")) fail.push("missing-v22-upgrade");
+  // 2.5.0 B: Route Scanner and Reactor Core were merged into Field Supply and Nova Cell
+  if (!["fieldSupply", "nova"].every((k) => modules.includes(k))) fail.push("missing-v22-workshop");
   // 2.4.0: every selectable weapon (the 2.2 weapons are gone)
   for (const id of weaponOrder) {
     const w = new World({ seed: 0x2200 + id.length, weapon: id, threat: 0, ws: {} });
@@ -2385,9 +2370,8 @@ rlSelfTest = function () {
     upgrades = Object.keys(upgradesById);
   if (!["sapper", "phantom", "sentinel", "carrier"].every((k) => enemies.includes(k))) fail.push("missing-v21-enemy");
   if (
-    !["overload", "focus", "resonance", "fortify", "leech", "hazmat", "echo", "scavengerNet"].every((k) =>
-      upgrades.includes(k),
-    )
+    // 2.5.0: Dead Focus, Fortify, Nanite Leech and Scavenger Net were retired
+    !["overload", "resonance", "hazmat", "echo"].every((k) => upgrades.includes(k))
   )
     fail.push("missing-v21-upgrade");
   // 2.4.0: every weapon with a blast (was Graviton Core, Nova Bloom and Vortex)
@@ -2536,6 +2520,171 @@ rlSelfTest = function () {
   if (!(hull("queen", 15) > hull("queen", 10))) fail.push("slot-hull-order");
   return { ...r, ok: r.ok && fail.length === 0, v246: { ok: fail.length === 0, fail } };
 };
+// 2.5.0 A: retired upgrades are gone and migrate, the six new upgrades do what their card says.
+import { RL_RETIRED_UPGRADES } from "../data/upgrades.js";
+import { rlMigrateUpgrades, rlSanitizeHistory } from "./save.js";
+const _rlSelfTest250A = rlSelfTest;
+rlSelfTest = function () {
+  const r = _rlSelfTest250A(),
+    fail = [],
+    NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
+  if (upgradeList.length !== 59) fail.push("count:" + upgradeList.length);
+  for (const [id, q] of Object.entries(RL_RETIRED_UPGRADES)) {
+    if (upgradesById[id]) fail.push("still-offered:" + id);
+    const to = upgradesById[q.to];
+    if (!to || to.evo || to.repeat || !(q.k > 0 && q.k <= 1.5)) fail.push("retired-target:" + id);
+  }
+  for (const id of NEW) if (!upgradesById[id] || upgradesById[id].evo) fail.push("new-missing:" + id);
+  // a run saved mid-way with retired upgrades and a pending offer of retired ids
+  const old = {
+      v: 1,
+      seed: 2500,
+      weapon: "pulse",
+      threat: 1,
+      wave: 7,
+      up: { caliber: 3, kinetic: 2, dmg: 2, fortify: 5, hp: 6, coolant: 3, afterburner: 3, scavenger: 2, focus: 1 },
+      hp: 60,
+      offer: ["fortify", "flux", "crit"],
+      offerBoss: false,
+    },
+    run = cleanRun(old),
+    want = { dmg: 6, hp: 10, vector: 6, supply: 2, crit: 1 };
+  if (!run || Object.keys(run.up).length !== 5 || Object.entries(want).some(([k, v]) => run.up[k] !== v))
+    fail.push("migrate-up:" + JSON.stringify(run && run.up));
+  // Fortify → Reinforced Hull is maxed, so a common takes its place; Flux Capacitor → Overcharge
+  if (!run || JSON.stringify(run.offer) !== JSON.stringify(["dmg", "overcharge", "crit"]))
+    fail.push("migrate-offer:" + JSON.stringify(run && run.offer));
+  if (old.up.caliber !== 3 || old.offer[0] !== "fortify") fail.push("migrate-mutates");
+  if (run && rlMigrateUpgrades(run) !== run) fail.push("migrate-twice");
+  const boss = cleanRun({ ...old, up: { rate: 10 }, offer: ["overclock", "leech", "arc"], offerBoss: true });
+  if (!boss || boss.offer.length !== 3 || boss.offer.some((id) => upgradesById[id].rarity < 2))
+    fail.push("migrate-boss-offer:" + JSON.stringify(boss && boss.offer));
+  if (run) {
+    const w = new World({ snap: run, ws: {} });
+    if (w.state !== "choose" || w.offer.length !== 3 || w.stats.maxHp !== 300) fail.push("resume:" + w.state);
+    w.choose(w.offer[0]);
+    for (let f = 0; f < 120; f++) w.step(1 / 60, { mx: 0.4, my: 0.2, fire: true, auto: true, dash: f === 30 });
+    if (w.wave !== 8 || ![w.player.hp, w.player.x, w.player.nova].every(Number.isFinite)) fail.push("resume-play");
+  }
+  const hist = rlSanitizeHistory([
+    { t: 1, weapon: "pulse", threat: 0, wave: 9, outcome: "dead", build: ["caliber", "dmg", "fortify", "flux"] },
+  ]);
+  if (JSON.stringify(hist[0]?.build) !== JSON.stringify(["dmg", "hp", "overcharge"])) fail.push("history-build");
+  // the new mechanics
+  const mk = (up, wave = 2) => {
+    const w = new World({ seed: 0x250a, weapon: "pulse", threat: 0, ws: {} });
+    w.up = { ...up };
+    w.stats = computeStats("pulse", w.up, {});
+    w.startWave(wave);
+    w.plan = [];
+    w.enemies = [];
+    w.player.iT = 0;
+    w.player.shield = false;
+    return w;
+  };
+  const foe = (w, x, y) => {
+    const e = w.spawnEnemy("brute", x, y, {});
+    e.spawnT = 0;
+    w.enemies.includes(e) || w.enemies.push(e);
+    w.hash.build(w.enemies);
+    return e;
+  };
+  // Cryo Skates: dash recharges 35%/level faster on ice
+  {
+    const w = mk({ skates: 2 }),
+      p = w.player;
+    p.dashCdT = 1;
+    p.onIce = true;
+    w.step(0.1, {});
+    if (!(Math.abs(p.dashCdT - (1 - 0.1 - 0.07)) < 1e-6)) fail.push("skates-dash:" + p.dashCdT.toFixed(3));
+    if (!(computeStats("pulse", { skates: 1 }, {}).speed > computeStats("pulse", {}, {}).speed))
+      fail.push("skates-speed");
+  }
+  // Acid Coating: hits leave acid that marks enemies but never hurts the player
+  {
+    const w = mk({ acidcoat: 2 }),
+      p = w.player,
+      e = foe(w, 4, 2);
+    e.hp = e.maxHp = 1e6;
+    for (let k = 0; k < 60 && !w.arena.acid.some((q) => q.mine); k++) {
+      w.time += 2;
+      w.bulletHit({ x: e.x, y: e.y, vx: 1, vy: 0, dmg: 1, hits: [], w: "pulse", pierce: 0, bounce: 0, life: 1 }, e);
+    }
+    const q = w.arena.acid.find((a) => a.mine);
+    if (!q) fail.push("acid-none");
+    else {
+      p.x = q.x;
+      p.y = q.y;
+      e.x = q.x + 0.3;
+      e.y = q.y;
+      const hp = p.hp;
+      for (let f = 0; f < 60; f++) w.updateFeatures(1 / 60);
+      if (p.hp !== hp || p.inAcid) fail.push("acid-hurts-player");
+      if (!e.corrode) fail.push("acid-no-corrode");
+      for (let f = 0; f < 300; f++) w.updateFeatures(1 / 60);
+      if (w.arena.acid.some((a) => a.mine) || e.corrode) fail.push("acid-stays");
+    }
+  }
+  // Heat Sink: hazard damage heats up (fire rate) and charges Nova
+  {
+    const w = mk({ heatsink: 1 }),
+      p = w.player;
+    p.nova = 0;
+    w.hurtPlayer(4, null, null, "lava", true);
+    if (!(p.heatT === 3 && p.nova > 0)) fail.push("heat-hazard");
+    const cold = mk({}),
+      shots = (x) => {
+        x.player.fireT = 0;
+        let n = 0;
+        for (let f = 0; f < 60; f++) {
+          const before = x.player.shotN || 0;
+          x.player.heatT = x === cold ? 0 : 3;
+          x.step(1 / 60, { aim: true, ax: 1, ay: 0 });
+          n += (x.player.shotN || 0) - before;
+        }
+        return n;
+      };
+    if (!(shots(w) > shots(cold))) fail.push("heat-rate");
+  }
+  // Slipstream: shots right after a dash hit harder
+  {
+    const w = mk({ slipstream: 2 }),
+      p = w.player;
+    w.step(1 / 60, { dash: true });
+    if (!(p.slipT > 1)) fail.push("slip-timer");
+    w.pb.length = 0;
+    w.fire(0);
+    const hot = w.pb[0]?.dmg;
+    p.slipT = 0;
+    w.pb.length = 0;
+    w.fire(0);
+    const cold = w.pb[0]?.dmg;
+    if (!(Math.abs(hot / cold - 1.5) < 1e-6)) fail.push("slip-dmg:" + hot + "/" + cold);
+  }
+  // Combo Surge: the 15th combo kill releases a shockwave
+  {
+    const w = mk({ surge: 1 }),
+      e = foe(w, 2, 2);
+    e.hp = e.maxHp = 1e6;
+    w.combo = 14;
+    w.fx.length = 0;
+    w.addCombo();
+    if (!w.fx.some((q) => q.k === "boom" && q.kind === "surge") || !(e.hp < 1e6)) fail.push("surge");
+    if (!(w.comboT > 2.2)) fail.push("surge-combo-time");
+  }
+  // Reactive Plating: a hit pushes enemies away and clears enemy shots; costs fire rate
+  {
+    const w = mk({ reactive: 1 }),
+      p = w.player,
+      e = foe(w, p.x + 1.5, p.y);
+    e.hp = e.maxHp = 1e6;
+    w.eb.push({ x: p.x + 1, y: p.y, vx: 0, vy: 0, r: 0.2, dmg: 5, life: 2 });
+    w.hurtPlayer(5, e.x, e.y, "brute");
+    if (!(e.hp < 1e6) || w.eb[0].life > 0) fail.push("reactive");
+    if (!(w.stats.rateMul < computeStats("pulse", {}, {}).rateMul)) fail.push("reactive-cost");
+  }
+  return { ...r, ok: r.ok && fail.length === 0, v250A: { ok: fail.length === 0, fail } };
+};
 window.addEventListener("error", (i) => logError("window", i));
 window.addEventListener("unhandledrejection", (i) => logError("promise", i.reason || i));
 (() => {
@@ -2558,6 +2707,245 @@ window.addEventListener("unhandledrejection", (i) => logError("promise", i.reaso
     true,
   );
 })();
+
+// ---- 2.5.0 C: stronger biomes — hazard count, size and fairness, one biome event per visit of a
+// hazard biome and what it does, signature enemies from the biome's first wave, old saved runs.
+import { RL_BIOME_EVENT, rlEnemyFrom } from "./waves.js";
+import { RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
+const _rlSelfTest250C = rlSelfTest;
+rlSelfTest = function () {
+  const r = _rlSelfTest250C(),
+    fail = [],
+    bad = (k) => fail.length < 40 && fail.push(k),
+    theme = { works: "vents", vault: "ice", marsh: "acid" },
+    // fairness of one arena: hazards off obstacles and walls, the spawn ring clear, portals valid
+    fair = (A, tag) => {
+      for (const k of ["vents", "ice", "acid"])
+        for (const q of A[k]) {
+          if (q.life != null) continue;
+          if (hitsObstacle(A.obs, q.x, q.y, q.r + 0.8)) bad("hazard-on-obstacle:" + tag);
+          if (Math.hypot(q.x - rlSpawnZone.x, q.y - rlSpawnZone.y) < q.r + rlSpawnZone.r) bad("hazard-in-spawn:" + tag);
+          if (Math.abs(q.x) + q.r > A.W - 1.4 || Math.abs(q.y) + q.r > A.H - 1.4) bad("hazard-at-wall:" + tag);
+        }
+      const ends = [];
+      for (const q of A.portals) {
+        if (Math.hypot(q.ax - q.bx, q.ay - q.by) < 7) bad("portal-pair-close:" + tag);
+        for (const [x, y] of [
+          [q.ax, q.ay],
+          [q.bx, q.by],
+        ]) {
+          if (hitsObstacle(A.obs, x, y, 1.5) || Math.abs(x) > A.W - 3.6 || Math.abs(y) > A.H - 3.6)
+            bad("portal-bad:" + tag);
+          ends.some((e) => Math.hypot(e[0] - x, e[1] - y) < 4) && bad("portal-cluster:" + tag);
+          ends.push([x, y]);
+        }
+      }
+    };
+  // 1. hazards: about five per wave, 25–30% bigger than 2.4.6, fair; Void Core mostly two portal pairs
+  const count = { vents: [0, 0], ice: [0, 0], acid: [0, 0] },
+    pairs = [0, 0];
+  for (let seed = 1; seed <= 24; seed++) {
+    const w = new World({ seed: 0x2500 + seed, weapon: "pulse", threat: 0, ws: {} });
+    for (let wave = 6; wave <= 24; wave++) {
+      if (w.bossFor(wave)) continue;
+      w.startWave(wave);
+      const A = w.arena,
+        id = A.biome.id,
+        k = theme[id];
+      fair(A, `${seed}:${wave}`);
+      if (w.event && waveEvents[w.event].biome) continue; // the event adds its own
+      if (k) {
+        count[k][0] += A[k].length;
+        count[k][1]++;
+        for (const q of A[k])
+          (q.r < RL_HAZARD_SIZE_250[k][0] - 1e-9 || q.r > RL_HAZARD_SIZE_250[k][1] + 1e-9) && bad("hazard-size:" + k);
+      } else if (id === "void") (pairs[0] += A.portals.length >= 2 ? 1 : 0), pairs[1]++;
+    }
+  }
+  for (const [k, [n, waves]] of Object.entries(count)) waves && n / waves < 4.3 && bad(`hazard-count:${k}:${(n / waves).toFixed(2)}`);
+  pairs[1] && pairs[0] / pairs[1] < 0.7 && bad("portal-pairs:" + (pairs[0] / pairs[1]).toFixed(2));
+  // 2. biome events: one per visit of a hazard biome, in wave 2–4 of the visit, only there, never
+  // next to another event
+  for (let seed = 1; seed <= 30; seed++) {
+    const w = new World({ seed: 0x25c0 + seed, weapon: "pulse", threat: 0, ws: {} }),
+      evs = [];
+    for (let wave = 1; wave <= 40; wave++) evs[wave] = w.eventFor(wave);
+    for (let start = 1; start <= 36; start += 5) {
+      const id = w.biomeFor(start).id,
+        want = RL_BIOME_EVENT[id],
+        got = [1, 2, 3, 4, 5].map((k) => evs[start + k - 1]).filter((e) => e && waveEvents[e].biome);
+      if (want ? got.length !== 1 || got[0] !== want : got.length) bad(`biome-event:${seed}:${start}:${got}`);
+      if (evs[start] || evs[start + 4]) bad(`event-first-or-boss:${seed}:${start}`);
+    }
+    for (let wave = 2; wave <= 40; wave++) evs[wave] && evs[wave - 1] && bad(`event-adjacent:${seed}:${wave}`);
+  }
+  for (const [id, e] of Object.entries(RL_BIOME_EVENT))
+    (!waveEvents[e] || waveEvents[e].biome !== id || !waveEvents[e].name || !waveEvents[e].desc) && bad("event-def:" + e);
+  // 3. what the events do (run in the world with a god-mode player standing still)
+  const eventWorld = (biome, seed = 0x25e0) => {
+    for (let s = seed; s < seed + 40; s++) {
+      const w = new World({ seed: s, weapon: "pulse", threat: 0, ws: {} }),
+        i = w.route.indexOf(biome);
+      if (i < 0 || i > 3) continue;
+      const at = w.biomeEventWave(1 + 5 * i);
+      if (!at) continue;
+      w.god = !0;
+      w.startWave(at);
+      return w;
+    }
+    return null;
+  };
+  const run = (w, sec) => {
+    for (let t = 0; t < sec; t += 1 / 30) w.step(1 / 30, { mx: 0, my: 0 });
+  };
+  const melt = eventWorld("works");
+  if (!melt || melt.event !== "meltdown") bad("meltdown-missing");
+  else {
+    const V = melt.arena.vents;
+    V.length < 6 && bad("meltdown-vents:" + V.length);
+    V.some((q) => q.period !== V[0].period || q.phase !== V[0].phase) && bad("meltdown-sync");
+    fair(melt.arena, "meltdown");
+    run(melt, 2.5);
+    V.every((q) => melt.arena.ventState(q, melt.waveT) === "erupt") || bad("meltdown-erupt-together");
+  }
+  const white = eventWorld("vault");
+  if (!white || white.event !== "whiteout") bad("whiteout-missing");
+  else {
+    const lay = buildLayout(white.arena.biome, white.seed, white.wave, !1);
+    white.arena.ice.length > (lay.features?.ice || []).length || bad("whiteout-ice");
+    fair(white.arena, "whiteout");
+  }
+  const bloom = eventWorld("marsh");
+  if (!bloom || bloom.event !== "bloom") bad("bloom-missing");
+  else {
+    const n0 = bloom.arena.acid.filter((q) => q.life == null).length,
+      r0 = bloom.arena.acid.reduce((a, q) => a + q.r, 0);
+    run(bloom, 20);
+    const own = bloom.arena.acid.filter((q) => q.life == null);
+    own.length > n0 || bad("bloom-no-sprout");
+    own.slice(0, n0).reduce((a, q) => a + q.r, 0) > r0 + 0.5 || bad("bloom-no-growth");
+    fair(bloom.arena, "bloom");
+    // a pool never sprouts under the player
+    own.some((q) => Math.hypot(q.x - bloom.player.x, q.y - bloom.player.y) < q.r) && bad("bloom-on-player");
+  }
+  const storm = eventWorld("void");
+  if (!storm || storm.event !== "riftstorm") bad("riftstorm-missing");
+  else {
+    const at0 = storm.arena.portals.map((q) => [q.ax, q.ay]);
+    run(storm, 5);
+    storm.arena.portals.every((q) => q.next) || bad("riftstorm-no-telegraph");
+    run(storm, 1.2);
+    storm.arena.portals.some((q, k) => q.ax !== at0[k][0] || q.ay !== at0[k][1]) || bad("riftstorm-no-move");
+    fair(storm.arena, "riftstorm");
+  }
+  // 4. signature enemies: every mix enemy of a biome can spawn from the biome's first wave; the
+  // enemy table itself is not changed, and Neon Yard keeps the global unlock waves
+  const before = JSON.stringify(Object.values(enemyDefs).map((d) => d.from)),
+    seen = {};
+  for (let seed = 1; seed <= 40; seed++) {
+    const w = new World({ seed: 0x25f0 + seed, weapon: "pulse", threat: 0, ws: {} });
+    for (let wave = 1; wave <= 19; wave++) {
+      if (w.bossFor(wave)) continue;
+      w.startWave(wave);
+      const id = w.arena.biome.id;
+      for (const g of w.plan)
+        for (const m of g.members) {
+          (seen[id] || (seen[id] = new Set())).add(m.type);
+          id === "yard" && enemyDefs[m.type].from > wave && bad(`yard-early:${m.type}:${wave}`);
+          w.enemyFrom(m.type, wave) > wave && bad(`too-early:${m.type}:${wave}`);
+        }
+    }
+  }
+  JSON.stringify(Object.values(enemyDefs).map((d) => d.from)) !== before && bad("enemy-from-mutated");
+  for (const [id, info] of Object.entries(RL_BIOME_INFO))
+    for (const [type, m] of Object.entries(info.mix || {})) {
+      if (!(m >= 1)) continue;
+      rlEnemyFrom(type, id, 6) > 6 && bad(`from:${id}:${type}`);
+      seen[id] && !seen[id].has(type) && bad(`never-seen:${id}:${type}`);
+    }
+  // 5. an old saved run (2.4.6 snapshot, no event fields) in an event wave loads and plays it
+  const probe = eventWorld("void");
+  if (probe) {
+    const old = cleanRun({
+      v: 1,
+      seed: probe.seed,
+      weapon: "pulse",
+      threat: 0,
+      wave: probe.wave,
+      endless: !1,
+      up: { dmg: 2 },
+      hp: 80,
+      shards: 30,
+      kills: 50,
+      time: 300,
+      rerolls: 1,
+      revived: !1,
+      nova: 20,
+      bossKills: ["warden"],
+    });
+    const w = old && new World({ snap: old, ws: {} });
+    if (!w || w.event !== "riftstorm" || !w.bioEv) bad("old-save-event");
+    else {
+      run(w, 7);
+      w.state === "fight" || w.state === "choose" || bad("old-save-state:" + w.state);
+      const snap = w.snapshot(),
+        w2 = new World({ snap, ws: {} });
+      w2.event !== "riftstorm" && bad("resave-event");
+    }
+  }
+  return { ...r, ok: r.ok && fail.length === 0, v250C: { ok: fail.length === 0, fail } };
+};
+
+// 2.5.0 D: biome title card, boss intro card and Codex data. Every biome card names its hazard and
+// its boss; the Codex has one entry per enemy, boss and upgrade, hides unseen ones, reads old saves
+// without Codex keys (defeated bosses, builds in the history and the saved run count as seen) and
+// never throws on broken save data.
+import { rlCodexEntries, rlBiomeCardInfo } from "../ui/ui.js";
+const _rlSelfTest250D = rlSelfTest;
+rlSelfTest = function () {
+  const r = _rlSelfTest250D(),
+    fail = [];
+  try {
+    for (const b of biomeList) {
+      const c = rlBiomeCardInfo(b);
+      if (c.name !== b.name) fail.push("card-name:" + b.id);
+      if (!c.hazard) fail.push("card-hazard:" + b.id);
+      if (!c.boss || c.boss !== (bossDefs[bossByBiome[b.id]] || {}).name) fail.push("card-boss:" + b.id);
+      if (!/^#[0-9a-f]{6}$/.test(c.color)) fail.push("card-color:" + b.id);
+    }
+    const count = (c) => [c.enemies.length, c.bosses.length, c.upgrades.length].join("/"),
+      want = [Object.keys(enemyDefs).length, Object.keys(bossDefs).length, upgradeList.length].join("/"),
+      flat = (c) => [...c.enemies, ...c.bosses, ...c.upgrades];
+    const none = rlCodexEntries({ seen: {} });
+    if (count(none) !== want) fail.push(`codex-count:${count(none)}!=${want}`);
+    if (flat(none).some((e) => e.seen)) fail.push("codex-unseen");
+    const keys = flat(none).map((e) => e.key);
+    if (new Set(keys).size !== keys.length) fail.push("codex-keys");
+    const all = rlCodexEntries({ seen: Object.fromEntries(keys.map((k) => [k, !0])) });
+    for (const e of flat(all)) if (!e.seen || !e.name || !e.desc) fail.push("codex-entry:" + e.key);
+    // an old save: no Codex keys, but a defeated boss, a build in the history and a saved run
+    const old = rlCodexEntries({
+        seen: { tutorial: !0 },
+        stats: { bosses: { warden: 1 } },
+        history: [{ build: [upgradeList[0].id] }],
+        run: { up: { [upgradeList[1].id]: 1 }, offer: [upgradeList[2].id] },
+      }),
+      seenKeys = flat(old)
+        .filter((e) => e.seen)
+        .map((e) => e.key)
+        .sort()
+        .join(),
+      wantKeys = ["boss_warden", ...upgradeList.slice(0, 3).map((u) => "up_" + u.id)].sort().join();
+    if (seenKeys !== wantKeys) fail.push(`codex-old-save:${seenKeys}`);
+    for (const bad of [null, undefined, {}, { seen: null, history: "x", run: 5, stats: { bosses: null } }])
+      rlCodexEntries(bad);
+    for (const m of ["biomeCard", "bossCard", "releaseTitleCard", "clearTitleCard", "renderCodex", "recordsTab", "markSeen"])
+      typeof GameUI.prototype[m] !== "function" && fail.push("ui:" + m);
+  } catch (e) {
+    fail.push("exception:" + (e && e.message));
+  }
+  return { ...r, ok: r.ok && fail.length === 0, v250D: { ok: fail.length === 0, fail } };
+};
 
 export {
   RL_EVENT_KINDS,
@@ -2587,4 +2975,93 @@ export {
   getErrorLog,
   buildReport,
   logError,
+};
+
+/* ==========================================================================
+   2.5.0 B: workshop merge (refund migration) and the three new modules
+   ========================================================================== */
+RL_EVENT_KINDS.add("kit");
+RL_EVENT_KINDS.add("barrier");
+const _rlSelfTest250B = rlSelfTest;
+rlSelfTest = function () {
+  const r = _rlSelfTest250B(),
+    fail = [],
+    ids = workshopModules.map((m) => m.id);
+  for (const id of Object.keys(RL_RETIRED_MODULES)) {
+    if (ids.includes(id) || modulesById[id]) fail.push("retired-listed:" + id);
+    if (!modulesById[RL_RETIRED_MODULES[id].to]) fail.push("retired-target:" + id);
+  }
+  for (const id of ["nova", "fieldSupply", "starterKit", "hazardAttune", "emergencyShield"])
+    modulesById[id] || fail.push("module-missing:" + id);
+  // old save: every bought level of a removed module is refunded at full price, kept modules keep
+  // their levels, over-range levels are capped, the run is left alone; a second pass changes nothing
+  const note = RL_MODULE_NOTE,
+    run = { v: 1, weapon: "pulse", wave: 7, hp: 50 },
+    raw = {
+      shards: 50,
+      workshop: { nova: 2, fieldSupply: 1, hull: 3, riftBattery: 2, reactorCore: 9, routeScanner: 1 },
+      run,
+    },
+    m = rlMigrateModules(raw);
+  const want = 50 + 260 + 540 + (1600 + 3400 + 6200) + 1800;
+  if (
+    m.shards !== want ||
+    m.workshop.nova !== 2 ||
+    m.workshop.fieldSupply !== 1 ||
+    m.workshop.hull !== 3 ||
+    "riftBattery" in m.workshop ||
+    "reactorCore" in m.workshop ||
+    "routeScanner" in m.workshop ||
+    m.run !== run ||
+    raw.workshop.riftBattery !== 2 ||
+    !RL_MODULE_NOTE ||
+    RL_MODULE_NOTE.refund !== want - 50 ||
+    RL_MODULE_NOTE.names.length !== 3
+  )
+    fail.push("migrate:" + JSON.stringify({ m, note: RL_MODULE_NOTE }));
+  set_RL_MODULE_NOTE(null);
+  if (rlMigrateModules(m) !== m || RL_MODULE_NOTE) fail.push("migrate-twice");
+  const zero = rlMigrateModules({ shards: 5, workshop: { routeScanner: 0 } });
+  if (zero.shards !== 5 || "routeScanner" in zero.workshop || RL_MODULE_NOTE) fail.push("migrate-zero");
+  set_RL_MODULE_NOTE(note);
+  // a saved run with the kept Nova Cell level resumes (no kit on resume)
+  const snap = cleanRun({ v: 1, seed: 9, weapon: "pulse", wave: 7, hp: 60, nova: 10, up: { dmg: 1 } }),
+    resumed = snap && new World({ snap, ws: { nova: 2, starterKit: 3 } });
+  if (!resumed || resumed.wave !== 7 || resumed.up.dmg !== 1 || Object.keys(resumed.up).length !== 1)
+    fail.push("resume");
+  // Starter Kit: one distinct common upgrade per level on a new run
+  const kit = new World({ seed: 0x250b, weapon: "pulse", threat: 0, ws: { starterKit: 3 } }),
+    kitIds = Object.keys(kit.up);
+  if (kitIds.length !== 3 || !kitIds.every((id) => upgradesById[id].rarity === 1 && kit.up[id] === 1))
+    fail.push("kit:" + kitIds.join(","));
+  if (Math.round(kit.player.hp) !== Math.round(kit.stats.maxHp)) fail.push("kit-hp");
+  if (Object.keys(new World({ seed: 0x250b, weapon: "pulse", threat: 0, ws: {} }).up).length) fail.push("kit-free");
+  // Hazard Attunement: close to a pool (edge within 2 m) raises damage and repair only while there
+  const at = new World({ seed: 0x250c, weapon: "pulse", threat: 0, ws: { hazardAttune: 2 } });
+  at.startWave(2);
+  at.hold = !0;
+  const d0 = at.stats.dmgMul;
+  at.arena.acid.push({ x: at.player.x + 3.2, y: at.player.y, r: 1.5 });
+  at.step(1 / 60, {});
+  const on = at.attuned;
+  at.arena.acid.pop();
+  at.step(1 / 60, {});
+  if (!on || at.attuned || at.stats.dmgMul !== d0) fail.push("attune");
+  // Emergency Shield: once per wave below 30% hull, blocks damage while up, ready again next wave
+  const es = new World({ seed: 0x250d, weapon: "pulse", threat: 0, ws: { emergencyShield: 1 } }),
+    p = es.player;
+  es.state = "fight";
+  p.iT = 0;
+  p.shield = !1;
+  es.hurtPlayer(p.hp - 20, null, null, "grunt", !0);
+  const healed = p.hp,
+    blocked = es.hurtPlayer(5, null, null, "grunt", !0) === !1;
+  es.barrierT = 0;
+  const hpNow = p.hp;
+  es.hurtPlayer(2, null, null, "grunt", !0);
+  if (healed !== 20 + Math.round(es.stats.maxHp * 0.08) || !blocked || p.hp !== hpNow - 2 || !es.barrierUsed)
+    fail.push("barrier:" + [healed, blocked, hpNow, p.hp]);
+  es.startWave(2);
+  if (es.barrierUsed) fail.push("barrier-wave");
+  return { ...r, ok: r.ok && fail.length === 0, v250B: { ok: fail.length === 0, fail } };
 };

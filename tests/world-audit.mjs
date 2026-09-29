@@ -8,7 +8,7 @@ const r = await page.evaluate(() => {
   const T = window.__riftTest, issues = {}, cnt = {}, add = (k, m) => { (issues[k] ||= []).length < 6 && issues[k].push(m); cnt[k] = (cnt[k] || 0) + 1; };
   const Eu = T.Eu, stats = { waves: 0, spawns: 0, pickups: 0, bosses: 0 };
   for (const seed of [1, 2, 3, 4, 5, 6]) {
-    const w = new T.Aa({ seed, weapon: 'pulse', threat: seed % 6, ws: { fieldSupply: 3, routeScanner: 3 } });
+    const w = new T.Aa({ seed, weapon: 'pulse', threat: seed % 6, ws: { fieldSupply: 3 } });
     const seen = new Set();
     for (let wave = 1; wave <= 40; wave++) {
       if (wave > 1) w.startWave(wave);
@@ -41,8 +41,8 @@ const r = await page.evaluate(() => {
       for (const p of A.portals) for (const [x, y] of [[p.ax, p.ay], [p.bx, p.by]]) if (Eu(A.obs, x, y, 1) || A.outside(x, y, 1)) add('portal-bad', `${b.id} w${wave}`);
       // pickups / caches
       for (const q of w.pickups) { stats.pickups++; if (A.blocked(q.x, q.y, 0.3) || A.outside(q.x, q.y, 0.5)) add('pickup-in-wall', `${b.id} w${wave}`); }
-      // enemy plan: 'from' respected
-      for (const g of w.plan) for (const m of g.members) if (T.Ae[m.type].from > wave) add('enemy-too-early', `${m.type} (from ${T.Ae[m.type].from}) in wave ${wave}`);
+      // enemy plan: 'from' respected (2.5.0 C: a biome's signature enemies from its first wave, World.enemyFrom)
+      for (const g of w.plan) for (const m of g.members) if (w.enemyFrom(m.type, wave) > wave) add('enemy-too-early', `${m.type} (from ${w.enemyFrom(m.type, wave)}) in wave ${wave} ${b.id}`);
       // simulate spawns: run until plan exhausted or 90 s, check marker & enemy positions
       w.god = true; let t = 0;
       const boss = w.bossPending;

@@ -426,4 +426,77 @@ const rlRetired = (id) =>
     ? RL_RETIRED_WEAPONS[id]
     : null;
 
-export { threatMods, RL_RETIRED_WEAPONS, milestones, workshopModules, modulesById, rlRetired, threatLevels };
+/* ==========================================================================
+   2.5.0 B: Workshop — duplicates merged, three modules that are real choices
+   ========================================================================== */
+/* Rift Battery and Reactor Core only added Nova start charge next to Nova Cell, Route Scanner only
+ made the caches of Field Supply richer. They are folded into the module they copied. A save that
+ bought levels of them gets the full price back in shards (rlMigrateModules in save.js); the kept
+ module keeps its own levels. `costs` are the prices the removed module had. */
+var RL_RETIRED_MODULES = {
+  riftBattery: { name: "Rift Battery", costs: [260, 540, 980], to: "nova" },
+  reactorCore: { name: "Reactor Core", costs: [1600, 3400, 6200], to: "nova" },
+  routeScanner: { name: "Route Scanner", costs: [1800, 3800, 6800], to: "fieldSupply" },
+};
+const rlRetiredModule = (id) =>
+  typeof id === "string" && Object.prototype.hasOwnProperty.call(RL_RETIRED_MODULES, id)
+    ? RL_RETIRED_MODULES[id]
+    : null;
+(() => {
+  const mod = (id) => workshopModules.find((a) => a.id === id);
+  // 2.5.0 B: Nova Cell absorbs Rift Battery (+10%/level) and Reactor Core (+5%/level). Four levels
+  // of a 25% floor reach 100%; the three modules together gave at least 95%. The first two levels
+  // keep their effect and price.
+  Object.assign(mod("nova"), {
+    desc: "Every wave starts with at least 25% Nova charge per level",
+    costs: [120, 260, 2400, 5200],
+  });
+  // 2.5.0 B: Field Supply absorbs Route Scanner: more caches AND richer caches (priced like the
+  // more expensive of the two; it took Route Scanner's map icon).
+  Object.assign(mod("fieldSupply"), {
+    icon: "map",
+    desc: "+1 supply cache per wave and +50% cache shards per level (not in boss waves)",
+    costs: [1800, 3800, 6800],
+  });
+  for (let i = workshopModules.length - 1; i >= 0; i--)
+    rlRetiredModule(workshopModules[i].id) && workshopModules.splice(i, 1);
+  workshopModules.push(
+    // a head start instead of a stat: common upgrades on every new run (world.js)
+    {
+      id: "starterKit",
+      name: "Starter Kit",
+      icon: "wrench",
+      desc: "Start every run with 1 random common upgrade per level",
+      costs: [700, 1600, 3200],
+    },
+    // pays off only close to the biome's hazard (vents, ice, acid, portals); Neon Yard has none
+    {
+      id: "hazardAttune",
+      name: "Hazard Attunement",
+      icon: "flame",
+      desc: "Near a map hazard (2 m): +10% damage and +0.5 HP/s repair per level",
+      costs: [1100, 2400, 4600],
+    },
+    // once per wave (Second Life is once per run) and before the hull is gone
+    {
+      id: "emergencyShield",
+      name: "Emergency Shield",
+      icon: "shield",
+      desc: "Once per wave below 30% hull: 1 s damage barrier and 8% repair per level",
+      costs: [900, 2200],
+    },
+  );
+  modulesById = Object.fromEntries(workshopModules.map((i) => [i.id, i]));
+})();
+
+export {
+  threatMods,
+  RL_RETIRED_WEAPONS,
+  RL_RETIRED_MODULES,
+  milestones,
+  workshopModules,
+  modulesById,
+  rlRetired,
+  rlRetiredModule,
+  threatLevels,
+};

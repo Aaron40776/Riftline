@@ -1303,6 +1303,71 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
   html,body,#app{overscroll-behavior:none;}
   .screen button,.screen .btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
 </style>
+<style>
+/* 2.5.0 D: biome title card, boss intro card (#titleCard, filled by ui.js) and the Codex tab in
+   Records. The cards take no input and fade out on their own. */
+#titleCard { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.tcard { position: absolute; left: 0; right: 0; }
+.tcard .tc-eye { font: 600 12px/1 var(--display); letter-spacing: 0.3em; text-transform: uppercase; color: var(--bc); }
+.tcard .tc-name { font: 700 clamp(30px, 8vw, 56px)/1.02 var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: #fff; text-shadow: 0 0 26px color-mix(in srgb, var(--bc) 70%, transparent); animation: tcName 0.7s ease-out both; }
+.tcard.biome { top: 24%; }
+.tc-band { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px calc(var(--sr) + 16px) 16px calc(var(--sl) + 16px); text-align: center; background: linear-gradient(90deg, transparent, rgba(5, 7, 13, 0.82) 18%, rgba(5, 7, 13, 0.82) 82%, transparent); }
+.tc-band::before, .tc-band::after { content: ''; position: absolute; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--bc) 25%, var(--bc) 75%, transparent); animation: tcLine 0.8s ease-out both; }
+.tc-band::before { top: 0; } .tc-band::after { bottom: 0; }
+.tc-haz { font: 600 16px/1.25 var(--body); letter-spacing: 0.03em; color: var(--text); text-wrap: balance; }
+.tc-boss { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; font: 700 12px/1 var(--display); letter-spacing: 0.16em; color: #ffd0dc; background: rgba(255, 61, 127, 0.12); border: 1px solid rgba(255, 90, 130, 0.45); clip-path: var(--notch); --n: 6px; }
+.tc-boss span { font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: #ff8aa6; }
+.tcard.boss { bottom: 15%; display: flex; justify-content: center; padding: 0 calc(var(--sr) + 16px) 0 calc(var(--sl) + 16px); }
+.tc-panel { position: relative; width: min(580px, 100%); padding: 14px 20px 16px 26px; background: rgba(9, 14, 26, 0.88); border: 1px solid color-mix(in srgb, var(--bc) 55%, transparent); clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px); box-shadow: inset 0 0 44px color-mix(in srgb, var(--bc) 16%, transparent); }
+.tc-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--bc); box-shadow: 0 0 18px var(--bc); transform-origin: top; animation: tcBar 0.45s ease-out both; }
+.tcard.boss .tc-name { margin-top: 8px; font-size: clamp(34px, 9vw, 64px); letter-spacing: 0.1em; text-shadow: 0 0 30px var(--bc); overflow-wrap: anywhere; }
+.tc-line { display: block; height: 2px; margin: 10px 0 8px; background: linear-gradient(90deg, var(--bc), transparent); transform-origin: left; animation: tcLine 0.9s 0.15s ease-out both; }
+.tc-title { font: 600 14px/1.2 var(--display); letter-spacing: 0.24em; text-transform: uppercase; color: var(--dim); }
+.tcard.hold { animation: tcShow 0.3s ease-out both; }
+.tcard.out { animation: tcHide 0.5s ease-in forwards; }
+@keyframes tcShow { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes tcHide { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
+@keyframes tcName { from { opacity: 0; letter-spacing: 0.4em; } to { opacity: 1; } }
+@keyframes tcLine { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes tcBar { from { transform: scaleY(0); } to { transform: none; } }
+body.device-phone.is-portrait .tcard.biome { top: max(21%, calc(var(--st) + 146px)); } /* below the tutorial card */
+/* portrait phones: under DASH/NOVA, the boss itself is in the middle of the screen */
+body.device-phone.is-portrait .tcard.boss { bottom: calc(var(--sb) + 14px); }
+body.device-phone.is-portrait .tc-panel { padding: 10px 14px 12px 20px; }
+body.device-phone.is-portrait .tcard.boss .tc-name { margin-top: 6px; font-size: clamp(30px, 9vw, 44px); }
+body.device-phone.is-portrait .tc-line { margin: 8px 0 6px; }
+body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em; }
+@media (orientation: landscape) and (max-height: 560px) {
+  .tcard.biome { top: 30%; }
+  .tc-band { gap: 5px; padding-block: 9px 10px; }
+  .tcard .tc-name { font-size: clamp(26px, 9vh, 42px); }
+  .tc-haz { font-size: 14px; }
+  .tcard.boss { bottom: 7%; padding-inline: 130px; }
+  .tc-panel { width: min(520px, 100%); padding: 10px 16px 11px 22px; }
+  .tcard.boss .tc-name { margin-top: 6px; font-size: clamp(26px, 10vh, 44px); }
+  .tc-line { margin: 7px 0 6px; }
+  .tc-title { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tcard .tc-name, .tc-band::before, .tc-band::after, .tc-accent, .tc-line { animation: none; }
+}
+/* Codex */
+.rec-tabs { width: min(360px, 100%); align-self: center; }
+.rec-tabs button { flex: 1 1 0; }
+.codex > .section-h:first-of-type { margin-top: 6px; }
+.cx-intro { margin: 2px 0 0; font-size: 14px; }
+.cx-intro b { color: var(--cyan); font-weight: 700; }
+.cx-count { margin-left: 6px; letter-spacing: 0.08em; color: var(--cyan); }
+.codex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 8px; }
+.row.cx .rico { color: var(--cc, var(--cyan)); background: color-mix(in srgb, var(--cc, var(--cyan)) 12%, transparent); }
+.row.cx.r1 { --cc: var(--r1); } .row.cx.r2 { --cc: var(--r2); } .row.cx.r3 { --cc: var(--r3); } .row.cx.r4 { --cc: var(--r4); } .row.cx.r5 { --cc: #ffffff; }
+.row.cx .chip { padding: 2px 6px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cc, var(--text)); }
+.row.cx small { font-size: 13.5px; }
+.row.cx small.cx-extra { font-size: 12px; color: var(--mute); }
+.row.cx.unseen { opacity: 0.55; }
+.row.cx.unseen .rico { color: var(--mute); background: rgba(255, 255, 255, 0.04); }
+.row.cx.unseen b { letter-spacing: 0.24em; color: var(--dim); }
+</style>
 </head>
 <body>
 <div id="app">

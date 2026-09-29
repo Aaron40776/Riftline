@@ -8,7 +8,7 @@ import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/bi
 import { weaponDefs } from "../data/weapons.js";
 import { waveEvents, EVENT_CHANCE, planWave, rollUpgradeOffer, set_RL_BIOME_MIX_CUR } from "./waves.js";
 import { threatMods } from "../data/progression.js";
-import { upgradesById } from "../data/upgrades.js";
+import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash } from "./arena.js";
 import { computeStats } from "./stats.js";
 
@@ -1776,8 +1776,6 @@ World.prototype.killEnemy = function (enemy) {
   const before = this.kills;
   _rlKillEnemy.call(this, enemy);
   if (enemy?.boss || this.kills <= before || !this.player.alive) return;
-  if (this.stats.leech && this.rng.chance(Math.min(0.24, 0.08 * this.stats.leech)))
-    this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 2);
   if (enemy.type === "carrier" && this.state === "fight" && this.rng.chance(0.55)) {
     const v = rlCacheShards(this, 5 + 3 * (this.stats.cacheBonus || 0)),
       q = this.mkPickup("shard", enemy.x, enemy.y, v);
@@ -1885,8 +1883,7 @@ World.prototype.startWave = function (wave, nova) {
 };
 (() => {
   const baseStep = World.prototype.step,
-    baseHurt = World.prototype.hurtPlayer,
-    baseKill = World.prototype.killEnemy;
+    baseHurt = World.prototype.hurtPlayer;
   World.prototype.step = function (dt, input) {
     const st = this.stats,
       base = st.rateMul || 1;
@@ -1912,18 +1909,410 @@ World.prototype.startWave = function (wave, nova) {
       chip,
     );
   };
-  World.prototype.killEnemy = function (enemy) {
-    const before = this.kills;
-    const out = baseKill.call(this, enemy);
-    const lv = this.stats.scavenger || 0,
-      every = Math.max(5, 30 - 5 * lv);
-    if (lv > 0 && !enemy?.boss && !enemy?.noDrop && this.kills > before && this.kills % every === 0) {
-      const amount = 2 * lv;
-      this.dropShards(this.player.x, this.player.y, amount);
-      this.emit("salvagePulse", { x: this.player.x, y: this.player.y, amount });
+})();
+
+// 2.5.0 A: the six new run upgrades (levels from computeStats: skates, acidCoat, heatSink, slip,
+// surge, reactive). Each hook does nothing without its upgrade.
+const RL_SLIP_TIME = 1.2,
+  RL_HEAT_TIME = 3,
+  RL_COAT_MAX = 6;
+(() => {
+  const baseStep = World.prototype.step,
+    baseFire = World.prototype.fire,
+    baseHurt = World.prototype.hurtPlayer,
+    baseHit = World.prototype.bulletHit,
+    baseCombo = World.prototype.addCombo,
+    baseFeatures = World.prototype.updateFeatures;
+  World.prototype.step = function (dt, input) {
+    const st = this.stats,
+      p = this.player;
+    if (!(st.skates || st.heatSink || st.slip)) return baseStep.call(this, dt, input);
+    const fight = this.state === "fight" && p.alive,
+      // Cryo Skates: on ice or anywhere in Cryo Vault (onIce is from the last frame)
+      skating = st.skates > 0 && fight && (p.onIce || this.arena.biome.id === "vault"),
+      speed = st.speed,
+      rate = st.rateMul,
+      dashId = p.dashId;
+    // Heat Sink: an erupting vent within 2.5 m of its edge keeps the heat up and charges Nova
+    if (st.heatSink && fight)
+      for (const v of this.arena.vents)
+        if (v.st === "erupt" && Math.hypot(p.x - v.x, p.y - v.y) < v.r + 2.5) {
+          p.heatT = RL_HEAT_TIME;
+          this.addNova(10 * st.heatSink * dt);
+          break;
+        }
+    p.skating = skating;
+    if (skating) st.speed = speed * (1 + 0.15 * st.skates);
+    if (p.heatT > 0) st.rateMul = rate * (1 + 0.25 * st.heatSink);
+    try {
+      return baseStep.call(this, dt, input);
+    } finally {
+      st.speed = speed;
+      st.rateMul = rate;
+      if (skating && p.dashCdT > 0) p.dashCdT = Math.max(0, p.dashCdT - 0.35 * st.skates * dt);
+      if (p.heatT > 0) p.heatT = Math.max(0, p.heatT - dt);
+      if (p.slipT > 0) p.slipT = Math.max(0, p.slipT - dt);
+      // Slipstream: a new dash primes the shots for the dash itself plus RL_SLIP_TIME
+      if (st.slip && p.dashId !== dashId) p.slipT = RL_SLIP_TIME + 0.17;
+    }
+  };
+  World.prototype.fire = function (angle) {
+    const st = this.stats,
+      boost = st.slip > 0 && this.player.slipT > 0;
+    if (!boost) return baseFire.call(this, angle);
+    const dmg = st.dmgMul;
+    st.dmgMul = dmg * (1 + 0.25 * st.slip);
+    try {
+      return baseFire.call(this, angle);
+    } finally {
+      st.dmgMul = dmg;
+    }
+  };
+  World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
+    const hit = baseHurt.call(this, dmg, x, y, src, chip),
+      st = this.stats,
+      p = this.player;
+    if (!hit || !p.alive) return hit;
+    // Heat Sink: lava and acid damage (after Hazmat) heat the drone up
+    if (st.heatSink && (src === "lava" || src === "acid")) {
+      p.heatT = RL_HEAT_TIME;
+      this.addNova(3 * st.heatSink);
+    }
+    // Reactive Plating: a real hit (not a hazard tick) pushes everything nearby away
+    if (st.reactive && !chip && !this._rlReacting) {
+      const r = 3 + 0.6 * (st.reactive - 1);
+      this._rlReacting = true;
+      try {
+        this.explode(p.x, p.y, r, (20 + 15 * (st.reactive - 1)) * st.dmgMul, {
+          enemies: true,
+          knock: 10,
+          kind: "reactive",
+        });
+      } finally {
+        this._rlReacting = false;
+      }
+      for (const b of this.eb)
+        if (b.life > 0 && Math.hypot(b.x - p.x, b.y - p.y) < r * 1.2) {
+          b.life = 0;
+          this.emit("pop", { x: b.x, y: b.y });
+        }
+    }
+    return hit;
+  };
+  World.prototype.bulletHit = function (bullet, enemy) {
+    const out = baseHit.call(this, bullet, enemy),
+      st = this.stats;
+    // Acid Coating: a puddle under the enemy (at most one per enemy every 1.2 s, flames less often)
+    if (
+      st.acidCoat > 0 &&
+      this.state === "fight" &&
+      !enemy.boss &&
+      !enemy.shielded &&
+      !enemy.ghost &&
+      this.time - (enemy.coatAt ?? -9) > 1.2 &&
+      this.rng.chance(0.15 * st.acidCoat * (bullet.drag ? 0.3 : 1))
+    ) {
+      enemy.coatAt = this.time;
+      const acid = this.arena.acid,
+        mine = acid.filter((q) => q.mine);
+      if (mine.length >= RL_COAT_MAX) acid.splice(acid.indexOf(mine[0]), 1);
+      const marsh = this.arena.biome.id === "marsh";
+      acid.push({ x: enemy.x, y: enemy.y, r: marsh ? 1.5 : 1.1, life: marsh ? 4 : 3, mine: true });
+    }
+    return out;
+  };
+  // The player's own acid never hurts the player: those puddles leave the list while the base
+  // update checks the player, then only mark enemies (corrode = +25% damage taken).
+  World.prototype.updateFeatures = function (dt) {
+    if (!this.stats.acidCoat) return baseFeatures.call(this, dt);
+    const all = this.arena.acid,
+      mine = all.filter((q) => q.mine);
+    this.arena.acid = all.filter((q) => !q.mine);
+    const natural = this.arena.acid.length > 0;
+    let live = mine;
+    try {
+      baseFeatures.call(this, dt);
+    } finally {
+      for (const q of mine) q.life -= dt;
+      live = mine.filter((q) => q.life > 0);
+      this.arena.acid.push(...live);
+    }
+    for (const e of this.enemies)
+      e.corrode =
+        (natural && !!e.corrode) || (!e.boss && live.some((q) => (e.x - q.x) ** 2 + (e.y - q.y) ** 2 < q.r * q.r));
+  };
+  // Combo Surge: longer combos, and every 15th (12th) combo kill sends out a shockwave
+  World.prototype.addCombo = function () {
+    const out = baseCombo.call(this),
+      lv = this.stats.surge || 0;
+    if (!lv) return out;
+    this.comboT += 0.5 * lv;
+    const every = lv > 1 ? 12 : 15,
+      p = this.player;
+    if (this.combo % every === 0 && p.alive && this.state === "fight" && !this._rlSurging) {
+      this._rlSurging = true;
+      try {
+        this.explode(p.x, p.y, lv > 1 ? 4 : 3.5, (lv > 1 ? 60 : 40) * this.stats.dmgMul, {
+          enemies: true,
+          knock: 8,
+          kind: "surge",
+        });
+      } finally {
+        this._rlSurging = false;
+      }
+      this.emit("surge", { x: p.x, y: p.y, n: this.combo });
     }
     return out;
   };
 })();
+
+/* ==========================================================================
+   2.5.0 B: new workshop modules (Starter Kit, Hazard Attunement, Emergency Shield)
+   ========================================================================== */
+/* Starter Kit: the common upgrades a new run starts with. Seeded by the run, so a run and its
+ replay get the same kit; one pick per module level, never the same upgrade twice. */
+function rlStarterKit(w, n) {
+  const rng = makeRng(hashString(w.seed + ":kit")),
+    pool = upgradeList.filter(
+      (u) => u.rarity === 1 && !u.evo && !u.repeat && u.id !== "heal" && (!u.weapon || u.weapon === w.weapon),
+    ),
+    out = [];
+  for (let i = 0; i < n && pool.length; i++) out.push(pool.splice(Math.floor(rng.next() * pool.length), 1)[0].id);
+  return out;
+}
+/* Hazard Attunement: close = within 2 m of the edge of a vent, ice sheet or acid pool, or of a
+ portal mouth. Boss-attack zones (this.hazards) do not count. */
+const RL_ATTUNE_RANGE = 2;
+function rlNearHazard(w) {
+  const a = w.arena,
+    p = w.player;
+  if (!a || !p.alive) return !1;
+  for (const list of [a.vents, a.ice, a.acid])
+    for (const h of list || [])
+      // 2.5.0: the player's own Acid Coating puddles (mine) are not a map hazard
+      if (!h.mine && Math.hypot(p.x - h.x, p.y - h.y) - (h.r || 0) < RL_ATTUNE_RANGE) return !0;
+  for (const q of a.portals || [])
+    if (
+      Math.hypot(p.x - q.ax, p.y - q.ay) < RL_ATTUNE_RANGE + 0.8 ||
+      Math.hypot(p.x - q.bx, p.y - q.by) < RL_ATTUNE_RANGE + 0.8
+    )
+      return !0;
+  return !1;
+}
+(() => {
+  const baseStartWave = World.prototype.startWave,
+    baseStep = World.prototype.step,
+    baseHurt = World.prototype.hurtPlayer;
+  World.prototype.startWave = function (wave, nova) {
+    // a fresh run (not a resumed one: that passes its saved Nova charge) gets its kit before the
+    // first wave is set up, so shield or HP upgrades from the kit count from the start
+    const kit = (this.ws.starterKit || 0) | 0;
+    let given = null;
+    if (kit > 0 && wave === 1 && nova == null && !this.kitGiven && !Object.keys(this.up).length) {
+      given = rlStarterKit(this, Math.min(3, kit));
+      for (const id of given) this.up[id] = (this.up[id] || 0) + 1;
+      this.stats = computeStats(this.weapon, this.up, this.ws);
+      this.player.hp = this.stats.maxHp;
+    }
+    this.kitGiven = !0;
+    // Emergency Shield is ready again in every wave
+    this.barrierUsed = !1;
+    this.barrierT = 0;
+    this.barrierOwnShield = !1;
+    this.attuned = !1;
+    const r = baseStartWave.call(this, wave, nova);
+    given && given.length && this.emit("kit", { ids: given });
+    return r;
+  };
+  World.prototype.step = function (dt, input) {
+    const st = this.stats,
+      p = this.player;
+    if (this.barrierT > 0) {
+      this.barrierT -= dt;
+      if (this.barrierT <= 0) {
+        this.barrierT = 0;
+        // the bubble was only shown for the barrier; a shield from the Energy Shield upgrade stays
+        this.barrierOwnShield && ((p.shield = !1), (p.shieldT = 0));
+        this.barrierOwnShield = !1;
+      }
+    }
+    this.attuned = st.attuneDmg > 0 && this.state === "fight" && rlNearHazard(this);
+    if (!this.attuned) return baseStep.call(this, dt, input);
+    const dmg = st.dmgMul,
+      regen = st.regen;
+    st.dmgMul = dmg * (1 + st.attuneDmg);
+    st.regen = (regen || 0) + st.attuneRegen;
+    try {
+      return baseStep.call(this, dt, input);
+    } finally {
+      st.dmgMul = dmg;
+      st.regen = regen;
+    }
+  };
+  World.prototype.hurtPlayer = function (dmg, x, y, src, chip) {
+    if (this.barrierT > 0 && this.player.alive && this.state === "fight") return !1;
+    const out = baseHurt.call(this, dmg, x, y, src, chip),
+      p = this.player,
+      st = this.stats;
+    if (
+      out &&
+      st.barrierT > 0 &&
+      !this.barrierUsed &&
+      p.alive &&
+      this.state === "fight" &&
+      p.hp > 0 &&
+      p.hp < st.maxHp * 0.3
+    ) {
+      this.barrierUsed = !0;
+      this.barrierT = st.barrierT;
+      p.hp = Math.min(st.maxHp, p.hp + Math.round(st.maxHp * st.barrierHeal));
+      this.barrierOwnShield = !p.shield;
+      p.shield = !0;
+      this.emit("barrier", { x: p.x, y: p.y, t: st.barrierT });
+      this.emit("heal", { x: p.x, y: p.y });
+    }
+    return out;
+  };
+})();
+// ---- 2.5.0 C: biome events. Every visit of a hazard biome brings its event in one of waves 2–4
+// of the visit (never a boss wave, never right next to an Elite Surge or Shard Rain):
+//   Ember Works  Meltdown     three extra vents, all vents erupt together every 3.4 s
+//   Cryo Vault   Whiteout     three extra ice sheets; the renderer thickens the fog (snow storm)
+//   Toxin Marsh  Spore Bloom  the pools grow by up to 40% over the wave, a new one sprouts every 7 s
+//   Void Core    Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
+// Extra and moved hazards follow the fairness rules of the wave hazards (arena.js) and keep off
+// the player. The signature enemies of a biome can spawn from its first wave (waves.js).
+import { RL_BIOME_EVENT, rlBiomeStart, rlEnemyFrom } from "./waves.js";
+import { rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
+const RL_MELTDOWN_PERIOD = 3.4,
+  RL_BLOOM_GROW = 1.4,
+  RL_BLOOM_GROW_T = 35,
+  RL_BLOOM_EVERY = 7,
+  RL_STORM_EVERY = 6,
+  RL_STORM_WARN = 1.6;
+// the wave of the current biome visit that gets its biome event (0: none)
+World.prototype.biomeEventWave = function (wave) {
+  const id = RL_BIOME_EVENT[this.biomeFor(wave).id];
+  if (!id) return 0;
+  const start = rlBiomeStart(wave),
+    at = start + 1 + Math.floor(makeRng(hashString(this.seed + ":biome-event:" + start)).next() * 3);
+  return this.bossFor(at) ? 0 : at;
+};
+// the wave from which an enemy type can spawn in this run's biome at `wave`
+World.prototype.enemyFrom = function (type, wave) {
+  return rlEnemyFrom(type, this.biomeFor(wave).id, wave);
+};
+const _rlEventFor250 = World.prototype.eventFor;
+World.prototype.eventFor = function (wave) {
+  const at = this.biomeEventWave(wave);
+  if (at && at === wave) return RL_BIOME_EVENT[this.biomeFor(wave).id];
+  if (at && Math.abs(at - wave) === 1) return null;
+  return _rlEventFor250.call(this, wave);
+};
+const _rlStartWave250 = World.prototype.startWave;
+World.prototype.startWave = function (wave, nova) {
+  // an arena changed by a biome event is never reused (startWave of the same wave again)
+  this.arena && this.arena.rlEvent && (this.arena.key += ":used");
+  this.bioEv = null;
+  const out = _rlStartWave250.call(this, wave, nova),
+    ev = this.event && waveEvents[this.event];
+  ev && ev.biome && ev.biome === this.arena.biome.id && !this.bossPending && this.startBiomeEvent(this.event, wave);
+  return out;
+};
+World.prototype.startBiomeEvent = function (id, wave) {
+  const A = this.arena,
+    p = this.player,
+    rng = makeRng(hashString(this.seed + ":biome-event:" + id + ":" + wave)),
+    avoid = [{ x: p.x, y: p.y, r: 3.5 }],
+    // the extra sheets of a Whiteout are smaller, so they still fit between the wave's big ones
+    add = (kind, n, size) => {
+      for (let k = 0; k < n * 3 && n > 0; k++)
+        rlAddHazard250(A, kind, rng, A.obs, A.W, A.H, { avoid, cap: 9, size, tries: 60 }) && n--;
+    };
+  A.rlEvent = id;
+  if (id === "meltdown") {
+    add("vents", 3);
+    // all vents in step: idle at the start, the first warning 0.7 s into the wave, then every 3.4 s
+    const P = RL_MELTDOWN_PERIOD,
+      phase = 0;
+    for (const q of A.vents) ((q.period = P), (q.phase = phase), (q.st = "idle"));
+  } else if (id === "whiteout") add("ice", 3, [1.7, 2.5]);
+  else if (id === "bloom") {
+    for (const q of A.acid)
+      q.life == null &&
+        (q.grow = { r0: q.r, to: rlHazardRoom250(A, q, q.r * RL_BLOOM_GROW), t0: 0, dur: RL_BLOOM_GROW_T });
+    this.bioEv = { id, t: 0, next: RL_BLOOM_EVERY, n: 0, rng };
+  } else if (id === "riftstorm") this.bioEv = { id, t: 0, next: RL_STORM_EVERY, rng };
+};
+World.prototype.tickBiomeEvent = function (ev, dt) {
+  const A = this.arena,
+    p = this.player;
+  ev.t += dt;
+  if (ev.id === "bloom") {
+    for (const q of A.acid)
+      q.grow && (q.r = q.grow.r0 + (q.grow.to - q.grow.r0) * clamp((ev.t - q.grow.t0) / q.grow.dur, 0, 1));
+    if (ev.t >= ev.next && ev.n < 4) {
+      ev.next += RL_BLOOM_EVERY;
+      // not on the player, not on an enemy about to spawn
+      const avoid = [{ x: p.x, y: p.y, r: 4 }, ...this.markers.map((m) => ({ x: m.x, y: m.y, r: 1.2 }))],
+        q = rlAddHazard250(A, "acid", ev.rng, A.obs, A.W, A.H, { avoid, cap: 10, size: [1.6, 2.3], tries: 90 });
+      if (q) {
+        ev.n++;
+        q.grow = { r0: 0.3, to: q.r, t0: ev.t, dur: 2.5 };
+        q.r = 0.3;
+        this.emit("hatch", { x: q.x, y: q.y, big: !0 });
+      }
+    }
+  } else if (ev.id === "riftstorm" && A.portals.length) {
+    if (!ev.planned && ev.t >= ev.next - RL_STORM_WARN) {
+      ev.planned = !0;
+      const next = { portals: [] };
+      for (const q of A.portals) {
+        const avoid = [
+            { x: p.x, y: p.y, r: 3.5 },
+            { x: q.ax, y: q.ay, r: 3 },
+            { x: q.bx, y: q.by, r: 3 },
+          ],
+          pair = rlPortalPair250(ev.rng, A.obs, A.W, A.H, next, { avoid });
+        q.next = pair;
+        pair && (next.portals.push(pair), this.emit("blinkWarn", { x: pair.ax, y: pair.ay }));
+      }
+    }
+    for (const q of A.portals) q.next && (q.moveIn = Math.max(0, ev.next - ev.t));
+    if (ev.t >= ev.next) {
+      ev.next += RL_STORM_EVERY;
+      ev.planned = !1;
+      for (const q of A.portals) {
+        const n = q.next;
+        if (!n) continue;
+        // the new spots must still be clear of the player (it may have walked there)
+        if (Math.hypot(p.x - n.ax, p.y - n.ay) > 1.6 && Math.hypot(p.x - n.bx, p.y - n.by) > 1.6) {
+          this.emit("blink", { x: q.ax, y: q.ay, small: !0, phase: !0 });
+          ((q.ax = n.ax), (q.ay = n.ay), (q.bx = n.bx), (q.by = n.by));
+          this.emit("blink", { x: q.ax, y: q.ay, small: !0, phase: !0 });
+          this.emit("blink", { x: q.bx, y: q.by, small: !0, phase: !0 });
+        }
+        q.next = null;
+        q.moveIn = 0;
+      }
+    }
+  }
+};
+const _rlUpdateFeatures250 = World.prototype.updateFeatures;
+World.prototype.updateFeatures = function (dt) {
+  if (this.bioEv && this.state === "fight") {
+    // 2.5.0: the player's Acid Coating puddles (mine) are not map pools: Spore Bloom neither grows
+    // them nor counts them when it looks for room or checks its pool cap
+    const all = this.arena.acid,
+      mine = all.filter((q) => q.mine);
+    if (mine.length) this.arena.acid = all.filter((q) => !q.mine);
+    try {
+      this.tickBiomeEvent(this.bioEv, dt);
+    } finally {
+      if (mine.length) this.arena.acid.push(...mine);
+    }
+  }
+  return _rlUpdateFeatures250.call(this, dt);
+};
 
 export { World, rlStep };

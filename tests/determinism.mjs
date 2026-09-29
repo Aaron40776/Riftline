@@ -211,8 +211,8 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
   const stats = () => {
     const ids = D.Zi.map((u) => u.id), maxOf = Object.fromEntries(D.Zi.map((u) => [u.id, u.max || 1]));
     const upSets = [{}, Object.fromEntries(ids.map((id) => [id, maxOf[id]])),
-      { caliber: 3, glasscore: 2, focus: 2, resonance: 1, fortify: 2, kinetic: 2, deadeye: 1, thruster: 1 },
-      { coolant: 5, afterburner: 5, hazmat: 3, phasecoat: 3, stabilizer: 2, echo: 1, leech: 1 }];
+      { dmg: 3, glasscore: 2, crit: 2, resonance: 1, hp: 2, speed: 1, skates: 1, reactive: 1 },
+      { vector: 6, hazmat: 4, velocity: 2, echo: 1, siphon: 1, overcharge: 4, heatsink: 2, slipstream: 1 }];
     for (const id of ids) upSets.push({ [id]: 1 });
     const wsSets = [{}, wsOf(WS_MID), wsOf('max')];
     const out = {};

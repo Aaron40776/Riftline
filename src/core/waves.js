@@ -3,6 +3,7 @@
 import { enemyDefs, enemyOrder } from "../data/enemies.js";
 import { clamp, weightedPick } from "./util.js";
 import { rarityWeights, bossRarityWeights, upgradeList } from "../data/upgrades.js";
+import { RL_BIOME_INFO } from "../data/biomes.js";
 
 var waveEvents = {
   elite: {
@@ -161,3 +162,77 @@ planWave = function (rng, wave, tm, boss, plan = {}) {
 };
 
 export { waveEvents, spawnWeights, EVENT_CHANCE, planWave, heavyEnemies, rollUpgradeOffer, set_RL_BIOME_MIX_CUR };
+
+// ---- 2.5.0 C: biome events and signature enemies ----
+// One event per hazard biome, on top of Elite Surge and Shard Rain. World.eventFor gives every
+// visit of a hazard biome one of them (wave 2–4 of the visit, never a boss wave); `biome` says
+// where it may happen. What they do is in world.js (and the renderer for the Whiteout fog).
+Object.assign(waveEvents, {
+  meltdown: {
+    id: "meltdown",
+    name: "MELTDOWN",
+    desc: "More vents, all erupting at once · shards +25%",
+    shardMul: 1.25,
+    biome: "works",
+    plan: {},
+  },
+  whiteout: {
+    id: "whiteout",
+    name: "WHITEOUT",
+    desc: "Snow storm: low sight, more ice · shards +25%",
+    shardMul: 1.25,
+    biome: "vault",
+    plan: {},
+  },
+  bloom: {
+    id: "bloom",
+    name: "SPORE BLOOM",
+    desc: "Acid pools grow and spread · shards +25%",
+    shardMul: 1.25,
+    biome: "marsh",
+    plan: {},
+  },
+  riftstorm: {
+    id: "riftstorm",
+    name: "RIFT STORM",
+    desc: "Portals jump every few seconds · shards +25%",
+    shardMul: 1.25,
+    biome: "void",
+    plan: {},
+  },
+});
+var RL_BIOME_EVENT = { works: "meltdown", vault: "whiteout", marsh: "bloom", void: "riftstorm" };
+// Signature enemies: the enemies a biome's mix favours (weight >= 1) can spawn in that biome from
+// its first wave (before, Void Core's phantom came from wave 20 and weaver from 28 although Void
+// Core is waves 16–20). Enemies pulled forward this way spawn at half their weight until their
+// own wave, so they show up without flooding the wave. Neon Yard has no mix and is unchanged.
+const RL_EARLY_WEIGHT_250 = 0.5;
+function rlBiomeStart(wave) {
+  return Math.floor((Math.max(1, wave) - 1) / 5) * 5 + 1;
+}
+// the wave from which `type` can spawn in `biome` (id) at `wave`
+function rlEnemyFrom(type, biome, wave) {
+  const def = enemyDefs[type];
+  if (!def) return 99;
+  const mix = RL_BIOME_INFO[biome]?.mix;
+  return mix && mix[type] >= 1 ? Math.min(def.from, rlBiomeStart(wave)) : def.from;
+}
+const _rlPlan250 = planWave;
+planWave = function (rng, wave, tm, boss, plan = {}) {
+  const mix = RL_BIOME_MIX_CUR;
+  if (!mix) return _rlPlan250(rng, wave, tm, boss, plan);
+  const start = rlBiomeStart(wave),
+    early = Object.keys(mix).filter((id) => mix[id] >= 1 && enemyDefs[id] && enemyDefs[id].from > wave);
+  if (!early.length) return _rlPlan250(rng, wave, tm, boss, plan);
+  const saved = early.map((id) => enemyDefs[id].from),
+    weights = { ...(plan.weights || {}) };
+  for (const id of early) weights[id] = (weights[id] || 1) * RL_EARLY_WEIGHT_250;
+  try {
+    for (const id of early) enemyDefs[id].from = start;
+    return _rlPlan250(rng, wave, tm, boss, { ...plan, weights });
+  } finally {
+    early.forEach((id, k) => (enemyDefs[id].from = saved[k]));
+  }
+};
+
+export { RL_BIOME_EVENT, rlEnemyFrom, rlBiomeStart };

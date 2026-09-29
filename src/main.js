@@ -49,6 +49,9 @@ import {
   set_RL_RETIRE_NOTE,
   cleanRun,
   newSave,
+  RL_MODULE_NOTE,
+  set_RL_MODULE_NOTE,
+  rlMigrateModules,
 } from "./core/save.js";
 import { RL_MESH_TYPES } from "./render/models.js";
 import {
@@ -111,12 +114,9 @@ function rlApplyDataFixes() {
   // Drone Bay only works together with the Wingman upgrade. (Field Supply and Route Scanner
   // had the same effect until 2.3.5; their texts now live with their data.)
   const mod = (id) => workshopModules.find((a) => a.id === id);
-  mod("nova").desc = "Every wave starts with at least 25% Nova charge per level"; // floor, not additive
   mod("droneBay").desc = "+1 Wingman slot per level (needs the Wingman upgrade)";
-  // 2.3.4: both add their charge once per level (10 / 5 per level); the text sounded like a flat bonus.
-  mod("riftBattery").desc = "Start each wave with +10% Nova charge per level";
-  mod("reactorCore").desc = "Start each wave with +5% Nova charge per level";
-  // Route Scanner referenced a "map" icon that did not exist (fell back to "info").
+  // 2.5.0 B: Nova Cell's text lives with its data; Rift Battery and Reactor Core were merged into it.
+  // Route Scanner referenced a "map" icon that did not exist (fell back to "info"); Field Supply uses it now.
   iconPaths.map = '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>';
   rlApplyBiomeFixes();
 }
@@ -730,9 +730,6 @@ function handleWorldEvents(i) {
         break;
       case "combo":
         ui.comboPop(t.n, t.bonus);
-        break;
-      case "salvagePulse":
-        ui.toast(`SALVAGE PULSE · +${t.amount} shards`, "good", 1800);
         break;
       case "bountyPulse":
         ui.toast(`BOUNTY · +${t.amount} shards`, "good", 1500);
@@ -1454,5 +1451,88 @@ window.__riftTest = {
     };
   },
 };
+
+/* ==========================================================================
+   2.5.0 B: workshop merge notice and the events of the new modules
+   ========================================================================== */
+// Say once that merged workshop modules were refunded (after start-up, or after importing an old
+// save). Saving right away stores the converted save, so the notice does not come back.
+function rlModuleToast() {
+  const q = RL_MODULE_NOTE;
+  if (!q || !q.names.length) return;
+  set_RL_MODULE_NOTE(null);
+  ui.toast(
+    `Workshop update: ${q.names.join(", ")} ${q.names.length > 1 ? "were" : "was"} merged into ${q.into.join(" and ")}. All ${q.names.length > 1 ? "their" : "its"} levels refunded: +${formatCount(q.refund)} shards.`,
+    "good",
+    9000,
+  );
+  store.save("modules");
+}
+setTimeout(rlModuleToast, 1100);
+store.onChange((json, why) => {
+  why === "import" && RL_MODULE_NOTE && setTimeout(rlModuleToast, 300);
+});
+{
+  const baseEvents = handleWorldEvents;
+  handleWorldEvents = function (w) {
+    for (const t of w.fx)
+      t.k === "kit"
+        ? ui.toast(`STARTER KIT · ${t.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good", 3200)
+        : t.k === "barrier" && ui.banner("EMERGENCY SHIELD", "Hull critical — barrier up", "good", 1400);
+    return baseEvents(w);
+  };
+}
+window.__riftTest.v250B = { migrateModules: rlMigrateModules };
+
+/* ==========================================================================
+ 2.5.0 D: biome title card and boss intro card (the cards themselves are in the 2.5.0 D section
+ of ui/ui.js). The first wave of a biome (wave 1 and every biome change) shows the biome card in
+ place of its wave banner; an event on such a wave is announced right after the card. A new boss
+ shows its name card during the camera pan (game.intro) in place of the plain name banner and
+ counts as seen for the Codex (boss_<id>).
+ ========================================================================== */
+(() => {
+  const baseEvents = handleWorldEvents;
+  let cardWave = 0,
+    cardEvent = null;
+  handleWorldEvents = function (w) {
+    let card = null,
+      boss = null;
+    for (const t of w.fx)
+      t.k === "wave" && !t.boss && (t.n === 1 || w.biomeFor(t.n - 1).id !== w.biomeFor(t.n).id)
+        ? (card = t)
+        : t.k === "boss" && bossDefs[t.id] && (boss = t);
+    const r = baseEvents(w);
+    try {
+      if (card) {
+        ui.biomeCard(w.biomeFor(card.n), card.n);
+        ((cardWave = card.n), (cardEvent = (card.event && waveEvents[card.event]) || null));
+      }
+      boss && (ui.markSeen(["boss_" + boss.id]), ui.bossCard(boss.id, w.biomeFor(w.wave)));
+      // the biome card stays for the first 1.6 s of its wave (game time), the boss card for the
+      // camera pan; then they fade. An event of the biome's first wave is announced after the card.
+      const h = ui.cardHold;
+      if (h && (h.kind === "boss" ? !game.intro : w.wave !== cardWave || w.state !== "fight" || w.waveT >= 1.6)) {
+        ui.releaseTitleCard();
+        const ev = h.kind === "biome" && w.wave === cardWave && w.state === "fight" && cardEvent;
+        const n = cardWave;
+        ev &&
+          setTimeout(
+            () =>
+              game.world === w &&
+              !game.paused &&
+              w.state === "fight" &&
+              w.wave === n &&
+              ui.banner(ev.name, `Wave ${n} \xB7 ${ev.desc}`, "good", 2600),
+            450,
+          );
+        h.kind === "biome" && (cardEvent = null);
+      }
+    } catch (e) {
+      logError("titlecard", e);
+    }
+    return r;
+  };
+})();
 
 export { ui, store, game, safeAreaInsets, input, renderer };

@@ -230,20 +230,32 @@ await section('workshop', async L => {
     res.hazardSeal = near(S({ hazardSeal: L('hazardSeal') }).hazardResist, .15 * L('hazardSeal'));
     res.reroll = W({ reroll: L('reroll') }).rerolls === W({}).rerolls + L('reroll');
     res.insight = W({ insight: 1 }).makeOffer().length === 4 && W({}).makeOffer().length === 3;
-    // Nova Cell: each wave starts with AT LEAST 25 %/level; Rift Battery / Reactor Core ADD
-    // 10 % / 5 % per level on every wave start (carried charge is kept, capped at 100)
+    // Nova Cell: each wave starts with AT LEAST 25 %/level (carried charge is kept). 2.5.0 B: Rift
+    // Battery and Reactor Core were merged into it; nothing adds charge on top any more.
     const nova = (ws, carry) => { const w = W(ws); w.player.nova = carry; w.startWave(2); return w.player.nova; };
-    res.nova = nova({ nova: L('nova') }, 0) === 25 * L('nova') && nova({ nova: L('nova') }, 80) === 80;
-    res.riftBattery = nova({ riftBattery: L('riftBattery') }, 20) === 20 + 10 * L('riftBattery') && nova({ riftBattery: L('riftBattery') }, 90) === 100;
-    res.reactorCore = nova({ reactorCore: L('reactorCore') }, 20) === 20 + 5 * L('reactorCore');
+    res.nova = nova({ nova: L('nova') }, 0) === Math.min(100, 25 * L('nova')) && nova({ nova: 2 }, 80) === 80 && nova({ nova: 1 }, 10) === 25 && nova({}, 20) === 20;
     res.droneBay = S({ droneBay: 1 }, { wingman: 1 }).wingmen === S({}, { wingman: 1 }).wingmen + 1 && S({ droneBay: 1 }).wingmen === 0;
     // Field Supply: +1 cache per level in every non-boss wave from wave 2 (boss waves stay
-    // cache-free), same shards per cache. Route Scanner (2.3.5): same caches, +50 % shards/level.
+    // cache-free). 2.5.0 B: it took over Route Scanner, so every cache also holds +50 % shards/level.
     let nb = 0;
-    const caches = ws => { let n = 0, v = 0, boss = 0; nb = 0; for (let wave = 2; wave <= 12; wave++) { const w = W(ws); w.startWave(wave); const cs = w.pickups.filter(p => p.cache); if (w.bossPending) boss += cs.length; else { n += cs.length; nb++; for (const p of cs) if (p.kind === 'shard') v += p.v; } } return boss ? { n: -1 } : { n, v }; };
-    const c0 = caches({}), cf = caches({ fieldSupply: 2 }), cr = caches({ routeScanner: 2 });
-    res.fieldSupply = c0.n >= 0 && cf.n === c0.n + 2 * nb && cf.v > c0.v;
-    res.routeScanner = c0.n >= 0 && cr.n === c0.n && cr.v === 2 * c0.v;
+    const caches = ws => { let n = 0, v = 0, odd = 0, boss = 0; nb = 0; for (let wave = 2; wave <= 12; wave++) { const w = W(ws); w.startWave(wave); const cs = w.pickups.filter(p => p.cache); if (w.bossPending) boss += cs.length; else { n += cs.length; nb++; for (const p of cs) if (p.kind === 'shard') (v += p.v), (odd += p.v % 2); } } return boss ? { n: -1 } : { n, v, odd }; };
+    const c0 = caches({}), cf = caches({ fieldSupply: 2 });
+    res.fieldSupply = c0.n >= 0 && cf.n === c0.n + 2 * nb && cf.v > 2 * c0.v && cf.odd === 0 && near(S({ fieldSupply: 2 }).cacheValue, 2) && near(b.cacheValue, 1);
+    // 2.5.0 B: Starter Kit — one distinct common upgrade per level on a new run, none on a resumed one
+    const kit = W({ starterKit: L('starterKit') }), kitIds = Object.keys(kit.up);
+    const resumed = new T.Aa({ snap: T.data.sr({ v: 1, seed: 4, weapon: 'pulse', wave: 6, hp: 50, nova: 0, up: {} }), ws: { starterKit: 3 } });
+    res.starterKit = kitIds.length === L('starterKit') && kitIds.every(id => T.ri[id].rarity === 1 && kit.up[id] === 1) && kit.player.hp === kit.stats.maxHp && !Object.keys(W({}).up).length && !Object.keys(resumed.up).length;
+    // 2.5.0 B: Hazard Attunement — +10 % damage and +0.5 HP/s per level, only within 2 m of a hazard
+    const ha = L('hazardAttune'), aw = W({ hazardAttune: ha }); aw.startWave(2); aw.hold = true;
+    let dmgIn = 0; const baseStepDmg = aw.stats.dmgMul; aw.arena.vents.push({ x: aw.player.x + 3.3, y: aw.player.y, r: 1.5, phase: 0, period: 999 });
+    { const st = aw.stats, orig = aw.updatePlayer; aw.updatePlayer = function (dt, inp) { dmgIn = st.dmgMul; return orig.call(this, dt, inp); }; aw.step(1 / 60, {}); delete aw.updatePlayer; }
+    const onAt = aw.attuned; aw.arena.vents.pop(); aw.step(1 / 60, {});
+    res.hazardAttune = onAt && !aw.attuned && near(dmgIn, baseStepDmg * (1 + .1 * ha)) && near(aw.stats.dmgMul, baseStepDmg) && near(S({ hazardAttune: ha }).attuneRegen, .5 * ha) && near(S({ hazardAttune: ha }).dmgMul, b.dmgMul);
+    // 2.5.0 B: Emergency Shield — once per wave below 30 % hull: repair 8 %/level and block damage for 1 s/level
+    const esL = L('emergencyShield'), ew = W({ emergencyShield: esL }), ep = ew.player; ew.state = 'fight'; ep.iT = 0; ep.shield = false;
+    ew.hurtPlayer(ep.hp - 20, null, null, 'grunt', true); const eHeal = ep.hp, eBlock = ew.hurtPlayer(30, null, null, 'grunt', true) === false && ep.hp === eHeal, eT = ew.barrierT;
+    ew.barrierT = 0; ep.hp = 20; ew.hurtPlayer(1, null, null, 'grunt', true);
+    res.emergencyShield = eHeal === 20 + Math.round(ew.stats.maxHp * .08 * esL) && eBlock && near(eT, esL) && ep.hp === 19 && (ew.startWave(2), !ew.barrierUsed);
     const rv = W({ revive: 1 }); rv.state = 'fight'; rv.player.iT = 0; rv.player.shield = false; rv.hurtPlayer(99999, null, null, 'grunt', true);
     const dv = W({}); dv.state = 'fight'; dv.player.iT = 0; dv.player.shield = false; dv.hurtPlayer(99999, null, null, 'grunt', true);
     res.revive = rv.player.alive && rv.player.hp === Math.round(rv.stats.maxHp * .5) && !dv.player.alive;
@@ -260,6 +272,45 @@ await section('workshop', async L => {
   check(L, 'every workshop module has an effect test', !r.untested.length, r.untested.join(', '));
   check(L, 'no page errors', !P.errors.length, P.errors.join(' | '));
   await P.close();
+});
+
+/* ======================= 2c. 2.5.0 B: merged workshop modules in an old save ======================= */
+await section('workshop-merge', async L => {
+  // Rift Battery + Reactor Core → Nova Cell, Route Scanner → Field Supply: every bought level of a
+  // removed module is refunded at full price, the kept modules keep their levels, a saved run resumes
+  const old = { v: 1, game: 'riftline', shards: 300, weapon: 'pulse', weapons: { pulse: true }, seen: { tutorial: true },
+    workshop: { hull: 2, nova: 2, fieldSupply: 1, riftBattery: 3, reactorCore: 1, routeScanner: 2 },
+    run: { v: 1, seed: 77, weapon: 'pulse', threat: 0, wave: 4, hp: 60, nova: 30, up: { dmg: 1 }, offer: ['rate', 'crit', 'hp'] } };
+  const refund = (260 + 540 + 980) + 1600 + (1800 + 3800);
+  for (const profName of ['desktop', 'phone']) {
+    const P = await open(profName, { save: JSON.stringify(old) }); await P.boot();
+    const told = await P.page.waitForFunction(() => /Workshop update: Rift Battery, Reactor Core, Route Scanner were merged into Nova Cell and Field Supply\. All their levels refunded: \+[\d,.]+ shards/.test(document.getElementById('toasts').innerText), null, { timeout: 6000 }).then(() => true, () => false);
+    check(L, `${profName}: a toast says which modules were merged and what was refunded`, told);
+    const d = await P.ev(() => { const s = window.__riftTest.store.data; return { shards: s.shards, ws: s.workshop, stored: JSON.parse(localStorage.getItem('riftline.save.v1')), run: !!s.run }; });
+    check(L, `${profName}: full price refunded (+${refund}), kept modules keep their levels`, d.shards === 300 + refund && JSON.stringify(d.ws) === JSON.stringify({ hull: 2, nova: 2, fieldSupply: 1 }), JSON.stringify({ shards: d.shards, ws: d.ws }));
+    check(L, `${profName}: converted save stored at once`, d.stored.shards === d.shards && !('riftBattery' in d.stored.workshop) && !('routeScanner' in d.stored.workshop));
+    await P.nav('workshop');
+    const rows = await P.ev(() => [...document.querySelectorAll('#wsList .row b')].map(b => b.textContent)), nMods = await P.ev(() => window.__riftTest.ai.length);
+    check(L, `${profName}: workshop lists every module once, none of the removed ones`, rows.length === nMods && new Set(rows).size === nMods && !rows.some(n => /Rift Battery|Reactor Core|Route Scanner/.test(n)) && ['Starter Kit', 'Hazard Attunement', 'Emergency Shield'].every(n => rows.includes(n)), rows.join(', '));
+    const pips = await P.ev(() => [...document.querySelectorAll('#wsList .row')].map(r => [r.querySelector('b').textContent, r.querySelectorAll('.pips i.on').length]).filter(([n]) => n === 'Nova Cell' || n === 'Field Supply'));
+    check(L, `${profName}: Nova Cell and Field Supply show their kept levels`, JSON.stringify(pips) === JSON.stringify([['Nova Cell', 2], ['Field Supply', 1]]), JSON.stringify(pips));
+    await P.page.screenshot({ path: new URL(`./shots/workshop-merge-${profName}.png`, import.meta.url).pathname });
+    await P.back('workshop');
+    check(L, `${profName}: unfinished run offered`, await P.vis('continueBtn'));
+    await P.tap('#continueBtn'); await P.page.waitForTimeout(1200);
+    const r = await P.ev(() => { const w = window.__riftTest.game.world; return w && { wave: w.wave, choose: w.state === 'choose', offer: w.offer, dmg: w.up.dmg, ups: Object.keys(w.up).length, nova: w.player.nova }; });
+    check(L, `${profName}: the saved run resumes at its upgrade choice, no Starter Kit on resume`, r && r.wave === 4 && r.choose && r.dmg === 1 && r.ups === 1, JSON.stringify(r));
+    if (r && r.choose) { await P.tap('#cards .card'); await P.page.waitForTimeout(800); }
+    const w2 = await P.ev(() => { const w = window.__riftTest.game.world; return w && { wave: w.wave, nova: Math.round(w.player.nova) }; });
+    check(L, `${profName}: next wave starts with the kept Nova Cell floor (50%)`, w2 && w2.wave === 5 && w2.nova >= 50, JSON.stringify(w2));
+    await P.ev(() => window.__riftTest.game.abandon()); await P.page.waitForTimeout(1200);
+    // reload: the notice is not shown a second time and nothing is refunded twice
+    await P.page.reload(); await P.page.waitForFunction(() => window.__riftTest && window.__riftTest.ui, null, { timeout: 90000 }); await P.page.waitForTimeout(2500);
+    const again = await P.ev(() => ({ toast: /Workshop update/.test(document.getElementById('toasts').innerText), ws: window.__riftTest.store.data.workshop }));
+    check(L, `${profName}: after a reload no second notice, levels unchanged`, !again.toast && again.ws.nova === 2 && again.ws.fieldSupply === 1, JSON.stringify(again));
+    check(L, `${profName}: no page errors`, !P.errors.length, P.errors.join(' | '));
+    await P.close();
+  }
 });
 
 /* ======================= 3. menus: settings, workshop, weapons, import/export ======================= */
@@ -652,6 +703,176 @@ await section('buttons', async L => {
   }
   check(L, `every control has an event handler (${n} controls)`, !unwired.length, unwired.join(', '));
   check(L, 'every control has an accessible name', !unnamed.length, unnamed.join(', '));
+  await P.close();
+});
+
+/* ======================= 2.5.0 A: upgrades (retired copies, new mechanics) ======================= */
+await section('upgrades250A', async L => {
+  // a save from 2.4 with a run saved mid-way: retired upgrades in the build and in the pending offer
+  const old = { v: 1, game: 'riftline', shards: 500, weapon: 'pulse', weapons: { pulse: true }, seen: { tutorial: true },
+    history: [{ t: 1, weapon: 'pulse', threat: 0, wave: 9, outcome: 'dead', build: ['caliber', 'fortify', 'dmg'] }],
+    run: { v: 1, seed: 250250, weapon: 'pulse', threat: 0, wave: 6, hp: 80, shards: 40, kills: 100, time: 300, rerolls: 1, nova: 20,
+      up: { caliber: 3, kinetic: 2, dmg: 2, fortify: 5, hp: 6, coolant: 3, afterburner: 3, scavenger: 2, focus: 1, payloadMatrix: 2, payload: 1, chainlink: 1 },
+      offer: ['fortify', 'flux', 'crit'], offerBoss: false } };
+  for (const prof of ['desktop', 'phone']) {
+    const P = await open(prof, { save: JSON.stringify(old) }); await P.boot();
+    const d = await P.ev(() => { const s = window.__riftTest.store.data; return { up: s.run && s.run.up, offer: s.run && s.run.offer, build: s.history[0] && s.history[0].build }; });
+    const want = { dmg: 6, hp: 10, vector: 6, supply: 2, crit: 1, payload: 3, resonance: 1 };
+    check(L, `${prof}: retired upgrade levels became levels of the upgrade that took them over`, d.up && Object.keys(d.up).length === 7 && Object.entries(want).every(([k, v]) => d.up[k] === v), JSON.stringify(d.up));
+    check(L, `${prof}: retired ids in the pending offer were replaced`, JSON.stringify(d.offer) === '["dmg","overcharge","crit"]', JSON.stringify(d.offer));
+    check(L, `${prof}: run history shows the new upgrade names`, JSON.stringify(d.build) === '["dmg","hp"]', JSON.stringify(d.build));
+    await P.tap('#continueBtn'); await P.page.waitForTimeout(1200);
+    const r = await P.ev(() => { const w = window.__riftTest.game.world; return w && { wave: w.wave, choose: !document.getElementById('choose').hidden, cards: [...document.querySelectorAll('#cards [data-pick]')].map(c => c.dataset.pick).join(','), maxHp: w.stats.maxHp }; });
+    check(L, `${prof}: continue shows the converted offer`, r && r.choose && r.wave === 6 && r.cards === 'dmg,overcharge,crit' && r.maxHp === 300, JSON.stringify(r));
+    await P.page.waitForFunction(() => !document.getElementById('cards').classList.contains('locked'), null, { timeout: 5000 });
+    await P.tap('#cards [data-pick="overcharge"]');
+    await P.ev(() => { window.__riftTest.game.world.god = true; });
+    await P.page.waitForTimeout(3000);
+    const g = await P.ev(() => { const w = window.__riftTest.game.world; return { wave: w.wave, state: w.state, oc: w.up.overcharge, hp: w.player.hp }; });
+    check(L, `${prof}: the migrated run plays on`, g.wave === 7 && g.state === 'fight' && g.oc === 1 && Number.isFinite(g.hp), JSON.stringify(g));
+    // the six new upgrades as cards: readable, nothing clipped (4 cards with Insight)
+    for (const [i, offer] of [['skates', 'acidcoat', 'heatsink', 'surge'], ['slipstream', 'surge', 'reactive']].entries()) {
+      // clear and run the simulation to the choice (splitters leave mites; a busy machine renders slowly)
+      await P.ev(CLEAR);
+      await P.ev(() => { const w = window.__riftTest.game.world; for (let k = 0; k < 900 && w.state !== 'choose'; k++) { for (const e of [...w.enemies]) w.killEnemy(e); w.step(1 / 60, {}); } });
+      await P.page.waitForFunction(() => !document.getElementById('choose').hidden, null, { timeout: 30000 });
+      await P.ev(o => { const T = window.__riftTest, w = T.game.world; w.offer = o; T.ui.renderCards(w); }, offer);
+      await P.page.waitForTimeout(900);
+      const c = await P.ev(() => { const cards = [...document.querySelectorAll('#cards .card')]; return { n: cards.length, clipped: cards.filter(x => x.scrollHeight > x.clientHeight + 1 || x.scrollWidth > x.clientWidth + 1).map(x => x.dataset.pick), off: cards.filter(x => { const b = x.getBoundingClientRect(); return b.left < 0 || b.right > innerWidth; }).map(x => x.dataset.pick), text: cards.map(x => x.querySelector('p').textContent) }; });
+      await P.page.screenshot({ path: new URL(`./shots/upgrades250A-${prof}-${i + 1}.png`, import.meta.url).pathname });
+      check(L, `${prof}: new upgrade cards ${offer.join(', ')} fit`, c.n === offer.length && !c.clipped.length && !c.off.length && c.text.every(t => t.length > 20 && !/NaN|undefined/.test(t)), JSON.stringify(c));
+      await P.page.waitForFunction(() => !document.getElementById('cards').classList.contains('locked'), null, { timeout: 5000 });
+      await P.tap('#cards .card');
+      await P.page.waitForTimeout(400);
+    }
+    // all six at once in a live wave: the timed ones show a HUD chip, nothing throws
+    const live = await P.ev(async () => {
+      const T = window.__riftTest, w = T.game.world;
+      Object.assign(w.up, { skates: 2, acidcoat: 2, heatsink: 2, slipstream: 2, surge: 2, reactive: 2 });
+      w.stats = T.nr(w.weapon, w.up, w.ws);
+      w.god = true; w.player.heatT = 3; w.player.slipT = 1.3;
+      await new Promise(r => setTimeout(r, 400));
+      const chips = [...document.querySelectorAll('#buffs [data-b]')].map(b => b.dataset.b);
+      await new Promise(r => setTimeout(r, 2500));
+      return { chips, state: w.state, finite: [w.player.x, w.player.y, w.player.nova].every(Number.isFinite) };
+    });
+    check(L, `${prof}: Heat Sink and Slipstream show a HUD chip, the wave keeps running`, live.chips.includes('heat') && live.chips.includes('slip') && live.finite, JSON.stringify(live));
+    check(L, `${prof}: no page errors`, !P.errors.length, P.errors.join(' | '));
+    await P.close();
+  }
+});
+
+/* ======================= 2.5.0 C: biome events in the real game ======================= */
+// Every hazard biome's event, forced on PC and phone: the banner names it, the HUD chip shows it,
+// it only happens in its biome, the Whiteout fog closes in, the Rift Storm shows where the portals
+// jump, and nothing throws. Screenshots: tests/shots/qa-event-<profile>-<event>.png
+for (const profName of ['desktop', 'phone']) await section(`biome-events-${profName}`, async L => {
+  const P = await open(profName, { save: JSON.stringify({ v: 1, game: 'riftline', seen: { tutorial: true }, settings: { quality: 'high' } }) }); await P.boot();
+  await P.ev(() => { const T = window.__riftTest; for (const k of Object.keys(T.store.data.seen)) T.store.data.seen[k] = true; });
+  // record every banner with whether it fits the screen (the banner only lasts 2.6 s)
+  await P.ev(() => { const u = window.__riftTest.ui, base = u.banner; window.__qaBanners = [];
+    // offsetWidth: the banner starts its animation scaled by 1.25, the layout box is what must fit
+    u.banner = function (...a) { const out = base.apply(this, a), bn = document.querySelector('#banner .bn');
+      window.__qaBanners.push({ big: a[0], fits: !bn || bn.offsetWidth <= innerWidth }); return out; }; });
+  await P.ev(() => window.__riftTest.game.startRun({})); await P.page.waitForTimeout(800);
+  const route = await P.ev(() => window.__riftTest.game.world.route.slice(0, 4));
+  const want = { works: 'meltdown', vault: 'whiteout', marsh: 'bloom', void: 'riftstorm' };
+  let normalFog = null;
+  for (const biome of route) {
+    if (!want[biome]) continue;
+    const at = await P.ev((b) => { const w = window.__riftTest.game.world; return w.biomeEventWave(1 + 5 * w.route.indexOf(b)); }, biome);
+    if (biome === 'vault') { // the vault's fog in a wave without the event, for comparison
+      await P.ev((n) => { const g = window.__riftTest.game, w = g.world; w.god = true; w.startWave(n); g.intro = null; }, at === 7 ? 9 : 7);
+      await P.page.waitForTimeout(1500);
+      normalFog = await P.ev(() => window.__riftTest.renderer.scene.fog.far);
+    }
+    await P.ev((n) => { const g = window.__riftTest.game, w = g.world; w.god = true; w.startWave(n); g.intro = null; window.__riftTest.renderer.focusOn(null); }, at);
+    const name = await P.ev((n) => window.__riftTest.data.$i[n].name, want[biome]);
+    await P.page.waitForFunction((n) => window.__qaBanners.some((b) => b.big === n) && document.querySelector('#buffs [data-b="event"]')?.textContent === n, name, { timeout: 15000 }).catch(() => {});
+    await P.page.screenshot({ path: new URL(`./shots/qa-event-${profName}-${want[biome]}-banner.png`, import.meta.url).pathname });
+    const r = await P.ev((n) => { const w = window.__riftTest.game.world, chip = document.querySelector('#buffs [data-b="event"]'), bn = window.__qaBanners.find((b) => b.big === n);
+      window.__qaBanners.length = 0;
+      return { event: w.event, biome: w.arena.biome.id, banner: bn ? bn.big : '', fits: bn ? bn.fits : null, chip: chip ? chip.textContent : '' }; }, name);
+    check(L, `${biome}: wave ${at} brings ${want[biome]}`, r.event === want[biome] && r.biome === biome, JSON.stringify(r));
+    check(L, `${biome}: banner and HUD chip name the event`, r.banner === name && r.chip === name, `${r.banner} / ${r.chip}`);
+    check(L, `${biome}: banner text fits the screen`, r.fits === true);
+    // let the event play: 5 s of wave time (the Rift Storm telegraph is up from 4.4 s)
+    await P.ev(() => { const w = window.__riftTest.game.world; while (w.waveT < 4.7) w.step(1 / 60, { mx: 0, my: 0 }); });
+    await P.page.waitForTimeout(biome === 'vault' ? 1600 : 400);
+    const s = await P.ev(() => { const w = window.__riftTest.game.world, A = w.arena;
+      return { fog: window.__riftTest.renderer.scene.fog.far, next: A.portals.filter((q) => q.next).length, portals: A.portals.length, vents: A.vents.map((q) => A.ventState(q, w.waveT)), acid: A.acid.length, ice: A.ice.length }; });
+    if (biome === 'vault') check(L, 'whiteout: the fog closes in (far < 75 % of a normal vault wave)', normalFog && s.fog < normalFog * 0.75, `${s.fog.toFixed(1)} vs ${normalFog && normalFog.toFixed(1)}`);
+    if (biome === 'void') check(L, 'rift storm: every portal shows where it jumps next', s.portals > 0 && s.next === s.portals, JSON.stringify(s));
+    if (biome === 'works') check(L, 'meltdown: all vents in the same state', s.vents.length >= 6 && s.vents.every((v) => v === s.vents[0]), s.vents.join(','));
+    await P.page.screenshot({ path: new URL(`./shots/qa-event-${profName}-${want[biome]}.png`, import.meta.url).pathname });
+  }
+  check(L, 'no page errors', !P.errors.length, P.errors.slice(0, 3).join(' | '));
+  await P.close();
+});
+
+/* ======================= 2.5.0 D: biome title card, boss intro card, Codex ======================= */
+PROFILES.land = { viewport: { width: 844, height: 390 }, touch: true, mobile: true };
+for (const profName of ['desktop', 'phone', 'land']) await section(`codex-${profName}`, async L => {
+  // an old save: no Codex keys except one enemy tip, a defeated boss and a build in the history
+  const P = await open(profName, { save: JSON.stringify({ v: 1, game: 'riftline', seen: { tutorial: true, enemy_grunt: true }, stats: { runs: 3, bosses: { warden: 2 } }, history: [{ t: Date.now() - 6e4, outcome: 'dead', wave: 6, endless: false, weapon: 'pulse', threat: 0, time: 300, kills: 120, shards: 40, killer: 'grunt', build: ['dmg'] }] }) });
+  await P.boot();
+  const cardOn = (sel) => P.page.waitForFunction(s => document.querySelector(s), sel, { timeout: 60000, polling: 30 }).then(() => true, () => false);
+  const inView = () => P.ev(() => { const c = document.querySelector('#titleCard .tcard'); if (!c) return null; const r = (c.querySelector('.tc-panel') || c.querySelector('.tc-band')).getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, hit = document.elementFromPoint(x, y); return { ok: r.left >= -1 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight, noInput: !hit || !hit.closest('#titleCard'), wide: document.documentElement.scrollWidth <= innerWidth, text: c.textContent }; });
+  // Records → Codex tab
+  await P.nav('records');
+  await P.tap('[data-rtab="codex"]');
+  const cx = await P.ev(() => { const d = window.__riftTest, rows = [...document.querySelectorAll('#codexList .row')], txt = (k) => { const r = document.querySelector(`#codexList [data-cx="${k}"]`); return r ? r.textContent : ''; }; return { shown: !document.getElementById('codexList').hidden && document.getElementById('recStats').hidden, rows: rows.length, want: Object.keys(d.Ae).length + Object.keys(d.data.en).length + d.data.Zi.length, unseen: rows.filter(r => r.classList.contains('unseen')).length, grunt: txt('enemy_grunt'), warden: txt('boss_warden'), dmg: txt('up_dmg'), sniper: txt('enemy_sniper'), core: txt('boss_core'), audit: window.__riftLayoutAudit() }; });
+  check(L, 'codex: tab shows one row per enemy, boss and upgrade', cx.shown && cx.rows === cx.want, `${cx.rows}/${cx.want}`);
+  check(L, 'codex: old save — seen tip, defeated boss and history build are known, the rest is "???"', cx.unseen === cx.want - 3 && /Grunt/.test(cx.grunt) && /WARDEN/.test(cx.warden) && /Defeated ×2/.test(cx.warden) && /High-Yield|damage/i.test(cx.dmg) && /\?\?\?/.test(cx.sniper) && /\?\?\?/.test(cx.core), JSON.stringify({ unseen: cx.unseen, grunt: cx.grunt.slice(0, 30), warden: cx.warden.slice(0, 40), sniper: cx.sniper }));
+  check(L, 'codex: layout audit clean', cx.audit.ok, cx.audit.findings.join(', '));
+  const rows = await P.ev(() => Math.max(...[...document.querySelectorAll('#codexList .row')].map(r => r.getBoundingClientRect().width)));
+  check(L, 'codex: rows at most 900 px wide and inside the screen', rows <= 900 && rows <= P.prof.viewport.width, `${Math.round(rows)} px`);
+  await P.tap('[data-rtab="stats"]');
+  check(L, 'codex: Stats tab brings the records back', await P.ev(() => !document.getElementById('recStats').hidden && document.getElementById('codexList').hidden && document.querySelectorAll('#statGrid .cell').length > 5));
+  await P.back('records');
+  // wave 1: biome title card instead of the wave banner
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  const c1 = await cardOn('#titleCard .tcard.biome');
+  const b1 = await P.ev(() => ({ banner: document.getElementById('banner').textContent }));
+  const v1 = await inView();
+  check(L, 'biome card on wave 1: biome, hazard and boss, no wave banner', c1 && v1 && /Neon Yard/i.test(v1.text) && /no hazards/i.test(v1.text) && /THE WARDEN/.test(v1.text) && !b1.banner, JSON.stringify({ c1, b1, text: v1 && v1.text }));
+  check(L, 'biome card: on screen, no horizontal overflow, takes no input', v1 && v1.ok && v1.wide && v1.noInput, JSON.stringify(v1));
+  const gone = await P.page.waitForFunction(() => !document.querySelector('#titleCard .tcard'), null, { timeout: 15000 }).then(() => true, () => false);
+  check(L, 'biome card fades out on its own', gone);
+  // upgrades that are offered count as seen (and are saved)
+  await P.ev(CLEAR);
+  await P.page.waitForFunction(() => !document.getElementById('choose').hidden, null, { timeout: 60000 });
+  const up = await P.ev(() => { const w = window.__riftTest.game.world, s = window.__riftTest.store.data.seen; return { offer: [...w.offer], ok: w.offer.every(id => s['up_' + id] === true) }; });
+  const st = await P.stored();
+  check(L, 'offered upgrades are marked seen and saved', up.ok && up.offer.every(id => st.seen['up_' + id] === true), JSON.stringify(up));
+  // boss wave: name card during the camera pan
+  await P.ev(() => { const g = window.__riftTest.game; g.world.wave = 4; g.choose(g.world.offer[0]); });
+  const c2 = await cardOn('#titleCard .tcard.boss');
+  const i2 = await P.ev(() => !!window.__riftTest.game.intro);
+  const v2 = await inView();
+  check(L, 'boss card during the camera pan: name, title, biome', c2 && i2 && v2 && /THE WARDEN/.test(v2.text) && /Gatekeeper of the Yard/i.test(v2.text) && /Neon Yard/i.test(v2.text), JSON.stringify({ c2, i2, text: v2 && v2.text }));
+  check(L, 'boss card: on screen and takes no input', v2 && v2.ok && v2.noInput, JSON.stringify(v2));
+  if (P.prof.touch) {
+    const btn = await P.ev(() => { const c = document.querySelector('#titleCard .tc-panel'); if (!c) return null; const r = c.getBoundingClientRect(); return ['novaBtn', 'dashBtn'].map(id => document.getElementById(id).getBoundingClientRect()).some(b => b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top); });
+    check(L, 'boss card: clear of the NOVA and DASH buttons', btn === false, String(btn));
+  }
+  const saved = await P.stored();
+  check(L, 'boss counts as seen for the Codex', saved.seen.boss_warden === true);
+  const gone2 = await P.page.waitForFunction(() => !window.__riftTest.game.intro && !document.querySelector('#titleCard .tcard'), null, { timeout: 30000 }).then(() => true, () => false);
+  check(L, 'boss card fades out after the pan', gone2);
+  // biome change after the boss: the card of the next biome and its boss
+  await P.ev(CLEAR);
+  await P.page.waitForFunction(() => !document.getElementById('choose').hidden, null, { timeout: 60000 });
+  await P.ev(() => { const g = window.__riftTest.game; g.choose(g.world.offer[0]); });
+  const c3 = await cardOn('#titleCard .tcard.biome');
+  const want = await P.ev(() => { const w = window.__riftTest.game.world, b = w.biomeFor(6); return { wave: w.wave, name: b.name, boss: window.__riftTest.data.en[{ yard: 'warden', works: 'forge', vault: 'prism', marsh: 'queen', void: 'core' }[b.id]].name }; });
+  const v3 = await inView();
+  check(L, 'biome change (wave 6): card of the new biome with its boss', c3 && want.wave === 6 && v3 && v3.text.includes(want.name) && v3.text.includes(want.boss), JSON.stringify({ want, text: v3 && v3.text }));
+  // the pause menu hides a card
+  await P.ev(() => window.__riftTest.game.pause()); await P.page.waitForTimeout(300);
+  check(L, 'pause menu hides the card', await P.ev(() => !document.querySelector('#titleCard .tcard')));
+  await P.ev(() => window.__riftTest.game.resume());
+  check(L, 'no page errors', !P.errors.length, P.errors.join(' | '));
   await P.close();
 });
 
