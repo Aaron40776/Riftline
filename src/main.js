@@ -30,11 +30,9 @@ import {
 } from "./core/diagnostics.js";
 import {
   GameUI,
-  iconSvg,
   RL_TOUCH_CLICK_GUARD,
   getById,
   rlBiomeTitle,
-  rlRenderHistory,
   iconPaths,
   escapeHtml,
 } from "./ui/ui.js";
@@ -63,7 +61,7 @@ import {
   enemyOrder,
   bossByWave,
 } from "./data/enemies.js";
-import { BUILD_ID, GAME_VERSION, formatCount, formatTime } from "./core/util.js";
+import { BUILD_ID, GAME_VERSION, formatCount } from "./core/util.js";
 import { RL_KITERS, updateEnemy, rlInstallHunt } from "./core/ai.js";
 import { RL_BIOME_HAZARD, biomesById, biomeList, rlApplyBiomeFixes } from "./data/biomes.js";
 import { weaponOrder, weaponDefs } from "./data/weapons.js";
@@ -1114,17 +1112,6 @@ function rlRetireToast() {
     }
     return r;
   };
-  // Records: recent runs list under the lifetime stats
-  const baseRec = GameUI.prototype.renderRecords;
-  GameUI.prototype.renderRecords = function () {
-    const r = baseRec.call(this);
-    try {
-      rlRenderHistory();
-    } catch (e) {
-      logError("history", e);
-    }
-    return r;
-  };
   // Touch ghost-click shield: after a touch activation the browser still sends a
   // compatibility click to whatever is under the finger NOW — often a button on
   // the next screen, a settings toggle or a workshop "buy". Drop that one click
@@ -1179,67 +1166,6 @@ function rlRetireToast() {
   });
   window.addEventListener("pagehide", settle);
 
-  // ---- keys by position; upgrade choice keys
-  const baseKey = Input.prototype.key;
-  Input.prototype.key = function (t, down) {
-    const code = String(t.code || "");
-    let key = /^Key[A-Z]$/.test(code) ? code.slice(3).toLowerCase() : String(t.key || "");
-    this._rlKey = key.toLowerCase();
-    const tag = t.target && t.target.tagName;
-    if (down && !t.repeat && tag !== "INPUT" && tag !== "TEXTAREA" && rlChooseKey(code, this._rlKey))
-      t.preventDefault();
-    // Esc also works while a settings toggle or slider has focus (only text fields keep it)
-    if (
-      down &&
-      !t.repeat &&
-      this._rlKey === "escape" &&
-      tag === "INPUT" &&
-      /^(checkbox|range|radio)$/.test(t.target.type)
-    ) {
-      (t.target.blur(), this.onPause && this.onPause());
-      return;
-    }
-    return baseKey.call(
-      this,
-      key === t.key ? t : { key, repeat: t.repeat, target: t.target, preventDefault: () => t.preventDefault() },
-      down,
-    );
-  };
-  function rlChooseKey(code, key) {
-    if (!game.chooseShown || game.overShown || !getById("dialog").hidden || getById("choose").hidden) return !1;
-    const m = /^(?:Digit|Numpad)([1-4])$/.exec(code) || /^([1-4])$/.exec(key);
-    if (m) {
-      const card = getById("cards").querySelectorAll("[data-pick]")[+m[1] - 1];
-      card && !getById("cards").classList.contains("locked") && game.choose(card.dataset.pick);
-      return !0;
-    }
-    if (key === "r") {
-      getById("rerollBtn").disabled || game.reroll();
-      return !0;
-    }
-    return !1;
-  }
-  const baseCards = GameUI.prototype.renderCards;
-  GameUI.prototype.renderCards = function (t) {
-    // the reroll label survives a re-render (reroll), so drop its old key hint first
-    getById("rerollBtn")
-      .querySelectorAll(".card-key")
-      .forEach((e) => e.remove());
-    const r = baseCards.call(this, t);
-    if (rlKeys()) {
-      getById("cards")
-        .querySelectorAll("[data-pick]")
-        .forEach(
-          (c, i) => (
-            c.classList.add("has-key"),
-            c.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`)
-          ),
-        );
-      getById("rerollTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
-    }
-    return r;
-  };
-
   // ---- Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
   const basePause = input.onPause;
   input.onPause = () => {
@@ -1253,25 +1179,6 @@ function rlRetireToast() {
   };
 
   // ---- settings from the pause menu
-  const closePauseSettings = () => {
-    ((ui.rlFromPause = !1), (getById("settings").hidden = !0), getById("settings").classList.remove("in-run"));
-  };
-  GameUI.prototype.openPauseSettings = function () {
-    if (!game.paused || getById("pause").hidden) return;
-    ((this.rlFromPause = !0),
-      (getById("pause").hidden = !0),
-      getById("settings").classList.add("in-run"),
-      this._show("settings"));
-  };
-  const baseBack = GameUI.prototype.back;
-  GameUI.prototype.back = function () {
-    if (!this.rlFromPause) return baseBack.call(this);
-    (closePauseSettings(), (getById("pause").hidden = !1), (this.screen = "pause"));
-  };
-  const baseHidePause = GameUI.prototype.hidePause;
-  GameUI.prototype.hidePause = function () {
-    (closePauseSettings(), baseHidePause.call(this));
-  };
   ui.click(getById("pauseSetBtn"), () => ui.openPauseSettings());
 
   // ---- what each upgrade of the build does (pause menu)
@@ -1282,20 +1189,6 @@ function rlRetireToast() {
       const tag = u.evo ? "EVOLUTION" : u.repeat ? `\xD7${lv}` : `LV ${lv}/${u.max}`;
       return `<b>${escapeHtml(u.name)}</b> <span class="lv">${tag}</span><p>${escapeHtml(u.desc(Math.max(0, lv - 1)))}</p>`;
     };
-  const baseShowPause = GameUI.prototype.showPause;
-  GameUI.prototype.showPause = function (t) {
-    const r = baseShowPause.call(this, t),
-      own = upgradeList.filter((n) => t.up[n.id] && !n.repeat);
-    own.length &&
-      (getById("pauseBuild").innerHTML = own
-        .map(
-          (n) =>
-            `<button type="button" class="bi r${n.rarity}" data-up="${n.id}" aria-label="${escapeHtml(n.name)}">${iconSvg(n.icon)}${escapeHtml(n.name)}${t.up[n.id] > 1 ? " \xD7" + t.up[n.id] : ""}</button>`,
-        )
-        .join(""));
-    ((info.hidden = !own.length), (info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>'));
-    return r;
-  };
   getById("pauseBuild").addEventListener("click", (e) => {
     const b = e.target.closest && e.target.closest("[data-up]"),
       w = game.world;
@@ -1312,34 +1205,6 @@ function rlRetireToast() {
     getById(id).addEventListener("change", () => {
       ((store.data.settings[key] = getById(id).checked), game.settingsChanged());
     });
-  const baseRenderSettings = GameUI.prototype.renderSettings;
-  GameUI.prototype.renderSettings = function () {
-    const r = baseRenderSettings.call(this),
-      s = this.save.settings;
-    ((getById("setTimer").checked = !!s.timer), (getById("setFps").checked = !!s.fps));
-    return r;
-  };
-  let frames = 0,
-    since = 0,
-    last = 0,
-    fps = 0,
-    shown = "";
-  const baseHud = GameUI.prototype.hud;
-  GameUI.prototype.hud = function (t) {
-    const r = baseHud.call(this, t),
-      s = store.data.settings,
-      now = performance.now();
-    // a gap (pause, upgrade choice, hidden tab) starts a new measurement
-    (now - last > 1e3 && ((since = now), (frames = 0)), (last = now));
-    (frames++,
-      now - since >= 500 &&
-        ((fps = since ? Math.round((frames * 1e3) / (now - since)) : 0), (frames = 0), (since = now)));
-    const parts = [];
-    (s.timer && parts.push(formatTime(t.time)), s.fps && fps && parts.push(fps + " FPS"));
-    const txt = parts.join(" \xB7 ");
-    txt !== shown && ((shown = txt), (getById("hudInfo").textContent = txt), (getById("hudInfo").hidden = !txt));
-    return r;
-  };
 })();
 applySettings();
 ui.show("home");

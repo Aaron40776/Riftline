@@ -32,7 +32,6 @@ import {
   WebGLRenderer,
 } from "three";
 import { logError } from "../core/diagnostics.js";
-import { GameUI } from "../ui/ui.js";
 import {
   debrisGeometry,
   discGeometry,
@@ -2123,11 +2122,6 @@ const remeasureHomeView = () => {
 addEventListener("resize", remeasureHomeView, { passive: !0 });
 window.visualViewport && window.visualViewport.addEventListener("resize", remeasureHomeView, { passive: !0 });
 document.fonts && document.fonts.ready.then(() => (dirty = !0));
-const baseShow = GameUI.prototype._show;
-GameUI.prototype._show = function (screen) {
-  dirty = !0;
-  return baseShow.call(this, screen);
-};
 
 // 2.5.0 C: biome events in the renderer (Whiteout fog and snow, see frame() and setBiome()).
 const RL_WHITEOUT_FOG = [0.48, 1.5],
