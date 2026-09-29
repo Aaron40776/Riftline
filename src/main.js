@@ -11,20 +11,18 @@ import {
   RL_RT,
   errorLog,
   setLogContext,
-  rlBiomeDistinct,
   rlMonCrashed,
   rlMonFinish,
   rlMonFrame,
   rlMonPreEnd,
   rlMonStart,
-  rlPaletteIssues,
   rlRunAudit,
   rlRunHealth,
-  rlSelfTest,
   rlUiButtonGuardSelfTest,
   buildReport,
   logError,
 } from "./core/diagnostics.js";
+import { rlSelfTest, rlPaletteIssues, rlBiomeDistinct } from "./core/selftest.js";
 import { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml } from "./ui/ui.js";
 import { Input, RL_INPUT } from "./ui/input.js";
 import { musicChords, rlShotSfx, musicVoices, SoundEngine } from "./audio/sound.js";
