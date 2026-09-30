@@ -510,7 +510,7 @@ const overlay = new Overlay(elementById("ov")),
         rows.push([`${threatLevels[world.threat].name} \xD7${mods.shards.toFixed(2)}`, "\xD7"]);
       }
       if (salvage > 1) {
-        rows.push([`Salvager \xD7${salvage.toFixed(1)}`, "\xD7"]);
+        rows.push([`Shard Refinery \xD7${salvage.toFixed(1)}`, "\xD7"]);
       }
       let claimedBefore = new Set(this.claimable()),
         unlocks = [],
@@ -851,7 +851,7 @@ function handleWorldEvents(world) {
             ev.boss ? "WARNING" : `WAVE ${ev.n}`,
             ev.boss ? "Boss signature detected" : newBiome ? rlBiomeTitle(biome) : world.endless ? "Endless" : "",
             ev.boss ? "boss" : "",
-            2e3,
+            ev.boss ? 3e3 : 2e3,
           );
         if (!ev.boss && world.arena.vents.length) {
           showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too.");
@@ -998,12 +998,14 @@ function handleWorldEvents(world) {
       ui.markSeen(["boss_" + boss.id]);
       ui.bossCard(boss.id, world.biomeFor(world.wave));
     }
-    // the biome card stays for the first 1.6 s of its wave (game time), the boss card for the
+    // the biome card stays for the first BIOME_CARD_TIME s of its wave (game time), the boss card for the
     // camera pan; then they fade. An event of the biome's first wave is announced after the card.
     const hold = ui.cardHold;
     if (
       hold &&
-      (hold.kind === "boss" ? !game.intro : world.wave !== cardWave || world.state !== "fight" || world.waveT >= 1.6)
+      (hold.kind === "boss"
+        ? !game.intro
+        : world.wave !== cardWave || world.state !== "fight" || world.waveT >= BIOME_CARD_TIME)
     ) {
       ui.releaseTitleCard();
       const ev = hold.kind === "biome" && world.wave === cardWave && world.state === "fight" && cardEvent;
@@ -1027,7 +1029,10 @@ function handleWorldEvents(world) {
     logError("titlecard", err);
   }
 }
-const BOSS_INTRO_TIME = 1.5;
+// 2.6.0: 1.5 s -> 3 s, so the camera pan and the boss card can be read (the world stands still meanwhile)
+const BOSS_INTRO_TIME = 3;
+// 2.6.0: how long the biome card stays, in game seconds of its wave (was 1.6)
+const BIOME_CARD_TIME = 3.5;
 function updateBossIntro(dt, world) {
   let intro = game.intro;
   intro.t += dt;

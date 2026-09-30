@@ -1,78 +1,73 @@
-RIFTLINE v2.5.1 – CODE-UMBAU (SCHRITT 3b/3c), SPIEL UNVERÄNDERT
-Basis: v2.5.0 · Build r251a0929a-r1 · 29.09.2026
+RIFTLINE v2.6.0 – STATISCHE STICKS, LÄNGERE KARTEN, UPGRADE-BALANCE
+Basis: v2.5.1 · Build r260a0930a-r1 · 30.09.2026
 
-Gewünscht: vor dem nächsten Gameplay-Update den Code fertig aufräumen (README: lokale Namen
-umbenennen, Patches in die Klassen falten) und weitere offene Punkte dieser Art gleich mit
-erledigen. Reiner Umbau: das Spielverhalten darf sich nicht ändern.
+Gewünscht: Upgrades nach den Wellen sind sich noch ähnlich, manche viel zu stark, manche viel zu
+schwach; Boss-/Biomtext und Kameraschwenk dauern zu kurz; die Touch-Sticks sollen sich beim
+Bewegen des Fingers nicht mitbewegen; selbst überlegen, was man verbessern kann.
 
-1) Patches in die Klassen gefaltet (3b)
-   Seit 2.1 wurden Methoden von außen umwickelt (bis zu acht Schichten pro Methode, verteilt über
-   mehrere Dateien). Jetzt steht jede Methode an einer Stelle:
-   - World: 29 Patches aus world.js und 2 aus main.js (startWave 5 Schichten, step 4, hurtPlayer
-     4 …); computeStats und planWave je eine Funktion.
-   - GameUI/Input: 22 Patches aus ui.js, main.js und renderer.js, 1 aus main.js für Input.
-   - Renderer 8, ArenaView 2; updateEnemy, buildLayout, rlAddDynamicFeatures, cleanSave, cleanRun,
-     rlSanitizeHistory; in main.js startRun, endRun, endless, onPause, handleWorldEvents, showOver.
-   - rlSelfTest: 9 Schichten → eine Funktion mit benannten Teilen (selfTestV240 …).
-   Die Reihenfolge der Schichten (die zuletzt angelegte lief zuerst) ist erhalten; wo ein früher
-   "return" sonst Code einer äußeren Schicht übersprungen hätte, steht jetzt if/else bzw. ein Flag.
+1) Touch-Sticks (Bewegen und Zielen)
+   Der Stick erscheint dort, wo der Finger aufsetzt, und bleibt dort (Wahl des Users). Vorher
+   wanderte die Mitte dem Finger nach, sobald er weiter als 1,25 Radien gezogen wurde. Jetzt
+   bleibt die Mitte fest, der Knauf wird am Kreisrand gezeichnet, die Stärke ist bei 1 gedeckelt.
+   Neuer Selbsttest v260 (Mitte bleibt, volle Stärke weit außen, zurück zur Mitte = 0, Zielrichtung
+   von der Aufsetzstelle); er schlägt mit dem alten Verhalten fehl.
 
-2) Lesbare lokale Namen (3b)
-   Rund 3 600 minifizierte lokale Namen (t, e, n, s …) umbenannt, mit einem eigenen Werkzeug über
-   Gültigkeitsbereiche (verweigert jede Umbenennung, die einen anderen Namen verdecken oder von
-   einem anderen verdeckt würde; alle Läufe mit 0 Problemen). Kurze Namen, die schon passen
-   (i/j/k, x/y, dx/dy, dt, id), bleiben.
+2) Längere Karten und Schwenk
+   Kameraschwenk zum Boss 1,5 s → 3 s (die Welt steht in der Zeit still), Boss-Warnbanner 2 s →
+   3 s, Bosskarte mindestens 2,8 s, Biomkarte 1,6 s → 3,5 s Wellenzeit (Mindestdauer 2,5 s). Die
+   Karten blockieren keine Eingabe.
 
-3) Minifizierte Schreibweisen (3c)
-   - !0/!1 → true/false, void 0 → undefined.
-   - 1 635 Anweisungen wie "a(), b(), c();", "x && f();", "x ? f() : g();" und
-     "return a(), b" sowie 93 Bedingungen der Form "if ((a = x(), a))" per AST-Werkzeug in
-     einzelne Anweisungen bzw. if/else umgeschrieben (nur Anweisungen, deren Wert ungenutzt ist).
-   - 19 Komma-Ausdrücke in Bedingungen von Hand umgeschrieben, gleiche Reihenfolge der
-     Seiteneffekte.
-   - 111 "var" → const (93) bzw. let (18), nur wo eine Prüfung zeigt, dass es gleich wirkt.
+3) Upgrades
+   Messung: Bot spielt Welle 14 (Threat II, schnelle Spawns) mit Grund-Build plus einem Upgrade,
+   alle 7 Waffen, 5 Seeds; Vergleich von Clear-Zeit und Hüllenverlust. Erstmessung (vorher):
+   Overdrive +320 %, Cluster +270 %, Resonance +205 % (nur Epic), Tempest +196 %, Rebound +163 %
+   (nur Rare), Payload +140 %, Split Chamber +117 %, Overcharge +115 %, Chrono Dash +108 %;
+   dagegen Reactive Plating −20 %, Targeting Chip −10 %, Bounty −8 %, Cryo, Vector, Long Barrel,
+   Servo, Combo Surge, Orbital Blades, Last Stand, Overload, Shock Dash ≈ 0–10 %. Rapid Cycler
+   war nur halb so stark wie High-Yield Rounds.
+   Änderungen:
+   - Abgeschwächt: Resonance (+1 Kettensprung nur jede 2. Stufe, +6 % Kette), Payload (30 % + 10 %
+     pro Stufe statt 40 % + 15 %), Overcharge (Nova +30 % statt +40 %), Chrono Dash (1,5 s statt
+     2 s), Overdrive Pulse (jeder 5. statt 4. Schuss, doppelter statt dreifacher Schaden), Cluster
+     Payload (2 statt 3 Bomblets, weniger Schaden). Split Chamber und Rebound sind jetzt Epic.
+   - Gestärkt: Reactive Plating (30 + 20 Schaden, −4 % statt −8 % Feuerrate), Targeting Chip
+     (+10 % Krit und +0,06 Krit-Faktor pro Stufe), Rapid Cycler +15 %, Servo Thrusters +10 %,
+     Long Barrel +25 %, Cryo Rounds 20 %, Vector Capacitor −10 %, Last Stand −22 %, Shock Dash
+     40/64, Overload 32 + 12, Combo Surge 60/90, Orbital Blades 18, Phantom Dash −50 %,
+     Dragon's Breath doppelt so heiß.
+   - Zusammengelegt (ähnliche Wirkung): Capacitor Bank → Overcharge (jeder Kill +1 % Nova pro
+     Stufe), Bounty Protocol → Supply Loop (Elite-Kills +1 Shard pro Stufe). Alte Spielstände und
+     offene Angebote werden wie in 2.5.0 umgerechnet (RL_RETIRED_UPGRADES). 57 Upgrades.
+   - Das Werkstatt-Modul „Salvager" heißt „Shard Refinery" (das Run-Upgrade bleibt „Salvager
+     Core"); Bloodrush-Karten zeigen ihr Limit.
+   Nachmessung: Overdrive +212 %, Cluster +172 %, Resonance +76 %, Payload +87 %; die Spannweite
+   ist enger, aber die Messung ist grob (ein Bot, 5 Seeds, Evolutionen nur mit einer Waffe: einzelne
+   Werte schwanken zwischen Läufen um ±100 Punkte, z. B. Tempest, Dragon, Wingman). Nach der
+   Nachmessung noch angepasst: Kill-Bonus von Overcharge 2 % → 1 %, Overdrive 2,5× → 2×, Tempest
+   wieder +2 Sprünge. Dash-Upgrades (Vector, Shock Dash, Phantom) misst der Bot kaum (er dasht
+   nach festem Takt); ihre Werte sind nach Gefühl gesetzt.
 
-4) Struktur, Tests, Werkzeuge (3c)
-   - Neues Modul core/selftest.js (1 595 Zeilen) für den Deep-Selbsttest; diagnostics.js
-     (3 364 → 1 796 Zeilen) enthält nur noch Laufzeit-Log, Monitor und Health-Check.
-   - window.__riftTest nutzt die echten Namen (World, computeStats, upgradeList … statt Aa, nr,
-     data.Zi …); alle Tests angepasst.
-   - Prettier (fest 3.8.1) mit .prettierrc (Breite 120), "npm run format"; die CI prüft die
-     Formatierung (test.yml). sw.js ist ausgenommen, weil build.js seine Dateiliste als JSON
-     liest (beim Test aufgefallen: Prettier hatte den Build gebrochen).
-   - README (Abschnitt "About the game code") und CLAUDE.md: neue Regel – Klassen direkt
-     ändern, nichts mehr von außen patchen.
-
-5) Nebenbei gefunden und behoben
-   - Health-Check "save-sanitize" meldete seit 2.5.0 FAIL, weil er noch das alte Maximum 8 von
-     High-Yield Rounds erwartete (seit 2.5.0: 12). Liest das Maximum jetzt aus dem Upgrade;
-     der tiefe Health-Check hat keinen Befund mehr.
-   - tests/sim.mjs las einen nicht mehr vorhandenen Testschlüssel (T.Yi); entfernt.
-
-Beweis "Spiel unverändert":
-   - Determinismus-Test (15 Fälle: Simulationen, Werte, Arenen, Wellenpläne) nach jedem
-     Teilschritt mit UNVERÄNDERTER Referenz identisch.
-   - Zusätzlich für World: Differenztest alt gegen neu, 7 Runs mit erzwungenen Upgrades
-     (Kit, Barrier, Surge, Säure, Echo, Overload …), Zustand alle 30 Schritte verglichen:
-     identisch.
-
-Ergebnisse 2.5.1 (headless Chromium, Software-WebGL):
-  determinism   15 Fälle identisch mit unveränderter Referenz (nach jedem Teilschritt)
-  full-qa.mjs   364 Prüfungen, 0 Fehler (Ereignis-Abschnitte ziehen je Lauf andere Biome,
-                daher 1 Prüfung weniger als in 2.5.0)
-  e2e.mjs       5 Geräteprofile, 0 Fehler
-  Deep test     ok (x21–x23, v240, v246, v250A–D ohne Befund) · Health-Check (tief) ohne Befund
-  world-audit   0 Befunde · data-audit ok · run-audit: Bot bis Welle 22, alle Checks OK
-  sim           Pulse bis Welle 20 (Sieg), keine Fehler, keine ungültigen Werte
-  format        npm run format:check sauber
-  screens.mjs   PC, Handy hoch und quer ohne Fehler; Bilder angesehen: unverändert gegenüber
-                2.5.0 (Menü, Upgrade-Wahl, Kampf, Bosskarte, Ereignisse, Game-over mit
-                "Run performance")
+4) Tests
+   - Deep test: neuer Teil v260; Selbsttests für Overcharge/Supply Loop und die Anzahl (57).
+   - full-qa qol: Last-Stand-Prüfung an den neuen Wert angepasst.
+   - Determinismus-Referenz neu aufgenommen (Verhalten ändert sich absichtlich).
 
 Offen:
-   - Unter hoher Last (vier Agents parallel) liefen einige Browser-Tests in Timeouts; der
-     unveränderte Ausgangsstand scheiterte dabei genauso. Auf ruhiger Maschine alles grün
-     (siehe Ergebnisse).
+   - Balance nur mit Bot und Messungen geprüft, nicht von Hand gespielt; besonders die Stärke der
+     Evolutionen (Overdrive, Cluster) und der Dash-Upgrades bitte selbst beurteilen.
+   - Die Spielgefühl-Wirkung des längeren Schwenks (3 s) auf dem Handy nicht getestet.
+
+Ergebnisse 2.6.0 (headless Chromium, Software-WebGL):
+  determinism   Referenz für die beabsichtigten Änderungen neu aufgenommen, danach 15 Fälle identisch
+  full-qa.mjs   363 Prüfungen: 1 Fehler im ersten Lauf (qol: Last Stand hatte noch die alten 36 %
+                fest im Test, Wert danach auf 22 %/Stufe gesetzt und Test angepasst), qol danach grün
+  e2e.mjs       5 Geräteprofile, 0 Fehler
+  Deep test     ok (inkl. v260: statische Sticks; schlägt mit dem alten Verhalten fehl)
+  world-audit   0 Befunde · data-audit ok · run-audit: Bot bis Welle 22, alle Checks OK
+  sim           Pulse bis Welle 20 (Sieg), keine Fehler
+  format        npm run format:check sauber
+  screens.mjs   PC, Handy hoch und quer ohne Fehler; Bilder angesehen (Upgrade-Wahl mit neuen
+                Werten, Bosskarte, Menüs)
 
 ================================================================================
 

@@ -5,16 +5,16 @@ const rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution"];
 // end says where each went); the upgrade that took them over has a higher max.
 const upgradeList = [
   { id: "dmg", name: "High-Yield Rounds", rarity: 1, max: 12, icon: "burst", desc: () => "+15% damage" },
-  { id: "rate", name: "Rapid Cycler", rarity: 1, max: 10, icon: "rate", desc: () => "+12% fire rate" },
+  { id: "rate", name: "Rapid Cycler", rarity: 1, max: 10, icon: "rate", desc: () => "+15% fire rate" },
   { id: "hp", name: "Reinforced Hull", rarity: 1, max: 10, icon: "shield", desc: () => "+20 max HP and repair 20" },
-  { id: "speed", name: "Servo Thrusters", rarity: 1, max: 6, icon: "wing", desc: () => "+8% move speed" },
+  { id: "speed", name: "Servo Thrusters", rarity: 1, max: 6, icon: "wing", desc: () => "+10% move speed" },
   {
     id: "velocity",
     name: "Long Barrel",
     rarity: 1,
     max: 6,
     icon: "arrow",
-    desc: () => "+20% projectile speed and range",
+    desc: () => "+25% projectile speed and range",
   },
   { id: "magnet", name: "Tractor Field", rarity: 1, max: 3, icon: "magnet", desc: () => "+45% pickup radius" },
   {
@@ -23,7 +23,7 @@ const upgradeList = [
     rarity: 1,
     max: 8,
     icon: "crosshair",
-    desc: () => "+8% critical hit chance (x2 damage) and +5% range",
+    desc: () => "+10% critical hit chance, +0.06 crit multiplier (x2 base) and +5% range",
   },
   {
     id: "heal",
@@ -34,7 +34,7 @@ const upgradeList = [
     desc: () => "Repair 45% of max HP",
     repeat: true,
   },
-  { id: "multishot", name: "Split Chamber", rarity: 2, max: 4, icon: "fan", desc: () => "+1 projectile per shot" },
+  { id: "multishot", name: "Split Chamber", rarity: 3, max: 4, icon: "fan", desc: () => "+1 projectile per shot" },
   {
     id: "pierce",
     name: "Tungsten Core",
@@ -46,7 +46,7 @@ const upgradeList = [
   {
     id: "ricochet",
     name: "Rebound",
-    rarity: 2,
+    rarity: 3,
     max: 3,
     icon: "bounce",
     desc: () => "Projectiles bounce to +1 nearby enemy",
@@ -81,7 +81,7 @@ const upgradeList = [
     rarity: 2,
     max: 3,
     icon: "snow",
-    desc: (level) => `${15 * (level + 1)}% chance to slow enemies by 45%`,
+    desc: (level) => `${20 * (level + 1)}% chance to slow enemies by 45%`,
   },
   {
     id: "shockdash",
@@ -89,7 +89,7 @@ const upgradeList = [
     rarity: 2,
     max: 2,
     icon: "wing",
-    desc: (level) => `Dashing through enemies deals ${level ? 48 : 30} damage`,
+    desc: (level) => `Dashing through enemies deals ${level ? 64 : 40} damage`,
   },
   {
     id: "payload",
@@ -97,7 +97,7 @@ const upgradeList = [
     rarity: 3,
     max: 5,
     icon: "burst",
-    desc: (level) => `Hits explode for ${40 + 15 * level}% damage around the target`,
+    desc: (level) => `Hits explode for ${30 + 10 * level}% damage around the target`,
   },
   {
     id: "arc",
@@ -145,7 +145,7 @@ const upgradeList = [
     rarity: 3,
     max: 4,
     icon: "star",
-    desc: (level) => `Nova charges 40% faster, +${level < 2 ? 25 : 10}% radius`,
+    desc: (level) => `Nova charges 30% faster, +${level < 2 ? 25 : 10}% radius, each kill adds 1% Nova charge`,
   },
   {
     id: "wingman",
@@ -154,14 +154,6 @@ const upgradeList = [
     max: 2,
     icon: "drone",
     desc: () => "A drone that fights beside you",
-  },
-  {
-    id: "bounty",
-    name: "Bounty Protocol",
-    rarity: 2,
-    max: 3,
-    icon: "star",
-    desc: (level, count = level + 1) => `Elite kills drop +${2 * count} shards`,
   },
   {
     id: "bloodrush",
@@ -180,20 +172,12 @@ const upgradeList = [
     desc: () => "+60% projectile size, +45% damage, -12% fire rate",
   },
   {
-    id: "capacitor",
-    name: "Capacitor Bank",
-    rarity: 3,
-    max: 3,
-    icon: "bolt",
-    desc: (level, count = level + 1) => `Kills grant +${3 * count}% Nova charge`,
-  },
-  {
     id: "chrono",
     name: "Chrono Dash",
     rarity: 4,
     max: 1,
     icon: "clock",
-    desc: () => "Dashing slows enemies and their shots for 2 s",
+    desc: () => "Dashing slows enemies and their shots for 1.5 s",
   },
   {
     id: "momentum",
@@ -209,7 +193,7 @@ const upgradeList = [
     rarity: 2,
     max: 2,
     icon: "shield",
-    desc: (level) => `-${18 * (level + 1)}% incoming damage below 35% hull`,
+    desc: (level) => `-${22 * (level + 1)}% incoming damage below 35% hull`,
   },
   {
     id: "vector",
@@ -217,7 +201,7 @@ const upgradeList = [
     rarity: 2,
     max: 6,
     icon: "arrow",
-    desc: (level) => `-${8 * (level + 1)}% dash and Aegis cooldown`,
+    desc: (level) => `-${10 * (level + 1)}% dash and Aegis cooldown`,
   },
   {
     id: "halo",
@@ -235,7 +219,7 @@ const upgradeList = [
     max: 1,
     icon: "burst",
     evo: { payload: 2, seeker: 1 },
-    desc: () => "Every Payload blast throws 3 homing bomblets.",
+    desc: () => "Every Payload blast throws 2 homing bomblets.",
   },
   {
     id: "storm",
@@ -262,7 +246,7 @@ const upgradeList = [
     max: 1,
     icon: "wing",
     evo: { shockdash: 1, speed: 2 },
-    desc: () => "Dash cooldown -40%. Your dash leaves a searing trail.",
+    desc: () => "Dash cooldown -50%. Your dash leaves a searing trail.",
   },
   {
     id: "gunship",
@@ -281,7 +265,7 @@ const upgradeList = [
     icon: "rate",
     weapon: "pulse",
     evo: { rate: 3, multishot: 1 },
-    desc: () => "Every 4th shot is a heavy bolt: triple damage, bigger, pierces 3 enemies.",
+    desc: () => "Every 5th shot is a heavy bolt: double damage, bigger, pierces 3 enemies.",
   },
   {
     id: "shredder",
@@ -341,7 +325,7 @@ const upgradeList = [
     icon: "flame",
     weapon: "flame",
     evo: { thermite: 1, dmg: 2 },
-    desc: () => "Flames reach 30% further and burn 60% hotter.",
+    desc: () => "Flames reach 30% further and burn twice as hot.",
   },
 ];
 let upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
@@ -370,7 +354,7 @@ upgradeList.push(
     rarity: 2,
     max: 6,
     icon: "shard",
-    desc: (level) => `Every 12 kills drop ${2 * (level + 1)} bonus shards`,
+    desc: (level) => `Every 12 kills drop ${2 * (level + 1)} bonus shards; elite kills drop +${level + 1}`,
   },
 );
 upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
@@ -381,7 +365,7 @@ upgradeList.push(
     rarity: 2,
     max: 3,
     icon: "burst",
-    desc: (level, count = level + 1) => `Every 6th shot releases a close-range burst (${24 + 8 * count} damage)`,
+    desc: (level, count = level + 1) => `Every 6th shot releases a close-range burst (${32 + 12 * count} damage)`,
   },
   {
     id: "resonance",
@@ -389,7 +373,7 @@ upgradeList.push(
     rarity: 3,
     max: 5,
     icon: "bolt",
-    desc: (level, count = level + 1) => `+${8 * count}% chain chance and +${count} chain jump${count > 1 ? "s" : ""}`,
+    desc: (level, count = level + 1) => `+6% chain chance${count % 2 ? " and +1 chain jump" : ""}`,
   },
   {
     id: "hazmat",
@@ -464,7 +448,7 @@ upgradeList.push(
     max: 2,
     icon: "star",
     desc: (level) =>
-      `Combos last ${level ? 1 : 0.5} s longer. Every ${level ? 12 : 15} combo kills: a shockwave (${level ? 60 : 40} damage)`,
+      `Combos last ${level ? 1 : 0.5} s longer. Every ${level ? 12 : 15} combo kills: a shockwave (${level ? 90 : 60} damage)`,
   },
   {
     id: "reactive",
@@ -473,7 +457,7 @@ upgradeList.push(
     max: 2,
     icon: "shield",
     desc: (level, count = level + 1) =>
-      `Getting hit releases a repulse wave (${20 + 15 * level} damage) that clears nearby shots. -${8 * count}% fire rate`,
+      `Getting hit releases a repulse wave (${30 + 20 * level} damage) that clears nearby shots. -${4 * count}% fire rate`,
   },
 );
 upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
@@ -500,6 +484,9 @@ const RL_RETIRED_UPGRADES = {
   payloadMatrix: { to: "payload", k: 1 },
   scavenger: { to: "supply", k: 1 },
   scavengerNet: { to: "salvager", k: 1 },
+  // 2.6.0: Capacitor Bank is part of Overcharge (kills add Nova charge), Bounty Protocol part of Supply Loop
+  capacitor: { to: "overcharge", k: 1 },
+  bounty: { to: "supply", k: 1 },
 };
 const rlRetiredUpgrade = (id) => (Object.hasOwn(RL_RETIRED_UPGRADES, id) ? RL_RETIRED_UPGRADES[id] : null);
 

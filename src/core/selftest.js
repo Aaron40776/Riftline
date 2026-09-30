@@ -2,6 +2,7 @@
 // Used by the tests (window.__riftTest) and the "Deep test" button of the diagnostics dialog.
 
 import { GameUI, rlCodexEntries, rlBiomeCardInfo } from "../ui/ui.js";
+import { Input } from "../ui/input.js";
 import { musicChords, RL_SFX_VOICES, musicVoices, SoundEngine } from "../audio/sound.js";
 import {
   RL_RETIRE_NOTE,
@@ -310,7 +311,7 @@ function selfTestBase() {
       }
       const world = new World({ seed: 0x1ce55eed, weapon: "pulse", threat: 0, ws: {} });
       world.startWave(13);
-      world.stats = computeStats("pulse", { bounty: 2, capacitor: 2 }, {});
+      world.stats = computeStats("pulse", { supply: 2, overcharge: 2 }, {});
       const point = world.arena.freePoint(
           makeRng(hashString("upgrade-kill-probe")),
           world.player.x,
@@ -330,9 +331,9 @@ function selfTestBase() {
             .filter((pickup) => pickup.kind === "shard")
             .reduce((sum, pickup) => sum + (pickup.v || 0), 0),
           novaAfter = world.player.nova;
-        if (shardAfter - shardBefore < 4) bad("upgrade-runtime", "Bounty Protocol did not add its bonus shards");
+        if (shardAfter - shardBefore < 2) bad("upgrade-runtime", "Supply Loop did not add its elite bonus shards");
         else upgradeChecks++;
-        if (novaAfter - novaBefore < 43.4) bad("upgrade-runtime", "Capacitor Bank did not add its bonus Nova charge");
+        if (novaAfter - novaBefore < 39.4) bad("upgrade-runtime", "Overcharge did not add its per-kill Nova charge");
         else upgradeChecks++;
       }
     }
@@ -420,6 +421,7 @@ function rlSelfTest() {
   result = selfTestV250C(result);
   result = selfTestV250D(result);
   result = selfTestV250B(result);
+  result = selfTestV260(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -1031,7 +1033,7 @@ function selfTestV246(result) {
 function selfTestV250A(result) {
   const fail = [],
     NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
-  if (upgradeList.length !== 59) fail.push("count:" + upgradeList.length);
+  if (upgradeList.length !== 57) fail.push("count:" + upgradeList.length);
   for (const [id, retired] of Object.entries(RL_RETIRED_UPGRADES)) {
     if (upgradesById[id]) fail.push("still-offered:" + id);
     const target = upgradesById[retired.to];
@@ -1587,6 +1589,40 @@ function selfTestV250B(result) {
   shieldWorld.startWave(2);
   if (shieldWorld.barrierUsed) fail.push("barrier-wave");
   return { ...result, ok: result.ok && fail.length === 0, v250B: { ok: fail.length === 0, fail } };
+}
+
+// 2.6.0: the touch sticks stay where the finger touched down (their centre no longer follows the finger)
+function selfTestV260(result) {
+  const fail = [];
+  try {
+    const layer = document.createElement("div"),
+      input = new Input(layer, { groundAt: () => null }),
+      event = (id, x, y) => ({ pointerType: "touch", pointerId: id, clientX: x, clientY: y, preventDefault() {} }),
+      w = window.innerWidth,
+      h = window.innerHeight,
+      settings = { autoFire: true, assist: true };
+    // a touch on the move side, dragged far past the stick radius and back
+    input.down(event(1, w * 0.2, h * 0.7));
+    input.moveEv(event(1, w * 0.2 + 400, h * 0.7 - 300));
+    const stick = input.move;
+    if (stick.ox !== w * 0.2 || stick.oy !== h * 0.7) fail.push("centre-moved:" + [stick.ox, stick.oy]);
+    const far = input.sample(null, settings);
+    if (Math.abs(Math.hypot(far.mx, far.my) - 1) > 1e-9) fail.push("far-strength:" + Math.hypot(far.mx, far.my));
+    input.moveEv(event(1, w * 0.2, h * 0.7));
+    const back = input.sample(null, settings);
+    if (back.mx !== 0 || back.my !== 0) fail.push("back-to-centre:" + [back.mx, back.my]);
+    // the aim stick (other side) keeps its centre too and reports the direction from the touch point
+    input.down(event(2, w * 0.8, h * 0.7));
+    input.moveEv(event(2, w * 0.8, h * 0.7 - 500));
+    const aim = input.sample(null, settings);
+    if (input.aim.ox !== w * 0.8 || input.aim.oy !== h * 0.7) fail.push("aim-centre-moved");
+    if (!aim.aim || Math.abs(aim.ax) > 1e-9 || Math.abs(aim.ay + 1) > 1e-9) fail.push("aim-dir:" + [aim.ax, aim.ay]);
+    input.up(event(1, 0, 0));
+    input.up(event(2, 0, 0));
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v260: { ok: fail.length === 0, fail } };
 }
 
 // the "Deep test" button of the diagnostics dialog (rlRunHealth({deep:true})) runs this
