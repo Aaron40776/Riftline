@@ -590,11 +590,7 @@ const rlStep = 1 / 60,
           if (player.heatT > 0) stats.rateMul = rate * (1 + 0.25 * stats.heatSink);
         }
         try {
-          // Momentum: faster fire while moving
           const rateBase = stats.rateMul || 1;
-          stats.rateMul =
-            rateBase *
-            (stats.momentum > 0 && input && Math.hypot(+input.mx || 0, +input.my || 0) > 0.08 ? 1 + stats.momentum : 1);
           try {
             this.stateT += dt;
             if (this.state === "choose" || this.state === "victory") this.idle(dt);
@@ -1148,12 +1144,12 @@ const rlStep = 1 / 60,
         volley(angle);
         if (echoing || this.state !== "fight" || !this.player.alive) return;
         const shot = this.player.shotN || 0;
-        if (stats.overload > 0 && shot > 0 && shot % 6 === 0)
+        if (stats.overload > 0 && shot > 0 && shot % 5 === 0)
           this.explode(
             this.player.x + Math.cos(angle) * 0.9,
             this.player.y + Math.sin(angle) * 0.9,
-            1.25,
-            32 + 12 * stats.overload,
+            1.6,
+            45 + 15 * stats.overload,
             { enemies: true, knock: 2, kind: "overload" },
           );
         if (stats.echo > 0 && this.rng.chance(Math.min(0.28, 0.08 * stats.echo))) {

@@ -4,26 +4,24 @@ const rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution"];
 // 2.5.0 A: 19 upgrades that were weaker copies of another one are gone (RL_RETIRED_UPGRADES at the
 // end says where each went); the upgrade that took them over has a higher max.
 const upgradeList = [
-  { id: "dmg", name: "High-Yield Rounds", rarity: 1, max: 12, icon: "burst", desc: () => "+15% damage" },
+  { id: "dmg", name: "High-Yield Rounds", rarity: 1, max: 12, icon: "burst", desc: () => "+18% damage" },
   { id: "rate", name: "Rapid Cycler", rarity: 1, max: 10, icon: "rate", desc: () => "+15% fire rate" },
-  { id: "hp", name: "Reinforced Hull", rarity: 1, max: 10, icon: "shield", desc: () => "+20 max HP and repair 20" },
-  { id: "speed", name: "Servo Thrusters", rarity: 1, max: 6, icon: "wing", desc: () => "+10% move speed" },
+  { id: "hp", name: "Reinforced Hull", rarity: 1, max: 10, icon: "shield", desc: () => "+25 max HP and repair 25" },
   {
-    id: "velocity",
-    name: "Long Barrel",
+    id: "speed",
+    name: "Servo Thrusters",
     rarity: 1,
     max: 6,
-    icon: "arrow",
-    desc: () => "+25% projectile speed and range",
+    icon: "wing",
+    desc: () => "+10% move speed, -8% dash and Aegis cooldown",
   },
-  { id: "magnet", name: "Tractor Field", rarity: 1, max: 3, icon: "magnet", desc: () => "+45% pickup radius" },
   {
     id: "crit",
     name: "Targeting Chip",
     rarity: 1,
     max: 8,
     icon: "crosshair",
-    desc: () => "+10% critical hit chance, +0.06 crit multiplier (x2 base) and +5% range",
+    desc: () => "+10% critical hit chance, +0.06 crit multiplier (x2 base), +8% range and +6% projectile speed",
   },
   {
     id: "heal",
@@ -81,7 +79,7 @@ const upgradeList = [
     rarity: 2,
     max: 3,
     icon: "snow",
-    desc: (level) => `${20 * (level + 1)}% chance to slow enemies by 45%`,
+    desc: (level) => `${25 * (level + 1)}% chance to slow enemies by 45%`,
   },
   {
     id: "shockdash",
@@ -89,7 +87,7 @@ const upgradeList = [
     rarity: 2,
     max: 2,
     icon: "wing",
-    desc: (level) => `Dashing through enemies deals ${level ? 64 : 40} damage`,
+    desc: (level) => `Dashing through enemies deals ${level ? 90 : 60} damage`,
   },
   {
     id: "payload",
@@ -180,28 +178,12 @@ const upgradeList = [
     desc: () => "Dashing slows enemies and their shots for 1.5 s",
   },
   {
-    id: "momentum",
-    name: "Momentum Core",
-    rarity: 2,
-    max: 3,
-    icon: "wing",
-    desc: (level) => `+${9 * (level + 1)}% fire rate while moving`,
-  },
-  {
     id: "laststand",
     name: "Last Stand Plating",
     rarity: 2,
     max: 2,
     icon: "shield",
     desc: (level) => `-${22 * (level + 1)}% incoming damage below 35% hull`,
-  },
-  {
-    id: "vector",
-    name: "Vector Capacitor",
-    rarity: 2,
-    max: 6,
-    icon: "arrow",
-    desc: (level) => `-${10 * (level + 1)}% dash and Aegis cooldown`,
   },
   {
     id: "halo",
@@ -329,24 +311,17 @@ const upgradeList = [
   },
 ];
 let upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
-const rarityWeights = [0, 60, 28, 10, 2],
+// 2.8.0: fewer commons, more rare, epic and legendary cards (was 60/28/10/2)
+const rarityWeights = [0, 42, 32, 20, 6],
   bossRarityWeights = [0, 0, 42, 44, 14];
 upgradeList.push(
-  {
-    id: "glasscore",
-    name: "Glass Core",
-    rarity: 2,
-    max: 3,
-    icon: "star",
-    desc: () => "+8% damage and +4% crit, but -5% max HP",
-  },
   {
     id: "hunter",
     name: "Apex Hunter",
     rarity: 3,
     max: 3,
     icon: "target",
-    desc: () => "+10% damage against elites and bosses",
+    desc: () => "+15% damage against elites and bosses",
   },
   {
     id: "supply",
@@ -365,7 +340,7 @@ upgradeList.push(
     rarity: 2,
     max: 3,
     icon: "burst",
-    desc: (level, count = level + 1) => `Every 6th shot releases a close-range burst (${32 + 12 * count} damage)`,
+    desc: (level, count = level + 1) => `Every 5th shot releases a close-range burst (${45 + 15 * count} damage)`,
   },
   {
     id: "resonance",
@@ -422,7 +397,7 @@ upgradeList.push(
     max: 2,
     icon: "skull",
     desc: (level, count = level + 1) =>
-      `${15 * count}% of hits leave acid for 3 s (enemies in it take +25% damage). Bigger in Toxin Marsh`,
+      `${22 * count}% of hits leave acid for 3 s (enemies in it take +25% damage). Bigger in Toxin Marsh`,
   },
   {
     id: "heatsink",
@@ -470,15 +445,15 @@ const RL_RETIRED_UPGRADES = {
   overclock: { to: "rate", k: 0.67 },
   fortify: { to: "hp", k: 0.75 },
   thruster: { to: "speed", k: 0.63 },
-  stabilizer: { to: "velocity", k: 0.6 },
+  stabilizer: { to: "crit", k: 0.42 },
   focus: { to: "crit", k: 0.5 },
   deadeye: { to: "crit", k: 0.38 },
   nanorepair: { to: "regen", k: 0.69 },
   leech: { to: "siphon", k: 0.5 },
   aether: { to: "overcharge", k: 0.38 },
   flux: { to: "overcharge", k: 0.2 },
-  afterburner: { to: "vector", k: 0.75 },
-  coolant: { to: "vector", k: 1.5 },
+  afterburner: { to: "speed", k: 0.62 },
+  coolant: { to: "speed", k: 1.25 },
   phasecoat: { to: "hazmat", k: 0.32 },
   chainlink: { to: "resonance", k: 1 },
   payloadMatrix: { to: "payload", k: 1 },
@@ -487,6 +462,12 @@ const RL_RETIRED_UPGRADES = {
   // 2.6.0: Capacitor Bank is part of Overcharge (kills add Nova charge), Bounty Protocol part of Supply Loop
   capacitor: { to: "overcharge", k: 1 },
   bounty: { to: "supply", k: 1 },
+  // 2.8.0: five weak or overlapping upgrades went into the one they resembled
+  velocity: { to: "crit", k: 0.7 },
+  magnet: { to: "supply", k: 1 },
+  vector: { to: "speed", k: 0.83 },
+  glasscore: { to: "dmg", k: 0.67 },
+  momentum: { to: "rate", k: 0.67 },
 };
 const rlRetiredUpgrade = (id) => (Object.hasOwn(RL_RETIRED_UPGRADES, id) ? RL_RETIRED_UPGRADES[id] : null);
 

@@ -12,7 +12,7 @@
     "7 weapons, each with its own projectile behaviour (the 14 pack variants were retired in 2.4.0)",
     "25 total enemy types with late-run role diversity",
     "5 biomes, one per boss cycle, each with its own floor, props, border, particles, light, hazard and enemy mix",
-    "57 run upgrades including 13 evolutions, no duplicates",
+    "52 run upgrades including 13 evolutions, no duplicates and rarer cards more often",
     "18 persistent workshop modules",
     "extended long-term milestones through wave 200 and high lifetime totals",
     "dynamic wave director with 12+ encounter modes",
@@ -57,6 +57,9 @@
   "reviewed_from": "Riftline v2.7.0",
   "generatedAt": "2026-09-30T11:41:38+02:00",
   "changes": [
+    "2.8.0: upgrade offers — fewer commons, more rare cards: the card weights are now 42/32/20/6 for common/rare/epic/legendary (were 60/28/10/2), and an offer is never made of commons only (its last card becomes a rare or better one)",
+    "2.8.0: five weak or overlapping upgrades are gone and their levels move to the one they resembled (old saves and pending offers are converted): Long Barrel → Targeting Chip (now also +8% range and +6% projectile speed), Tractor Field → Supply Loop (the workshop Magnet Coil keeps the pickup radius), Vector Capacitor → Servo Thrusters (now also -8% dash and Aegis cooldown per level), Glass Core → High-Yield Rounds, Momentum Core → Rapid Cycler; 52 upgrades",
+    "2.8.0: stronger commons and weak rares — High-Yield Rounds +18%, Reinforced Hull +25 HP, Targeting Chip, Cryo Rounds 25%, Shock Dash 60/90, Overload (every 5th shot, 45+15 per level, bigger burst), Acid Coating 22%, Apex Hunter +15%",
     "2.8.0: smarter auto-aim — enemies behind a wall are not targeted any more (shots would only hit the wall; only the Lance slug, which flies through walls, may aim through them), close enemies come first (under 4 m strongly), rushers that explode, ram or jump at you (Bomber, Charger, Striker, Leaper, Sapper) are preferred a bit earlier, enemies that are immune right now (shield phase) only when nothing else is in reach, and the current target is kept while it is still a good one so the aim does not flicker; the manual aim assist skips enemies behind walls too",
     "2.7.0: new look — the player drone is an arrow-shaped gunship (canopy, swept wings with glowing strips, twin thrusters whose flame follows speed, leans and banks); all 25 enemy types have new silhouettes with one memorable feature each (biological ones rounder and asymmetric, machines with panels, vents and lights); Warden, Hive Queen and Rift Core got more detail",
     "2.7.0: enemies move with life — walk sway, hops, leaning into the movement direction, breathing or hovering at rest, hit squash, a spawn pop and a short shrink-and-spin death with a second debris burst (skipped on the battery preset); no extra geometry or draw calls",

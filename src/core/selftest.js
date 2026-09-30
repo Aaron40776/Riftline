@@ -297,9 +297,9 @@ function selfTestBase() {
       }
     {
       const base = computeStats("pulse", {}, {}),
-        boost = computeStats("pulse", { rate: 3, velocity: 2 }, {}); // 2.5.0: was Overclock Matrix
+        boost = computeStats("pulse", { rate: 3, crit: 2 }, {}); // 2.8.0: Targeting Chip speeds shots up too
       if (!(boost.rateMul > base.rateMul && boost.velMul > base.velMul))
-        bad("upgrade-runtime", "Rapid Cycler and Long Barrel do not alter rate and velocity");
+        bad("upgrade-runtime", "Rapid Cycler and Targeting Chip do not alter rate and velocity");
       else upgradeChecks++;
       for (const def of upgradeList) {
         const testUp = {};
@@ -1048,7 +1048,7 @@ function selfTestV246(result) {
 function selfTestV250A(result) {
   const fail = [],
     NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
-  if (upgradeList.length !== 57) fail.push("count:" + upgradeList.length);
+  if (upgradeList.length !== 52) fail.push("count:" + upgradeList.length);
   for (const [id, retired] of Object.entries(RL_RETIRED_UPGRADES)) {
     if (upgradesById[id]) fail.push("still-offered:" + id);
     const target = upgradesById[retired.to];
@@ -1069,7 +1069,7 @@ function selfTestV250A(result) {
       offerBoss: false,
     },
     run = cleanRun(old),
-    want = { dmg: 6, hp: 10, vector: 6, supply: 2, crit: 1 };
+    want = { dmg: 6, hp: 10, speed: 6, supply: 2, crit: 1 };
   if (!run || Object.keys(run.up).length !== 5 || Object.entries(want).some(([key, value]) => run.up[key] !== value))
     fail.push("migrate-up:" + JSON.stringify(run && run.up));
   // Fortify → Reinforced Hull is maxed, so a common takes its place; Flux Capacitor → Overcharge
@@ -1082,7 +1082,7 @@ function selfTestV250A(result) {
     fail.push("migrate-boss-offer:" + JSON.stringify(boss && boss.offer));
   if (run) {
     const world = new World({ snap: run, ws: {} });
-    if (world.state !== "choose" || world.offer.length !== 3 || world.stats.maxHp !== 300)
+    if (world.state !== "choose" || world.offer.length !== 3 || world.stats.maxHp !== 350)
       fail.push("resume:" + world.state);
     world.choose(world.offer[0]);
     for (let frame = 0; frame < 120; frame++)

@@ -344,8 +344,8 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
     const upSets = [
       {},
       Object.fromEntries(ids.map((id) => [id, maxOf[id]])),
-      { dmg: 3, glasscore: 2, crit: 2, resonance: 1, hp: 2, speed: 1, skates: 1, reactive: 1 },
-      { vector: 6, hazmat: 4, velocity: 2, echo: 1, siphon: 1, overcharge: 4, heatsink: 2, slipstream: 1 },
+      { dmg: 3, surge: 2, crit: 2, resonance: 1, hp: 2, speed: 1, skates: 1, reactive: 1 },
+      { speed: 6, hazmat: 4, pierce: 2, echo: 1, siphon: 1, overcharge: 4, heatsink: 2, slipstream: 1 },
     ];
     for (const id of ids) upSets.push({ [id]: 1 });
     const wsSets = [{}, wsOf(WS_MID), wsOf("max")];

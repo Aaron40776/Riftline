@@ -13,24 +13,23 @@ function computeStats(weaponId, run, workshop) {
     arc = scaled("arc", 0.2, 0.1);
   const stats = {
     weapon: weapon,
-    maxHp: 100 + 10 * moduleLevel("hull") + 20 * level("hp"),
+    maxHp: 100 + 10 * moduleLevel("hull") + 25 * level("hp"),
     speed: 6.2 * (1 + 0.04 * moduleLevel("thrust")) * (1 + 0.1 * level("speed")),
     dmgMul:
       (1 + 0.05 * moduleLevel("power")) *
-      (1 + 0.15 * level("dmg")) *
+      (1 + 0.18 * level("dmg")) *
       (colossus ? 1.45 : 1) *
       (has("twinsaw") ? 1.35 : 1),
     rateMul: (1 + 0.15 * level("rate")) * (colossus ? 0.88 : 1),
-    velMul: (1 + 0.25 * level("velocity")) * (has("dragon") ? 1.3 : 1),
+    velMul: (1 + 0.06 * level("crit")) * (has("dragon") ? 1.3 : 1),
     sizeMul: (colossus ? 1.6 : 1) * (has("twinsaw") ? 1.4 : 1),
     extra: level("multishot") + (has("shredder") ? 1 : 0),
     pierce: (weapon.pierce || 0) + level("pierce"),
     bounce: level("ricochet") + (has("shredder") ? 1 : 0),
     crit: 0.05 + 0.1 * level("crit"),
     critMul: 2 + 0.06 * level("crit"),
-    magnet: 2.4 * (1 + 0.2 * moduleLevel("magnet")) * (1 + 0.45 * level("magnet")),
-    dashCd: 1.9 * (1 - 0.08 * moduleLevel("dash")) * (1 - 0.1 * level("vector")) * (has("phantom") ? 0.5 : 1),
-    momentum: 0.09 * level("momentum"),
+    magnet: 2.4 * (1 + 0.2 * moduleLevel("magnet")),
+    dashCd: 1.9 * (1 - 0.08 * moduleLevel("dash")) * (1 - 0.08 * level("speed")) * (has("phantom") ? 0.5 : 1),
     laststand: 0.22 * level("laststand"),
     regen: 0.8 * level("regen"),
     shieldCd: shieldCd,
@@ -38,8 +37,8 @@ function computeStats(weaponId, run, workshop) {
     orbitDmg: 18 * (has("halo") ? 2 : 1),
     orbitR: has("halo") ? 2.7 : 2.1,
     bladeScale: has("halo") ? 1.5 : 1,
-    cryo: 0.2 * level("cryo"),
-    shockDash: level("shockdash") ? (level("shockdash") > 1 ? 64 : 40) : 0,
+    cryo: 0.25 * level("cryo"),
+    shockDash: level("shockdash") ? (level("shockdash") > 1 ? 90 : 60) : 0,
     payloadR: scaled("payload", 1.6, 0.35),
     payloadF: scaled("payload", 0.3, 0.1),
     arc: has("storm") ? Math.min(0.9, arc + 0.3) : arc,
@@ -68,11 +67,9 @@ function computeStats(weaponId, run, workshop) {
     overdrive: has("overdrive"),
     lance: has("lance"),
     hellfire: has("hellfire"),
-    range: weaponRange(weapon) * (1 + 0.2 * level("velocity")) * (has("dragon") ? 1.3 : 1),
+    range: weaponRange(weapon) * (has("dragon") ? 1.3 : 1),
   };
-  stats.maxHp = Math.max(25, stats.maxHp * (1 - 0.05 * level("glasscore")));
-  stats.dmgMul *= 1 + 0.08 * level("glasscore");
-  stats.crit += 0.04 * level("glasscore");
+  stats.maxHp = Math.max(25, stats.maxHp);
   stats.eliteMul = 1 + 0.1 * level("hunter");
   stats.supply = level("supply");
   stats.armor = 0.04 * moduleLevel("armorCore"); // 2.3.5: share of enemy damage absorbed (was +8 max HP)
@@ -95,11 +92,11 @@ function computeStats(weaponId, run, workshop) {
   // read 0), and the six new upgrades expose their level for the World hooks in core/world.js.
   const overcharge = level("overcharge");
   // Targeting Chip took over Dead Focus and Deadeye Lens: +5% range per level
-  stats.range *= 1 + 0.05 * level("crit");
+  stats.range *= 1 + 0.08 * level("crit");
   // Overcharge (max 4): +25% Nova radius for each of the first two levels, +10% for the next two
   stats.novaR *= (1 + 0.25 * Math.min(2, overcharge) + 0.1 * Math.max(0, overcharge - 2)) / (1 + 0.25 * overcharge);
   // Vector Capacitor took over Cryo Coolant and Afterburner: the Aegis recharges faster too
-  stats.shieldCd *= Math.max(0.45, 1 - 0.1 * level("vector"));
+  stats.shieldCd *= Math.max(0.45, 1 - 0.08 * level("speed"));
   stats.skates = level("skates");
   stats.speed *= 1 + 0.04 * stats.skates;
   stats.acidCoat = level("acidcoat");
