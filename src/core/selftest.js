@@ -1723,7 +1723,12 @@ function selfTestV270Sound(result) {
           if (!heard.length) fail.push("event-silent:" + kind);
         }
       if (engine.failed) fail.push("engine-error-in-consume");
+      // 2.8.2: sounds never take voices from the music
+      for (let i = 0; i < 6; i++) engine.tone(220 + i * 10, 1, "sine", 0.01, { dest: engine.mus, at: 0.1 });
+      const musicBefore = engine.musicVoiceList.filter((voice) => voice.node).length;
       for (let i = 0; i < 100; i++) engine.play("hurt");
+      const musicAfter = engine.musicVoiceList.filter((voice) => voice.node).length;
+      if (!musicBefore || musicAfter < musicBefore) fail.push(`music-voices-stolen:${musicBefore}->${musicAfter}`);
       if (engine.voices.length > MAX_VOICES) fail.push("voice-limit:" + engine.voices.length);
       if (!engine.dropped) fail.push("voice-limit-never-hit");
       for (const voice of engine.voices) {

@@ -90,6 +90,8 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   BOSS_STAB = { yard: "square", works: "sawtooth", vault: "triangle", void: "square", marsh: "sawtooth" },
   AMBIENCE_LEVEL = { meltdown: 0.07, whiteout: 0.055, bloom: 0.035, riftstorm: 0.03 },
   MAX_VOICES = 24,
+  // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
+  MAX_MUSIC_VOICES = 20,
   /* sounds that are never dropped in favour of others when the voice limit is reached */
   KEY_SOUNDS = new Set([
     "hurt",
@@ -264,6 +266,7 @@ const musicChords = {
       this.cycle = 0;
       // 2.7.0: voice registry (limit), boss music mix, engine hum and event ambience
       this.voices = [];
+      this.musicVoiceList = [];
       this.curPri = 1;
       this.simT = null;
       this.maxEnd = 0;
@@ -393,8 +396,26 @@ const musicChords = {
      full takes the place of the oldest voice of lower (or, for sounds, equal) priority; music (0)
      never drops anything and is skipped instead, loops (beds) are never dropped. */
     claim(pri, start, end) {
-      let list = this.voices,
-        now = this.nowT();
+      let now = this.nowT();
+      // 2.8.2: music (priority 0) is counted apart from the sounds. It used to share the list, and every
+      // shot or hit that found it full took the oldest music note: the music stuttered and dropped out
+      // in heavy fights. Music never takes a voice from anyone and is skipped when its own list is full.
+      if (pri === 0) {
+        let music = this.musicVoiceList;
+        if (music.length >= MAX_MUSIC_VOICES) {
+          for (let i = music.length - 1; i >= 0; i--)
+            if (music[i].end < now) {
+              music[i] = music[music.length - 1];
+              music.pop();
+            }
+        }
+        if (end > this.maxEnd && end < 1e8) this.maxEnd = end;
+        if (music.length >= MAX_MUSIC_VOICES) return null;
+        let voice = { node: null, amp: null, pri: 0, start: start, end: end, loop: false };
+        music.push(voice);
+        return voice;
+      }
+      let list = this.voices;
       if (list.length >= MAX_VOICES) {
         for (let i = list.length - 1; i >= 0; i--)
           if (list[i].end < now) {
