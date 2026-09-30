@@ -2063,7 +2063,7 @@ await section("upgrades250A", async (L) => {
     check(
       L,
       `${prof}: continue shows the converted offer`,
-      r && r.choose && r.wave === 6 && r.cards === "dmg,overcharge,crit" && r.maxHp === 300,
+      r && r.choose && r.wave === 6 && r.cards === "dmg,overcharge,crit" && r.maxHp === 350,
       JSON.stringify(r),
     );
     await P.page.waitForFunction(() => !document.getElementById("cards").classList.contains("locked"), null, {
