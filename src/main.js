@@ -1236,10 +1236,21 @@ function updateAutoQuality(dt, settings) {
     renderer.setQuality(autoDpr, rlQParticles(autoDpr));
   }
 }
+// 2.8.1: cached; it is read every frame and getComputedStyle forces a style recalculation on phones.
+// The insets only change with the window size, so the cache is keyed on it (and refreshed every 2 s).
+let rlInsets = null,
+  rlInsetsKey = "",
+  rlInsetsAt = 0;
 function safeAreaInsets() {
+  const key = window.innerWidth + "x" + window.innerHeight,
+    now = performance.now();
+  if (rlInsets && key === rlInsetsKey && now - rlInsetsAt < 2000) return rlInsets;
   let style = getComputedStyle(document.documentElement),
     read = (name) => parseFloat(style.getPropertyValue(name)) || 0;
-  return { t: read("--st"), b: read("--sb"), l: read("--sl"), r: read("--sr") };
+  rlInsets = { t: read("--st"), b: read("--sb"), l: read("--sl"), r: read("--sr") };
+  rlInsetsKey = key;
+  rlInsetsAt = now;
+  return rlInsets;
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {

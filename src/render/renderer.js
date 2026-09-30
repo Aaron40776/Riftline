@@ -78,6 +78,8 @@ const tmpColor = new Color(),
     }
     end() {
       this.mesh.count = this.n;
+      // 2.8.1: an empty pool is not drawn at all (it used to cost a draw call per pool and frame)
+      this.mesh.visible = this.n > 0;
       this.mesh.instanceMatrix.needsUpdate = true;
       if (this.c) {
         this.mesh.instanceColor.needsUpdate = true;

@@ -22,11 +22,19 @@ const waveEvents = {
   },
 };
 const EVENT_CHANCE = 0.2;
+// 2.8.1: cards that do nothing for the weapon are not offered: the Disc Launcher never bounces (Rebound)
+// and already pierces everything (Tungsten Core); with Lance the Railgun pierces everything too
+function deadForWeapon(id, weapon, owned) {
+  if (weapon === "disc") return id === "ricochet" || id === "pierce";
+  if (weapon === "rail") return id === "pierce" && (owned.lance || 0) > 0;
+  return false;
+}
 function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], weapon = null) {
   let pool = upgradeList.filter(
       (upgrade) =>
         !(
           upgrade.evo ||
+          deadForWeapon(upgrade.id, weapon, owned) ||
           (owned[upgrade.id] || 0) >= upgrade.max ||
           (upgrade.id === "heal" && hpFrac > 0.7) ||
           (boss && upgrade.rarity < 2)
