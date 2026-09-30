@@ -39,7 +39,7 @@ const workshopModules = [
   { id: "magnet", name: "Magnet Coil", icon: "magnet", desc: "+20% pickup radius per level", costs: [40, 90, 160] },
   {
     id: "salvage",
-    name: "Salvager",
+    name: "Shard Refinery", // 2.6.0: was "Salvager", the same name as the run upgrade Salvager Core
     icon: "shard",
     desc: "+10% shards per level",
     costs: [100, 200, 320, 480, 700],

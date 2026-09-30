@@ -124,14 +124,9 @@ const Input = class {
       stick.x = x;
       stick.y = y;
       stick.moved = Math.max(stick.moved || 0, Math.hypot(stick.x - stick.ox, stick.y - stick.oy));
-      let dx = stick.x - stick.ox,
-        dy = stick.y - stick.oy,
-        dist = Math.hypot(dx, dy),
-        maxDist = this.R * 1.25;
-      if (dist > maxDist) {
-        stick.ox = stick.x - (dx / dist) * maxDist;
-        stick.oy = stick.y - (dy / dist) * maxDist;
-      }
+      // 2.6.0: the stick stays where the finger touched down. Before, its centre followed the
+      // finger once it was dragged further than 1.25 radii; the knob is clamped when drawn and
+      // sample() caps the strength at 1.
     }
   }
   up(ev) {

@@ -157,6 +157,7 @@ const getById = (id) => document.getElementById(id),
     ["Repair chance", (stats) => stats.siphonCh, formatPercent],
     ["Nova radius", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
     ["Drones", (stats) => stats.wingmen, String],
+    ["Bloodrush cap", (stats) => (stats.bloodrush ? 0.4 : 0), formatPercent], // 2.6.0
   ],
   damageSources = {
     arc: ["Arc Relay", "#c58bff"],
@@ -1074,7 +1075,7 @@ const getById = (id) => document.getElementById(id),
         chips.push(["rush", `RUSH \xD7${player.rushN}`, "#ff5a7a", player.rushT / 4]);
       }
       if (world.chronoT > 0) {
-        chips.push(["chrono", "SLOW-MO", "#8fe8ff", world.chronoT / 2]);
+        chips.push(["chrono", "SLOW-MO", "#8fe8ff", world.chronoT / 1.5]);
       }
       if ((world.ws.revive || 0) > 0 && !world.revived) {
         chips.push(["life", "2ND LIFE", "#6dff8a", -1]);
@@ -1463,7 +1464,7 @@ const getById = (id) => document.getElementById(id),
         this,
         "biome",
         `<div class="tcard biome hold" data-biome="${escapeHtml(info.id)}" style="--bc:${info.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(info.name)}</div>${info.hazard ? `<div class="tc-haz">${escapeHtml(info.hazard)}</div>` : ""}${info.boss ? `<div class="tc-boss"><span>Boss</span>${escapeHtml(info.boss)}</div>` : ""}</div></div>`,
-        900,
+        2500,
         ms,
       );
       return info;
@@ -1476,7 +1477,7 @@ const getById = (id) => document.getElementById(id),
         this,
         "boss",
         `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(boss.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Boss${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(boss.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(boss.title)}</div></div></div>`,
-        1600,
+        2800,
         ms,
       );
       return boss;

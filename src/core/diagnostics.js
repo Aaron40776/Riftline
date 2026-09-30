@@ -1387,8 +1387,8 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   try {
     const reqE = ["leaper", "turret", "charger", "minebot", "drone", "driller", "beacon", "weaver"],
       reqB = ["works", "vault", "void", "marsh"],
-      // 2.5.0: Overclock Matrix, Overbore Caliber, Vector Stabilizer and Salvage Pulse were retired
-      reqU = ["bounty", "capacitor", "hunter", "supply", "momentum", "laststand", "vector", "skates", "heatsink"],
+      // 2.5.0/2.6.0: Overclock Matrix, Overbore Caliber, Vector Stabilizer, Salvage Pulse, Capacitor Bank and Bounty Protocol were retired
+      reqU = ["overcharge", "hunter", "supply", "momentum", "laststand", "vector", "skates", "heatsink"],
       badE = Object.keys(enemyDefs).filter((id) => !enemyDefs[id] || (!(enemyDefs[id].from >= 1) && id !== "mite")),
       badEvo = upgradeList
         .filter((upgrade) => upgrade.evo && Object.keys(upgrade.evo).some((key) => !upgradesById[key]))

@@ -932,7 +932,7 @@ const rlStep = 1 / 60,
         this.runStats.dashes++;
         player.iT = Math.max(player.iT, 0.24);
         if (stats.chrono) {
-          this.chronoT = 2;
+          this.chronoT = 1.5;
         }
         this.emit("dash", { x: player.x, y: player.y, a: Math.atan2(player.dashY, player.dashX) });
       }
@@ -1067,7 +1067,7 @@ const rlStep = 1 / 60,
           originX = player.x + Math.cos(aim) * muzzle,
           originY = player.y + Math.sin(aim) * muzzle;
         player.shotN = (player.shotN || 0) + 1;
-        let heavy = stats.overdrive && player.shotN % 4 === 0,
+        let heavy = stats.overdrive && player.shotN % 5 === 0,
           shoot = (dir, mul) => {
             if (this.pb.length >= MAX_PLAYER_BULLETS) return;
             let spread = (this.rng.next() - 0.5) * 2 * weapon.spread,
@@ -1091,7 +1091,7 @@ const rlStep = 1 / 60,
                 homing: stats.homing,
               };
             if (heavy && mul >= 1) {
-              bullet.dmg *= 3;
+              bullet.dmg *= 2.5;
               bullet.r *= 2;
               bullet.pierce += 3;
               bullet.vx *= 1.2;
@@ -1139,7 +1139,7 @@ const rlStep = 1 / 60,
             this.player.x + Math.cos(angle) * 0.9,
             this.player.y + Math.sin(angle) * 0.9,
             1.25,
-            24 + 8 * stats.overload,
+            32 + 12 * stats.overload,
             { enemies: true, knock: 2, kind: "overload" },
           );
         if (stats.echo > 0 && this.rng.chance(Math.min(0.28, 0.08 * stats.echo))) {
@@ -1266,7 +1266,7 @@ const rlStep = 1 / 60,
           const radius = 3 + 0.6 * (stats.reactive - 1);
           this._rlReacting = true;
           try {
-            this.explode(player.x, player.y, radius, (20 + 15 * (stats.reactive - 1)) * stats.dmgMul, {
+            this.explode(player.x, player.y, radius, (30 + 20 * (stats.reactive - 1)) * stats.dmgMul, {
               enemies: true,
               knock: 10,
               kind: "reactive",
@@ -1678,11 +1678,11 @@ const rlStep = 1 / 60,
         }
         if (!enemy.noDrop) {
           if (stats.bounty && enemy.elite) {
-            this.dropShards(player.x, player.y, 2 * stats.bounty);
-            this.emit("bountyPulse", { x: player.x, y: player.y, amount: 2 * stats.bounty });
+            this.dropShards(player.x, player.y, stats.bounty);
+            this.emit("bountyPulse", { x: player.x, y: player.y, amount: stats.bounty });
           }
           if (stats.capacitor) {
-            this.addNova(3 * stats.capacitor);
+            this.addNova(2 * stats.capacitor);
           }
         }
       }
@@ -1810,7 +1810,7 @@ const rlStep = 1 / 60,
       if (this.combo % every === 0 && player.alive && this.state === "fight" && !this._rlSurging) {
         this._rlSurging = true;
         try {
-          this.explode(player.x, player.y, level > 1 ? 4 : 3.5, (level > 1 ? 60 : 40) * this.stats.dmgMul, {
+          this.explode(player.x, player.y, level > 1 ? 4 : 3.5, (level > 1 ? 90 : 60) * this.stats.dmgMul, {
             enemies: true,
             knock: 8,
             kind: "surge",
@@ -2202,7 +2202,7 @@ const rlStep = 1 / 60,
       }
     }
     bomblets(x, y, dmg) {
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 2; i++) {
         if (this.pb.length >= MAX_PLAYER_BULLETS) return;
         let angle = this.rng.next() * TAU;
         this.pb.push({

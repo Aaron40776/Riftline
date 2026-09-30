@@ -18,6 +18,7 @@ const res = await page.evaluate(() => {
     v250B: r.v250B?.fail,
     v250C: r.v250C?.fail,
     v250D: r.v250D?.fail,
+    v260: r.v260?.fail,
   };
 });
 console.log(JSON.stringify(res, null, 1));

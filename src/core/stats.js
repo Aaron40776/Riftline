@@ -14,43 +14,43 @@ function computeStats(weaponId, run, workshop) {
   const stats = {
     weapon: weapon,
     maxHp: 100 + 10 * moduleLevel("hull") + 20 * level("hp"),
-    speed: 6.2 * (1 + 0.04 * moduleLevel("thrust")) * (1 + 0.08 * level("speed")),
+    speed: 6.2 * (1 + 0.04 * moduleLevel("thrust")) * (1 + 0.1 * level("speed")),
     dmgMul:
       (1 + 0.05 * moduleLevel("power")) *
       (1 + 0.15 * level("dmg")) *
       (colossus ? 1.45 : 1) *
       (has("twinsaw") ? 1.35 : 1),
-    rateMul: (1 + 0.12 * level("rate")) * (colossus ? 0.88 : 1),
-    velMul: (1 + 0.2 * level("velocity")) * (has("dragon") ? 1.3 : 1),
+    rateMul: (1 + 0.15 * level("rate")) * (colossus ? 0.88 : 1),
+    velMul: (1 + 0.25 * level("velocity")) * (has("dragon") ? 1.3 : 1),
     sizeMul: (colossus ? 1.6 : 1) * (has("twinsaw") ? 1.4 : 1),
     extra: level("multishot") + (has("shredder") ? 1 : 0),
     pierce: (weapon.pierce || 0) + level("pierce"),
     bounce: level("ricochet") + (has("shredder") ? 1 : 0),
-    crit: 0.05 + 0.08 * level("crit"),
-    critMul: 2,
+    crit: 0.05 + 0.1 * level("crit"),
+    critMul: 2 + 0.06 * level("crit"),
     magnet: 2.4 * (1 + 0.2 * moduleLevel("magnet")) * (1 + 0.45 * level("magnet")),
-    dashCd: 1.9 * (1 - 0.08 * moduleLevel("dash")) * (1 - 0.08 * level("vector")) * (has("phantom") ? 0.6 : 1),
+    dashCd: 1.9 * (1 - 0.08 * moduleLevel("dash")) * (1 - 0.1 * level("vector")) * (has("phantom") ? 0.5 : 1),
     momentum: 0.09 * level("momentum"),
-    laststand: 0.18 * level("laststand"),
+    laststand: 0.25 * level("laststand"),
     regen: 0.8 * level("regen"),
     shieldCd: shieldCd,
     orbit: level("orbit"),
-    orbitDmg: 14 * (has("halo") ? 2 : 1),
+    orbitDmg: 18 * (has("halo") ? 2 : 1),
     orbitR: has("halo") ? 2.7 : 2.1,
     bladeScale: has("halo") ? 1.5 : 1,
-    cryo: 0.15 * level("cryo"),
-    shockDash: level("shockdash") ? (level("shockdash") > 1 ? 48 : 30) : 0,
+    cryo: 0.2 * level("cryo"),
+    shockDash: level("shockdash") ? (level("shockdash") > 1 ? 64 : 40) : 0,
     payloadR: scaled("payload", 1.6, 0.35),
-    payloadF: scaled("payload", 0.4, 0.15),
+    payloadF: scaled("payload", 0.3, 0.1),
     arc: has("storm") ? Math.min(0.9, arc + 0.3) : arc,
     arcJumps: has("storm") ? 4 : 2,
-    chain: (weapon.chain || 0) + (has("tempest") ? 2 : 0),
-    chainF: has("tempest") ? 0.85 : 0.7,
+    chain: (weapon.chain || 0) + (has("tempest") ? 1 : 0),
+    chainF: has("tempest") ? 0.8 : 0.7,
     homing: (weapon.homing || 0) + 2.2 * level("seeker") + (has("twinsaw") ? 2.5 : 0),
     thermite: scaled("thermite", 0.3, 0.15),
     siphonCh: scaled("siphon", 0.12, 0.06),
     rear: level("rearguard"),
-    novaMul: 1 + 0.4 * level("overcharge"),
+    novaMul: 1 + 0.3 * level("overcharge"),
     novaR: 6.5 * (1 + 0.25 * level("overcharge")),
     wingman: level("wingman"),
     wingmen: level("wingman") ? 1 + (has("gunship") ? 1 : 0) : 0,
@@ -61,10 +61,10 @@ function computeStats(weaponId, run, workshop) {
     inferno: has("inferno"),
     trail: has("phantom"),
     boomerang: !!weapon.boomerang,
-    bounty: level("bounty"),
-    capacitor: level("capacitor"),
+    bounty: level("supply"), // 2.6.0: Bounty Protocol is part of Supply Loop
+    capacitor: level("overcharge"), // 2.6.0: Capacitor Bank is part of Overcharge
     burn: weapon.burn || 0,
-    burnMul: has("dragon") ? 1.6 : 1,
+    burnMul: has("dragon") ? 2 : 1,
     overdrive: has("overdrive"),
     lance: has("lance"),
     hellfire: has("hellfire"),
@@ -87,8 +87,9 @@ function computeStats(weaponId, run, workshop) {
   stats.cacheCount = moduleLevel("fieldSupply");
   stats.overload = level("overload");
   stats.crit = Math.min(0.95, stats.crit);
-  stats.chain += level("resonance");
-  stats.arc = Math.min(0.95, stats.arc + 0.08 * level("resonance"));
+  // 2.6.0: Resonance gives +1 chain jump every second level (was every level) and +6% chain chance
+  stats.chain += Math.ceil(level("resonance") / 2);
+  stats.arc = Math.min(0.95, stats.arc + 0.06 * level("resonance"));
   stats.echo = level("echo");
   // 2.5.0 A: the retired copies are folded into the upgrade they copied (their lines above now
   // read 0), and the six new upgrades expose their level for the World hooks in core/world.js.
@@ -98,7 +99,7 @@ function computeStats(weaponId, run, workshop) {
   // Overcharge (max 4): +25% Nova radius for each of the first two levels, +10% for the next two
   stats.novaR *= (1 + 0.25 * Math.min(2, overcharge) + 0.1 * Math.max(0, overcharge - 2)) / (1 + 0.25 * overcharge);
   // Vector Capacitor took over Cryo Coolant and Afterburner: the Aegis recharges faster too
-  stats.shieldCd *= Math.max(0.45, 1 - 0.08 * level("vector"));
+  stats.shieldCd *= Math.max(0.45, 1 - 0.1 * level("vector"));
   stats.skates = level("skates");
   stats.speed *= 1 + 0.04 * stats.skates;
   stats.acidCoat = level("acidcoat");
@@ -106,7 +107,7 @@ function computeStats(weaponId, run, workshop) {
   stats.slip = level("slipstream");
   stats.surge = level("surge");
   stats.reactive = level("reactive");
-  stats.rateMul *= 1 - 0.08 * stats.reactive;
+  stats.rateMul *= 1 - 0.04 * stats.reactive;
   // 2.5.0 B: workshop merge and the new modules
   // Rift Battery / Reactor Core are merged into Nova Cell (its floor is applied in startWave);
   // no module adds charge on top any more, even if an unsanitised ws object still names them.
