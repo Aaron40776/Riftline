@@ -381,7 +381,7 @@ const overlay = new Overlay(elementById("ov")),
       let world = this.world;
       if (world && world.reroll()) {
         ui.renderCards(world);
-        sound.play("pick");
+        // the "reroll" event plays the shuffle sound
         store.data.run = world.snapshot();
         store.save("reroll");
       }
