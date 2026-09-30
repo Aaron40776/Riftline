@@ -145,7 +145,7 @@ const upgradeList = [
     rarity: 3,
     max: 4,
     icon: "star",
-    desc: (level) => `Nova charges 30% faster, +${level < 2 ? 25 : 10}% radius, each kill adds 2% Nova charge`,
+    desc: (level) => `Nova charges 30% faster, +${level < 2 ? 25 : 10}% radius, each kill adds 1% Nova charge`,
   },
   {
     id: "wingman",
@@ -265,7 +265,7 @@ const upgradeList = [
     icon: "rate",
     weapon: "pulse",
     evo: { rate: 3, multishot: 1 },
-    desc: () => "Every 5th shot is a heavy bolt: 2.5x damage, bigger, pierces 3 enemies.",
+    desc: () => "Every 5th shot is a heavy bolt: double damage, bigger, pierces 3 enemies.",
   },
   {
     id: "shredder",
@@ -285,7 +285,7 @@ const upgradeList = [
     icon: "bolt",
     weapon: "tesla",
     evo: { rate: 2, crit: 2 },
-    desc: () => "Bolts jump to 3 enemies instead of 2 and lose less power per jump.",
+    desc: () => "Bolts jump to 4 enemies instead of 2 and lose less power per jump.",
   },
   {
     id: "lance",

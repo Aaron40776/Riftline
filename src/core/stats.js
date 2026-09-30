@@ -44,7 +44,7 @@ function computeStats(weaponId, run, workshop) {
     payloadF: scaled("payload", 0.3, 0.1),
     arc: has("storm") ? Math.min(0.9, arc + 0.3) : arc,
     arcJumps: has("storm") ? 4 : 2,
-    chain: (weapon.chain || 0) + (has("tempest") ? 1 : 0),
+    chain: (weapon.chain || 0) + (has("tempest") ? 2 : 0),
     chainF: has("tempest") ? 0.8 : 0.7,
     homing: (weapon.homing || 0) + 2.2 * level("seeker") + (has("twinsaw") ? 2.5 : 0),
     thermite: scaled("thermite", 0.3, 0.15),

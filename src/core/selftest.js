@@ -333,7 +333,7 @@ function selfTestBase() {
           novaAfter = world.player.nova;
         if (shardAfter - shardBefore < 2) bad("upgrade-runtime", "Supply Loop did not add its elite bonus shards");
         else upgradeChecks++;
-        if (novaAfter - novaBefore < 41.4) bad("upgrade-runtime", "Overcharge did not add its per-kill Nova charge");
+        if (novaAfter - novaBefore < 39.4) bad("upgrade-runtime", "Overcharge did not add its per-kill Nova charge");
         else upgradeChecks++;
       }
     }

@@ -1091,7 +1091,7 @@ const rlStep = 1 / 60,
                 homing: stats.homing,
               };
             if (heavy && mul >= 1) {
-              bullet.dmg *= 2.5;
+              bullet.dmg *= 2;
               bullet.r *= 2;
               bullet.pierce += 3;
               bullet.vx *= 1.2;
@@ -1682,7 +1682,7 @@ const rlStep = 1 / 60,
             this.emit("bountyPulse", { x: player.x, y: player.y, amount: stats.bounty });
           }
           if (stats.capacitor) {
-            this.addNova(2 * stats.capacitor);
+            this.addNova(stats.capacitor);
           }
         }
       }
@@ -2197,7 +2197,7 @@ const rlStep = 1 / 60,
       if (stats.payloadR) {
         this.explode(x, y, stats.payloadR, bullet.dmg * stats.payloadF, { enemies: true, knock: 1.5, kind: "payload" });
         if (stats.cluster) {
-          this.bomblets(x, y, Math.max(6, bullet.dmg * 0.5));
+          this.bomblets(x, y, Math.max(6, bullet.dmg * 0.4));
         }
       }
     }
