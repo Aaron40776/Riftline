@@ -19,8 +19,35 @@ const res = await page.evaluate(() => {
     v250C: r.v250C?.fail,
     v250D: r.v250D?.fail,
     v260: r.v260?.fail,
+    v270Sound: r.v270Sound?.fail,
   };
 });
+// 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
+// below full scale, and every voice has ended when the render does (nothing stays alive)
+const sound = await page.evaluate(async () => {
+  const engine = window.__riftTest.game.sound.constructor,
+    fail = [],
+    catalog = engine.catalog();
+  let maxPeak = 0,
+    longest = 0;
+  for (const { name, spec } of catalog) {
+    try {
+      const r = await engine.renderOffline(spec);
+      maxPeak = Math.max(maxPeak, r.peak);
+      longest = Math.max(longest, r.lastAudible);
+      if (!r.finite) fail.push(name + ": non-finite samples");
+      else if (!(r.peak > 0.001 && r.rms > 1e-5)) fail.push(`${name}: silent (peak ${r.peak})`);
+      if (r.peak >= 0.95) fail.push(`${name}: clipping (peak ${r.peak})`);
+      if (r.maxEnd > 2.05) fail.push(`${name}: a voice ends after ${r.maxEnd.toFixed(2)} s`);
+      if (r.failed) fail.push(name + ": engine error");
+    } catch (err) {
+      fail.push(`${name}: ${err && err.message}`);
+    }
+  }
+  return { count: catalog.length, maxPeak, longest, fail };
+});
+res.soundRender = sound;
+if (sound.fail.length) res.ok = false;
 console.log(JSON.stringify(res, null, 1));
 console.log(res.ok ? "DEEP TEST: ok" : "DEEP TEST: FAIL");
 await browser.close();

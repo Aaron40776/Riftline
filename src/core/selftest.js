@@ -3,7 +3,20 @@
 
 import { GameUI, rlCodexEntries, rlBiomeCardInfo } from "../ui/ui.js";
 import { Input } from "../ui/input.js";
-import { musicChords, RL_SFX_VOICES, musicVoices, SoundEngine } from "../audio/sound.js";
+import {
+  musicChords,
+  RL_SFX_VOICES,
+  musicVoices,
+  SoundEngine,
+  rlSoundCatalog,
+  RL_DEATH_FAMILY,
+  RL_CHARGE_VOICE,
+  RL_DASH_VOICE,
+  RL_BOSS_ATK,
+  RL_SOUND_EVENTS,
+  RL_SILENT_EVENTS,
+  MAX_VOICES,
+} from "../audio/sound.js";
 import {
   RL_RETIRE_NOTE,
   rlMigrateRetired,
@@ -422,6 +435,7 @@ function rlSelfTest() {
   result = selfTestV250D(result);
   result = selfTestV250B(result);
   result = selfTestV260(result);
+  result = selfTestV270Sound(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -1623,6 +1637,116 @@ function selfTestV260(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v260: { ok: fail.length === 0, fail } };
+}
+
+// 2.7.0: sound coverage. Every enemy type, boss and event kind that should sound is mapped to a sound that
+// exists, the real consumer reacts to each event, the voice limit holds, and no sound keeps a node alive
+// (the offline render of every sound is in tests/deep-test.mjs, it needs to wait for the audio thread).
+function selfTestV270Sound(result) {
+  const fail = [],
+    catalog = rlSoundCatalog(),
+    known = new Set(catalog.map((entry) => entry.spec.id).filter(Boolean));
+  try {
+    // (a) mapping
+    for (const type of Object.keys(enemyDefs)) {
+      if (!RL_DEATH_FAMILY[type]) fail.push("no-death-voice:" + type);
+    }
+    for (const [type, id] of Object.entries(RL_DEATH_FAMILY)) {
+      if (!enemyDefs[type]) fail.push("death-voice-unknown-type:" + type);
+      if (!known.has(id)) fail.push("death-voice-missing-sound:" + id);
+    }
+    if (new Set(Object.values(RL_DEATH_FAMILY)).size < 6) fail.push("death-families<6");
+    for (const table of [RL_CHARGE_VOICE, RL_DASH_VOICE, RL_BOSS_ATK])
+      for (const id of Object.values(table)) if (id && !known.has(id)) fail.push("voice-missing-sound:" + id);
+    for (const id of bossOrder) {
+      if (!catalog.some((entry) => entry.spec.id === "bossIntro" && entry.spec.arg === id)) fail.push("no-intro:" + id);
+    }
+    for (const kind of RL_EVENT_KINDS) {
+      const sounds = !!RL_SOUND_EVENTS[kind],
+        silent = RL_SILENT_EVENTS.has(kind);
+      if (sounds === silent) fail.push((sounds ? "both:" : "unmapped-event:") + kind);
+    }
+    for (const kind of [...Object.keys(RL_SOUND_EVENTS), ...RL_SILENT_EVENTS])
+      if (!RL_EVENT_KINDS.has(kind)) fail.push("unknown-event-kind:" + kind);
+    // every boss attack that really happens has an entry (a null entry says another event sounds for it)
+    for (const id of bossOrder) {
+      const world = new World({ seed: 0x270270, weapon: "pulse", threat: 0, ws: {} });
+      world.startWave(bossByWave[5] === id ? 5 : bossByWave[10] === id ? 10 : bossByWave[15] === id ? 15 : 20);
+      world.god = true;
+      world.spawnBoss(id);
+      world.boss.spawnT = 0;
+      const seen = new Set();
+      for (let frame = 0; frame < 60 * 45 && world.boss; frame++) {
+        world.step(1 / 60, { mx: 0, my: 0, aim: false, ax: 1, ay: 0, fire: false, assist: false });
+        for (const ev of world.fx)
+          if (ev.k === "bossAtk") {
+            seen.add(ev.atk);
+            if (!(ev.atk in RL_BOSS_ATK)) fail.push(`boss-atk-unmapped:${id}:${ev.atk}`);
+          }
+        world.fx.length = 0;
+      }
+      if (seen.size < 3) fail.push(`boss-atk-not-seen:${id}:${[...seen]}`);
+    }
+    // (b) the consumer: no ctx, suspended ctx and muted make no sound and no error
+    const idle = new SoundEngine();
+    idle.play("hurt");
+    idle.consume([{ k: "hurt" }]);
+    idle.setState(0.5, "bloom");
+    idle.setMusic("boss", "yard");
+    idle.bossEnd();
+    const played = [],
+      suspended = new SoundEngine();
+    suspended.ctx = { state: "suspended" };
+    suspended._play = (id) => played.push(id);
+    suspended.play("hurt");
+    suspended.consume([{ k: "hurt" }]);
+    suspended.ctx = { state: "running" };
+    suspended.sfxVol = 0;
+    suspended.play("hurt");
+    if (played.length) fail.push("sound-while-suspended-or-muted:" + played);
+    if (idle.failed || suspended.failed) fail.push("engine-error-without-ctx");
+    // (c) every event that should sound reaches a sound, and the voices end
+    if (typeof OfflineAudioContext !== "undefined") {
+      const engine = new SoundEngine(),
+        heard = [];
+      engine.attach(new OfflineAudioContext(1, 44100, 44100));
+      const real = engine._play.bind(engine);
+      engine._play = (id, arg) => {
+        heard.push(id);
+        if (id !== "pick" && !known.has(id)) fail.push("event-plays-unknown-sound:" + id);
+        real(id, arg);
+      };
+      for (const [kind, samples] of Object.entries(RL_SOUND_EVENTS))
+        for (const sample of samples) {
+          heard.length = 0;
+          engine.consume([{ k: kind, ...sample }]);
+          if (!heard.length) fail.push("event-silent:" + kind);
+        }
+      if (engine.failed) fail.push("engine-error-in-consume");
+      for (let i = 0; i < 100; i++) engine.play("hurt");
+      if (engine.voices.length > MAX_VOICES) fail.push("voice-limit:" + engine.voices.length);
+      if (!engine.dropped) fail.push("voice-limit-never-hit");
+      for (const voice of engine.voices) {
+        if (!(voice.end < 10) || voice.loop) fail.push("voice-never-ends");
+      }
+      for (const bed of ["hum", "meltdown", "whiteout", "bloom", "riftstorm"]) {
+        engine.startBed(bed);
+        if (!engine.voices.some((voice) => voice.loop)) fail.push("bed-not-registered:" + bed);
+        engine.stopBed(bed);
+        if (engine.voices.some((voice) => voice.loop)) fail.push("bed-never-ends:" + bed);
+        if (engine.beds[bed]) fail.push("bed-kept:" + bed);
+      }
+      // the boss music variant fades in with the boss and out after it
+      engine.setMusic("boss", "vault");
+      if (engine.bossOver) fail.push("boss-over-at-start");
+      engine.bossEnd();
+      if (!engine.bossOver) fail.push("boss-end-ignored");
+      engine.setMusic("fight", "vault");
+    }
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v270Sound: { ok: fail.length === 0, fail } };
 }
 
 // the "Deep test" button of the diagnostics dialog (rlRunHealth({deep:true})) runs this

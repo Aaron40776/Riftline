@@ -114,6 +114,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
  exactly one of the two. */
 const RL_SOUND_EVENTS = {
   aim: [{}, { type: "turret" }],
+  barrier: [{}],
   beamWarn: [{}, { small: true }],
   blink: [{}],
   blinkWarn: [{}],
@@ -147,6 +148,7 @@ const RL_SOUND_EVENTS = {
   heal: [{}],
   hurt: [{}],
   kill: [{ type: "grunt", r: 0.5 }],
+  kit: [{}],
   lob: [{}],
   mend: [{}],
   mine: [{}],
@@ -1328,6 +1330,9 @@ const musicChords = {
             break;
           case "pick":
             this.play("pick", ev.evo ? 5 : (upgradesById[ev.id] && upgradesById[ev.id].rarity) || 1);
+            break;
+          case "kit":
+            this.play("pick", 2);
             break;
           case "reroll":
             this.play("reroll");
