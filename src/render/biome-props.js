@@ -431,8 +431,8 @@ function worksDetail(biome, W, H, obs, rng) {
     );
   }
   // ground: soot patches, riveted plates, gears, gratings, lying pipes, debris, cracks
-  for (const p of scatter(rng, W, H, obs, 14, { gap: 2.2 }))
-    out.body.push(disc(0x0b0806, rng.range(0.5, 1.4), p.x, 0.012, p.z, 10, { sz: rng.range(0.6, 1) }));
+  for (const p of scatter(rng, W, H, obs, 9, { gap: 2.2 }))
+    out.body.push(disc(0x1c1510, rng.range(0.35, 0.9), p.x, 0.012, p.z, 10, { sz: rng.range(0.6, 1) }));
   for (const p of scatter(rng, W, H, obs, 11, { gap: 2.6 })) {
     const t = list(),
       s = rng.range(0.7, 1.1);
