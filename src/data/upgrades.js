@@ -193,7 +193,7 @@ const upgradeList = [
     rarity: 2,
     max: 2,
     icon: "shield",
-    desc: (level) => `-${25 * (level + 1)}% incoming damage below 35% hull`,
+    desc: (level) => `-${22 * (level + 1)}% incoming damage below 35% hull`,
   },
   {
     id: "vector",

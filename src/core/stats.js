@@ -31,7 +31,7 @@ function computeStats(weaponId, run, workshop) {
     magnet: 2.4 * (1 + 0.2 * moduleLevel("magnet")) * (1 + 0.45 * level("magnet")),
     dashCd: 1.9 * (1 - 0.08 * moduleLevel("dash")) * (1 - 0.1 * level("vector")) * (has("phantom") ? 0.5 : 1),
     momentum: 0.09 * level("momentum"),
-    laststand: 0.25 * level("laststand"),
+    laststand: 0.22 * level("laststand"),
     regen: 0.8 * level("regen"),
     shieldCd: shieldCd,
     orbit: level("orbit"),

@@ -35,15 +35,15 @@
    }
   },
   "stats-nr": {
-   "digest": "97ae508af9ce1464",
+   "digest": "732664a9f8664265",
    "rec": {
-    "pulse": "cd96f54ac4f53f8b",
-    "scatter": "9a6801ee738269b6",
-    "tesla": "87e9ca5d17511f4e",
-    "rail": "42b6825f564faa83",
-    "rocket": "9a26f3299d7411c9",
-    "disc": "7426c1d69689a7af",
-    "flame": "c56473e5ae2783e8",
+    "pulse": "30f81a34238bc5f4",
+    "scatter": "2399295aaaccb946",
+    "tesla": "aa70631bd0135ba0",
+    "rail": "73d74e394a9032b5",
+    "rocket": "331ef8b179824cd5",
+    "disc": "524239cc286f5d50",
+    "flame": "7c52fa312cceb783",
     "n": 1281,
     "rnd": 0
    }

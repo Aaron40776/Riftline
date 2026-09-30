@@ -1831,7 +1831,7 @@ await section("qol", async (L) => {
   check(
     L,
     "Last Stand lowers hits and never raises small ones",
-    ls[0] === 0 && ls[1] === Math.round(10 * (1 - 0.36)),
+    ls[0] === 0 && ls[1] === Math.round(10 * (1 - 0.44)),
     JSON.stringify(ls),
   );
   // menu pages: Esc goes back
