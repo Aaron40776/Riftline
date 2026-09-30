@@ -334,7 +334,7 @@ const getById = (id) => document.getElementById(id),
           this.g.restart();
         }
       });
-      this.click(getById("retryBtn"), () => this.g.startRun({}));
+      this.click(getById("retryBtn"), () => this.g.retry());
       this.click(getById("homeBtn"), () => this.g.goHome());
       this.click(getById("endlessBtn"), () => this.g.endless());
       this.click(getById("crashHome"), () => this.g.recover());
@@ -595,7 +595,11 @@ const getById = (id) => document.getElementById(id),
       if (
         !(
           save.run &&
-          !(await this.confirm("Start a new run?", `Your run at wave ${save.run.wave} will be abandoned.`, "New run"))
+          !(await this.confirm(
+            "Start a new run?",
+            `Your run at wave ${save.run.wave} ends here. You keep the shards collected in it.`,
+            "New run",
+          ))
         )
       ) {
         if (save.run) {
@@ -802,6 +806,11 @@ const getById = (id) => document.getElementById(id),
           row.appendChild(btn);
         }
         getById("dialog").hidden = false;
+        // 2.8.1: focus moves into the dialog and back to where it was on close. It lands on the main
+        // button, or on the first (Cancel) one when the main action is destructive, so Enter is safe
+        this.dlgFocusBack = document.activeElement;
+        const main = row.querySelector(".primary") || row.firstElementChild;
+        if (main) main.focus({ preventScroll: true });
         if (onOpen) {
           onOpen();
         }
@@ -812,6 +821,9 @@ const getById = (id) => document.getElementById(id),
         text = this.dlgRead ? this.dlgRead() : undefined;
       this.dlgResolve = null;
       getById("dialog").hidden = true;
+      const back = this.dlgFocusBack;
+      this.dlgFocusBack = null;
+      if (back && back.isConnected && typeof back.focus === "function") back.focus({ preventScroll: true });
       if (resolve) {
         resolve(this.dlgRead ? { value, text } : value);
       }
@@ -1281,7 +1293,7 @@ const getById = (id) => document.getElementById(id),
     showPause(world) {
       getById("pauseTitle").textContent = `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`;
       getById("pauseStats").innerHTML =
-        `<span>${formatTime(world.time)}</span><span>${world.kills} KILLS</span><span>${world.shards} SHARDS</span>`;
+        `<span>${formatTime(world.time)}</span><span>${formatCount(world.kills)} KILLS</span><span>${formatCount(world.shards)} SHARDS</span>`;
       getById("pauseBuild").innerHTML = this.buildHtml(world);
       this.coverHud(true);
       getById("pause").hidden = false;

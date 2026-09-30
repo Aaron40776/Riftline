@@ -163,13 +163,15 @@ const Input = class {
     const tag = ev.target && ev.target.tagName;
     if (down && !ev.repeat && tag !== "INPUT" && tag !== "TEXTAREA" && chooseKey(code, this._rlKey))
       ev.preventDefault();
-    // Esc also works while a settings toggle or slider has focus (only text fields keep it)
+    // Esc also works while a settings toggle or slider has focus (only text fields keep it);
+    // 2.8.1: and it closes an open dialog even while its text field (Import) has focus
+    const dialogOpen = typeof document !== "undefined" && document.getElementById("dialog")?.hidden === false;
     if (
       down &&
       !ev.repeat &&
       this._rlKey === "escape" &&
-      tag === "INPUT" &&
-      /^(checkbox|range|radio)$/.test(ev.target.type)
+      ((tag === "INPUT" && /^(checkbox|range|radio)$/.test(ev.target.type)) ||
+        (dialogOpen && (tag === "INPUT" || tag === "TEXTAREA")))
     ) {
       ev.target.blur();
       if (this.onPause) {

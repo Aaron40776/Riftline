@@ -1597,7 +1597,8 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     rlHealthAdd("save-resume", "FAIL", err.message);
   }
   try {
-    let key = "__rift_health_" + GAME_VERSION,
+    // 2.8.1: the probe key is inside the riftline.* namespace
+    let key = "riftline.health-probe",
       old = localStorage.getItem(key);
     localStorage.setItem(key, "1");
     localStorage.removeItem(key);

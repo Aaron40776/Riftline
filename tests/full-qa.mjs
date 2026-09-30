@@ -44,7 +44,8 @@ async function open(profName, { save = null, block = false } = {}) {
         });
         return;
       }
-      if (sessionStorage.getItem("__qaSeeded")) return;
+      // a second tab of the same context (window.name set before it loads the game) must not reseed
+      if (window.name === "qa-tab2" || sessionStorage.getItem("__qaSeeded")) return;
       sessionStorage.setItem("__qaSeeded", "1");
       localStorage.clear();
       if (v != null) localStorage.setItem(k, v);
@@ -129,8 +130,10 @@ async function open(profName, { save = null, block = false } = {}) {
   return P;
 }
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+let sectionsRun = 0;
 async function section(name, fn) {
   if (ONLY && !name.includes(ONLY)) return;
+  sectionsRun++;
   const t0 = Date.now();
   try {
     await fn((st, n, d) => log(name, st, n, d));
@@ -1636,13 +1639,20 @@ for (const [name, vp, touch] of [
     await P.ev(() => {
       window.__riftTest.ui.toast("QA hint that must not cover the pause menu", "intro", 8000);
       window.__riftTest.game.pause();
+      window.__riftTest.ui.toast("QA feedback", "good", 8000);
     });
     await P.page.waitForTimeout(400);
     const tp = await P.ev(() => {
-      const t = document.getElementById("toasts");
-      return getComputedStyle(t).visibility === "hidden" || !t.children.length;
+      const t = [...document.querySelectorAll("#toasts .toast")],
+        vis = (x) => x && getComputedStyle(x).visibility !== "hidden";
+      return {
+        hint: vis(t.find((x) => x.classList.contains("intro"))),
+        ui: vis(t.find((x) => x.textContent === "QA feedback")),
+      };
     });
-    check(L, "hints are hidden while the pause menu is open", tp);
+    check(L, "hints are hidden while the pause menu is open", !tp.hint, JSON.stringify(tp));
+    // 2.8.1: UI feedback (for example "Copied" in the pause settings) stays visible
+    check(L, "UI feedback toasts stay visible in the pause menu", tp.ui, JSON.stringify(tp));
     await P.ev(() => {
       const g = window.__riftTest.game;
       g.paused = false;
@@ -2547,6 +2557,58 @@ for (const profName of ["desktop", "phone", "land"])
     await P.close();
   });
 
+/* ======================= 2.8.1: two tabs share one save ======================= */
+await section("tabs", async (L) => {
+  const P = await open("desktop", {
+    save: JSON.stringify({ v: 1, game: "riftline", shards: 100, seen: { tutorial: true } }),
+  });
+  await P.boot();
+  const B = await P.ctx.newPage();
+  const errorsB = [];
+  // about:blank has no storage, so the seeding script throws there; only errors of the game count
+  await B.goto("about:blank");
+  await B.evaluate(() => (window.name = "qa-tab2"));
+  B.on("pageerror", (e) => errorsB.push(e.message));
+  await B.goto(BASE + "index.html");
+  await B.waitForFunction(() => window.__riftTest && window.__riftTest.store, null, { timeout: 90000 });
+  const addInB = (n) =>
+    B.evaluate((n) => {
+      const s = window.__riftTest.store;
+      s.data.shards += n;
+      s.save("qa-tab2");
+    }, n);
+  // tab A is in the menu: it takes over what tab B saved right away
+  await addInB(500);
+  await P.page.waitForTimeout(400);
+  const menuBank = await P.ev(() => window.__riftTest.store.data.shards);
+  check(L, "menu tab reloads the progress saved in the other tab", menuBank === 600, String(menuBank));
+  // tab A is in a run: tab B's progress is kept when tab A saves and when the run is settled
+  await P.tap("#playBtn");
+  await P.page.waitForTimeout(600);
+  await addInB(1000);
+  await P.page.waitForTimeout(400);
+  const warned = await P.ev(() =>
+    [...document.querySelectorAll("#toasts .toast")].some((t) => t.textContent.includes("another tab")),
+  );
+  check(L, "a running tab says that the game is open in another tab", warned);
+  await P.ev(() => {
+    const g = window.__riftTest.game;
+    g.world.shards = 7;
+    g.abandon();
+  });
+  await P.page.waitForTimeout(300);
+  const st = await P.stored();
+  check(
+    L,
+    "after the run: the other tab's shards and this run's shards are both in the save",
+    st && st.shards >= 1607,
+    String(st && st.shards),
+  );
+  check(L, "no page errors", !P.errors.length && !errorsB.length, [...P.errors, ...errorsB].join(" | "));
+  await P.close();
+});
+
+if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));
 console.log(`\nFULL QA: ${fails ? fails + " FAIL" : "all checks passed"}`);

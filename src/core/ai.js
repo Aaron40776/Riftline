@@ -698,7 +698,8 @@ function updateBoss(game, boss, dt) {
       if (boss.st === "summon") {
         if (boss.n === 0) {
           boss.n = 1;
-          let count = 5 + rage * 2;
+          // 2.8.1: summons stop while the arena is crowded (no cap before)
+          let count = game.enemies.length > 70 ? 0 : 5 + rage * 2;
           for (let k = 0; k < count; k++) {
             let angle = (k / count) * TAU + boss.spin,
               kid = game.spawnEnemy("swarmer", boss.x + Math.cos(angle) * 2.4, boss.y + Math.sin(angle) * 2.4, {
@@ -1233,6 +1234,8 @@ function updateEnemy(game, enemy, dt) {
       game.hash.query(enemy.x, enemy.y, 6, (ally) => {
         if (ally === enemy || ally.dead || ally.boss || ally.type === "beacon" || (ally.beaconT || 0) > game.time)
           return;
+        // 2.8.1: the hash query covers whole cells (up to ~10 m); heal only inside the 6 m ring that is shown
+        if (Math.hypot(ally.x - enemy.x, ally.y - enemy.y) > 6 + ally.r) return;
         ally.beaconT = game.time + 3;
         ally.hp = Math.min(ally.maxHp, ally.hp + ally.maxHp * 0.08);
         ally.healFlash = 0.3;
@@ -1257,6 +1260,8 @@ function updateEnemy(game, enemy, dt) {
     enemy.vy = Math.sin(ang + Math.PI / 2) * side * enemy.speed;
     enemy.face = turnToward(enemy.face, ang, 8 * dt);
     enemy.t -= dt;
+    // 2.8.1: a dead player is not shot at any more
+    if (enemy.t <= 0 && !player.alive) enemy.t = 1;
     if (enemy.t <= 0) {
       const spot = game.arena.freePoint(game.rng, player.x, player.y, 7.4, 1.25);
       if (spot) {
@@ -1459,6 +1464,11 @@ function updateEnemy(game, enemy, dt) {
       } else if (dist < 8.5) {
         enemy.vx = (-dx / dist) * enemy.speed * 0.7;
         enemy.vy = (-dy / dist) * enemy.speed * 0.7;
+      } else if (!enemy.los) {
+        // 2.8.1: without a line of sight at 8.5-12 m it used to stand still for good; walk up to get one
+        game.chaseDir(enemy);
+        enemy.vx = game.cdx * enemy.speed * 0.6;
+        enemy.vy = game.cdy * enemy.speed * 0.6;
       } else {
         enemy.vx *= 0.65;
         enemy.vy *= 0.65;

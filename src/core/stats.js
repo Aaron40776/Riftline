@@ -84,8 +84,11 @@ function computeStats(weaponId, run, workshop) {
   stats.cacheCount = moduleLevel("fieldSupply");
   stats.overload = level("overload");
   stats.crit = Math.min(0.95, stats.crit);
-  // 2.6.0: Resonance gives +1 chain jump every second level (was every level) and +6% chain chance
-  stats.chain += Math.ceil(level("resonance") / 2);
+  // 2.6.0: Resonance gives +1 chain jump every second level (was every level) and +6% chain chance.
+  // 2.8.1: the jump goes to the weapon's own chain only for chaining weapons (Tesla); for the others it
+  // extends the chance-based arc chain, as the card says (it used to add a chain on every single hit)
+  if (stats.chain) stats.chain += Math.ceil(level("resonance") / 2);
+  else stats.arcJumps += Math.ceil(level("resonance") / 2);
   stats.arc = Math.min(0.95, stats.arc + 0.06 * level("resonance"));
   stats.echo = level("echo");
   // 2.5.0 A: the retired copies are folded into the upgrade they copied (their lines above now

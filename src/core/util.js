@@ -73,9 +73,11 @@ function formatTime(secs) {
     rest = secs % 60;
   return mins + ":" + String(rest).padStart(2, "0");
 }
+// 2.8.1: millions get an "M" (999 999 used to round to "1000k")
 function formatCount(n) {
   n = Math.floor(n);
-  return n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + "k" : String(n);
+  if (n >= 999500) return (n / 1e6).toFixed(n >= 9.95e6 ? 0 : 1) + "M";
+  return n >= 1e4 ? (n / 1e3).toFixed(n >= 99950 ? 0 : 1) + "k" : String(n);
 }
 const GAME_VERSION = __RL_VERSION__;
 function smoothstep(x) {

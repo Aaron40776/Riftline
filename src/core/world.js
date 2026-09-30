@@ -194,7 +194,9 @@ const rlStep = 1 / 60,
       this.offerBoss = false;
       this.state = "fight";
       this.stateT = 0;
-      this.startWave(this.wave, snap ? snap.nova : null);
+      // 2.8.1: a run resumed in the fight rebuilds its wave with the supply caches and the bonus group
+      // (the snapshot is taken at the wave start); a resumed upgrade choice throws the wave away anyway
+      this.startWave(this.wave, snap ? snap.nova : null, !!snap && !Array.isArray(snap.offer));
       if (snap && Array.isArray(snap.offer)) {
         let offer = snap.offer.filter((id) => upgradesById[id]);
         this.fx.length = 0;
@@ -212,7 +214,9 @@ const rlStep = 1 / 60,
       this.fx.push(data);
       return data;
     }
-    startWave(wave, nova) {
+    // `nova`: the saved charge of a resumed run (null for a new wave); `resumed`: the wave is rebuilt
+    // from a snapshot of its start, so it gets the same caches and bonus group as the first time
+    startWave(wave, nova, resumed = false) {
       // 2.5.0 C: an arena changed by a biome event is never reused (startWave of the same wave again)
       if (this.arena && this.arena.rlEvent) {
         this.arena.key += ":used";
@@ -297,7 +301,8 @@ const rlStep = 1 / 60,
           mode = director?.mode || "standard";
         this.waveMode = mode;
         this.waveIntensity = director?.intensity || 0;
-        if (nova == null && !this.bossPending && !this.boss && wave >= 2) {
+        const fresh = nova == null || resumed;
+        if (fresh && !this.bossPending && !this.boss && wave >= 2) {
           const count = wave % 6 === 0 ? 2 : 1;
           for (let i = 0; i < count; i++) {
             const spot = this.arena.freePoint(
@@ -317,7 +322,7 @@ const rlStep = 1 / 60,
             this.pickups.push(pickup);
           }
         }
-        if (!(nova != null || this.bossPending || this.boss || wave < 2)) {
+        if (fresh && !this.bossPending && !this.boss && wave >= 2) {
           const extra =
             Math.max(0, this.stats.cacheBonus || 0) +
             Math.max(0, this.stats.cacheCount || 0) +
@@ -796,7 +801,11 @@ const rlStep = 1 / 60,
             player.acidT = 0.35;
           }
           for (let enemy of this.enemies) enemy.corrode = !enemy.boss && arena.inAcid(enemy.x, enemy.y);
-        } else player.inAcid = false;
+        } else {
+          player.inAcid = false;
+          // 2.8.1: when the last pool is gone nobody stands in acid any more
+          for (let enemy of this.enemies) enemy.corrode = false;
+        }
         if (arena.vents.length && this.state === "fight")
           for (let vent of arena.vents) {
             let state = arena.ventState(vent, this.waveT);
@@ -1068,16 +1077,17 @@ const rlStep = 1 / 60,
     }
     fire(angle) {
       const stats = this.stats;
-      // one volley; 2.1 Echo fires a second one
-      const volley = (aim) => {
+      // one volley; 2.1 Echo fires a second one. 2.8.1: only the main volley counts as a shot for Overload
+      // and Overdrive (an Echo volley used to shift both counters and could itself be heavy)
+      const volley = (aim, echo = false) => {
         let player = this.player,
           weapon = stats.weapon,
           count = weapon.count + (weapon.cone ? stats.extra * 2 : stats.extra),
           muzzle = 0.75,
           originX = player.x + Math.cos(aim) * muzzle,
           originY = player.y + Math.sin(aim) * muzzle;
-        player.shotN = (player.shotN || 0) + 1;
-        let heavy = stats.overdrive && player.shotN % 6 === 0,
+        if (!echo) player.shotN = (player.shotN || 0) + 1;
+        let heavy = !echo && stats.overdrive && player.shotN % 6 === 0,
           shoot = (dir, mul) => {
             if (this.pb.length >= MAX_PLAYER_BULLETS) return;
             let spread = (this.rng.next() - 0.5) * 2 * weapon.spread,
@@ -1139,10 +1149,9 @@ const rlStep = 1 / 60,
         dmg = stats.dmgMul;
       if (boost) stats.dmgMul = dmg * (1 + 0.25 * stats.slip);
       try {
-        // 2.1: Overload (every 6th shot bursts at the muzzle) and Echo (a chance of a second volley)
-        const echoing = !!this._rl21Echoing;
+        // 2.1: Overload (every 5th shot bursts at the muzzle) and Echo (a chance of a second volley)
         volley(angle);
-        if (echoing || this.state !== "fight" || !this.player.alive) return;
+        if (this.state !== "fight" || !this.player.alive) return;
         const shot = this.player.shotN || 0;
         if (stats.overload > 0 && shot > 0 && shot % 5 === 0)
           this.explode(
@@ -1153,12 +1162,7 @@ const rlStep = 1 / 60,
             { enemies: true, knock: 2, kind: "overload" },
           );
         if (stats.echo > 0 && this.rng.chance(Math.min(0.28, 0.08 * stats.echo))) {
-          this._rl21Echoing = true;
-          try {
-            volley(angle + this.rng.range(-0.035, 0.035));
-          } finally {
-            this._rl21Echoing = false;
-          }
+          volley(angle + this.rng.range(-0.035, 0.035), true);
         }
       } finally {
         if (boost) stats.dmgMul = dmg;
@@ -1396,9 +1400,18 @@ const rlStep = 1 / 60,
       return enemy;
     }
     spawnBoss(id) {
+      // 2.8.1: an Endless boss starts from the wave-20 hull (it used to start from its own base hull, so the
+      // Warden at wave 30 had less than the boss at wave 20) and grows like the regular enemies, plus 10%
+      // for every Endless boss so far
+      const hpCurve = (wave) => 1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1);
       let def = bossDefs[id],
-        scale = this.endless ? 1 + Math.floor((this.wave - 20) / 5) * 0.55 : 1,
-        hp = def.hp * this.tm.boss * 0.9 * scale * (1 + (this.wave > 20 ? (this.wave - 20) * 0.08 : 0)),
+        hp = this.endless
+          ? BOSS_SLOT_HP[3] *
+            this.tm.boss *
+            0.9 *
+            (hpCurve(this.wave) / hpCurve(20)) *
+            (1 + 0.1 * Math.max(0, Math.floor((this.wave - 20) / 5)))
+          : def.hp * this.tm.boss * 0.9 * (1 + (this.wave > 20 ? (this.wave - 20) * 0.08 : 0)),
         arena = this.arena,
         boss = {
           id: this.nextId++,
@@ -1671,7 +1684,15 @@ const rlStep = 1 / 60,
       enemy.dead = true;
       enemy.hp = 0;
       let def = enemy.def;
-      if (!enemy.boss) {
+      // 2.8.1: the adds removed when a boss dies only vanish (no kill count, Nova, Siphon, drops, split,
+      // explosions); they used to pay rewards, spawn mites and set off volatile or inferno effects
+      if (enemy.cleanup) {
+        this.emit("kill", { type: enemy.type, x: enemy.x, y: enemy.y, elite: enemy.elite, boss: false, r: enemy.r });
+        return;
+      }
+      // 2.8.1: after the player died, kills by bullets still in flight, burn or explosions pay nothing
+      const alive = this.player.alive;
+      if (!enemy.boss && alive) {
         this.kills++;
         if (!enemy.noCombo) {
           this.addCombo();
@@ -1697,7 +1718,7 @@ const rlStep = 1 / 60,
           }
         }
       }
-      if (!enemy.noDrop) {
+      if (!enemy.noDrop && alive) {
         let shards =
           (enemy.boss ? def.shards : def.shards * (enemy.elite ? 4 : 1) * 0.4) *
           (this.event ? waveEvents[this.event].shardMul : 1);
@@ -1720,9 +1741,12 @@ const rlStep = 1 / 60,
         for (let i = 0; i < 3; i++) {
           let angle = (i / 3) * TAU + this.rng.next(),
             mite = this.spawnEnemy("mite", enemy.x + Math.cos(angle) * 0.6, enemy.y + Math.sin(angle) * 0.6, {
-              elite: enemy.elite,
+              elite: false,
               noDrop: false,
             });
+          // 2.8.1: an elite splitter's mites are tougher but not elites themselves (three elite mites paid
+          // three elite heal chances, bounties and Nova charges each)
+          if (enemy.elite) mite.maxHp = mite.hp = mite.hp * 2;
           mite.spawnT = 0;
           mite.kx = Math.cos(angle) * 6;
           mite.ky = Math.sin(angle) * 6;
@@ -1767,13 +1791,14 @@ const rlStep = 1 / 60,
         }
       }
       if (enemy.boss) {
-        this.bossKills.push(enemy.type);
+        if (alive) this.bossKills.push(enemy.type);
         this.boss = null;
         for (let other of this.enemies) {
           if (!other.dead) {
             other.noDrop = true;
             other.noCombo = true;
             other.affix = null;
+            other.cleanup = true;
             this.killEnemy(other);
           }
         }
@@ -2136,7 +2161,8 @@ const rlStep = 1 / 60,
         this.hash.query(enemy.x, enemy.y, 8, (other) => {
           if (other.dead || other.ghost || bullet.hits.includes(other.id)) return;
           let dist = Math.hypot(other.x - enemy.x, other.y - enemy.y);
-          if (dist < best) {
+          // 2.8.1: only enemies in sight (it used to bounce into a wall)
+          if (dist < best && this.arena.los(enemy.x, enemy.y, other.x, other.y, 0.1)) {
             best = dist;
             next = other;
           }
