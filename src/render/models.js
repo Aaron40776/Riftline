@@ -1322,3 +1322,10 @@ export {
   buildPlayerModel,
   wingDroneGeometry,
 };
+  meshPart,
+  mergeParts,
+  box,
+  ball,
+  bar,
+  pipe,
+  spike,
