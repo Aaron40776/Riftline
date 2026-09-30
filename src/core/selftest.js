@@ -1201,7 +1201,7 @@ function selfTestV250A(result) {
     if (!world.fx.some((fx) => fx.k === "boom" && fx.kind === "surge") || !(enemy.hp < 1e6)) fail.push("surge");
     if (!(world.comboT > 2.2)) fail.push("surge-combo-time");
   }
-  // Reactive Plating: a hit pushes enemies away and clears enemy shots; costs fire rate
+  // Reactive Plating: a hit pushes enemies away and clears enemy shots (no fire-rate cost since 2.8.0)
   {
     const world = makeWorld({ reactive: 1 }),
       player = world.player,
@@ -1210,7 +1210,6 @@ function selfTestV250A(result) {
     world.eb.push({ x: player.x + 1, y: player.y, vx: 0, vy: 0, r: 0.2, dmg: 5, life: 2 });
     world.hurtPlayer(5, enemy.x, enemy.y, "brute");
     if (!(enemy.hp < 1e6) || world.eb[0].life > 0) fail.push("reactive");
-    if (!(world.stats.rateMul < computeStats("pulse", {}, {}).rateMul)) fail.push("reactive-cost");
   }
   return { ...result, ok: result.ok && fail.length === 0, v250A: { ok: fail.length === 0, fail } };
 }

@@ -247,7 +247,7 @@ const upgradeList = [
     icon: "rate",
     weapon: "pulse",
     evo: { rate: 3, multishot: 1 },
-    desc: () => "Every 5th shot is a heavy bolt: double damage, bigger, pierces 3 enemies.",
+    desc: () => "Every 6th shot is a heavy bolt: double damage, bigger, pierces 2 enemies.",
   },
   {
     id: "shredder",
@@ -276,7 +276,7 @@ const upgradeList = [
     max: 1,
     icon: "pierce",
     weapon: "rail",
-    evo: { pierce: 1, velocity: 1 },
+    evo: { pierce: 1, crit: 1 },
     desc: () => "Slugs pass through walls and pierce every enemy in their path.",
   },
   {
@@ -296,7 +296,7 @@ const upgradeList = [
     max: 1,
     icon: "orbit",
     weapon: "disc",
-    evo: { rate: 2, velocity: 1 },
+    evo: { rate: 2, crit: 1 },
     desc: () => "Discs are 40% bigger, hit 35% harder and seek enemies on the way out.",
   },
   {
@@ -432,7 +432,7 @@ upgradeList.push(
     max: 2,
     icon: "shield",
     desc: (level, count = level + 1) =>
-      `Getting hit releases a repulse wave (${30 + 20 * level} damage) that clears nearby shots. -${4 * count}% fire rate`,
+      `Getting hit releases a repulse wave (${45 + 25 * level} damage) that clears nearby shots`,
   },
 );
 upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));

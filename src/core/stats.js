@@ -104,7 +104,6 @@ function computeStats(weaponId, run, workshop) {
   stats.slip = level("slipstream");
   stats.surge = level("surge");
   stats.reactive = level("reactive");
-  stats.rateMul *= 1 - 0.04 * stats.reactive;
   // 2.5.0 B: workshop merge and the new modules
   // Rift Battery / Reactor Core are merged into Nova Cell (its floor is applied in startWave);
   // no module adds charge on top any more, even if an unsanitised ws object still names them.

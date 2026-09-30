@@ -1077,7 +1077,7 @@ const rlStep = 1 / 60,
           originX = player.x + Math.cos(aim) * muzzle,
           originY = player.y + Math.sin(aim) * muzzle;
         player.shotN = (player.shotN || 0) + 1;
-        let heavy = stats.overdrive && player.shotN % 5 === 0,
+        let heavy = stats.overdrive && player.shotN % 6 === 0,
           shoot = (dir, mul) => {
             if (this.pb.length >= MAX_PLAYER_BULLETS) return;
             let spread = (this.rng.next() - 0.5) * 2 * weapon.spread,
@@ -1103,7 +1103,7 @@ const rlStep = 1 / 60,
             if (heavy && mul >= 1) {
               bullet.dmg *= 2;
               bullet.r *= 2;
-              bullet.pierce += 3;
+              bullet.pierce += 2;
               bullet.vx *= 1.2;
               bullet.vy *= 1.2;
               bullet.heavy = true;
@@ -1276,7 +1276,7 @@ const rlStep = 1 / 60,
           const radius = 3 + 0.6 * (stats.reactive - 1);
           this._rlReacting = true;
           try {
-            this.explode(player.x, player.y, radius, (30 + 20 * (stats.reactive - 1)) * stats.dmgMul, {
+            this.explode(player.x, player.y, radius, (45 + 25 * (stats.reactive - 1)) * stats.dmgMul, {
               enemies: true,
               knock: 10,
               kind: "reactive",
