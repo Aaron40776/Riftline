@@ -142,7 +142,7 @@ const RL_ENEMY_BUILDERS = {
   hive: (P) => ({
     // brood mound: a fat lumpy body with two smaller segments on top, hatch pods around the base
     body: [
-      ball(P.mid, 0.95, 9, 6, { y: 0.85, sy: 0.85 }),
+      ball(P.mid, 0.95, 8, 6, { y: 0.85, sy: 0.85 }),
       ball(P.lite, 0.6, 7, 5, { x: -0.1, y: 1.6, z: 0.08 }),
       ball(P.dark, 0.38, 6, 4, { x: -0.12, y: 2.0, z: 0.14 }),
       ...[0.2, 2.3, 4.3].map((a, i) =>
@@ -165,7 +165,6 @@ const RL_ENEMY_BUILDERS = {
       ),
       meshPart(new OctahedronGeometry(0.16), P.white, { x: 0.05, y: 2.82, z: 0.3 }),
       ball(P.white, 0.12, 6, 4, { x: 0.62, y: 1.05, z: -0.4 }),
-      ball(P.white, 0.09, 6, 4, { x: 0.7, y: 1.3, z: -0.1 }),
     ],
   }),
   carrier: (P) => ({
@@ -1074,6 +1073,19 @@ function buildBossModel(type, color) {
     addMesh(new BoxGeometry(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, -1.9);
     let ring = addMesh(new TorusGeometry(1.95, 0.07, 5, 36), glowMat, 0, 0.35, 0);
     ring.rotation.x = Math.PI / 2;
+    // 2.7.0: pauldrons, a horned head with a visor, twin cannons and a chest emblem
+    for (const side of [1, -1]) {
+      addMesh(new BoxGeometry(1.1, 0.55, 1.05), hullMat, 0, 2.75, side * 1.15);
+      addMesh(new BoxGeometry(0.5, 0.2, 0.9), glowMat, 0.35, 3.05, side * 1.15);
+      addMesh(new CylinderGeometry(0.2, 0.24, 1.7, 8), darkMat, 1.05, 2.15, side * 0.85).rotation.z = Math.PI / 2;
+      addMesh(new CylinderGeometry(0.26, 0.26, 0.12, 8), glowMat, 1.95, 2.15, side * 0.85).rotation.z = Math.PI / 2;
+      const horn = addMesh(new ConeGeometry(0.17, 0.95, 5), hullMat, 0.35, 3.75, side * 0.42);
+      horn.rotation.set(side * 0.35, 0, 0.25);
+      addMesh(new BoxGeometry(0.1, 0.1, 0.34), glowMat, 1.03, 2.98, side * 0.28);
+    }
+    addMesh(new BoxGeometry(1, 0.75, 1.1), darkMat, 0.55, 3.0, 0);
+    addMesh(new OctahedronGeometry(0.34, 0), glowMat, 1.0, 1.55, 0).scale.set(0.4, 1.3, 1);
+    for (let i = -1; i <= 1; i++) addMesh(new BoxGeometry(0.06, 0.6, 0.12), glowMat, -1.02, 2.2, i * 0.4);
   } else if (type === "queen") {
     addMesh(new SphereGeometry(1.35, 16, 10), hullMat, 0.3, 1.9, 0).scale.set(1.1, 0.8, 1);
     addMesh(new SphereGeometry(1.1, 14, 9), darkMat, -1.3, 1.6, 0).scale.set(1.3, 0.85, 0.9);
@@ -1092,6 +1104,29 @@ function buildBossModel(type, color) {
         0.6,
         Math.sin(angle) * 1.2,
       ).rotation.set(Math.sin(angle) * 0.5, 0, -Math.cos(angle) * 0.5);
+    }
+    // 2.7.0: a real head with mandibles and antennae, spines along the back, glowing egg sacs on the abdomen
+    addMesh(new SphereGeometry(0.72, 12, 8), hullMat, 1.55, 1.75, 0).scale.set(1.15, 0.85, 1);
+    for (const side of [1, -1]) {
+      const jaw = addMesh(new ConeGeometry(0.16, 1.1, 5), darkMat, 2.25, 1.35, side * 0.42);
+      jaw.rotation.set(side * 0.1, side * -0.45, -Math.PI / 2 - 0.35);
+      const feeler = addMesh(new BoxGeometry(0.06, 1.1, 0.06), darkMat, 1.8, 2.7, side * 0.35);
+      feeler.rotation.set(side * 0.5, 0, -0.5);
+      addMesh(new SphereGeometry(0.1, 6, 4), glowMat, 2.2, 3.2, side * 0.72);
+    }
+    for (let i = 0; i < 5; i++) {
+      const spine = addMesh(new ConeGeometry(0.13, 0.75 - i * 0.05, 5), darkMat, 0.9 - i * 0.7, 2.75 - i * 0.14, 0);
+      spine.rotation.z = 0.2;
+    }
+    for (let i = 0; i < 4; i++) {
+      const angle = i * 1.6;
+      addMesh(
+        new SphereGeometry(0.2 + (i % 2) * 0.06, 8, 6),
+        glowMat,
+        -1.3 + Math.cos(angle) * 0.55,
+        2.15 + Math.sin(angle) * 0.25,
+        Math.sin(angle * 1.7) * 0.75,
+      );
     }
   } else if (type === "prism") {
     // 2.4.6: Frost Prism, a floating ice golem: a tall translucent crystal body with a cold glow
@@ -1205,6 +1240,38 @@ function buildBossModel(type, color) {
       band.rotation.set(i * 1.1, i * 0.6, 0);
       spin.push({ m: band, ax: i === 0 ? "x" : i === 1 ? "y" : "z", v: 0.6 + i * 0.35 });
     }
+    // 2.7.0: a crown of crystal spikes that turns around the core, four shards orbiting the other way
+    const crown = new Group();
+    crown.position.y = 2.4;
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2,
+        tilt = i % 2 ? 0.5 : 0.15,
+        spike = addMesh(new ConeGeometry(0.2, 1.3 + (i % 2) * 0.5, 5), i % 2 ? hullMat : darkMat, 0, 0, 0, crown);
+      spike.position.set(
+        Math.cos(angle) * 1.05,
+        (i % 2 ? 0.35 : -0.1) + Math.sin(angle * 2) * 0.1,
+        Math.sin(angle) * 1.05,
+      );
+      spike.rotation.set(Math.sin(angle) * (Math.PI / 2 - tilt), 0, -Math.cos(angle) * (Math.PI / 2 - tilt));
+    }
+    group.add(crown);
+    spin.push({ m: crown, ax: "y", v: 0.5 });
+    const shards = new Group();
+    shards.position.y = 2.4;
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2,
+        shard = addMesh(
+          new OctahedronGeometry(0.3, 0),
+          glowMat,
+          Math.cos(angle) * 2.9,
+          Math.sin(i * 2) * 0.5,
+          Math.sin(angle) * 2.9,
+          shards,
+        );
+      shard.scale.y = 1.6;
+    }
+    group.add(shards);
+    spin.push({ m: shards, ax: "y", v: -0.9 });
     let base = addMesh(new CylinderGeometry(1.2, 1.8, 0.5, 8), darkMat, 0, 0.25, 0);
     base.rotation.y = 0.3;
     let groundRing = addMesh(new TorusGeometry(2.4, 0.08, 5, 44), glowMat, 0, 0.1, 0);
