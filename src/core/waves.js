@@ -77,6 +77,24 @@ function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], w
     picks.push(pick.id);
     left.splice(left.indexOf(pick), 1);
   }
+  // 2.8.0: never an offer of only common cards: the last card becomes a rare or better one
+  if (!boss && picks.length > 1 && picks.every((id) => upgradeList.find((upgrade) => upgrade.id === id).rarity < 2)) {
+    let better = left.filter((upgrade) => upgrade.rarity >= 2),
+      total = 0;
+    for (let upgrade of better) total += weightOf(upgrade);
+    if (better.length) {
+      let roll = rng.next() * total,
+        pick = better[better.length - 1];
+      for (let upgrade of better) {
+        roll -= weightOf(upgrade);
+        if (roll <= 0) {
+          pick = upgrade;
+          break;
+        }
+      }
+      picks[picks.length - 1] = pick.id;
+    }
+  }
   return picks;
 }
 function countRarity(list, rarity) {

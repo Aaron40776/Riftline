@@ -101,6 +101,8 @@ const comboRewards = [
   [150, 80],
   [250, 150],
 ];
+// 2.8.0: enemies that reach you and blow up, ram or jump at you; auto-aim prefers them when they are close
+const RL_RUSHERS = new Set(["bomber", "charger", "striker", "leaper", "sapper"]);
 const rlStep = 1 / 60,
   PLAYER_RADIUS = 0.55,
   MAX_PLAYER_BULLETS = 420,
@@ -588,11 +590,7 @@ const rlStep = 1 / 60,
           if (player.heatT > 0) stats.rateMul = rate * (1 + 0.25 * stats.heatSink);
         }
         try {
-          // Momentum: faster fire while moving
           const rateBase = stats.rateMul || 1;
-          stats.rateMul =
-            rateBase *
-            (stats.momentum > 0 && input && Math.hypot(+input.mx || 0, +input.my || 0) > 0.08 ? 1 + stats.momentum : 1);
           try {
             this.stateT += dt;
             if (this.state === "choose" || this.state === "victory") this.idle(dt);
@@ -1016,6 +1014,13 @@ const rlStep = 1 / 60,
         this.nova();
       }
     }
+    // 2.8.0: shots stop at walls (only the Lance slug flies through), so nothing behind a wall is a target
+    shotsCrossWalls() {
+      return !!(this.stats.lance && this.stats.weapon.rail);
+    }
+    canSee(enemy) {
+      return this.shotsCrossWalls() || this.arena.los(this.player.x, this.player.y, enemy.x, enemy.y, 0.15);
+    }
     assistAim(angle) {
       let player = this.player,
         best = null,
@@ -1029,13 +1034,17 @@ const rlStep = 1 / 60,
         if (dist > range) continue;
         let err = Math.abs(angleDiff(angle, Math.atan2(dy, dx))),
           cone = Math.min(0.35, 0.12 + Math.atan2(enemy.r, dist));
-        if (err < cone && err < bestErr + (0.05 * dist) / range) {
+        if (err < cone && err < bestErr + (0.05 * dist) / range && this.canSee(enemy)) {
           best = enemy;
           bestErr = err;
         }
       }
       return best ? Math.atan2(best.y - player.y, best.x - player.x) : angle;
     }
+    // 2.8.0: smarter auto-aim. Enemies behind a wall are skipped (the shots would only hit the
+    // wall); close enemies come first, rushers that explode or ram you even more so; enemies that
+    // are immune right now (shield phase) only when nothing else is in reach; the current target is
+    // kept while it is still a good one, so the aim does not flicker between two similar enemies.
     pickTarget() {
       let player = this.player,
         range = this.stats.range + 2.5,
@@ -1044,11 +1053,12 @@ const rlStep = 1 / 60,
       for (let enemy of this.enemies) {
         if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
         let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y) - enemy.r;
-        if (dist > range) continue;
-        let score = dist + (enemy.los ? 0 : 9);
-        if (enemy === player.target) {
-          score *= 0.8;
-        }
+        if (dist > range || !this.canSee(enemy)) continue;
+        let score = dist;
+        if (dist < 4) score *= 0.6;
+        else if (dist < 7 && RL_RUSHERS.has(enemy.type)) score *= 0.75;
+        if (enemy.shielded) score += 12;
+        if (enemy === player.target) score *= 0.8;
         if (score < bestScore) {
           bestScore = score;
           best = enemy;
@@ -1067,7 +1077,7 @@ const rlStep = 1 / 60,
           originX = player.x + Math.cos(aim) * muzzle,
           originY = player.y + Math.sin(aim) * muzzle;
         player.shotN = (player.shotN || 0) + 1;
-        let heavy = stats.overdrive && player.shotN % 5 === 0,
+        let heavy = stats.overdrive && player.shotN % 6 === 0,
           shoot = (dir, mul) => {
             if (this.pb.length >= MAX_PLAYER_BULLETS) return;
             let spread = (this.rng.next() - 0.5) * 2 * weapon.spread,
@@ -1093,7 +1103,7 @@ const rlStep = 1 / 60,
             if (heavy && mul >= 1) {
               bullet.dmg *= 2;
               bullet.r *= 2;
-              bullet.pierce += 3;
+              bullet.pierce += 2;
               bullet.vx *= 1.2;
               bullet.vy *= 1.2;
               bullet.heavy = true;
@@ -1134,12 +1144,12 @@ const rlStep = 1 / 60,
         volley(angle);
         if (echoing || this.state !== "fight" || !this.player.alive) return;
         const shot = this.player.shotN || 0;
-        if (stats.overload > 0 && shot > 0 && shot % 6 === 0)
+        if (stats.overload > 0 && shot > 0 && shot % 5 === 0)
           this.explode(
             this.player.x + Math.cos(angle) * 0.9,
             this.player.y + Math.sin(angle) * 0.9,
-            1.25,
-            32 + 12 * stats.overload,
+            1.6,
+            45 + 15 * stats.overload,
             { enemies: true, knock: 2, kind: "overload" },
           );
         if (stats.echo > 0 && this.rng.chance(Math.min(0.28, 0.08 * stats.echo))) {
@@ -1186,10 +1196,11 @@ const rlStep = 1 / 60,
       }
       this.emit("nova", { x: player.x, y: player.y, r: radius });
     }
-    addNova(amount) {
+    // 2.8.0: raw charge (Overcharge per-kill bonus) is not scaled by the charge rate, so the card text holds
+    addNova(amount, raw = false) {
       let player = this.player,
         before = player.nova;
-      player.nova = Math.min(100, player.nova + amount * this.stats.novaMul);
+      player.nova = Math.min(100, player.nova + amount * (raw ? 1 : this.stats.novaMul));
       if (before < 100 && player.nova >= 100) {
         this.emit("novaReady");
       }
@@ -1266,7 +1277,7 @@ const rlStep = 1 / 60,
           const radius = 3 + 0.6 * (stats.reactive - 1);
           this._rlReacting = true;
           try {
-            this.explode(player.x, player.y, radius, (30 + 20 * (stats.reactive - 1)) * stats.dmgMul, {
+            this.explode(player.x, player.y, radius, (45 + 25 * (stats.reactive - 1)) * stats.dmgMul, {
               enemies: true,
               knock: 10,
               kind: "reactive",
@@ -1682,7 +1693,7 @@ const rlStep = 1 / 60,
             this.emit("bountyPulse", { x: player.x, y: player.y, amount: stats.bounty });
           }
           if (stats.capacitor) {
-            this.addNova(stats.capacitor);
+            this.addNova(stats.capacitor, true);
           }
         }
       }
@@ -2155,7 +2166,7 @@ const rlStep = 1 / 60,
         !enemy.shielded &&
         !enemy.ghost &&
         this.time - (enemy.coatAt ?? -9) > 1.2 &&
-        this.rng.chance(0.15 * stats.acidCoat * (bullet.drag ? 0.3 : 1))
+        this.rng.chance(0.22 * stats.acidCoat * (bullet.drag ? 0.3 : 1))
       ) {
         enemy.coatAt = this.time;
         const acid = this.arena.acid,

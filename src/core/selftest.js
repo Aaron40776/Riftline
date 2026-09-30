@@ -297,9 +297,9 @@ function selfTestBase() {
       }
     {
       const base = computeStats("pulse", {}, {}),
-        boost = computeStats("pulse", { rate: 3, velocity: 2 }, {}); // 2.5.0: was Overclock Matrix
+        boost = computeStats("pulse", { rate: 3, crit: 2 }, {}); // 2.8.0: Targeting Chip speeds shots up too
       if (!(boost.rateMul > base.rateMul && boost.velMul > base.velMul))
-        bad("upgrade-runtime", "Rapid Cycler and Long Barrel do not alter rate and velocity");
+        bad("upgrade-runtime", "Rapid Cycler and Targeting Chip do not alter rate and velocity");
       else upgradeChecks++;
       for (const def of upgradeList) {
         const testUp = {};
@@ -436,6 +436,7 @@ function rlSelfTest() {
   result = selfTestV250B(result);
   result = selfTestV260(result);
   result = selfTestV270Sound(result);
+  result = selfTestV280(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -1047,7 +1048,7 @@ function selfTestV246(result) {
 function selfTestV250A(result) {
   const fail = [],
     NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
-  if (upgradeList.length !== 57) fail.push("count:" + upgradeList.length);
+  if (upgradeList.length !== 52) fail.push("count:" + upgradeList.length);
   for (const [id, retired] of Object.entries(RL_RETIRED_UPGRADES)) {
     if (upgradesById[id]) fail.push("still-offered:" + id);
     const target = upgradesById[retired.to];
@@ -1068,7 +1069,7 @@ function selfTestV250A(result) {
       offerBoss: false,
     },
     run = cleanRun(old),
-    want = { dmg: 6, hp: 10, vector: 6, supply: 2, crit: 1 };
+    want = { dmg: 6, hp: 10, speed: 6, supply: 2, crit: 1 };
   if (!run || Object.keys(run.up).length !== 5 || Object.entries(want).some(([key, value]) => run.up[key] !== value))
     fail.push("migrate-up:" + JSON.stringify(run && run.up));
   // Fortify → Reinforced Hull is maxed, so a common takes its place; Flux Capacitor → Overcharge
@@ -1081,7 +1082,7 @@ function selfTestV250A(result) {
     fail.push("migrate-boss-offer:" + JSON.stringify(boss && boss.offer));
   if (run) {
     const world = new World({ snap: run, ws: {} });
-    if (world.state !== "choose" || world.offer.length !== 3 || world.stats.maxHp !== 300)
+    if (world.state !== "choose" || world.offer.length !== 3 || world.stats.maxHp !== 350)
       fail.push("resume:" + world.state);
     world.choose(world.offer[0]);
     for (let frame = 0; frame < 120; frame++)
@@ -1200,7 +1201,7 @@ function selfTestV250A(result) {
     if (!world.fx.some((fx) => fx.k === "boom" && fx.kind === "surge") || !(enemy.hp < 1e6)) fail.push("surge");
     if (!(world.comboT > 2.2)) fail.push("surge-combo-time");
   }
-  // Reactive Plating: a hit pushes enemies away and clears enemy shots; costs fire rate
+  // Reactive Plating: a hit pushes enemies away and clears enemy shots (no fire-rate cost since 2.8.0)
   {
     const world = makeWorld({ reactive: 1 }),
       player = world.player,
@@ -1209,7 +1210,6 @@ function selfTestV250A(result) {
     world.eb.push({ x: player.x + 1, y: player.y, vx: 0, vy: 0, r: 0.2, dmg: 5, life: 2 });
     world.hurtPlayer(5, enemy.x, enemy.y, "brute");
     if (!(enemy.hp < 1e6) || world.eb[0].life > 0) fail.push("reactive");
-    if (!(world.stats.rateMul < computeStats("pulse", {}, {}).rateMul)) fail.push("reactive-cost");
   }
   return { ...result, ok: result.ok && fail.length === 0, v250A: { ok: fail.length === 0, fail } };
 }
@@ -1747,6 +1747,69 @@ function selfTestV270Sound(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v270Sound: { ok: fail.length === 0, fail } };
+}
+
+// 2.8.0: auto-aim skips enemies behind walls, prefers near enemies and rushers, keeps a good target
+function selfTestV280(result) {
+  const fail = [];
+  try {
+    const world = new World({ seed: 0x280, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(2);
+    world.state = "fight";
+    const player = world.player,
+      reset = () => {
+        for (const enemy of [...world.enemies]) enemy.dead = true;
+        world.enemies.length = 0;
+        world.arena.obs = [];
+        player.target = null;
+      },
+      spawn = (type, dx, dy) => {
+        const enemy = world.spawnEnemy(type, player.x + dx, player.y + dy);
+        enemy.spawnT = 0;
+        return enemy;
+      },
+      wall = (dx, dy, halfW, halfH) =>
+        world.arena.obs.push({ x: player.x + dx, y: player.y + dy, w: halfW, h: halfH, t: "b" });
+    // a near enemy behind a wall is skipped for a farther one in the open
+    reset();
+    wall(2, 0, 0.4, 4);
+    const hidden = spawn("grunt", 4, 0),
+      open = spawn("grunt", 0, -9);
+    if (world.pickTarget() !== open) fail.push("wall-skipped");
+    // only a hidden enemy: no target, and the manual aim assist does not snap to it either
+    open.dead = true;
+    world.enemies = world.enemies.filter((enemy) => enemy !== open);
+    if (world.pickTarget() !== null) fail.push("hidden-only");
+    if (Math.abs(world.assistAim(0) - 0) > 1e-9) fail.push("assist-through-wall");
+    // the Lance slug flies through walls, so it may aim at the hidden enemy
+    const normal = world.stats;
+    world.stats = computeStats("rail", { lance: 1 }, {});
+    if (world.pickTarget() !== hidden) fail.push("lance-through-wall");
+    world.stats = normal;
+    // two visible enemies: the near one first
+    reset();
+    const near = spawn("grunt", 3, 0);
+    spawn("grunt", -8, 0);
+    if (world.pickTarget() !== near) fail.push("near-first");
+    // a rusher a bit further away beats a plain enemy
+    reset();
+    spawn("grunt", 0, 5);
+    const bomber = spawn("bomber", 0, -5.4);
+    if (world.pickTarget() !== bomber) fail.push("rusher-first");
+    // an immune enemy only when nothing else is in reach
+    reset();
+    const shielded = spawn("grunt", 3, 0);
+    shielded.shielded = true;
+    const plain = spawn("grunt", -8, 0);
+    if (world.pickTarget() !== plain) fail.push("shielded-last");
+    plain.dead = true;
+    world.enemies = world.enemies.filter((enemy) => enemy !== plain);
+    if (world.pickTarget() !== shielded) fail.push("shielded-only");
+    reset();
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v280: { ok: fail.length === 0, fail } };
 }
 
 // the "Deep test" button of the diagnostics dialog (rlRunHealth({deep:true})) runs this

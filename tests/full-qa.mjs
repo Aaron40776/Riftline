@@ -2028,7 +2028,7 @@ await section("upgrades250A", async (L) => {
       const s = window.__riftTest.store.data;
       return { up: s.run && s.run.up, offer: s.run && s.run.offer, build: s.history[0] && s.history[0].build };
     });
-    const want = { dmg: 6, hp: 10, vector: 6, supply: 2, crit: 1, payload: 3, resonance: 1 };
+    const want = { dmg: 6, hp: 10, speed: 6, supply: 2, crit: 1, payload: 3, resonance: 1 };
     check(
       L,
       `${prof}: retired upgrade levels became levels of the upgrade that took them over`,
@@ -2063,7 +2063,7 @@ await section("upgrades250A", async (L) => {
     check(
       L,
       `${prof}: continue shows the converted offer`,
-      r && r.choose && r.wave === 6 && r.cards === "dmg,overcharge,crit" && r.maxHp === 300,
+      r && r.choose && r.wave === 6 && r.cards === "dmg,overcharge,crit" && r.maxHp === 350,
       JSON.stringify(r),
     );
     await P.page.waitForFunction(() => !document.getElementById("cards").classList.contains("locked"), null, {

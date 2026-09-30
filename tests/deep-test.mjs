@@ -20,6 +20,7 @@ const res = await page.evaluate(() => {
     v250D: r.v250D?.fail,
     v260: r.v260?.fail,
     v270Sound: r.v270Sound?.fail,
+    v280: r.v280?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
