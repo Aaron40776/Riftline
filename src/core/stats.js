@@ -70,7 +70,7 @@ function computeStats(weaponId, run, workshop) {
     range: weaponRange(weapon) * (has("dragon") ? 1.3 : 1),
   };
   stats.maxHp = Math.max(25, stats.maxHp);
-  stats.eliteMul = 1 + 0.1 * level("hunter");
+  stats.eliteMul = 1 + 0.15 * level("hunter");
   stats.supply = level("supply");
   stats.armor = 0.04 * moduleLevel("armorCore"); // 2.3.5: share of enemy damage absorbed (was +8 max HP)
   stats.wingmen += stats.wingman ? Math.min(2, moduleLevel("droneBay")) : 0;

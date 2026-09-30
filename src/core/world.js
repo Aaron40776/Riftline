@@ -1196,10 +1196,11 @@ const rlStep = 1 / 60,
       }
       this.emit("nova", { x: player.x, y: player.y, r: radius });
     }
-    addNova(amount) {
+    // 2.8.0: raw charge (Overcharge per-kill bonus) is not scaled by the charge rate, so the card text holds
+    addNova(amount, raw = false) {
       let player = this.player,
         before = player.nova;
-      player.nova = Math.min(100, player.nova + amount * this.stats.novaMul);
+      player.nova = Math.min(100, player.nova + amount * (raw ? 1 : this.stats.novaMul));
       if (before < 100 && player.nova >= 100) {
         this.emit("novaReady");
       }
@@ -1692,7 +1693,7 @@ const rlStep = 1 / 60,
             this.emit("bountyPulse", { x: player.x, y: player.y, amount: stats.bounty });
           }
           if (stats.capacitor) {
-            this.addNova(stats.capacitor);
+            this.addNova(stats.capacitor, true);
           }
         }
       }
@@ -2165,7 +2166,7 @@ const rlStep = 1 / 60,
         !enemy.shielded &&
         !enemy.ghost &&
         this.time - (enemy.coatAt ?? -9) > 1.2 &&
-        this.rng.chance(0.15 * stats.acidCoat * (bullet.drag ? 0.3 : 1))
+        this.rng.chance(0.22 * stats.acidCoat * (bullet.drag ? 0.3 : 1))
       ) {
         enemy.coatAt = this.time;
         const acid = this.arena.acid,

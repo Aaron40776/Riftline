@@ -1,3 +1,81 @@
+RIFTLINE v2.8.0 – SCHLAUERES AUTOZIELEN, UPGRADE-ANGEBOT UND -BALANCE
+Basis: v2.7.0 · Build r280a0930c-r1 · 30.09.2026
+
+Gewünscht: Autoaim soll „intelligent“ sein (keine Gegner hinter Wänden, nahe Gegner zuerst); nach
+Fehlern suchen und QOL einbauen; Upgrades viel mehr balancen (zu viele gewöhnliche, teils schlechte
+und unnötige; Upgrades verstärken, unnötige raus, seltenere öfter).
+
+1) Autoaim (World.pickTarget / assistAim)
+   - Gegner hinter einer Wand sind kein Ziel mehr (die Schüsse würden nur die Wand treffen). Ausnahme:
+     der Lance-Schuss (Rail + Lance) fliegt durch Wände und darf durchzielen. Die manuelle Zielhilfe
+     (Stick) rastet ebenfalls nicht mehr auf Gegner hinter Wänden ein.
+   - Nahe Gegner zuerst: Abstand (Oberfläche) zählt, unter 4 m mit Faktor 0,6; Gegner, die zu dir
+     rennen und explodieren/rammen/springen (Bomber, Charger, Striker, Leaper, Sapper), unter 7 m mit
+     Faktor 0,75; gerade unverwundbare Gegner (Schildphase) erst, wenn nichts anderes in Reichweite ist
+     (+12); das aktuelle Ziel bleibt mit Faktor 0,8 bevorzugt, damit das Zielen nicht zwischen zwei
+     ähnlichen Gegnern flackert.
+   - Folge: Sind alle Gegner in Reichweite hinter Wänden, feuert die Drohne nicht (kein Ziel).
+   - Neuer Selbsttest v280: Wand überspringt nahes Ziel, nur versteckter Gegner → kein Ziel und keine
+     Zielhilfe, Lance darf durchzielen, nah vor fern, Rusher vor normalem Gegner, Schild zuletzt.
+
+2) Upgrades
+   - Angebot: Kartengewichte gewöhnlich/selten/episch/legendär jetzt 42/32/20/6 (vorher 60/28/10/2);
+     ein Angebot besteht nie nur aus gewöhnlichen Karten (die letzte wird eine seltene oder bessere).
+   - Fünf schwache oder überlappende Upgrades sind weg, ihre Stufen gehen in das ähnlichste über
+     (alte Spielstände und offene Angebote werden umgerechnet, Ketten wie Cryo Coolant → Servo
+     Thrusters zeigen direkt aufs Ziel): Long Barrel → Targeting Chip (jetzt auch +8 % Reichweite und
+     +6 % Geschossgeschwindigkeit), Tractor Field → Supply Loop (das Werkstatt-Modul Magnet Coil
+     bleibt für den Aufnahmeradius), Vector Capacitor → Servo Thrusters (jetzt -8 % Dash- und
+     Aegis-Abklingzeit pro Stufe), Glass Core → High-Yield Rounds, Momentum Core → Rapid Cycler.
+     72 → 52 Upgrades seit 2.5.0 (13 Evolutionen bleiben).
+   - Verstärkt: High-Yield Rounds +18 % (vorher +15 %), Reinforced Hull +25 HP, Targeting Chip,
+     Cryo Rounds 25 %, Shock Dash 60/90, Overload (jeder 5. Schuss, 45 + 15 pro Stufe, größerer
+     Radius), Acid Coating 22 %, Apex Hunter +15 %.
+   - Messung (Bot, Welle 14, 7 Waffen, 5 Seeds) nach dem Umbau: siehe Ergebnisse unten. Grenzen
+     wie in 2.6.0: grober Bot, Evolutionen nur mit einer Waffe, Dash-Upgrades kaum messbar.
+
+3) Fehlersuche und QOL
+   - Stresssimulation aller 7 Waffen bis Welle 31 (Bot im Gott-Modus) mit dem neuen Zielen: keine
+     Fehler, keine ungültigen Werte, höchstens 86 Gegner gleichzeitig.
+   - Bei der Durchsicht von Dash-Richtung, Sammeln nach der Welle (Vakuum), Pause bei Fokusverlust
+     und Einstellungen wurden keine weiteren Fehler gefunden; die vorhandenen Tests (365 Prüfungen,
+     Deep test, Audits) waren durchgehend grün.
+   - QOL: Zielen ohne Wandbeschuss (siehe 1), weniger schwache gewöhnliche Karten, nie nur
+     gewöhnliche Karten im Angebot.
+
+4) Tests
+   - Deep test: neuer Teil v280; Upgrade-Anzahl 52; Migrations-Tests angepasst.
+   - Determinismus-Referenz neu aufgenommen (Verhalten ändert sich absichtlich).
+
+Offen:
+   - Balance nur mit Bot geprüft; bitte spielen. Besonders: Fühlt sich das Angebot jetzt besser an?
+     Sind Targeting Chip und Servo Thrusters nach den Zusammenlegungen zu stark?
+   - Autoaim: Gegner hinter Wänden werden nicht mehr beschossen, auch wenn sie dich beschießen
+     (Raketen/Flammen-Kurven nutzen das nicht). Wenn dir das zu streng ist, lässt sich ein Schalter
+     oder eine Toleranz für Eckenschüsse ergänzen.
+   - Das Werkstatt-Modul Magnet Coil und Tractor Field waren doppelt; der Aufnahmeradius kommt jetzt
+     nur noch aus der Werkstatt.
+
+Ergebnisse 2.8.0 (headless Chromium, Software-WebGL):
+   - npm test: grün (Build, Deep test inkl. v280, full-qa files, data-audit, Determinismus 15/15 mit
+     neuer Referenz).
+   - Volle QA: 362 bestanden, 2 Fehler (upgrades250A erwartete noch 300 statt 350 max. HP nach
+     Reinforced Hull +25; Test angepasst, danach upgrades250A und qol zweimal grün).
+   - E2E: 0 Fehler. Audit: ok (Bot bis Welle 22, Speichern/Laden ok). Stresssimulation: ok, keine
+     Fehler/ungültigen Werte. Screens PC/Handy/Querformat: keine Seitenfehler, Bilder angesehen.
+   - Upgrade-Messung (Bot, Welle 14): stärkste Gewinne weiterhin Evolutionen und Ricochet/Multishot;
+     Overdrive lag in der ersten Messung mit Abstand vorn (+331 %) und wurde danach abgeschwächt
+     (jeder 6. Schuss statt jedes 4., doppelter Schaden, +2 Durchschlag); Reactive Plating war
+     wirkungslos und wurde verstärkt (45 + 25 pro Stufe, keine Feuerraten-Strafe). Schwächste
+     gewöhnliche Karten (Reinforced Hull, Overload) bleiben rein defensiv bzw. situativ.
+   - Nachkorrektur nach der Code-Durchsicht: Drei Kartentexte stimmten nicht mit den Werten überein
+     (Apex Hunter war noch +10 %, Acid Coating noch 15 %, Overcharge-Ladung pro Kill wurde zusätzlich
+     mit der Ladegeschwindigkeit multipliziert). Jetzt: +15 %, 22 %, genau 1 % pro Stufe und Kill.
+     Determinismus-Referenz danach erneut aufgenommen; npm test, full-qa upgrades250A/qol, Simulation
+     und Formatprüfung grün.
+
+================================================================================
+
 RIFTLINE v2.7.0 – NEUE FIGUREN UND EIGENE SOUNDS
 Basis: v2.6.0 · Build r270a0930b-r1 · 30.09.2026
 
