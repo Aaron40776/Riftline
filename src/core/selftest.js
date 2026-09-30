@@ -10,12 +10,15 @@ import {
   SoundEngine,
   rlSoundCatalog,
   RL_DEATH_FAMILY,
+  RL_ESHOT_VOICE,
   RL_CHARGE_VOICE,
   RL_DASH_VOICE,
   RL_BOSS_ATK,
   RL_SOUND_EVENTS,
   RL_SILENT_EVENTS,
   MAX_VOICES,
+  MUSIC_DUCK,
+  BOSS_SOUND,
 } from "../audio/sound.js";
 import {
   RL_RETIRE_NOTE,
@@ -1655,7 +1658,22 @@ function selfTestV270Sound(result) {
       if (!enemyDefs[type]) fail.push("death-voice-unknown-type:" + type);
       if (!known.has(id)) fail.push("death-voice-missing-sound:" + id);
     }
-    if (new Set(Object.values(RL_DEATH_FAMILY)).size < 6) fail.push("death-families<6");
+    // 2.9.0: nine death families, every enemy shot and every boss has its own voice and signature
+    if (new Set(Object.values(RL_DEATH_FAMILY)).size < 9) fail.push("death-families<9");
+    for (const id of Object.values(RL_ESHOT_VOICE)) if (!known.has(id)) fail.push("eshot-voice-missing-sound:" + id);
+    for (const id of bossOrder) {
+      const sig = BOSS_SOUND[id];
+      if (!sig || !(sig.motif && sig.motif.length >= 3) || !(sig.chord && sig.chord.length >= 3))
+        fail.push("boss-signature-missing:" + id);
+      for (const name of ["enrage", "bossDown"])
+        if (!catalog.some((entry) => entry.spec.id === name && entry.spec.arg === id)) fail.push(`no-${name}:${id}`);
+    }
+    if (new Set(bossOrder.map((id) => BOSS_SOUND[id] && BOSS_SOUND[id].motif.join())).size < bossOrder.length)
+      fail.push("boss-motifs-not-distinct");
+    for (const [id, depth] of Object.entries(MUSIC_DUCK)) {
+      if (!known.has(id) && id !== "evolve") fail.push("duck-unknown-sound:" + id);
+      if (!(depth > 0 && depth <= 0.15)) fail.push(`duck-depth:${id}:${depth}`);
+    }
     for (const table of [RL_CHARGE_VOICE, RL_DASH_VOICE, RL_BOSS_ATK])
       for (const id of Object.values(table)) if (id && !known.has(id)) fail.push("voice-missing-sound:" + id);
     for (const id of bossOrder) {
@@ -1731,6 +1749,47 @@ function selfTestV270Sound(result) {
       if (!musicBefore || musicAfter < musicBefore) fail.push(`music-voices-stolen:${musicBefore}->${musicAfter}`);
       if (engine.voices.length > MAX_VOICES) fail.push("voice-limit:" + engine.voices.length);
       if (!engine.dropped) fail.push("voice-limit-never-hit");
+      // 2.9.0: the music never drops a note during a flood of sounds and never pauses: the same 64 steps of
+      // the fight theme are scheduled with and without 40 sounds per step (the music has its own voice list)
+      const runMusic = (flood) => {
+        const eng = new SoundEngine();
+        eng.attach(new OfflineAudioContext(1, 44100, 44100));
+        eng.mode = "fight";
+        eng.biome = "works";
+        eng.intensity = 0.9;
+        const ids = [
+          ...RL_SFX_VOICES,
+          "boom",
+          "hurt",
+          "nova",
+          "hit",
+          "crit",
+          "bigkill",
+          "dCrunch",
+          "dArmor",
+          "eshotBoss",
+        ];
+        for (let step = 0; step < 64; step++) {
+          eng.simT = step * 0.123;
+          eng.note(step, eng.simT);
+          if (flood)
+            for (let k = 0; k < 40; k++) {
+              eng.last = Object.create(null);
+              eng.play(ids[(step * 3 + k) % ids.length], 1.2);
+            }
+        }
+        return eng;
+      };
+      const calm = runMusic(false),
+        busy = runMusic(true);
+      if (!calm.musicScheduled) fail.push("music-not-scheduled");
+      if (busy.musicScheduled !== calm.musicScheduled || busy.musicSkipped !== calm.musicSkipped)
+        fail.push(
+          `music-dropped-in-flood:${calm.musicScheduled}/${calm.musicSkipped} vs ${busy.musicScheduled}/${busy.musicSkipped}`,
+        );
+      if (calm.musicSkipped) fail.push("music-skipped-without-flood:" + calm.musicSkipped);
+      if (!busy.dropped) fail.push("flood-did-not-fill-the-voice-list");
+      if (!busy.duckGain || !(busy.duckT > -1e8)) fail.push("music-duck-never-fired");
       for (const voice of engine.voices) {
         if (!(voice.end < 10) || voice.loop) fail.push("voice-never-ends");
       }
