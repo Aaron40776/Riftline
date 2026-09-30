@@ -54,9 +54,10 @@
     "optional run timer and FPS counter"
   ],
   "build": "__RL_BUILD__",
-  "reviewed_from": "Riftline v2.6.0",
-  "generatedAt": "2026-09-30T08:15:29+02:00",
+  "reviewed_from": "Riftline v2.7.0",
+  "generatedAt": "2026-09-30T11:41:38+02:00",
   "changes": [
+    "2.8.0: smarter auto-aim — enemies behind a wall are not targeted any more (shots would only hit the wall; only the Lance slug, which flies through walls, may aim through them), close enemies come first (under 4 m strongly), rushers that explode, ram or jump at you (Bomber, Charger, Striker, Leaper, Sapper) are preferred a bit earlier, enemies that are immune right now (shield phase) only when nothing else is in reach, and the current target is kept while it is still a good one so the aim does not flicker; the manual aim assist skips enemies behind walls too",
     "2.7.0: new look — the player drone is an arrow-shaped gunship (canopy, swept wings with glowing strips, twin thrusters whose flame follows speed, leans and banks); all 25 enemy types have new silhouettes with one memorable feature each (biological ones rounder and asymmetric, machines with panels, vents and lights); Warden, Hive Queen and Rift Core got more detail",
     "2.7.0: enemies move with life — walk sway, hops, leaning into the movement direction, breathing or hovering at rest, hit squash, a spawn pop and a short shrink-and-spin death with a second debris burst (skipped on the battery preset); no extra geometry or draw calls",
     "2.7.0: stronger biome skins — thicker lava veins with glow, frost rim and glints, more slime, violet void cracks; warning colours of attacks are unchanged",

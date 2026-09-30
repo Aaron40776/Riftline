@@ -101,6 +101,8 @@ const comboRewards = [
   [150, 80],
   [250, 150],
 ];
+// 2.8.0: enemies that reach you and blow up, ram or jump at you; auto-aim prefers them when they are close
+const RL_RUSHERS = new Set(["bomber", "charger", "striker", "leaper", "sapper"]);
 const rlStep = 1 / 60,
   PLAYER_RADIUS = 0.55,
   MAX_PLAYER_BULLETS = 420,
@@ -1016,6 +1018,13 @@ const rlStep = 1 / 60,
         this.nova();
       }
     }
+    // 2.8.0: shots stop at walls (only the Lance slug flies through), so nothing behind a wall is a target
+    shotsCrossWalls() {
+      return !!(this.stats.lance && this.stats.weapon.rail);
+    }
+    canSee(enemy) {
+      return this.shotsCrossWalls() || this.arena.los(this.player.x, this.player.y, enemy.x, enemy.y, 0.15);
+    }
     assistAim(angle) {
       let player = this.player,
         best = null,
@@ -1029,13 +1038,17 @@ const rlStep = 1 / 60,
         if (dist > range) continue;
         let err = Math.abs(angleDiff(angle, Math.atan2(dy, dx))),
           cone = Math.min(0.35, 0.12 + Math.atan2(enemy.r, dist));
-        if (err < cone && err < bestErr + (0.05 * dist) / range) {
+        if (err < cone && err < bestErr + (0.05 * dist) / range && this.canSee(enemy)) {
           best = enemy;
           bestErr = err;
         }
       }
       return best ? Math.atan2(best.y - player.y, best.x - player.x) : angle;
     }
+    // 2.8.0: smarter auto-aim. Enemies behind a wall are skipped (the shots would only hit the
+    // wall); close enemies come first, rushers that explode or ram you even more so; enemies that
+    // are immune right now (shield phase) only when nothing else is in reach; the current target is
+    // kept while it is still a good one, so the aim does not flicker between two similar enemies.
     pickTarget() {
       let player = this.player,
         range = this.stats.range + 2.5,
@@ -1044,11 +1057,12 @@ const rlStep = 1 / 60,
       for (let enemy of this.enemies) {
         if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
         let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y) - enemy.r;
-        if (dist > range) continue;
-        let score = dist + (enemy.los ? 0 : 9);
-        if (enemy === player.target) {
-          score *= 0.8;
-        }
+        if (dist > range || !this.canSee(enemy)) continue;
+        let score = dist;
+        if (dist < 4) score *= 0.6;
+        else if (dist < 7 && RL_RUSHERS.has(enemy.type)) score *= 0.75;
+        if (enemy.shielded) score += 12;
+        if (enemy === player.target) score *= 0.8;
         if (score < bestScore) {
           bestScore = score;
           best = enemy;

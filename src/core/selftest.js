@@ -436,6 +436,7 @@ function rlSelfTest() {
   result = selfTestV250B(result);
   result = selfTestV260(result);
   result = selfTestV270Sound(result);
+  result = selfTestV280(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -1747,6 +1748,69 @@ function selfTestV270Sound(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v270Sound: { ok: fail.length === 0, fail } };
+}
+
+// 2.8.0: auto-aim skips enemies behind walls, prefers near enemies and rushers, keeps a good target
+function selfTestV280(result) {
+  const fail = [];
+  try {
+    const world = new World({ seed: 0x280, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(2);
+    world.state = "fight";
+    const player = world.player,
+      reset = () => {
+        for (const enemy of [...world.enemies]) enemy.dead = true;
+        world.enemies.length = 0;
+        world.arena.obs = [];
+        player.target = null;
+      },
+      spawn = (type, dx, dy) => {
+        const enemy = world.spawnEnemy(type, player.x + dx, player.y + dy);
+        enemy.spawnT = 0;
+        return enemy;
+      },
+      wall = (dx, dy, halfW, halfH) =>
+        world.arena.obs.push({ x: player.x + dx, y: player.y + dy, w: halfW, h: halfH, t: "b" });
+    // a near enemy behind a wall is skipped for a farther one in the open
+    reset();
+    wall(2, 0, 0.4, 4);
+    const hidden = spawn("grunt", 4, 0),
+      open = spawn("grunt", 0, -9);
+    if (world.pickTarget() !== open) fail.push("wall-skipped");
+    // only a hidden enemy: no target, and the manual aim assist does not snap to it either
+    open.dead = true;
+    world.enemies = world.enemies.filter((enemy) => enemy !== open);
+    if (world.pickTarget() !== null) fail.push("hidden-only");
+    if (Math.abs(world.assistAim(0) - 0) > 1e-9) fail.push("assist-through-wall");
+    // the Lance slug flies through walls, so it may aim at the hidden enemy
+    const normal = world.stats;
+    world.stats = computeStats("rail", { lance: 1 }, {});
+    if (world.pickTarget() !== hidden) fail.push("lance-through-wall");
+    world.stats = normal;
+    // two visible enemies: the near one first
+    reset();
+    const near = spawn("grunt", 3, 0);
+    spawn("grunt", -8, 0);
+    if (world.pickTarget() !== near) fail.push("near-first");
+    // a rusher a bit further away beats a plain enemy
+    reset();
+    spawn("grunt", 0, 5);
+    const bomber = spawn("bomber", 0, -5.4);
+    if (world.pickTarget() !== bomber) fail.push("rusher-first");
+    // an immune enemy only when nothing else is in reach
+    reset();
+    const shielded = spawn("grunt", 3, 0);
+    shielded.shielded = true;
+    const plain = spawn("grunt", -8, 0);
+    if (world.pickTarget() !== plain) fail.push("shielded-last");
+    plain.dead = true;
+    world.enemies = world.enemies.filter((enemy) => enemy !== plain);
+    if (world.pickTarget() !== shielded) fail.push("shielded-only");
+    reset();
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v280: { ok: fail.length === 0, fail } };
 }
 
 // the "Deep test" button of the diagnostics dialog (rlRunHealth({deep:true})) runs this
