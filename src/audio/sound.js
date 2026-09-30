@@ -1439,7 +1439,7 @@ const musicChords = {
     }
     /* Called every frame of a running world: `speed` (0..1, null: no engine hum) drives the drone
      hum, `ambience` is the id of the biome event that is on (or null). Everything here stops by
-     itself when this is not called for half a second (pause, menus) or the music mode is not a fight. */
+     itself when this is not called for 0.8 s (pause, menus) or the music mode is not a fight. */
     setState(speed, ambience) {
       if (!this.ctx) return;
       this.liveT = this.ctx.currentTime;
@@ -1570,7 +1570,7 @@ const musicChords = {
     syncAudio() {
       let ctx = this.ctx,
         now = ctx.currentTime,
-        live = now - this.liveT < 0.5 && (this.mode === "fight" || this.mode === "boss") && this.sfxVol > 0,
+        live = now - this.liveT < 0.8 && (this.mode === "fight" || this.mode === "boss") && this.sfxVol > 0,
         hum = live && this.speed != null,
         amb = live ? this.amb : null;
       if (hum !== !!this.beds.hum) {
