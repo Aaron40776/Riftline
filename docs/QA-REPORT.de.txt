@@ -1,3 +1,83 @@
+RIFTLINE v2.8.1 – FEHLERKORREKTUREN (OBERFLÄCHE, SPEICHERN, SPIELABLAUF) UND KLEINE PERFORMANCE
+Basis: v2.8.0 · Build r281a0930d-r1 · 30.09.2026
+
+Gewünscht: nach 2.8.0 alles auf Fehler prüfen, Performance verbessern, Designs testen. Grundlage war
+eine reine Lese-Durchsicht des gesamten Codes (vier Bereiche); hier sind die Fehler mit hoher und
+mittlerer Priorität behoben. Designs und größere Performance-Arbeit sind noch offen (siehe unten).
+
+1) Oberfläche und Speichern
+   - Upgrade-Karten bleiben mit „Bewegung reduzieren“ sichtbar (vorher unsichtbar, keine Wahl möglich).
+   - Kein TypeError mehr, wenn der Whiteout-Schnee nach dem Zurück-ins-Menü ausblendet.
+   - Zwei Tabs/Fenster überschreiben sich nicht mehr: Menü-Tab lädt den neuen Stand sofort; ein Tab im
+     Run übernimmt ihn beim nächsten Speichern (eigener Run, Einstellungen bleiben) und warnt einmal.
+     Neuer Test „tabs“ (zwei Seiten im selben Browser-Kontext).
+   - Endless: Bildschirm bleibt an (Wake Lock), Zusammenfassung zählt nur den Endless-Teil
+     (Schaden, Combo, Statistik wurden vorher aus dem ganzen Run übernommen).
+   - Neustart / „Run Again“ nach einem fortgesetzten Run behalten Waffe und Threat dieses Runs.
+   - „Neuer Run“ über einen gespeicherten Run schreibt dessen Shards/Kills gut (wie Abbrechen) und
+     legt einen Verlaufseintrag an; Dialogtext angepasst.
+   - Hinweise (Gegner-Intros, Tipps) werden unter dem Pause-Menü ausgeblendet, UI-Rückmeldungen
+     („Copied“) bleiben sichtbar. Intro-Warteschlange wird bei jedem Run geleert.
+   - Import alter Spielstände zeigt den Hinweis auf entfernte Waffen; deren Records (clearsBy/bestBy)
+     gehen auf die Nachfolgewaffe über.
+   - Gehaltener Stick überlebt kleine Viewport-Änderungen (Browserleisten, Tastatur).
+   - Dialoge setzen den Fokus hinein (auf Abbrechen, wenn die Hauptaktion gefährlich ist) und zurück;
+     Esc schließt sie auch aus dem Textfeld des Imports. Update-Neuladen nie unter einem Dialog.
+   - Service Worker: hängendes Netz → nach 3 s die gecachte Seite; Cache-Schreiben mit waitUntil.
+   - Höchstens drei Sicherungskopien defekter Spielstände; Health-Probe-Schlüssel jetzt riftline.*.
+   - formatCount zeigt Millionen als „M“ (999 999 wurde „1000k“); Pause-Statistik nutzt es.
+   - full-qa meldet jetzt einen Fehler, wenn ein Abschnittsfilter nichts trifft.
+
+2) Spielablauf
+   - Fortgesetzte Welle behält Vorrats-Kisten und Bonusgruppe (Welle 18+); Hinweis: Beenden und
+     Fortsetzen bleibt ein kostenloser Neustart der Welle (so gewollt? offen).
+   - Endless-Bosse starten vom Welle-20-Rumpf (7 600) und wachsen mit der Wellenkurve, +10 % je
+     Endless-Boss (vorher hatte der Warden in Welle 30 weniger HP als der Boss in Welle 20).
+   - Resonance: bei Nicht-Tesla-Waffen verlängert der Sprung die Zufalls-Bogenkette (wie beschrieben)
+     statt bei jedem Treffer sicher zu springen (Leistungs- und Balance-Risiko bei Flamme/Schrot).
+   - Splitter-Elite: Mites sind keine Elite mehr (doppelte HP statt Elite-Belohnungen).
+   - Boss tot: übrige Gegner verschwinden ohne Kill-Zählung, Nova, Siphon, Drops, Splitten und
+     Explosionen. Nach dem Tod des Spielers zahlen Kills aus fliegenden Schüssen nichts mehr.
+   - Rebound springt nur zu Gegnern in Sichtlinie. Säure-Markierung wird gelöscht, wenn der letzte Pool weg ist.
+   - Echo-Salven verschieben Overload/Overdrive nicht mehr (totes Flag entfernt).
+   - Rebound und Tungsten Core werden beim Disc Launcher (und Tungsten mit Lance) nicht mehr angeboten.
+   - Repair Beacon heilt nur im gezeigten 6-m-Ring, Sentinel geht ohne Sichtlinie näher,
+     Weaver schießt nicht mehr auf einen toten Spieler, Queen beschwört nicht bei über 70 Gegnern.
+
+3) Sound
+   - Musik wurde in vollen Kämpfen unterbrochen: Schüsse und Treffer nahmen der Musik die ältesten
+     Stimmen weg, wenn die gemeinsame Liste (24) voll war. Die Musik hat jetzt eine eigene Liste
+     (20 Stimmen) und nimmt den Sounds nichts weg. Neuer Selbsttest: nach 100 Treffer-Sounds sind
+     alle Musikstimmen noch da. Nicht gehört (kein Audio-Ausgang), nur per Test belegt.
+
+4) Performance
+   - Leere Instanz-Pools werden nicht mehr gezeichnet; Safe-Area-Werte werden gecacht statt pro Frame
+     per getComputedStyle gelesen. Keine Messung der Frame-Zeit (Software-WebGL), nur Wegfall von
+     Arbeit pro Frame.
+
+5) Tests
+   - Determinismus-Referenz neu aufgenommen (Verhalten ändert sich absichtlich). Neue full-qa-Abschnitte:
+     „tabs“, zusätzliche Prüfung der Toast-Sichtbarkeit.
+
+Offen / bewusst nicht gemacht (aus der Durchsicht):
+   - Designs testen: Prism und Crucible sind seit 2.7.0 unverändert; kein Kontaktbogen-Test gemacht.
+   - Weaver ohne Telegraph, Needler-Pathing, Overlay-Pixeldichte, Antialiasing pro Stufe,
+     Orbital-Blades-Abklingzeit, Dash-Untergrenze (Phantom Dash), Payload/Rocket-Mehrfachtreffer.
+   - Nicht per Test belegt: Stick-Verhalten bei Viewport-Änderung, Fokus im Dialog, Service-Worker-Timeout.
+
+Ergebnisse 2.8.1 (headless Chromium, Software-WebGL):
+   - npm test: grün (Build, Deep test, full-qa files, data-audit, Determinismus 15/15 mit neuer Referenz).
+   - Volle QA: alle Prüfungen bestanden (inkl. neuem Abschnitt „tabs“).
+     Hinweis: Ein erster Lauf zeigte 19 Fehler (Seitenaufruf-Zeitüberschreitungen, Boss-/Wellenende).
+     Ursache: zwei Testketten liefen gleichzeitig und bauten dist neu; Welle lief mit waveT 0,6 s nach
+     5 s. Nach Abbruch aller Prozesse und einem einzelnen Lauf war alles grün.
+   - E2E: 0 Fehler. Audit: ok (Speichern/Laden ok). Stresssimulation Pulse bis Welle 20: Sieg, keine
+     Fehler, keine ungültigen Werte. Screens und Biom-Bilder PC/Handy/Querformat: keine Seitenfehler;
+     Auswahl- und Spielbild angesehen (Resonance-Karte zeigt „Chain jumps 0 → 3“: 2 Basis + 1).
+   - Format-Prüfung: ok.
+
+================================================================================
+
 RIFTLINE v2.8.0 – SCHLAUERES AUTOZIELEN, UPGRADE-ANGEBOT UND -BALANCE
 Basis: v2.7.0 · Build r280a0930c-r1 · 30.09.2026
 
