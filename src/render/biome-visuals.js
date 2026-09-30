@@ -26,6 +26,7 @@ import {
 } from "three";
 import { clamp, TAU, hashString, makeRng } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./renderer.js";
+import { addBiomeDetail } from "./biome-props.js";
 
 const floorVertexShader = `
 #include <common>
@@ -167,6 +168,8 @@ void main() {
         layout.obs,
         makeRng(hashString(layout.key + ":look")),
       );
+      // 2.9.0: clutter, backdrop and ground decals (its own rng, so the props above keep their layout)
+      addBiomeDetail(this, biome, layout.W, layout.H, layout.obs, makeRng(hashString(layout.key + ":detail")));
       this.rise = animate && !first ? 0 : 1;
       props.position.y = this.rise < 1 ? -2.6 : 0;
     }
