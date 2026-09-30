@@ -1262,26 +1262,31 @@ if (rlS == 1) {
   // molten: charred shell, lava veins that pulse
   vec3 q = vRlP * 4.5;
   float n = rlN3(q) * 0.65 + rlN3(q * 2.1) * 0.35;
-  float vein = smoothstep(0.07, 0.0, abs(n - 0.5));
+  float vein = smoothstep(0.12, 0.0, abs(n - 0.5));
   float pulse = 0.65 + 0.35 * sin(uSkinT * 3.5 + q.y * 2.0 + q.x);
-  outgoingLight = outgoingLight * vec3(0.6, 0.5, 0.45) + vec3(1.0, 0.42, 0.08) * vein * pulse * 0.9;
+  float under = smoothstep(0.55, 0.0, vRlP.y);
+  outgoingLight = outgoingLight * vec3(0.5, 0.42, 0.38) + vec3(1.0, 0.42, 0.08) * (vein * 1.3 + under * 0.4) * pulse;
 } else if (rlS == 2) {
   // frost on everything facing up, glints, a cold tint
-  float fr = smoothstep(0.05, 0.75, vRlN.y + (rlN3(vRlP * 6.0) - 0.5) * 0.9);
-  outgoingLight = outgoingLight * vec3(0.82, 0.93, 1.08);
-  outgoingLight = mix(outgoingLight, vec3(0.72, 0.88, 1.0) * (0.55 + 0.35 * max(vRlN.y, 0.0)), fr * 0.7);
-  float gl = step(0.9, rlN3(vRlP * 16.0)) * (0.5 + 0.5 * sin(uSkinT * 5.0 + vRlP.x * 30.0));
-  outgoingLight += vec3(0.9, 0.97, 1.0) * gl * fr * 0.55;
+  float fr = smoothstep(-0.05, 0.6, vRlN.y + (rlN3(vRlP * 6.0) - 0.5) * 0.9);
+  outgoingLight = outgoingLight * vec3(0.72, 0.9, 1.15);
+  outgoingLight = mix(outgoingLight, vec3(0.72, 0.9, 1.0) * (0.6 + 0.35 * max(vRlN.y, 0.0)), fr * 0.6);
+  float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.0);
+  outgoingLight += vec3(0.55, 0.85, 1.0) * rim * 0.5;
+  float gl = step(0.86, rlN3(vRlP * 16.0)) * (0.5 + 0.5 * sin(uSkinT * 5.0 + vRlP.x * 30.0));
+  outgoingLight += vec3(0.9, 0.97, 1.0) * gl * (0.25 + fr) * 0.7;
 } else if (rlS == 3) {
   // slime running down, glowing toxic spots
   float s = smoothstep(0.56, 0.66, rlN3(vec3(vRlP.x * 5.0, vRlP.y * 1.8 + uSkinT * 0.35, vRlP.z * 5.0)));
-  outgoingLight = mix(outgoingLight * vec3(0.85, 0.95, 0.75), vec3(0.08, 0.18, 0.04) + vec3(0.14, 0.24, 0.05) * max(vRlN.y, 0.0), s * 0.55);
-  float spot = smoothstep(0.87, 0.93, rlN3(vRlP * 9.0 + 3.0));
-  outgoingLight += vec3(0.45, 1.0, 0.15) * spot * (0.35 + 0.25 * sin(uSkinT * 2.5 + vRlP.y * 9.0));
+  s = max(s, smoothstep(0.42, 0.0, vRlP.y) * 0.8);
+  outgoingLight = mix(outgoingLight * vec3(0.75, 1.0, 0.6), vec3(0.1, 0.24, 0.04) + vec3(0.2, 0.34, 0.07) * max(vRlN.y, 0.0), s * 0.75);
+  float spot = smoothstep(0.82, 0.9, rlN3(vRlP * 9.0 + 3.0));
+  outgoingLight += vec3(0.5, 1.0, 0.15) * spot * (0.55 + 0.3 * sin(uSkinT * 2.5 + vRlP.y * 9.0));
 } else if (rlS == 4) {
   // void: violet rim and drifting star specks
   float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
-  outgoingLight = outgoingLight * vec3(0.72, 0.62, 0.9) + vec3(0.72, 0.28, 1.0) * fres * 0.95;
+  float crack = smoothstep(0.07, 0.0, abs(rlN3(vRlP * 3.5 + vec3(0.0, uSkinT * 0.25, 0.0)) - 0.5));
+  outgoingLight = outgoingLight * vec3(0.62, 0.5, 0.85) + vec3(0.72, 0.28, 1.0) * (fres * 1.5 + crack * (0.6 + 0.4 * sin(uSkinT * 3.0 + vRlP.y * 5.0)));
   vec3 sc = vRlP * 10.0 + vec3(0.0, uSkinT * 0.6, 0.0);
   float st = step(0.94, rlH3(floor(sc))) * smoothstep(0.32, 0.12, length(fract(sc) - 0.5));
   outgoingLight += vec3(0.9, 0.8, 1.0) * st * 0.6;
@@ -1323,7 +1328,7 @@ function rlSkinParticles(renderer, dt, world) {
   if (!fx || !world || !(dt > 0) || dt > 0.25) return;
   const count = world.enemies.length,
     density = Math.min(1, renderer.maxParticles / 1400),
-    rate = Math.min(2.2, 70 / Math.max(1, count)) * density;
+    rate = Math.min(3.2, 100 / Math.max(1, count)) * density;
   for (const enemy of world.enemies) {
     if (enemy.dead || enemy.ghost || enemy.spawnT > 0) continue;
     const big = enemy.boss ? 6 : 1;

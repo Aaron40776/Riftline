@@ -46,7 +46,7 @@ import {
 } from "./models.js";
 import { enemyDefs, eliteAffixes, bossDefs } from "../data/enemies.js";
 import { ui } from "../main.js";
-import { smoothstep, clamp, TAU, easeOutBack, dampFactor } from "../core/util.js";
+import { smoothstep, clamp, TAU, easeOutBack, dampFactor, angleDiff } from "../core/util.js";
 import { biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
 import { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles } from "./biome-visuals.js";
@@ -104,6 +104,37 @@ const tmpColor = new Color(),
       arr[off + 8] = sin * sz;
       arr[off + 9] = 0;
       arr[off + 10] = cos * sz;
+      arr[off + 11] = 0;
+      arr[off + 12] = x;
+      arr[off + 13] = y;
+      arr[off + 14] = z;
+      arr[off + 15] = 1;
+      return idx;
+    }
+    /* like y(), plus a pitch (nose down when negative, about the local z axis) and a roll (about the
+       forward x axis); the matrix is Ry(-angle) * Rz(pitch) * Rx(roll) * scale, written without allocations */
+    yr(x, y, z, angle, sx, sy, sz, pitch, roll) {
+      if (this.n >= this.max) return -1;
+      let idx = this.n++,
+        arr = this.m,
+        off = idx * 16,
+        c = Math.cos(-angle),
+        s = Math.sin(-angle),
+        cp = Math.cos(pitch),
+        sp = Math.sin(pitch),
+        cr = Math.cos(roll),
+        sr = Math.sin(roll);
+      arr[off] = c * cp * sx;
+      arr[off + 1] = sp * sx;
+      arr[off + 2] = -s * cp * sx;
+      arr[off + 3] = 0;
+      arr[off + 4] = (-c * sp * cr + s * sr) * sy;
+      arr[off + 5] = cp * cr * sy;
+      arr[off + 6] = (s * sp * cr + c * sr) * sy;
+      arr[off + 7] = 0;
+      arr[off + 8] = (c * sp * sr + s * cr) * sz;
+      arr[off + 9] = -cp * sr * sz;
+      arr[off + 10] = (-s * sp * sr + c * cr) * sz;
       arr[off + 11] = 0;
       arr[off + 12] = x;
       arr[off + 13] = y;
@@ -183,6 +214,39 @@ const tmpColor = new Color(),
       }
     }
   };
+/* 2.7.0: how the instances of each enemy type move (all cheap maths in the matrix, no extra geometry).
+   roll/bounce/lean: walk sway about the forward axis, hop height and nose-down lean, all scaled by how fast
+   the enemy moves (ref = the speed that counts as full); f is the gait frequency per unit of speed.
+   hover/hf: bob at any time; breath/bf: breathing squash of the body; the rest are none. */
+const RL_MOTION_NONE = { roll: 0, bounce: 0, lean: 0, f: 1, ref: 4, hover: 0, hf: 1, breath: 0, bf: 1 },
+  RL_MOTION = {
+    swarmer: { roll: 0.16, bounce: 0.05, lean: 0.18, f: 2.4, ref: 5, hover: 0.06, hf: 9, breath: 0.03, bf: 9 },
+    mite: { roll: 0.2, bounce: 0.04, lean: 0.12, f: 3, ref: 5, hover: 0.04, hf: 9, breath: 0.03, bf: 8 },
+    grunt: { roll: 0.09, bounce: 0.05, lean: 0.06, f: 1.6, ref: 3.3 },
+    gunner: { roll: 0.07, bounce: 0.04, lean: 0.05, f: 1.8, ref: 3.5 },
+    bomber: { roll: 0.12, bounce: 0.06, lean: 0.1, f: 2, ref: 4, breath: 0.03, bf: 5 },
+    splitter: { roll: 0.06, bounce: 0.05, lean: 0.05, f: 1.4, ref: 3, breath: 0.05, bf: 2.6 },
+    brute: { roll: 0.05, bounce: 0.05, lean: 0.05, f: 1.2, ref: 3, breath: 0.02, bf: 2.2 },
+    sniper: { roll: 0.04, bounce: 0.02, lean: 0.04, f: 1.4, ref: 3, hover: 0.02, hf: 3 },
+    hive: { roll: 0.02, bounce: 0, lean: 0.02, f: 1, ref: 2, breath: 0.05, bf: 3 },
+    bulwark: { roll: 0.04, bounce: 0.03, lean: 0.03, f: 1.2, ref: 2.5 },
+    striker: { roll: 0.1, bounce: 0, lean: 0.3, f: 2, ref: 5, hover: 0.07, hf: 6 },
+    mortar: { roll: 0.02, bounce: 0.01, lean: 0.02, f: 1, ref: 2, breath: 0.02, bf: 2 },
+    mender: { roll: 0.08, bounce: 0, lean: 0.15, f: 1.5, ref: 3, hover: 0.06, hf: 3, breath: 0.04, bf: 3 },
+    leaper: { roll: 0.06, bounce: 0.08, lean: 0.2, f: 2, ref: 5, breath: 0.05, bf: 4 },
+    turret: { roll: 0, bounce: 0, lean: 0, f: 1, ref: 1, breath: 0.012, bf: 2 },
+    charger: { roll: 0.05, bounce: 0.04, lean: 0.14, f: 1.6, ref: 5 },
+    minebot: { roll: 0.1, bounce: 0.03, lean: 0.06, f: 2, ref: 3.5 },
+    sapper: { roll: 0.1, bounce: 0.05, lean: 0.08, f: 1.8, ref: 3.5 },
+    phantom: { roll: 0.1, bounce: 0, lean: 0.25, f: 1.2, ref: 4, hover: 0.1, hf: 2.4 },
+    sentinel: { roll: 0.03, bounce: 0, lean: 0.06, f: 1, ref: 3, hover: 0.08, hf: 2 },
+    carrier: { roll: 0.14, bounce: 0, lean: 0.1, f: 1, ref: 3, hover: 0.09, hf: 2 },
+    drone: { roll: 0.2, bounce: 0, lean: 0.35, f: 1.6, ref: 4.5, hover: 0.06, hf: 7 },
+    driller: { roll: 0.03, bounce: 0.02, lean: 0.04, f: 3, ref: 3 },
+    beacon: { roll: 0, bounce: 0, lean: 0, f: 1, ref: 1, hover: 0.04, hf: 2 },
+    weaver: { roll: 0.07, bounce: 0.03, lean: 0.06, f: 2.6, ref: 4 },
+  };
+for (const type in RL_MOTION) RL_MOTION[type] = { ...RL_MOTION_NONE, ...RL_MOTION[type] };
 function makeFlashMaterial(params) {
   let mat = new MeshLambertMaterial(params);
   mat.onBeforeCompile = (shader) => {
@@ -442,6 +506,7 @@ const MAX_PARTICLES = 1400,
       scene.add(this.pLight, this.bLight);
       this.flashes = [];
       this.D = [];
+      this.corpses = [];
       this.scorches = [];
       this.kick = 0;
       this.kickA = 0;
@@ -889,6 +954,23 @@ const MAX_PARTICLES = 1400,
               0.14 + 0.12 * Math.sqrt(scale),
               3 + scale * 2,
             );
+            // 2.7.0: the model does not vanish at once: it shrinks, spins and hops for a moment (drawWorld), and a
+            // second handful of debris in the lighter shade of its colour flies off (skipped on the battery preset)
+            if (!ev.boss && this.corpses.length < 40 && enemyDefs[ev.type]) {
+              this.corpses.push({
+                type: ev.type,
+                x: ev.x,
+                z: ev.y,
+                r: ev.r / enemyDefs[ev.type].r,
+                a: Math.random() * TAU,
+                spin: (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 5),
+                t: 0,
+                elite: !!ev.elite,
+              });
+            }
+            if (!ev.boss && this.maxParticles >= 800) {
+              this.debrisBurst(ev.x, ev.y, 0.7, ev.elite ? 6 : 3, base, 0.1 + 0.08 * Math.sqrt(scale), 4 + scale * 2);
+            }
             if (ev.r >= 0.5 || ev.elite || ev.boss) {
               this.addScorch(ev.x, ev.y, ev.r * 1.3 + 0.3);
             }
@@ -1314,6 +1396,9 @@ const MAX_PARTICLES = 1400,
       drone.base.rotation.y = this.time * 0.3;
       drone.turret.rotation.y = Math.sin(this.time * 0.7) * 1.2;
       drone.shield.visible = false;
+      drone.base.rotation.set(0, this.time * 0.3, -0.04);
+      drone.setThrust(0.3, this.time);
+      this.corpses.length = 0;
       for (let mat of drone.mats) mat.emissive.setScalar(0);
       let shadow = this.shadows.y(0, 0.02, 0, 0, 2.2),
         glow = this.sprites.bb(0, 0.15, 0, 2.2, this.B);
@@ -1351,6 +1436,19 @@ const MAX_PARTICLES = 1400,
         drone.group.position.set(player.x, 0.22 + bob, player.y);
         drone.base.rotation.y = -player.face;
         drone.turret.rotation.y = -player.aim;
+        // 2.7.0: nozzle flames follow the speed (a dash burns full), the hull leans into the movement and banks in turns
+        {
+          const speed = Math.hypot(player.vx, player.vy),
+            thrust = player.dashT > 0 ? 1.7 : clamp(speed / Math.max(3, world.stats.speed), 0, 1.15),
+            turn = angleDiff(drone.faceLast === undefined ? player.face : drone.faceLast, player.face),
+            k = dampFactor(10, dt);
+          drone.faceLast = player.face;
+          drone.lean += (thrust * 0.16 - drone.lean) * k;
+          drone.bank += (clamp((turn * 0.08) / Math.max(dt, 0.008), -0.4, 0.4) - drone.bank) * k;
+          drone.base.rotation.z = -drone.lean;
+          drone.base.rotation.x = drone.bank;
+          drone.setThrust(thrust, time);
+        }
         drone.shield.visible = player.shield;
         drone.shield.material.opacity = 0.12 + Math.sin(time * 6) * 0.04;
         let blink =
@@ -1435,17 +1533,14 @@ const MAX_PARTICLES = 1400,
         let grow = enemy.spawnT > 0 ? 1 - enemy.spawnT / 0.35 : 1,
           scale = (enemy.r / enemyDefs[enemy.type].r) * easeOutBack(clamp(grow, 0, 1)),
           scaleY = scale,
-          lift = 0;
+          lift = 0,
+          angle = enemy.face,
+          pitch = 0,
+          roll = 0;
         if (enemy.type === "bomber" && enemy.st === 1) {
           let pulse = 1 + Math.sin(time * 40) * 0.08;
           scale *= pulse;
           scaleY *= pulse;
-        }
-        if (enemy.type === "swarmer" || enemy.type === "mite") {
-          lift = Math.sin(time * 9 + enemy.phase) * 0.06;
-        }
-        if (enemy.type === "hive") {
-          scaleY *= 1 + Math.sin(time * 3 + enemy.phase) * 0.05;
         }
         if (enemy.type === "brute" && enemy.st === 1) {
           scaleY *= 0.9;
@@ -1457,11 +1552,30 @@ const MAX_PARTICLES = 1400,
           let jitter = Math.floor(time * 30) % 2 ? 0.9 : 1.05;
           scale *= jitter;
         }
-        if (enemy.flash > 0) {
-          scale *= 1 + enemy.flash * 0.1;
-          scaleY *= 1 - enemy.flash * 0.06;
+        // 2.7.0: walk sway, hop and lean into the movement, hover bob, breathing, spawn pop with a half turn
+        {
+          const motion = RL_MOTION[enemy.type] || RL_MOTION_NONE,
+            speed = Math.hypot(enemy.vx || 0, enemy.vy || 0),
+            move = speed > 0.4 ? Math.min(1, speed / motion.ref) : 0,
+            gait = time * (4 + speed * motion.f) + enemy.phase,
+            breath = Math.sin(time * motion.bf + enemy.phase) * motion.breath;
+          roll = Math.sin(gait) * motion.roll * move;
+          pitch = -motion.lean * move;
+          lift =
+            Math.abs(Math.sin(gait)) * motion.bounce * move + Math.sin(time * motion.hf + enemy.phase) * motion.hover;
+          scaleY *= 1 + breath;
+          scale *= 1 - breath * 0.5;
+          if (grow < 1) {
+            lift += Math.sin(clamp(grow, 0, 1) * Math.PI) * 0.35 * scale;
+            angle += (1 - clamp(grow, 0, 1)) * 2.4;
+          }
         }
-        let bodyIdx = pools.body.y(enemy.x, lift, enemy.y, enemy.face, scale, scaleY, scale);
+        if (enemy.flash > 0) {
+          // hit squash: flattened and wider for a moment, the white flash is in the shader
+          scale *= 1 + enemy.flash * 0.16;
+          scaleY *= 1 - enemy.flash * 0.2;
+        }
+        let bodyIdx = pools.body.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll);
         pools.body.flash(bodyIdx, enemy.flash > 0 ? enemy.flash : enemy.slowT > 0 ? 0.25 : 0);
         let tint = enemy.variant ? variantColors[enemy.variant] : null;
         if (enemy.slowT > 0) {
@@ -1481,7 +1595,7 @@ const MAX_PARTICLES = 1400,
             }
           }
         }
-        let glowIdx = pools.glow.y(enemy.x, lift, enemy.y, enemy.face, scale, scaleY, scale),
+        let glowIdx = pools.glow.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll),
           glowK = 1;
         if ((enemy.type === "gunner" || enemy.type === "sniper") && enemy.st === 1) {
           glowK = 1.6 + Math.sin(time * 30) * 0.4;
@@ -1618,6 +1732,48 @@ const MAX_PARTICLES = 1400,
             this.ringPool.colC(ring, color, 0.35 + Math.sin(time * 9 + enemy.phase) * 0.25);
           }
         }
+      }
+      // 2.7.0: dying enemies: a short shrink, spin and hop, white at first (the kill burst hides the rest)
+      if (this.corpses.length) {
+        let list = this.corpses,
+          keep = 0;
+        for (let i = 0; i < list.length; i++) {
+          let corpse = list[i];
+          corpse.t += dt;
+          let k = corpse.t / 0.3;
+          if (k >= 1) continue;
+          list[keep++] = corpse;
+          let pools = this.enemyPools[corpse.type],
+            shrink = (1 - k) * (1 - k),
+            size = corpse.r * (1 + k * 0.25) * shrink + 0.001,
+            hop = Math.sin(k * Math.PI) * 0.5,
+            idx = pools.body.yr(
+              corpse.x,
+              hop,
+              corpse.z,
+              corpse.a + corpse.spin * corpse.t,
+              size,
+              size * (1 - k * 0.3),
+              size,
+              k * 0.9,
+              0,
+            );
+          pools.body.flash(idx, 1 - k * 0.6);
+          pools.body.col(idx, corpse.elite ? 1.25 : 1, corpse.elite ? 1.05 : 1, corpse.elite ? 0.7 : 1);
+          let glowIdx = pools.glow.yr(
+            corpse.x,
+            hop,
+            corpse.z,
+            corpse.a + corpse.spin * corpse.t,
+            size,
+            size,
+            size,
+            k * 0.9,
+            0,
+          );
+          pools.glow.colC(glowIdx, corpse.elite ? goldColor : pools.color, 1 + (1 - k) * 1.5);
+        }
+        list.length = keep;
       }
       this.drawBoss(dt, world, boss);
       let flameHot = hexColor(16765562),

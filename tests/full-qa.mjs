@@ -368,6 +368,7 @@ await section("saves", async (L) => {
       JSON.stringify(r),
     );
     if (r && r.choose) {
+      await P.page.waitForSelector("#cards:not(.locked) .card", { timeout: 8000 }); // the cards are locked for 0.65 s
       await P.tap("#cards .card");
       await P.page.waitForTimeout(800);
     }
@@ -767,6 +768,7 @@ await section("workshop-merge", async (L) => {
       JSON.stringify(r),
     );
     if (r && r.choose) {
+      await P.page.waitForSelector("#cards:not(.locked) .card", { timeout: 8000 }); // the cards are locked for 0.65 s
       await P.tap("#cards .card");
       await P.page.waitForTimeout(800);
     }
@@ -1170,6 +1172,7 @@ for (const profName of ["desktop", "phone"])
     await P.ev(() => {
       window.__riftTest.game.world.wave = 9;
     });
+    await P.page.waitForSelector("#cards:not(.locked) .card", { timeout: 8000 }); // the cards are locked for 0.65 s
     await P.tap("#cards .card");
     await P.page.waitForTimeout(600);
     const bw = await P.ev(() => {
@@ -1232,6 +1235,7 @@ for (const profName of ["desktop", "phone"])
     await P.ev(() => {
       window.__riftTest.game.world.wave = 19;
     });
+    await P.page.waitForSelector("#cards:not(.locked) .card", { timeout: 8000 }); // the cards are locked for 0.65 s
     await P.tap("#cards .card");
     await P.page.waitForTimeout(600);
     await P.ev(() => {
@@ -1250,6 +1254,7 @@ for (const profName of ["desktop", "phone"])
     await P.tap("#endlessBtn");
     check(L, "Endless starts with a bonus upgrade choice", await waitScreen("choose", 8000));
     await P.page.waitForTimeout(700);
+    await P.page.waitForSelector("#cards:not(.locked) .card", { timeout: 8000 }); // the cards are locked for 0.65 s
     await P.tap("#cards .card");
     await P.page.waitForTimeout(1000);
     const en = await P.ev(() => {
@@ -2130,6 +2135,7 @@ await section("upgrades250A", async (L) => {
       await P.page.waitForFunction(() => !document.getElementById("cards").classList.contains("locked"), null, {
         timeout: 5000,
       });
+      await P.page.waitForSelector("#cards:not(.locked) .card", { timeout: 8000 }); // the cards are locked for 0.65 s
       await P.tap("#cards .card");
       await P.page.waitForTimeout(400);
     }

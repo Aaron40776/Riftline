@@ -1187,12 +1187,17 @@ const getById = (id) => document.getElementById(id),
       cards.classList.add("locked");
       clearTimeout(this.armT);
       this.armT = setTimeout(() => cards.classList.remove("locked"), 650);
-      for (let card of cards.querySelectorAll("[data-pick]"))
+      for (let card of cards.querySelectorAll("[data-pick]")) {
         card.addEventListener("click", () => {
           if (!cards.classList.contains("locked")) {
             this.g.choose(card.dataset.pick);
           }
         });
+        // 2.7.0: a soft tick when the mouse moves over a card (touch has no hover)
+        card.addEventListener("pointerenter", (ev) => {
+          if (ev.pointerType === "mouse" && !cards.classList.contains("locked")) this.g.sound.play("hover");
+        });
+      }
       getById("rerollTxt").textContent = `Reroll (${world.rerolls})`;
       getById("rerollBtn").disabled = world.rerolls <= 0;
       getById("buildStrip").innerHTML = this.buildHtml(world);

@@ -381,7 +381,7 @@ const overlay = new Overlay(elementById("ov")),
       let world = this.world;
       if (world && world.reroll()) {
         ui.renderCards(world);
-        sound.play("pick");
+        // the "reroll" event plays the shuffle sound
         store.data.run = world.snapshot();
         store.save("reroll");
       }
@@ -809,7 +809,19 @@ function menuBiomeIndex() {
  counts as seen for the Codex (boss_<id>). */
 let cardWave = 0,
   cardEvent = null;
+/* 2.7.0: what the sound engine needs every frame of a running world: the drone speed for the engine
+ hum (null: no hum, e.g. between waves and while the boss card shows) and the biome event that is on
+ for its ambience. The engine switches both off by itself when this stops (pause, menus). */
+function rlAudioState(world) {
+  const fight = world.state === "fight" && !game.intro,
+    player = world.player;
+  sound.setState(
+    fight ? Math.min(1, Math.hypot(player.vx, player.vy) / Math.max(1, world.stats.speed)) : null,
+    fight ? world.event : null,
+  );
+}
 function handleWorldEvents(world) {
+  rlAudioState(world);
   // 2.5.0 D: find the title cards of this frame before the banners are shown
   let card = null,
     boss = null;
@@ -845,7 +857,10 @@ function handleWorldEvents(world) {
         if (ev.event) {
           let event = waveEvents[ev.event];
           ui.banner(event.name, `Wave ${ev.n} \xB7 ${event.desc}`, "good", 2600);
-          sound.play("event");
+          // 2.7.0: on the first wave of a biome the banner (and its cue) comes after the title card, see below
+          if (!newBiome) {
+            sound.play("event", ev.event);
+          }
         } else
           ui.banner(
             ev.boss ? "WARNING" : `WAVE ${ev.n}`,
@@ -1011,15 +1026,12 @@ function handleWorldEvents(world) {
       const ev = hold.kind === "biome" && world.wave === cardWave && world.state === "fight" && cardEvent;
       const wave = cardWave;
       if (ev) {
-        setTimeout(
-          () =>
-            game.world === world &&
-            !game.paused &&
-            world.state === "fight" &&
-            world.wave === wave &&
-            ui.banner(ev.name, `Wave ${wave} \xB7 ${ev.desc}`, "good", 2600),
-          450,
-        );
+        setTimeout(() => {
+          if (game.world === world && !game.paused && world.state === "fight" && world.wave === wave) {
+            ui.banner(ev.name, `Wave ${wave} \xB7 ${ev.desc}`, "good", 2600);
+            sound.play("event", ev.id);
+          }
+        }, 450);
       }
       if (hold.kind === "biome") {
         cardEvent = null;
