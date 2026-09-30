@@ -32,7 +32,16 @@ function rlLoadSave(raw) {
  overwrites it — progress can then still be recovered by hand. */
 function rlBackupSave(text) {
   try {
-    localStorage.setItem("riftline.save.v1.backup-" + Date.now(), String(text));
+    // 2.8.1: keep only the three newest backups, so they cannot fill the storage quota
+    const prefix = "riftline.save.v1.backup-",
+      old = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) old.push(key);
+    }
+    old.sort((a, b) => Number(a.slice(prefix.length)) - Number(b.slice(prefix.length)));
+    for (const key of old.slice(0, Math.max(0, old.length - 2))) localStorage.removeItem(key);
+    localStorage.setItem(prefix + Date.now(), String(text));
   } catch (err) {
     logError("backup", err);
   }
@@ -312,6 +321,19 @@ function cleanSave(input) {
       }
     }
   }
+  // 2.8.1: per-weapon records of retired weapons count for the weapon that took them over (clears are
+  // added, the best wave is the higher one), so "clear with every weapon" sees an old Ion Repeater clear
+  for (const id in RL_RETIRED_WEAPONS) {
+    const to = RL_RETIRED_WEAPONS[id].to;
+    if (id in stats.clearsBy) {
+      stats.clearsBy[to] = (stats.clearsBy[to] || 0) + stats.clearsBy[id];
+      delete stats.clearsBy[id];
+    }
+    if (id in stats.bestBy) {
+      stats.bestBy[to] = Math.max(stats.bestBy[to] || 0, stats.bestBy[id]);
+      delete stats.bestBy[id];
+    }
+  }
   let rawSettings = asObject(raw.settings);
   for (let key in defaultSettings) {
     let def = defaultSettings[key];
@@ -388,7 +410,30 @@ const safeStorage = {
     onChange(listener) {
       this.listeners.add(listener);
     }
+    // 2.8.1: another tab or window wrote the save. `foreign` is set while this tab is in a run; the next
+    // save first takes over the other tab's progress and keeps only this tab's run, settings and seen flags,
+    // so neither tab rolls back the other.
+    syncForeign(keepMine = true) {
+      if (!this.foreign) return false;
+      this.foreign = false;
+      let data = null;
+      try {
+        data = JSON.parse(safeStorage.get(SAVE_KEY) || "null");
+      } catch {}
+      if (!data || typeof data != "object") return false;
+      const mine = this.data,
+        fresh = rlLoadSave(data);
+      if (!fresh || typeof fresh != "object") return false;
+      if (keepMine) {
+        fresh.run = mine.run;
+        fresh.settings = mine.settings;
+        fresh.seen = { ...fresh.seen, ...mine.seen };
+      }
+      this.data = fresh;
+      return true;
+    }
     save(reason) {
+      this.syncForeign();
       this.data.savedAt = Date.now();
       let text = JSON.stringify(this.data);
       safeStorage.set(SAVE_KEY, text);

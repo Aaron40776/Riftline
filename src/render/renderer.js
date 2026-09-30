@@ -1291,7 +1291,8 @@ const MAX_PARTICLES = 1400,
           ? 1
           : 0;
       this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 1 : -1) * (dt || 0) * 0.9, 0, 1);
-      if (this.rlWhiteK > 0.02 && dt > 0 && dt < 0.25) {
+      // 2.8.1: the snow keeps fading after Home, when there may be no world any more
+      if (this.rlWhiteK > 0.02 && world?.arena && dt > 0 && dt < 0.25) {
         const density = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
           amount = 70 * dt * density,
           count = Math.floor(amount) + (Math.random() < amount - Math.floor(amount) ? 1 : 0),

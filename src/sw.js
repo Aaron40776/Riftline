@@ -18,15 +18,27 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req, { cache: 'no-store' }).then((res) => {
-      if (res && res.ok && res.type === 'basic') caches.open(CACHE).then(c => c.put('index.html', res.clone())).catch(() => {});
+    // 2.8.1: network first, but a slow or hanging network (captive portal, weak signal) falls back to the
+    // cached page after 3 s; the fresh page is still stored in the background for the next start
+    const cached = () => caches.open(CACHE).then(c => c.match('index.html').then((hit) => hit || c.match('./')));
+    const net = fetch(req, { cache: 'no-store' }).then((res) => {
+      if (res && res.ok && res.type === 'basic') {
+        const copy = res.clone();
+        e.waitUntil(caches.open(CACHE).then(c => c.put('index.html', copy)).catch(() => {}));
+      }
       return res;
-    }).catch(() => caches.open(CACHE).then(c => c.match('index.html').then((hit) => hit || c.match('./')))));
+    });
+    const slow = new Promise((resolve) => setTimeout(resolve, 3000)).then(cached).then((hit) => hit || net);
+    e.respondWith(Promise.race([net, slow]).catch(() => cached()));
+    e.waitUntil(net.catch(() => null));
     return;
   }
   if (url.pathname.endsWith('/build-info.json')) {
     e.respondWith(fetch(req, { cache: 'no-store' }).then((res) => {
-      if (res && res.ok && res.type === 'basic') caches.open(CACHE).then(c => c.put('build-info.json', res.clone())).catch(() => {});
+      if (res && res.ok && res.type === 'basic') {
+        const copy = res.clone();
+        e.waitUntil(caches.open(CACHE).then(c => c.put('build-info.json', copy)).catch(() => {}));
+      }
       return res;
     }).catch(() => caches.open(CACHE).then(c => c.match('build-info.json'))));
     return;

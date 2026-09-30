@@ -310,7 +310,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 .card {
   --rc: var(--r1); position: relative; display: grid; grid-template-columns: 48px 1fr; gap: 12px; align-items: center; text-align: left;
   padding: 12px 14px; background: var(--panel2); border: 1px solid var(--line2); clip-path: var(--notch);
-  opacity: 0; transform: translateY(10px); animation: cardIn 0.35s ease-out forwards;
+  animation: cardIn 0.35s ease-out both;
 }
 .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--rc); box-shadow: 0 0 12px var(--rc); }
 .card .cico { width: 48px; height: 48px; display: grid; place-items: center; color: var(--rc); background: color-mix(in srgb, var(--rc) 12%, transparent); clip-path: var(--notch); --n: 7px; }
@@ -329,7 +329,8 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 .card:active { filter: brightness(1.25); }
 .card.armed { pointer-events: auto; }
 .cards.locked .card { pointer-events: none; }
-@keyframes cardIn { to { opacity: 1; transform: none; } }
+/* 2.8.1: animate from the hidden state, so the cards stay visible when reduced motion turns the animation off */
+@keyframes cardIn { from { opacity: 0; transform: translateY(10px); } }
 .choose-foot { display: flex; gap: 10px; }
 .build-strip, .build-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 460px; }
 .bi { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; font: 600 12px/1 var(--display); color: var(--text); background: rgba(255, 255, 255, 0.05); border-left: 2px solid var(--rc, var(--r1)); }
@@ -1135,7 +1136,9 @@ label.set-row > .toggle { flex: 0 0 auto; }
    upgrade choice or the run summary is open, gameplay hints are hidden (an enemy
    intro used to sit on top of RESUME on landscape phones); during a boss fight
    they start below the boss health bar (compact phones put them on top of it). */
-#pause:not([hidden]) ~ #toasts, #choose:not([hidden]) ~ #toasts, #over:not([hidden]) ~ #toasts, #settings.in-run:not([hidden]) ~ #toasts { visibility: hidden; }
+/* 2.8.1: only gameplay hints (.intro, .hint) are hidden; UI feedback such as "Copied" stays visible */
+#pause:not([hidden]) ~ #toasts :is(.intro, .hint), #choose:not([hidden]) ~ #toasts :is(.intro, .hint),
+#over:not([hidden]) ~ #toasts :is(.intro, .hint), #settings.in-run:not([hidden]) ~ #toasts :is(.intro, .hint) { visibility: hidden; }
 #app:has(#bossBar:not([hidden])) #toasts { top: calc(var(--st) + 100px); }
 #pause .build-list { justify-content: center; margin-inline: auto; }
 /* Upgrade cards: keep the three choices visually equal on large screens,

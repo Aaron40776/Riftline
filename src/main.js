@@ -30,6 +30,7 @@ import {
   defaultSettings,
   RL_RETIRE_NOTE,
   SaveStore,
+  SAVE_KEY,
   rlRecordRun,
   rlSanitizeHistory,
   set_RL_RETIRE_NOTE,
@@ -227,7 +228,18 @@ elementById("gl").addEventListener("webglcontextrestored", () => logError("webgl
 let _resizeRaf = 0,
   _resizeWhy = "resize",
   _resizeFollowTimer = 0;
-function _resetInputForViewportChange() {
+// 2.8.1: small viewport changes (browser bars sliding in and out, the soft keyboard) keep a held stick;
+// only a real layout change (orientation flip or more than 20% width/height) releases it
+let _inputViewW = window.innerWidth,
+  _inputViewH = window.innerHeight;
+function _resetInputForViewportChange(force = false) {
+  const w = window.innerWidth,
+    h = window.innerHeight,
+    flipped = w > h !== _inputViewW > _inputViewH,
+    big = Math.abs(w - _inputViewW) > 0.2 * _inputViewW || Math.abs(h - _inputViewH) > 0.2 * _inputViewH;
+  if (!force && !flipped && !big) return;
+  _inputViewW = w;
+  _inputViewH = h;
   try {
     if (input && (input.move.active || input.aim.active)) {
       input.reset();
@@ -262,7 +274,7 @@ window.addEventListener(
 window.addEventListener(
   "orientationchange",
   () => {
-    _resetInputForViewportChange();
+    _resetInputForViewportChange(true);
     _scheduleResize("orientation");
     clearTimeout(_resizeFollowTimer);
     _resizeFollowTimer = setTimeout(() => {
@@ -310,8 +322,10 @@ const overlay = new Overlay(elementById("ov")),
       try {
         this.world = new World({
           seed: (Math.random() * 4294967296) >>> 0,
-          weapon: save.weapon,
-          threat: save.threat,
+          // 2.8.1: Restart / Run Again keep the weapon and threat of the run that just ended (a resumed run
+          // may differ from what the home carousel shows)
+          weapon: options.weapon || save.weapon,
+          threat: options.threat ?? save.threat,
           ws: save.workshop,
           snap: snap,
         });
@@ -330,6 +344,9 @@ const overlay = new Overlay(elementById("ov")),
         this.acc = 0;
         this.slowMo = 0;
         this.intro = null;
+        // 2.8.1: enemies queued for an intro at the end of the last run are not announced in this one
+        RL_INTRO.queue.length = 0;
+        RL_INTRO.last = 0;
         RL_RT.runStartMs = Date.now();
         RL_RT.runErrorSnapshot = errorLog.map((entry) => `${entry.where}|${entry.msg}|${entry.n}`);
         if (renderer) {
@@ -421,7 +438,12 @@ const overlay = new Overlay(elementById("ov")),
       ui.hidePause();
       this.paused = false;
       this.endRun(false, true, true);
-      this.startRun({});
+      this.retry();
+    },
+    // a new run with the weapon and threat of the current (ended) run
+    retry() {
+      const world = this.world;
+      this.startRun(world ? { weapon: world.weapon, threat: world.threat } : {});
     },
     abandon() {
       ui.hidePause();
@@ -441,9 +463,15 @@ const overlay = new Overlay(elementById("ov")),
         world.time = 0;
         world.evolved = 0;
         world.dmgSrc = {};
+        // 2.8.1: the Endless summary counts only the Endless part, like shards and kills above
+        world.dmgDealt = 0;
+        world.bestCombo = 0;
+        world.runStats = { dmgTaken: 0, dashes: 0, critHits: 0 };
         world.continueEndless();
         ui.showHud(true);
         this.chooseShown = false;
+        // 2.8.1: the victory screen released the wake lock; Endless needs it again
+        setWakeLock(true);
       }
       // 2.2.3: the endless part is monitored as a new run
       try {
@@ -468,7 +496,21 @@ const overlay = new Overlay(elementById("ov")),
       setWakeLock(false);
       rlApplyUpdateWhenIdle("home");
     },
+    // 2.8.1: a stored run that is replaced by a new one is settled like Abandon (its shards, kills and
+    // play time are credited and it is written to the history) instead of being thrown away
     discardRun() {
+      const snap = store.data.run;
+      if (snap && !this.world) {
+        try {
+          this.world = new World({ seed: 1, weapon: snap.weapon, threat: snap.threat, ws: store.data.workshop, snap });
+          this.overShown = false;
+          this.endRun(false, true, true);
+        } catch (err) {
+          logError("discard", err);
+        }
+        this.world = null;
+        this.overShown = false;
+      }
       store.data.run = null;
       store.save("discard");
     },
@@ -479,6 +521,8 @@ const overlay = new Overlay(elementById("ov")),
       startLoop();
     },
     endRun(win, abandoned = false, silent = false) {
+      // 2.8.1: take over what another tab saved before crediting this run
+      store.syncForeign();
       // 2.2.3: run monitor, read before the run is settled
       const world = this.world,
         pre = world && !this.overShown ? rlMonPreEnd(world) : null;
@@ -837,7 +881,7 @@ function handleWorldEvents(world) {
   // 2.5.0 B: the events of the new modules
   for (const ev of world.fx) {
     if (ev.k === "kit") {
-      ui.toast(`STARTER KIT · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good", 3200);
+      ui.toast(`STARTER KIT · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good hint", 3200);
     } else {
       if (ev.k === "barrier") {
         ui.banner("EMERGENCY SHIELD", "Hull critical — barrier up", "good", 1400);
@@ -971,7 +1015,7 @@ function handleWorldEvents(world) {
         ui.comboPop(ev.n, ev.bonus);
         break;
       case "bountyPulse":
-        ui.toast(`BOUNTY · +${ev.amount} shards`, "good", 1500);
+        ui.toast(`BOUNTY · +${ev.amount} shards`, "good hint", 1500);
         break;
       case "pick":
         if (ev.evo) {
@@ -1151,7 +1195,7 @@ function showTipOnce(key, text) {
   if (!seen["tip_" + key]) {
     seen["tip_" + key] = true;
     store.save("tip");
-    ui.toast(text, "", 5200);
+    ui.toast(text, "hint", 5200);
   }
 }
 // 2.4.2: Auto quality also steps back up. Before, two slow windows (a stutter at the start of
@@ -1469,6 +1513,8 @@ const rlBootAt = performance.now();
 function rlApplyUpdateWhenIdle(why) {
   if (!game.pendingUpdate || game.mode !== "menu" || game.world) return;
   if (why === "found" && performance.now() - rlBootAt > 10e3) return; // not while someone is looking
+  // 2.8.1: never reload under an open dialog (an import with pasted text) or another menu screen
+  if (why === "found" && (!getById("dialog").hidden || ui.screen !== "home")) return;
   const apply = game.pendingUpdate;
   game.pendingUpdate = null;
   store.save("update");
@@ -1481,6 +1527,28 @@ registerServiceWorker((apply) => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
     rlApplyUpdateWhenIdle("hidden");
+  }
+});
+// 2.8.1: two tabs (or the browser and the installed app) used to overwrite each other's save. In the menu
+// this tab reloads what the other one wrote; during a run it takes it over at its next save.
+let rlForeignWarned = false;
+window.addEventListener("storage", (ev) => {
+  if (ev.key !== SAVE_KEY || !ev.newValue) return;
+  store.foreign = true;
+  if (game.mode === "menu" && !game.world && getById("dialog").hidden) {
+    store.syncForeign(false);
+    applySettings();
+    ui.homeInit = false;
+    if (ui.screen === "home") ui.show("home");
+    return;
+  }
+  if (!rlForeignWarned) {
+    rlForeignWarned = true;
+    ui.toast(
+      "Riftline is open in another tab. Progress from both is kept, but play in one tab at a time.",
+      "warn",
+      7000,
+    );
   }
 });
 // Test interface for the scripts in tests/. The keys are the readable names of the values (they
@@ -1582,6 +1650,10 @@ setTimeout(rlModuleToast, 1100);
 store.onChange((json, why) => {
   if (why === "import" && RL_MODULE_NOTE) {
     setTimeout(rlModuleToast, 300);
+  }
+  // 2.8.1: an imported old save may also contain retired weapons
+  if (why === "import" && RL_RETIRE_NOTE) {
+    setTimeout(rlRetireToast, 400);
   }
 });
 window.__riftTest.v250B = { migrateModules: rlMigrateModules };
