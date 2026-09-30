@@ -18,35 +18,39 @@ function rlShotSfx(id) {
   if (def.count >= 5 || def.cone) return "scatter";
   return "pulse";
 }
-/* 2.7.0: each of the 25 enemy types dies with one of six voices (light pop, squelch, heavy crunch,
- electric zap, metal clang, glass shatter). Bosses and champions keep "bigkill". */
+/* 2.7.0: each of the 25 enemy types dies with a voice of its family. 2.9.0: nine families (was six), so that
+ machines, flesh, armour and ghosts no longer share a sound: bip pop (tiny swarmers), wet squelch, flesh and
+ bone crunch, heavy armour, electric short circuit, ghostly fade, metal clang, hollow rattle, glass shatter.
+ Bosses and champions keep "bigkill". */
 const RL_DEATH_FAMILY = {
   swarmer: "dPop",
   mite: "dPop",
-  drone: "dPop",
-  minebot: "dPop",
   splitter: "dSquelch",
   hive: "dSquelch",
   leaper: "dSquelch",
   mender: "dSquelch",
   brute: "dCrunch",
-  bulwark: "dCrunch",
   striker: "dCrunch",
-  driller: "dCrunch",
-  mortar: "dCrunch",
-  phantom: "dZap",
-  weaver: "dZap",
+  bulwark: "dArmor",
+  driller: "dArmor",
+  mortar: "dArmor",
+  drone: "dZap",
   sentinel: "dZap",
   turret: "dZap",
+  phantom: "dGhost",
+  weaver: "dGhost",
   grunt: "dClang",
   gunner: "dClang",
-  bomber: "dClang",
-  charger: "dClang",
   sapper: "dClang",
-  carrier: "dClang",
+  bomber: "dRattle",
+  charger: "dRattle",
+  carrier: "dRattle",
+  minebot: "dRattle",
   sniper: "dShatter",
   beacon: "dShatter",
 };
+/* 2.9.0: the shot of an enemy by type (default "eshot", the gunner); the sniper has its own lock-on sound */
+const RL_ESHOT_VOICE = { sniper: "snipe", turret: "eshotTurret", drone: "eshotDrone", boss: "eshotBoss" };
 /* wind-up voices of the "charge" event (enemy types and the bosses that charge) */
 const RL_CHARGE_VOICE = {
   brute: "windHeavy",
@@ -85,10 +89,41 @@ const RL_BOSS_ATK = {
   stoke: "bStoke",
 };
 const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
+  /* 2.9.0: every boss has a timbre (wave, filter) and a short motif (semitones above the root, two octaves up)
+   that its telegraphs, roar and death share, so that the ear knows who is attacking: the Warden stern and
+   square (a fifth), the Crucible a saw with an anvil ring, the Prism falling glass, the Queen a wet chromatic
+   wobble, the Core a void tritone. */
+  BOSS_SOUND = {
+    warden: { wave: "square", lp: 900, det: 0, motif: [0, 0, 7], gap: 0.1, chord: [0, 7, 12, 19] },
+    forge: { wave: "sawtooth", lp: 800, det: 0, motif: [0, 3, 5, 3], gap: 0.09, chord: [0, 4, 7, 12] },
+    prism: { wave: "sine", lp: 9e3, det: 6, motif: [12, 7, 4, 0], gap: 0.08, chord: [0, 4, 7, 11] },
+    queen: { wave: "triangle", lp: 1400, det: 35, motif: [0, -1, 0, -1], gap: 0.1, chord: [0, 3, 7, 10] },
+    core: { wave: "sawtooth", lp: 1e3, det: 18, motif: [0, 6, 0, 6], gap: 0.11, chord: [0, 7, 14, 19] },
+  },
+  /* 2.9.0: how far the music dips for the big hits (gain factor 1 - x, about 100 ms; the music goes on) */
+  MUSIC_DUCK = {
+    nova: 0.15,
+    die: 0.15,
+    boom: 0.1,
+    bigkill: 0.12,
+    hurt: 0.1,
+    bossDown: 0.15,
+    enrage: 0.12,
+    phase: 0.1,
+    boss: 0.1,
+    bossIntro: 0.12,
+    evolve: 0.1,
+    guardBreak: 0.08,
+    thud: 0.08,
+    bSlam: 0.08,
+    rail: 0.06,
+    scatter: 0.05,
+    rocket: 0.05,
+  },
   /* boss wave music: tempo per biome (the fight theme runs at 122) and the stab voice */
   BOSS_BPM = { yard: 138, works: 132, vault: 142, void: 146, marsh: 136 },
   BOSS_STAB = { yard: "square", works: "sawtooth", vault: "triangle", void: "square", marsh: "sawtooth" },
-  AMBIENCE_LEVEL = { meltdown: 0.07, whiteout: 0.055, bloom: 0.035, riftstorm: 0.03 },
+  AMBIENCE_LEVEL = { meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
   MAX_VOICES = 24,
   // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
   MAX_MUSIC_VOICES = 20,
@@ -141,7 +176,7 @@ const RL_SOUND_EVENTS = {
   die: [{}],
   enrage: [{ id: "warden" }],
   erupt: [{}],
-  eshot: [{ type: "gunner" }],
+  eshot: [{ type: "gunner" }, { type: "turret" }, { type: "drone" }, { type: "boss" }, { type: "sniper" }],
   freeze: [{}],
   fuse: [{}],
   guardBreak: [{}],
@@ -280,6 +315,11 @@ const musicChords = {
       this.amb = null;
       this.accentT = 0;
       this.accentFlip = false;
+      // 2.9.0: music ducking and counters of the music notes (the tests check that none is dropped)
+      this.duckGain = null;
+      this.duckT = -1e9;
+      this.musicScheduled = 0;
+      this.musicSkipped = 0;
     }
     setIntensity(level) {
       this.want = Math.max(0, Math.min(1, level || 0));
@@ -340,7 +380,10 @@ const musicChords = {
       this.sfx.connect(this.comp);
       this.mus = ctx.createGain();
       this.mus.gain.value = this.musVol * 0.6;
-      this.mus.connect(this.comp);
+      // 2.9.0: the music passes a gain stage of its own that dips briefly on big hits (duck)
+      this.duckGain = ctx.createGain();
+      this.mus.connect(this.duckGain);
+      this.duckGain.connect(this.comp);
       this.delay = ctx.createDelay(1);
       this.delay.delayTime.value = 0.28;
       this.fb = ctx.createGain();
@@ -410,9 +453,13 @@ const musicChords = {
             }
         }
         if (end > this.maxEnd && end < 1e8) this.maxEnd = end;
-        if (music.length >= MAX_MUSIC_VOICES) return null;
+        if (music.length >= MAX_MUSIC_VOICES) {
+          this.musicSkipped++;
+          return null;
+        }
         let voice = { node: null, amp: null, pri: 0, start: start, end: end, loop: false };
         music.push(voice);
+        this.musicScheduled++;
         return voice;
       }
       let list = this.voices;
@@ -527,53 +574,86 @@ const musicChords = {
       this.curPri = KEY_SOUNDS.has(id) ? 2 : 1;
       try {
         this._play(id, arg);
+        if (MUSIC_DUCK[id]) this.duck(MUSIC_DUCK[id]);
       } catch (err) {
         this.fail(err);
       } finally {
         this.curPri = 1;
       }
     }
+    /* 2.9.0: a light sidechain: the music gain dips by `depth` (at most 15 %) for about 80 ms and comes back
+     (time constant 70 ms), so that a big hit is heard over the music. Nothing is stopped or skipped. */
+    duck(depth) {
+      let gain = this.duckGain;
+      if (!gain) return;
+      let now = this.ctx.currentTime;
+      if (now - this.duckT < 0.1) return;
+      this.duckT = now;
+      try {
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setTargetAtTime(1 - Math.min(0.15, depth), now, 0.012);
+        gain.gain.setTargetAtTime(1, now + 0.08, 0.07);
+      } catch {}
+    }
     _play(id, arg) {
       let pitch = 1 + (Math.random() - 0.5) * 0.08;
       switch (id) {
+        // 2.9.0: seven weapons, seven sound families (waveform, pitch range, envelope, tail)
         case "pulse":
+          // bright sci-fi "pew": a fast falling sine with a thin square edge, all above 400 Hz, no tail
           if (this.gate(id, 0.05)) {
-            this.tone(900 * pitch, 0.07, "square", 0.035, { to: 380, lp: 3500 });
+            this.tone(1500 * pitch, 0.075, "sine", 0.05, { to: 420 });
+            this.tone(2300 * pitch, 0.028, "square", 0.012, { to: 900, lp: 5e3 });
           }
           break;
         case "scatter":
+          // shotgun: a wide noise blast, a low thump and the click of the pump a moment later
           if (this.gate(id, 0.08)) {
-            this.noise(0.16, 0.22, { f: 2600, to: 500 });
-            this.tone(140, 0.12, "sine", 0.25, { to: 50 });
+            this.noise(0.2, 0.26, { f: 3200, to: 350, attack: 0.001 });
+            this.tone(150, 0.16, "sine", 0.3, { to: 42 });
+            this.noise(0.03, 0.06, { type: "bandpass", f: 2600, q: 3, at: 0.17 });
           }
           break;
         case "tesla":
+          // arc: a stuttering electric crackle, two random square ticks and a hissing spark, no low end
           if (this.gate(id, 0.06)) {
-            this.tone(1500 * pitch, 0.06, "sawtooth", 0.025, { to: 700, lp: 5e3 });
-            this.noise(0.05, 0.05, { type: "bandpass", f: 5e3 });
+            this.tone(2600 + Math.random() * 2400, 0.022, "square", 0.02, { lp: 7e3 });
+            this.tone(3200 + Math.random() * 2600, 0.022, "square", 0.016, { at: 0.03, lp: 7e3 });
+            this.noise(0.08, 0.06, { type: "bandpass", f: 6500, q: 6 });
           }
           break;
         case "rail":
+          // railgun: a sharp crack, a supersonic drop from 3.2 kHz, a sub recoil and a ringing metal tail
           if (this.gate(id, 0.1)) {
-            this.tone(2200, 0.3, "sine", 0.12, { to: 180 });
-            this.noise(0.18, 0.12, { f: 6e3, to: 800 });
+            this.noise(0.04, 0.2, { type: "highpass", f: 4e3, attack: 0.001 });
+            this.tone(3200, 0.28, "sine", 0.14, { to: 70 });
+            this.tone(55, 0.3, "sine", 0.17, { to: 35 });
+            this.tone(1320, 0.6, "triangle", 0.06, { at: 0.03 });
+            this.tone(1990, 0.5, "triangle", 0.04, { at: 0.03 });
           }
           break;
         case "rocket":
+          // rocket: the launch "foomp", then a long rising whoosh over a rough motor
           if (this.gate(id, 0.08)) {
-            this.noise(0.3, 0.12, { f: 900, to: 300 });
-            this.tone(220, 0.18, "triangle", 0.08, { to: 110 });
+            this.tone(120, 0.14, "sine", 0.2, { to: 55 });
+            this.noise(0.5, 0.2, { type: "bandpass", f: 350, to: 1800, q: 0.8, attack: 0.12 });
+            this.tone(80, 0.45, "sawtooth", 0.05, { to: 150, lp: 350, attack: 0.1 });
           }
           break;
         case "disc":
+          // disc launcher: a metallic "shing" (two inharmonic partials) and a two-note wub of the spinning blade
           if (this.gate(id, 0.1)) {
-            this.noise(0.22, 0.09, { type: "bandpass", f: 1800, to: 700, q: 3 });
-            this.tone(620 * pitch, 0.12, "triangle", 0.05, { to: 900 });
+            this.tone(1245, 0.16, "sine", 0.035);
+            this.tone(2093, 0.12, "sine", 0.022);
+            this.tone(300 * pitch, 0.06, "triangle", 0.07, { to: 500 });
+            this.tone(500 * pitch, 0.07, "triangle", 0.06, { to: 300, at: 0.06 });
           }
           break;
         case "flame":
+          // flame jet: a soft low roar of filtered noise with random crackle pops, no pitched part at all
           if (this.gate(id, 0.11)) {
-            this.noise(0.16, 0.07, { type: "bandpass", f: 900 * pitch, q: 0.6, rate: 0.7 });
+            this.noise(0.22, 0.1, { f: 1200, to: 400, q: 0.5, rate: 0.5 * pitch });
+            this.noise(0.04, 0.05, { type: "highpass", f: 5e3, at: Math.random() * 0.12 });
           }
           break;
         case "block":
@@ -701,8 +781,31 @@ const musicChords = {
           this.tone(990, 0.2, "sine", 0.08, { at: 0.08 });
           break;
         case "eshot":
+          // gunner: a dull low square "pok", clearly darker than the player's pew
           if (this.gate(id, 0.07)) {
-            this.tone(520 * pitch, 0.07, "square", 0.025, { to: 300, lp: 1800 });
+            this.tone(330 * pitch, 0.09, "square", 0.028, { to: 170, lp: 1100 });
+            this.noise(0.04, 0.03, { type: "bandpass", f: 1500, q: 2 });
+          }
+          break;
+        case "eshotDrone":
+          // drone: a tiny rising chirp
+          if (this.gate(id, 0.08)) {
+            this.tone(900 * pitch, 0.06, "triangle", 0.025, { to: 1400 });
+          }
+          break;
+        case "eshotTurret":
+          // turret: a mechanical clack with a short muzzle thump
+          if (this.gate(id, 0.08)) {
+            this.noise(0.03, 0.06, { type: "bandpass", f: 2200, q: 4 });
+            this.tone(180, 0.06, "square", 0.04, { to: 90, lp: 600 });
+          }
+          break;
+        case "eshotBoss":
+          // boss cannon: a heavy thump and a rough sawtooth growl
+          if (this.gate(id, 0.1)) {
+            this.tone(90, 0.25, "sine", 0.22, { to: 45 });
+            this.tone(140, 0.2, "sawtooth", 0.05, { to: 70, lp: 500 });
+            this.noise(0.18, 0.07, { f: 700, to: 200 });
           }
           break;
         case "snipe":
@@ -829,33 +932,56 @@ const musicChords = {
       switch (id) {
         // ---- enemy deaths: short, quiet, pitch-randomised ----
         case "dPop":
+          // tiny swarmers: a high "bip", a bubble that drops fast
           if (this.gate(id, 0.03)) {
-            this.tone(760 * pitch, 0.07, "sine", 0.05 * size, { to: 220 });
-            this.noise(0.04, 0.05, { type: "highpass", f: 4500 });
+            this.tone(1100 * pitch, 0.06, "sine", 0.05 * size, { to: 300 });
+            this.noise(0.025, 0.04, { type: "highpass", f: 6e3 });
           }
           break;
         case "dSquelch":
+          // wet: a blobby glide up and back down and a narrow gurgle
           if (this.gate(id, 0.035)) {
-            this.tone(300 * pitch, 0.14, "sine", 0.07 * size, { to: 90 });
-            this.tone(200 * pitch, 0.1, "sine", 0.06, { to: 70, at: 0.05 });
-            this.noise(0.14, 0.05, { type: "bandpass", f: 700, to: 250, q: 5 });
+            this.tone(180 * pitch, 0.06, "sine", 0.07 * size, { to: 460 });
+            this.tone(460 * pitch, 0.11, "sine", 0.06, { to: 110, at: 0.05 });
+            this.noise(0.14, 0.05, { type: "bandpass", f: 500, to: 250, q: 6 });
           }
           break;
         case "dCrunch":
+          // flesh and bone: a crushing noise, a bone crack and a dull thump
           if (this.gate(id, 0.04)) {
-            this.noise(0.22, 0.1 * size, { f: 1100, to: 150 });
-            this.tone(105 * pitch, 0.2, "sine", 0.12 * size, { to: 45 });
-            this.noise(0.05, 0.05, { type: "highpass", f: 3e3 });
+            this.noise(0.18, 0.12 * size, { f: 1400, to: 200 });
+            this.noise(0.02, 0.07, { type: "bandpass", f: 2200, q: 3, at: 0.03 });
+            this.tone(95 * pitch, 0.16, "sine", 0.12 * size, { to: 45 });
+          }
+          break;
+        case "dArmor":
+          // heavy plating: a deep boom, a low inharmonic clang that rings a little and a dull rattle
+          if (this.gate(id, 0.04)) {
+            this.tone(70, 0.25, "sine", 0.2 * size, { to: 35 });
+            this.tone(310 * pitch, 0.18, "triangle", 0.035);
+            this.tone(467 * pitch, 0.14, "triangle", 0.025);
+            this.noise(0.1, 0.07, { type: "bandpass", f: 600, to: 300, q: 2 });
           }
           break;
         case "dZap":
+          // short circuit: two square ticks, a falling saw and a spark of noise
           if (this.gate(id, 0.035)) {
-            this.tone(1800 * pitch, 0.12, "sawtooth", 0.035 * size, { to: 200, lp: 5e3 });
-            this.noise(0.08, 0.05, { type: "bandpass", f: 4500, q: 2 });
-            this.tone(95, 0.1, "square", 0.025, { lp: 500 });
+            this.tone(3200 * pitch, 0.1, "sawtooth", 0.035 * size, { to: 150, lp: 6e3 });
+            this.tone(1100, 0.02, "square", 0.025, { lp: 4e3, at: 0.05 });
+            this.tone(1500, 0.02, "square", 0.02, { lp: 4e3, at: 0.08 });
+            this.noise(0.06, 0.08, { type: "bandpass", f: 6e3, q: 3 });
+          }
+          break;
+        case "dGhost":
+          // ghostly: a detuned pair of sines falling slowly, a thin sigh of noise, no hard edge at all
+          if (this.gate(id, 0.04)) {
+            this.tone(2400 * pitch, 0.3, "sine", 0.04 * size, { to: 320, attack: 0.05 });
+            this.tone(2424 * pitch, 0.3, "sine", 0.03, { to: 300, attack: 0.05 });
+            this.noise(0.28, 0.035, { type: "bandpass", f: 4e3, to: 800, q: 8, attack: 0.06 });
           }
           break;
         case "dClang":
+          // metal: a ringing triangle pair and a short low knock
           if (this.gate(id, 0.035)) {
             this.tone(1240 * pitch, 0.22, "triangle", 0.05 * size);
             this.tone(1810 * pitch, 0.16, "triangle", 0.032);
@@ -863,7 +989,16 @@ const musicChords = {
             this.noise(0.03, 0.05, { type: "bandpass", f: 3e3 });
           }
           break;
+        case "dRattle":
+          // hollow casing: a short falling knock and two dry ticks of loose parts
+          if (this.gate(id, 0.035)) {
+            this.tone(380 * pitch, 0.12, "triangle", 0.06 * size, { to: 170 });
+            this.noise(0.03, 0.09, { type: "bandpass", f: 1500, q: 4, at: 0.02 });
+            this.noise(0.03, 0.08, { type: "bandpass", f: 2000, q: 4, at: 0.07 });
+          }
+          break;
         case "dShatter":
+          // glass: a burst of high noise and three random high chimes
           if (this.gate(id, 0.04)) {
             this.noise(0.22, 0.08 * size, { type: "highpass", f: 4500, attack: 0.001 });
             for (let i = 0; i < 3; i++) {
@@ -996,32 +1131,45 @@ const musicChords = {
         // ---- boss telegraphs (arg: boss id) ----
         case "bWind":
           if (this.gate(id, 0.2)) {
-            let f = midiToFreq(BOSS_ROOT[arg] || 45);
-            this.tone(f, 0.7, "sawtooth", 0.12, { to: f * 2.6, lp: 700, attack: 0.3 });
+            let f = midiToFreq(BOSS_ROOT[arg] || 45),
+              b = BOSS_SOUND[arg] || BOSS_SOUND.warden;
+            this.tone(f, 0.7, b.wave, 0.12, { to: f * 2.6, lp: 700, attack: 0.3, detune: b.det });
             this.noise(0.6, 0.08, { type: "bandpass", f: 300, to: 1500, q: 1.2, attack: 0.3 });
+            this.bossMotif(arg, 0.03, 0.4);
           }
           break;
         case "bRing":
           if (this.gate(id, 0.2)) {
-            let f = midiToFreq(BOSS_ROOT[arg] || 45);
-            this.tone(f * 4, 0.55, "sawtooth", 0.05, { to: f * 10, lp: 2200, attack: 0.3 });
+            let f = midiToFreq(BOSS_ROOT[arg] || 45),
+              b = BOSS_SOUND[arg] || BOSS_SOUND.warden;
+            this.tone(f * 4, 0.55, b.wave, 0.05, { to: f * 10, lp: 2200, attack: 0.3, detune: b.det });
             this.noise(0.5, 0.07, { type: "bandpass", f: 800, to: 3e3, q: 1.5, attack: 0.25 });
+            this.bossMotif(arg, 0.03, 0.3);
           }
           break;
         case "bSlam":
           if (this.gate(id, 0.2)) {
-            let f = midiToFreq(BOSS_ROOT[arg] || 45);
+            let f = midiToFreq(BOSS_ROOT[arg] || 45),
+              b = BOSS_SOUND[arg] || BOSS_SOUND.warden;
             this.tone(f, 0.55, "sine", 0.2, { to: f * 2, attack: 0.3 });
+            this.tone(f * 2, 0.5, b.wave === "sine" ? "triangle" : b.wave, 0.04, {
+              to: f * 4,
+              lp: 600,
+              attack: 0.3,
+              detune: b.det,
+            });
             this.noise(0.5, 0.05, { f: 200, to: 900, attack: 0.3 });
           }
           break;
         case "bSummon":
           if (this.gate(id, 0.2)) {
-            let f = midiToFreq((BOSS_ROOT[arg] || 45) + 36);
+            let f = midiToFreq((BOSS_ROOT[arg] || 45) + 36),
+              b = BOSS_SOUND[arg] || BOSS_SOUND.warden;
             this.tone(f, 0.7, "sine", 0.05, { attack: 0.35 });
-            this.tone(f * 1.006, 0.7, "sine", 0.05, { attack: 0.35 });
+            this.tone(f * 1.006, 0.7, "sine", 0.05, { attack: 0.35, detune: b.det });
             this.tone(f * 1.5, 0.7, "sine", 0.03, { attack: 0.4 });
             this.noise(0.6, 0.05, { type: "bandpass", f: 500, to: 2600, q: 2, attack: 0.3 });
+            this.bossMotif(arg, 0.025, 0.3);
           }
           break;
         case "bNova":
@@ -1055,13 +1203,18 @@ const musicChords = {
             this.tone(140, 0.4, "sine", 0.06, { to: 90, attack: 0.15 });
           }
           break;
-        case "enrage":
-          // a roar: two detuned saws sliding up, growl noise
-          this.tone(70, 1, "sawtooth", 0.14, { to: 150, lp: 900, attack: 0.15 });
-          this.tone(74, 1, "sawtooth", 0.12, { to: 158, lp: 900, attack: 0.15 });
+        case "enrage": {
+          // a roar on the boss's own pitch and timbre, then its motif once more
+          let b = BOSS_SOUND[arg] || BOSS_SOUND.warden,
+            f = midiToFreq((BOSS_ROOT[arg] || 45) - 8),
+            wave = b.wave === "sine" ? "sawtooth" : b.wave;
+          this.tone(f, 1, wave, 0.14, { to: f * 2.15, lp: 900, attack: 0.15 });
+          this.tone(f * 1.057, 1, wave, 0.12, { to: f * 2.27, lp: 900, attack: 0.15, detune: b.det });
           this.noise(0.9, 0.1, { type: "bandpass", f: 350, to: 1600, q: 1.5, attack: 0.1 });
-          this.tone(45, 0.8, "sine", 0.25, { to: 30 });
+          this.tone(f * 0.65, 0.8, "sine", 0.25, { to: f * 0.43 });
+          this.bossMotif(arg, 0.045, 0.55);
           break;
+        }
         case "phase":
           // Rift Core changes phase: a downward sweep into a fifth
           this.tone(2400, 0.7, "sine", 0.07, { to: 180 });
@@ -1069,16 +1222,25 @@ const musicChords = {
           this.tone(midiToFreq(49), 0.8, "sawtooth", 0.07, { lp: 700, at: 0.5, attack: 0.05 });
           this.noise(0.6, 0.08, { type: "bandpass", f: 4e3, to: 300, q: 2 });
           break;
-        case "bossDown":
-          // aftermath of the kill: falling debris, a last boom, a resolving chord
+        case "bossDown": {
+          // aftermath of the kill: falling debris, a last boom, a resolving chord of the boss's own colour and
+          // its motif as a farewell
+          let b = BOSS_SOUND[arg] || BOSS_SOUND.warden,
+            root = (BOSS_ROOT[arg] || 45) + 12;
           for (let i = 0; i < 4; i++) {
             this.noise(0.25, 0.14 - i * 0.02, { f: 1200 - i * 200, to: 150, at: i * 0.22 });
           }
           this.tone(90, 0.9, "sine", 0.25, { to: 30, at: 0.3 });
-          [0, 4, 7, 12].forEach((n, i) =>
-            this.tone(midiToFreq(57 + n), 1, "triangle", 0.05, { at: 0.8 + i * 0.06, attack: 0.05 }),
+          b.chord.forEach((n, i) =>
+            this.tone(midiToFreq(root + n), 1, b.wave === "sine" ? "sine" : "triangle", 0.05, {
+              at: 0.8 + i * 0.06,
+              attack: 0.05,
+              detune: b.det,
+            }),
           );
+          this.bossMotif(arg, 0.035, 1.05);
           break;
+        }
         case "bossIntro":
           this.bossIntro(arg);
           break;
@@ -1113,36 +1275,55 @@ const musicChords = {
           break;
       }
     }
+    /* 2.9.0: the signature motif of a boss (3 to 4 short notes), quiet; `at` seconds from now */
+    bossMotif(id, vol, at = 0) {
+      let b = BOSS_SOUND[id];
+      if (!b) return;
+      let root = (BOSS_ROOT[id] || 45) + 24;
+      b.motif.forEach((n, i) =>
+        this.tone(midiToFreq(root + n), 0.11, b.wave, vol, {
+          at: at + i * b.gap,
+          lp: Math.min(6e3, b.lp * 2),
+          detune: b.det,
+        }),
+      );
+    }
     pickSound(rarity) {
       switch (rarity) {
         case 1:
+          // common: two soft sine notes, a rising fourth: small and friendly
+          this.tone(midiToFreq(76), 0.14, "sine", 0.06);
+          this.tone(midiToFreq(81), 0.2, "sine", 0.06, { at: 0.07 });
+          break;
+        case 2:
+          // rare: a bright square arpeggio (major triad) with a click
           [0, 0.07, 0.14].forEach((at, i) =>
             this.tone(midiToFreq(72 + [0, 4, 7][i]), 0.2, "square", 0.04, { at, lp: 3e3 }),
           );
-          break;
-        case 2:
-          [0, 0.06, 0.12, 0.18].forEach((at, i) => {
-            this.tone(midiToFreq(72 + [0, 4, 7, 12][i]), 0.24, "square", 0.035, { at, lp: 3500 });
-            this.tone(midiToFreq(84 + [0, 4, 7, 12][i]), 0.2, "triangle", 0.03, { at });
-          });
-          this.tone(3136, 0.3, "sine", 0.025, { at: 0.18 });
+          this.tone(midiToFreq(91), 0.3, "triangle", 0.03, { at: 0.2 });
+          this.noise(0.02, 0.05, { type: "highpass", f: 6e3 });
           break;
         case 3:
+          // epic: a saw chord under a bell arpeggio (inharmonic partials) and a sparkle
           [0, 4, 7].forEach((n) => this.tone(midiToFreq(67 + n), 0.5, "sawtooth", 0.03, { lp: 2500, attack: 0.02 }));
-          [0, 0.07, 0.14, 0.21].forEach((at, i) =>
-            this.tone(midiToFreq(79 + [0, 4, 7, 12][i]), 0.3, "triangle", 0.05, { at }),
-          );
+          [0, 0.07, 0.14, 0.21].forEach((at, i) => {
+            let f = midiToFreq(79 + [0, 4, 7, 12][i]);
+            this.tone(f, 0.3, "triangle", 0.05, { at });
+            this.tone(f * 2.76, 0.12, "sine", 0.012, { at });
+          });
           this.noise(0.4, 0.04, { type: "highpass", f: 6e3, attack: 0.1 });
           break;
         case 4:
-          this.tone(midiToFreq(36), 0.9, "sine", 0.14, { attack: 0.02 });
-          [0, 4, 7, 11].forEach((n) =>
-            this.tone(midiToFreq(60 + n), 0.8, "sawtooth", 0.035, { lp: 1800, attack: 0.05 }),
+          // legendary: a sub boom, a wide major-seventh pad with detuned octaves, a high run and a rising shimmer
+          this.tone(midiToFreq(36), 1, "sine", 0.16, { attack: 0.02, to: midiToFreq(34) });
+          [0, 4, 7, 11].forEach((n) => {
+            this.tone(midiToFreq(60 + n), 0.9, "sawtooth", 0.03, { lp: 1800, attack: 0.05 });
+            this.tone(midiToFreq(72 + n), 0.8, "sawtooth", 0.018, { lp: 2400, attack: 0.08, detune: 9 });
+          });
+          [0, 0.1, 0.2, 0.3, 0.4].forEach((at, i) =>
+            this.tone(midiToFreq(84 + [0, 4, 7, 12, 16][i]), 0.5, "sine", 0.05, { at }),
           );
-          [0, 0.1, 0.2, 0.3].forEach((at, i) =>
-            this.tone(midiToFreq(84 + [0, 4, 7, 12][i]), 0.5, "sine", 0.05, { at }),
-          );
-          this.noise(0.6, 0.05, { type: "highpass", f: 5e3, attack: 0.15 });
+          this.noise(0.8, 0.05, { type: "highpass", f: 3e3, attack: 0.5 });
           break;
         case 5:
           this._play("evolve");
@@ -1314,7 +1495,7 @@ const musicChords = {
             this.play("heal");
             break;
           case "eshot":
-            this.play(ev.type === "sniper" ? "snipe" : "eshot");
+            this.play(RL_ESHOT_VOICE[ev.type] || "eshot");
             break;
           case "aim":
             this.play(ev.type === "turret" ? "servo" : "lock");
@@ -1434,14 +1615,14 @@ const musicChords = {
             break;
           }
           case "enrage":
-            this.play("enrage");
+            this.play("enrage", ev.id);
             break;
           case "phase":
             this.play("phase");
             break;
           case "bossDown":
             this.bossOver = true;
-            this.play("bossDown");
+            this.play("bossDown", ev.id);
             break;
         }
     }
@@ -1531,6 +1712,17 @@ const musicChords = {
           amp.gain.value = 0.7;
           sub.connect(amp);
           amp.connect(gain);
+          // 2.9.0: a rough saw under it and the hiss of hot air
+          let grind = filter("lowpass", 120, 0.8, osc("sawtooth", 41.2)),
+            grindAmp = ctx.createGain();
+          grindAmp.gain.value = 0.3;
+          grind.connect(grindAmp);
+          grindAmp.connect(gain);
+          let hiss = filter("highpass", 3500, 0.7, loop(1.7)),
+            hissAmp = ctx.createGain();
+          hissAmp.gain.value = 0.12;
+          hiss.connect(hissAmp);
+          hissAmp.connect(gain);
           break;
         }
         case "whiteout": {
@@ -1542,20 +1734,50 @@ const musicChords = {
           lfo.connect(depth);
           depth.connect(wind.frequency);
           wind.connect(gain);
+          // 2.9.0: a thin second wind, higher and slower, that whistles
+          let whistle = filter("bandpass", 1700, 5, loop(1.3)),
+            lfo2 = osc("sine", 0.07),
+            depth2 = ctx.createGain(),
+            whistleAmp = ctx.createGain();
+          depth2.gain.value = 600;
+          whistleAmp.gain.value = 0.35;
+          lfo2.connect(depth2);
+          depth2.connect(whistle.frequency);
+          whistle.connect(whistleAmp);
+          whistleAmp.connect(gain);
           break;
         }
         case "bloom": {
           // low gurgle under the bubbles
           let gurgle = filter("lowpass", 320, 1.5, loop(0.35));
           gurgle.connect(gain);
+          // 2.9.0: a burbling band of noise whose pitch wobbles about twice a second
+          let burble = filter("bandpass", 200, 3, loop(0.6)),
+            wobble = osc("sine", 0.55),
+            wobbleDepth = ctx.createGain(),
+            burbleAmp = ctx.createGain();
+          wobbleDepth.gain.value = 70;
+          burbleAmp.gain.value = 0.9;
+          wobble.connect(wobbleDepth);
+          wobbleDepth.connect(burble.frequency);
+          burble.connect(burbleAmp);
+          burbleAmp.connect(gain);
           break;
         }
         case "riftstorm": {
           // two close low tones that beat
           let a = osc("sine", 55),
-            b = osc("sine", 57.5);
+            b = osc("sine", 57.5),
+            c = osc("sine", 110),
+            d = osc("sine", 113.5),
+            upper = ctx.createGain();
           a.connect(gain);
           b.connect(gain);
+          // 2.9.0: the same beat an octave higher
+          upper.gain.value = 0.4;
+          c.connect(upper);
+          d.connect(upper);
+          upper.connect(gain);
           break;
         }
         default:
@@ -1615,32 +1837,43 @@ const musicChords = {
       this.curPri = 1;
       switch (name) {
         case "meltdown":
-          this.accentT = now + 1.4 + Math.random() * 1.6;
-          this.tone(70 + Math.random() * 30, 0.35, "sine", 0.05, { to: 40 });
-          this.noise(0.3, 0.03, { f: 300, to: 120 });
+          // a low groan of the furnace with a couple of crackles
+          this.accentT = now + 0.9 + Math.random() * 1.4;
+          this.tone(70 + Math.random() * 30, 0.4, "sine", 0.07, { to: 40 });
+          this.noise(0.3, 0.05, { f: 300, to: 120 });
+          this.noise(0.025, 0.05, { type: "highpass", f: 4e3, at: Math.random() * 0.25 });
+          this.noise(0.025, 0.04, { type: "highpass", f: 5e3, at: Math.random() * 0.25 });
           break;
         case "whiteout":
-          this.accentT = now + 2.5 + Math.random() * 3;
-          this.noise(1.2, 0.04, { type: "bandpass", f: 500, to: 1400, q: 1, attack: 0.5 });
-          this.tone(2200 + Math.random() * 800, 0.5, "sine", 0.01, { attack: 0.2 });
+          // a gust of wind and a high icy ring
+          this.accentT = now + 1.8 + Math.random() * 2.2;
+          this.noise(1.2, 0.06, { type: "bandpass", f: 500, to: 1400, q: 1, attack: 0.5 });
+          this.tone(2200 + Math.random() * 800, 0.6, "sine", 0.016, { attack: 0.2 });
           break;
         case "bloom": {
-          this.accentT = now + 0.12 + Math.random() * 0.35;
+          // bubbles, close together
+          this.accentT = now + 0.08 + Math.random() * 0.25;
           let f = 200 + Math.random() * 500;
-          this.tone(f, 0.08, "sine", 0.03, { to: f * 1.8 });
+          this.tone(f, 0.08, "sine", 0.045, { to: f * 1.8 });
+          if (Math.random() < 0.4) this.tone(f * 0.6, 0.06, "sine", 0.03, { to: f * 1.1, at: 0.05 });
           break;
         }
         case "riftstorm":
-          this.accentT = now + 3 + Math.random() * 1.5;
+          // the sweep up or down, and a dry tick of a far discharge
+          this.accentT = now + 2.4 + Math.random() * 1.2;
           this.accentFlip = !this.accentFlip;
-          this.tone(this.accentFlip ? 300 : 2000, 0.9, "sine", 0.03, { to: this.accentFlip ? 2000 : 300, attack: 0.4 });
-          this.noise(0.9, 0.03, {
+          this.tone(this.accentFlip ? 300 : 2000, 0.9, "sine", 0.045, {
+            to: this.accentFlip ? 2000 : 300,
+            attack: 0.4,
+          });
+          this.noise(0.9, 0.04, {
             type: "bandpass",
             f: this.accentFlip ? 1000 : 3500,
             to: this.accentFlip ? 3500 : 1000,
             q: 2,
             attack: 0.4,
           });
+          this.tone(3800 + Math.random() * 1500, 0.03, "square", 0.015, { at: 0.3 + Math.random() * 0.4, lp: 6e3 });
           break;
         default:
           this.accentT = now + 5;
@@ -1857,6 +2090,13 @@ const musicChords = {
           for (let step = 0, t = 0; t < seconds - 0.25; step++, t += len) {
             engine.simT = base + t;
             engine.note(step % 64, base + t);
+            // 2.9.0: a flood of sounds in every step; the music notes must all be scheduled anyway
+            if (spec.flood)
+              for (let k = 0; k < 30; k++) {
+                engine.last = Object.create(null);
+                let flood = RL_FLOOD[(step * 7 + k) % RL_FLOOD.length];
+                engine.play(flood[0], flood[1]);
+              }
           }
           engine.simT = null;
         } else {
@@ -1892,11 +2132,29 @@ const musicChords = {
         lastAudible: last,
         maxEnd: engine.maxEnd - base,
         dropped: engine.dropped,
+        musicScheduled: engine.musicScheduled,
+        musicSkipped: engine.musicSkipped,
         failed: !!engine.failed,
-        samples: spec.wav ? Array.from(data) : null,
+        samples: spec.wav ? Array.from(data.subarray(Math.round(base * 44100))) : null,
       };
     }
   };
+/* 2.9.0: what the music flood test throws at the engine (sound id, argument): every weapon, deaths, blasts */
+const RL_FLOOD = [
+  ...RL_SFX_VOICES.map((id) => [id]),
+  ["boom"],
+  ["hurt"],
+  ["nova"],
+  ["hit"],
+  ["crit"],
+  ["kill", 1.8],
+  ["dCrunch", 1.6],
+  ["dClang", 1.6],
+  ["dShatter", 1.6],
+  ["bigkill"],
+  ["bSlam", "warden"],
+  ["eshotBoss"],
+];
 function stepSeconds(bpm) {
   return 60 / bpm / 4;
 }
@@ -1930,6 +2188,9 @@ function rlSoundCatalog() {
     "heal",
     "eshot",
     "snipe",
+    "eshotDrone",
+    "eshotTurret",
+    "eshotBoss",
     "warn",
     "fuse",
     "spawn",
@@ -1988,7 +2249,8 @@ function rlSoundCatalog() {
   ids(["hatch"], 1);
   for (const boss of Object.keys(BOSS_ROOT)) {
     ids(["bossIntro"], boss);
-    for (const id of ["bWind", "bRing", "bSlam", "bSummon", "bNova", "bLance", "bStoke", "bRain"]) ids([id], boss);
+    for (const id of ["bWind", "bRing", "bSlam", "bSummon", "bNova", "bLance", "bStoke", "bRain", "enrage", "bossDown"])
+      ids([id], boss);
   }
   for (const rarity of [1, 2, 3, 4, 5]) ids(["pick"], rarity);
   for (const id of ["elite", "rain", "meltdown", "whiteout", "bloom", "riftstorm"]) ids(["event"], id);
@@ -2006,10 +2268,13 @@ export {
   musicVoices,
   SoundEngine,
   RL_DEATH_FAMILY,
+  RL_ESHOT_VOICE,
   RL_CHARGE_VOICE,
   RL_DASH_VOICE,
   RL_BOSS_ATK,
   RL_SOUND_EVENTS,
   RL_SILENT_EVENTS,
   MAX_VOICES,
+  MUSIC_DUCK,
+  BOSS_SOUND,
 };
