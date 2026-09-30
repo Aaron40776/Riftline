@@ -622,6 +622,354 @@ const RL_ENEMY_BUILDERS = {
     ],
   }),
 };
+/* 2.9.0: a second pass over the 25 models: panels, vents, rivets, lamps, pupils, teeth, claws, tails and
+   glowing cores. Every entry adds parts to the body and glow geometry of its type (same footprint, same
+   two draw calls; +40..+150 triangles, every type stays under ~450). Biologicals get organs and spikes,
+   machines get hard detail. */
+const pupil = (P, r, x, y, z) => ball(P.dark, r, 5, 3, { x, y, z }),
+  ringAround = (color, r, tube, y, p = {}) =>
+    meshPart(new TorusGeometry(r, tube, 3, 12), color, { y, rx: PI / 2, ...p });
+const RL_ENEMY_DETAIL = {
+  swarmer: (P) => ({
+    body: [
+      spike(P.dark, 0.04, 3, [0.16, 0.66, 0], [0.12, 0.8, 0]),
+      spike(P.dark, 0.04, 3, [0.0, 0.66, 0], [-0.06, 0.82, 0]),
+      spike(P.dark, 0.035, 3, [-0.16, 0.62, 0], [-0.24, 0.74, 0]),
+      ...both((s) => [
+        bar(P.dark, 0.03, [0.12, 0.42, s * 0.14], [0.24, 0.22, s * 0.28]),
+        bar(P.pale, 0.02, [0.42, 0.62, s * 0.06], [0.72, 0.88, s * 0.2]),
+        spike(P.pale, 0.03, 3, [-0.46, 0.4, s * 0.03], [-0.56, 0.46, s * 0.14]),
+        pupil(P, 0.04, 0.44, 0.58, s * 0.1),
+      ]),
+    ],
+    glow: [
+      box(P.white, 0.03, 0.03, 0.24, { x: 0.04, y: 0.655 }),
+      box(P.white, 0.03, 0.03, 0.2, { x: -0.1, y: 0.64 }),
+      box(P.white, 0.03, 0.03, 0.16, { x: -0.22, y: 0.6 }),
+    ],
+  }),
+  mite: (P) => ({
+    body: [
+      box(P.lite, 0.3, 0.05, 0.07, { x: 0.0, y: 0.44 }),
+      spike(P.pale, 0.05, 3, [-0.12, 0.4, 0.0], [-0.3, 0.46, 0.0]),
+      bar(P.dark, 0.04, [0.26, 0.27, 0.04], [0.42, 0.2, 0.08]),
+      bar(P.dark, 0.04, [0.26, 0.27, -0.04], [0.42, 0.2, -0.08]),
+      box(P.lite, 0.08, 0.06, 0.18, { x: 0.1, y: 0.46 }),
+      box(P.lite, 0.08, 0.06, 0.16, { x: -0.1, y: 0.44 }),
+      ...both((s) => [
+        spike(P.pale, 0.035, 3, [0.3, 0.3, s * 0.07], [0.52, 0.22, s * 0.11]),
+        spike(P.pale, 0.04, 3, [0.05, 0.4, s * 0.12], [0.1, 0.56, s * 0.2]),
+        bar(P.dark, 0.03, [0.2, 0.02, s * 0.32], [0.26, 0.0, s * 0.42]),
+        bar(P.dark, 0.03, [-0.2, 0.02, s * 0.3], [-0.26, 0.0, s * 0.4]),
+      ]),
+    ],
+    glow: [
+      ...both((s) => [ball(P.white, 0.035, 5, 3, { x: 0.27, y: 0.33, z: s * 0.14 })]),
+      meshPart(new OctahedronGeometry(0.06), P.white, { x: -0.14, y: 0.52, sy: 1.5 }),
+    ],
+  }),
+  splitter: (P) => ({
+    body: [
+      ball(P.pale, 0.06, 5, 3, { x: 0.3, y: 1.12, z: 0.32 }),
+      ball(P.pale, 0.05, 5, 3, { x: 0.52, y: 0.98, z: -0.12 }),
+      ...[0, 1, 2, 3, 4, 5].map((i) => {
+        const a = (i / 6) * TAU_M + 0.2;
+        return spike(
+          P.dark,
+          0.035,
+          3,
+          [Math.cos(a) * 0.62, 0.3, Math.sin(a) * 0.62],
+          [Math.cos(a) * 0.82, 0.22, Math.sin(a) * 0.82],
+        );
+      }),
+    ],
+    glow: [
+      ball(P.white, 0.045, 5, 3, { x: 0.68, y: 0.6, z: 0.18 }),
+      ball(P.white, 0.04, 5, 3, { x: -0.48, y: 0.5, z: 0.6 }),
+      ball(P.white, 0.04, 5, 3, { x: -0.5, y: 0.52, z: -0.6 }),
+    ],
+  }),
+  leaper: (P) => ({
+    body: [
+      pupil(P, 0.06, 0.45, 0.72, 0.2),
+      pupil(P, 0.045, 0.45, 0.68, -0.18),
+      ...both((s) => [spike(P.pale, 0.03, 3, [0.52, 0.06, s * 0.36], [0.68, 0.04, s * 0.44])]),
+    ],
+    glow: [
+      ball(P.white, 0.03, 4, 3, { x: 0.56, y: 0.52, z: 0.08 }),
+      ball(P.white, 0.03, 4, 3, { x: 0.56, y: 0.52, z: -0.08 }),
+    ],
+  }),
+  hive: (P) => ({
+    body: [...both((s) => [spike(P.pale, 0.05, 3, [0.4, 1.55, s * 0.35], [0.6, 1.85, s * 0.5])])],
+    glow: [
+      ball(P.white, 0.07, 5, 3, { x: 0.66, y: 1.25, z: 0.47 }),
+      ball(P.white, 0.06, 5, 3, { x: -0.5, y: 1.32, z: -0.6 }),
+    ],
+  }),
+  carrier: (P) => ({
+    body: [...both((s) => [pipe(P.metal, 0.1, 0.08, 6, [-0.3, 0.6, s * 0.16], [-0.6, 0.6, s * 0.16])])],
+    glow: [...both((s) => [ball(P.white, 0.04, 5, 3, { x: -0.72, y: 0.55, z: s * 1.3 })])],
+  }),
+  mender: (P) => ({
+    body: [
+      ...[0, 1, 2].map((i) => {
+        const a = 0.3 + (i / 3) * TAU_M;
+        return spike(
+          P.dark,
+          0.05,
+          3,
+          [Math.cos(a) * 0.2, 0.15, Math.sin(a) * 0.2],
+          [Math.cos(a) * 0.5, 0.0, Math.sin(a) * 0.5],
+        );
+      }),
+      ball(P.pale, 0.05, 5, 3, { x: 0.3, y: 1.12, z: 0.22 }),
+      ball(P.pale, 0.05, 5, 3, { x: -0.3, y: 1.2, z: 0.1 }),
+    ],
+    glow: [
+      ringAround(P.white, 0.3, 0.018, 0.62),
+      ball(P.white, 0.04, 5, 3, { x: 0.02, y: 0.78, z: 0.3 }),
+      ball(P.white, 0.035, 5, 3, { x: -0.1, y: 0.9, z: -0.3 }),
+    ],
+  }),
+  grunt: (P) => ({
+    body: [
+      ...[0, 1, 2].map((i) => box(P.dark, 0.03, 0.04, 0.3, { x: 0.52, y: 0.56 + i * 0.12 })),
+      ...both((s) => [
+        box(P.metal, 0.14, 0.08, 0.3, { x: 0.12, y: 0.06, z: s * 0.28 }),
+        pipe(P.metal, 0.05, 0.05, 5, [-0.52, 0.5, s * 0.26], [-0.52, 1.2, s * 0.26]),
+        box(P.metal, 0.06, 0.05, 0.06, { x: -0.04, y: 1.2, z: s * 0.75 }),
+        box(P.metal, 0.06, 0.05, 0.06, { x: -0.04, y: 1.2, z: s * 0.45 }),
+        box(P.lite, 0.16, 0.14, 0.18, { x: 0.3, y: 0.52, z: s * 0.68 }),
+      ]),
+      spike(P.metal, 0.025, 3, [-0.3, 1.05, 0.2], [-0.4, 1.6, 0.2]),
+    ],
+    glow: [
+      ...both((s) => [ball(P.white, 0.045, 5, 3, { x: -0.04, y: 1.2, z: s * 0.6 })]),
+      ball(P.white, 0.03, 4, 3, { x: -0.4, y: 1.62, z: 0.2 }),
+    ],
+  }),
+  gunner: (P) => ({
+    body: [
+      box(P.dark, 0.36, 0.04, 0.05, { y: 1.12 }),
+      box(P.dark, 0.22, 0.07, 0.07, { x: 0.5, y: 0.72, z: 0.3 }),
+      box(P.metal, 0.08, 0.2, 0.06, { x: 0.3, y: 0.46, z: 0.3 }),
+      bar(P.dark, 0.03, [-0.36, 0.65, 0.12], [0.0, 0.6, 0.26]),
+      pipe(P.dark, 0.37, 0.37, 8, [0, 0.52, 0], [0, 0.58, 0]),
+      box(P.metal, 0.06, 0.05, 0.06, { x: 0.3, y: 0.86, z: 0.3 }),
+    ],
+    glow: [
+      ball(P.white, 0.03, 4, 3, { x: -0.48, y: 0.76, z: 0.06 }),
+      ball(P.white, 0.03, 4, 3, { x: -0.48, y: 0.66, z: 0.06 }),
+      box(P.white, 0.05, 0.03, 0.03, { x: 0.5, y: 0.78, z: 0.3 }),
+    ],
+  }),
+  bomber: (P) => ({
+    body: [
+      box(P.dark, 0.14, 0.03, 0.08, { x: 0.05, y: 0.98 }),
+      ...both((s) => [pipe(P.metal, 0.05, 0.05, 5, [-0.3, 0.7, s * 0.36], [-0.3, 0.86, s * 0.42])]),
+    ],
+    glow: [
+      box(P.white, 0.12, 0.03, 0.06, { x: 0.05, y: 1.0 }),
+      ball(P.white, 0.04, 5, 3, { x: -0.3, y: 0.9, z: 0.43 }),
+    ],
+  }),
+  brute: (P) => ({
+    body: [
+      ...both((s) => [
+        spike(P.pale, 0.05, 3, [1.06, 0.78, s * 0.76], [1.22, 0.76, s * 0.76]),
+        spike(P.pale, 0.05, 3, [1.06, 0.6, s * 0.9], [1.22, 0.58, s * 0.9]),
+      ]),
+      ...[-0.15, -0.05, 0.05, 0.15].map((z) => box(P.pale, 0.05, 0.07, 0.04, { x: 0.78, y: 1.12, z })),
+      ...[0, 1, 2].map((i) => box(P.dark, 0.06, 0.05, 0.5, { x: -0.66, y: 1.28 + i * 0.1 })),
+    ],
+    glow: [...both((s) => [ball(P.white, 0.04, 4, 3, { x: 0.86, y: 1.12, z: s * 0.15 })])],
+  }),
+  sniper: (P) => ({
+    body: [
+      box(P.dark, 0.6, 0.04, 0.05, { x: 0.7, y: 1.13, z: 0.2 }),
+      box(P.metal, 0.1, 0.18, 0.08, { x: 0.12, y: 0.9, z: 0.2 }),
+      pipe(P.metal, 0.075, 0.075, 6, [1.38, 1.05, 0.2], [1.52, 1.05, 0.2]),
+      box(P.metal, 0.12, 0.03, 0.12, { x: 0.3, y: 0.02, z: 0.42 }),
+      box(P.metal, 0.12, 0.03, 0.12, { x: -0.36, y: 0.02, z: 0.26 }),
+      box(P.metal, 0.12, 0.03, 0.12, { x: -0.28, y: 0.02, z: -0.42 }),
+      ball(P.lite, 0.06, 5, 3, { x: 0.0, y: 0.9 }),
+      bar(P.metal, 0.03, [0.9, 1.05, 0.2], [1.0, 0.75, 0.3]),
+      bar(P.metal, 0.03, [0.9, 1.05, 0.2], [1.0, 0.75, 0.1]),
+      box(P.dark, 0.14, 0.14, 0.14, { x: 0.12, y: 1.25, z: 0.2 }),
+    ],
+    glow: [
+      ball(P.white, 0.03, 4, 3, { x: -0.14, y: 1.28, z: 0.22 }),
+      ball(P.white, 0.03, 4, 3, { x: -0.14, y: 1.36, z: 0.18 }),
+      box(P.white, 0.05, 0.03, 0.03, { x: 0.7, y: 1.17, z: 0.2 }),
+      ball(P.white, 0.045, 5, 3, { x: 0.2, y: 1.25, z: 0.29 }),
+    ],
+  }),
+  bulwark: (P) => ({
+    body: [
+      ...[-0.4, -0.2, 0, 0.2, 0.4].flatMap((z) => [
+        box(P.pale, 0.04, 0.05, 0.05, { x: 0.79, y: 0.38, z }),
+        box(P.pale, 0.04, 0.05, 0.05, { x: 0.79, y: 1.14, z }),
+      ]),
+      box(P.dark, 0.36, 0.1, 0.06, { x: -0.15, y: 1.48 }),
+      spike(P.metal, 0.025, 3, [-0.5, 1.3, 0.3], [-0.55, 1.75, 0.3]),
+      box(P.dark, 0.1, 0.4, 0.06, { x: 0.76, y: 0.74 }),
+      bar(P.dark, 0.09, [0.8, 0.24, -0.3], [0.8, 0.54, 0.0], 0.03),
+      bar(P.dark, 0.09, [0.8, 0.54, 0.0], [0.8, 0.24, 0.3], 0.03),
+      box(P.dark, 0.16, 0.08, 0.5, { x: -0.62, y: 1.08 }),
+    ],
+    glow: [
+      ...both((s) => [ball(P.white, 0.05, 5, 3, { x: -0.15, y: 1.18, z: s * 0.6 })]),
+      ball(P.white, 0.03, 4, 3, { x: -0.55, y: 1.78, z: 0.3 }),
+    ],
+  }),
+  striker: (P) => ({
+    body: [
+      meshPart(new OctahedronGeometry(0.1), P.pale, { x: 0.15, y: 0.88, sx: 1.4 }),
+      spike(P.dark, 0.06, 3, [-0.1, 0.85, 0], [-0.5, 1.06, 0]),
+      ...both((s) => [
+        pipe(P.metal, 0.06, 0.09, 6, [-0.35, 0.66, s * 0.12], [-0.62, 0.66, s * 0.12]),
+        box(P.dark, 0.04, 0.12, 0.06, { x: 0.18, y: 0.66, z: s * 0.23 }),
+        bar(P.lite, 0.04, [-0.3, 0.7, s * 0.22], [-0.58, 0.84, s * 0.36], 0.02),
+        bar(P.lite, 0.1, [-0.05, 0.68, s * 0.14], [-0.4, 0.72, s * 0.44], 0.02),
+        bar(P.dark, 0.08, [0.05, 0.64, s * 0.18], [-0.22, 0.68, s * 0.5], 0.02),
+        spike(P.pale, 0.03, 3, [0.98, 0.6, s * 0.5], [1.12, 0.58, s * 0.52]),
+      ]),
+    ],
+    glow: [
+      ...both((s) => [
+        spike(P.white, 0.05, 4, [-0.62, 0.66, s * 0.12], [-0.85, 0.66, s * 0.12]),
+        bar(P.white, 0.025, [-0.1, 0.705, s * 0.16], [-0.38, 0.735, s * 0.42], 0.02),
+      ]),
+    ],
+  }),
+  mortar: (P) => ({
+    body: [
+      pipe(P.metal, 0.14, 0.14, 6, [-0.05, 0.82, 0], [-0.05, 0.9, 0]),
+      ...both((s) => [bar(P.metal, 0.05, [0.1, 0.5, s * 0.22], [0.3, 1.0, s * 0.22])]),
+    ],
+    glow: [
+      ...both((s) => [ball(P.white, 0.035, 4, 3, { x: 0.4, y: 0.16, z: s * 0.55 })]),
+      ball(P.white, 0.04, 4, 3, { x: -0.05, y: 0.93 }),
+    ],
+  }),
+  turret: (P) => ({
+    body: [
+      ...[0, 1, 2].map((i) => box(P.dark, 0.04, 0.03, 0.3, { x: -0.12 + i * 0.1, y: 1.09 })),
+      ...both((s) => [bar(P.pale, 0.05, [0.05, 0.9, s * 0.36], [0.3, 0.93, s * 0.16], 0.04)]),
+    ],
+    glow: [...both((s) => [ball(P.white, 0.035, 4, 3, { x: 0.05, y: 0.98, z: s * 0.28 })])],
+  }),
+  charger: (P) => ({
+    body: [
+      pipe(P.dark, 0.22, 0.19, 6, [0.62, 0.54, 0], [0.7, 0.54, 0]),
+      bar(P.dark, 0.08, [-0.5, 0.55, 0], [-0.86, 0.38, 0.08]),
+      spike(P.pale, 0.05, 3, [-0.85, 0.38, 0.08], [-1.05, 0.3, 0.12]),
+      ...[-0.24, 0, 0.24].map((z) => spike(P.pale, 0.04, 3, [-0.38, 0.9, z], [-0.46, 1.06, z])),
+      ...both((s) => [
+        box(P.dark, 0.12, 0.05, 0.1, { x: 0.5, y: 0.6, z: s * 0.18 }),
+        box(P.lite, 0.5, 0.26, 0.05, { x: -0.06, y: 0.56, z: s * 0.4 }),
+        box(P.metal, 0.06, 0.06, 0.06, { x: 0.12, y: 0.6, z: s * 0.44 }),
+        box(P.metal, 0.06, 0.06, 0.06, { x: -0.24, y: 0.6, z: s * 0.44 }),
+      ]),
+    ],
+    glow: [
+      ...both((s) => [
+        ball(P.white, 0.03, 4, 3, { x: 0.68, y: 0.5, z: s * 0.17 }),
+        box(P.white, 0.3, 0.03, 0.03, { x: -0.06, y: 0.56, z: s * 0.43 }),
+      ]),
+    ],
+  }),
+  minebot: (P) => ({
+    body: [pipe(P.dark, 0.54, 0.54, 8, [0, 0.33, 0], [0, 0.37, 0])],
+    glow: [],
+  }),
+  sapper: (P) => ({
+    body: [pipe(P.dark, 0.36, 0.36, 8, [0, 0.42, 0], [0, 0.48, 0])],
+    glow: [],
+  }),
+  phantom: (P) => ({
+    body: [
+      spike(P.mid, 0.07, 4, [-0.3, 0.55, 0.05], [-0.9, 0.3, 0.15]),
+      spike(P.mid, 0.06, 4, [-0.28, 0.45, -0.1], [-0.8, 0.14, -0.3]),
+      spike(P.dark, 0.05, 4, [-0.2, 0.7, 0], [-0.7, 0.62, -0.2]),
+      ...both((s) => [
+        spike(P.pale, 0.025, 3, [0.78, 0.78, s * 0.5], [0.96, 0.68, s * 0.36]),
+        spike(P.pale, 0.022, 3, [0.76, 0.78, s * 0.56], [0.98, 0.72, s * 0.7]),
+        spike(P.pale, 0.022, 3, [0.74, 0.78, s * 0.44], [0.92, 0.62, s * 0.3]),
+      ]),
+      spike(P.dark, 0.06, 4, [-0.36, 1.42, 0], [-0.62, 1.7, 0.05]),
+    ],
+    glow: [
+      meshPart(new OctahedronGeometry(0.05), P.white, { x: 0.3, y: 0.38, z: 0.4 }),
+      meshPart(new OctahedronGeometry(0.045), P.white, { x: -0.9, y: 0.32, z: 0.16 }),
+      box(P.white, 0.03, 0.22, 0.04, { x: 0.34, y: 0.6 }),
+      box(P.white, 0.03, 0.14, 0.04, { x: 0.3, y: 0.78, z: 0.16 }),
+      box(P.white, 0.03, 0.14, 0.04, { x: 0.3, y: 0.78, z: -0.16 }),
+      box(P.white, 0.03, 0.12, 0.04, { x: 0.38, y: 0.42, z: -0.12 }),
+    ],
+  }),
+  sentinel: (P) => ({
+    body: [
+      ...[0, 1, 2].map((i) => {
+        const a = (i / 3) * TAU_M + 0.4;
+        return spike(
+          P.lite,
+          0.09,
+          4,
+          [Math.cos(a) * 0.3, 0.05, Math.sin(a) * 0.3],
+          [Math.cos(a) * 0.45, 0.5, Math.sin(a) * 0.45],
+        );
+      }),
+    ],
+    glow: [pipe(P.white, 0.33, 0.33, 10, [0, 0.35, 0], [0, 0.39, 0])],
+  }),
+  drone: (P) => ({
+    body: [
+      box(P.dark, 0.14, 0.08, 0.2, { x: -0.12, y: 0.74 }),
+      ...[
+        [0.38, 0.38],
+        [0.38, -0.38],
+        [-0.36, 0.36],
+        [-0.36, -0.36],
+      ].map(([x, z]) => pipe(P.metal, 0.03, 0.03, 4, [x, 0.83, z], [x, 0.9, z])),
+      ...both((s) => [bar(P.metal, 0.025, [0.05, 0.74, s * 0.1], [0.14, 0.62, s * 0.3], 0.025)]),
+    ],
+    glow: [ball(P.white, 0.03, 4, 3, { x: 0.44, y: 0.78 }), box(P.white, 0.05, 0.03, 0.05, { x: -0.12, y: 0.79 })],
+  }),
+  driller: (P) => ({
+    body: [
+      ...both((s) => [box(P.pale, 0.05, 0.08, 0.1, { x: 0.44, y: 0.56, z: s * 0.22 })]),
+      box(P.lite, 0.3, 0.03, 0.4, { x: -0.16, y: 1.08 }),
+    ],
+    glow: [...both((s) => [box(P.white, 0.03, 0.06, 0.08, { x: 0.46, y: 0.56, z: s * 0.22 })])],
+  }),
+  beacon: (P) => ({
+    body: [
+      pipe(P.metal, 0.3, 0.3, 6, [0, 0.5, 0], [0, 0.56, 0]),
+      pipe(P.metal, 0.22, 0.22, 6, [0, 0.9, 0], [0, 0.95, 0]),
+    ],
+    glow: [ringAround(P.white, 0.23, 0.022, 0.75), ringAround(P.white, 0.19, 0.018, 1.05)],
+  }),
+  weaver: (P) => ({
+    body: [
+      spike(P.pale, 0.05, 3, [-0.6, 0.6, 0], [-0.85, 0.5, 0]),
+      spike(P.dark, 0.03, 3, [0.3, 0.75, 0.12], [0.38, 0.92, 0.14]),
+      spike(P.dark, 0.03, 3, [0.3, 0.75, -0.12], [0.38, 0.92, -0.14]),
+      ...both((s) => [
+        bar(P.dark, 0.04, [0.32, 0.6, s * 0.1], [0.5, 0.4, s * 0.18]),
+        spike(P.dark, 0.03, 3, [-0.4, 0.88, s * 0.14], [-0.44, 1.04, s * 0.18]),
+        spike(P.dark, 0.03, 3, [-0.18, 0.84, s * 0.12], [-0.2, 0.98, s * 0.16]),
+      ]),
+    ],
+    glow: [
+      box(P.white, 0.18, 0.02, 0.05, { x: -0.28, y: 0.935 }),
+      box(P.white, 0.05, 0.02, 0.14, { x: -0.28, y: 0.94 }),
+      ball(P.white, 0.03, 4, 3, { x: 0.52, y: 0.66, z: 0.05 }),
+      ball(P.white, 0.03, 4, 3, { x: 0.52, y: 0.66, z: -0.05 }),
+    ],
+  }),
+};
 function enemyGeometry(type, color) {
   const base = new Color(color),
     palette = {
@@ -632,8 +980,9 @@ function enemyGeometry(type, color) {
       metal: 3818070,
       white: 16777215,
     },
-    parts = (RL_ENEMY_BUILDERS[type] || RL_ENEMY_BUILDERS.grunt)(palette);
-  return { body: mergeParts(parts.body), glow: mergeParts(parts.glow) };
+    parts = (RL_ENEMY_BUILDERS[type] || RL_ENEMY_BUILDERS.grunt)(palette),
+    extra = RL_ENEMY_DETAIL[type] ? RL_ENEMY_DETAIL[type](palette) : { body: [], glow: [] };
+  return { body: mergeParts(parts.body.concat(extra.body)), glow: mergeParts(parts.glow.concat(extra.glow)) };
 }
 
 /* enemy types with a dedicated model (original 13 + the 12 above) */
@@ -1203,6 +1552,78 @@ function buildBossModel(type, color) {
     // frozen ring on the ground
     const ring = addMesh(new TorusGeometry(1.9, 0.07, 4, 40), glowMat, 0, 0.12, 0);
     ring.rotation.x = Math.PI / 2;
+    // 2.9.0: detail pass (Prism and Crucible were still plain 2.4.6 builds): a ring of standing crystals, frozen
+    // runes in the chest, a halo and a tilted ring around the core, brow and cheek crystals, back spikes, snow
+    // caps, more icicles and floating rock. Merged per material: four draw calls.
+    {
+      const WH = 0xffffff,
+        hull = [],
+        dark = [],
+        pale = [],
+        glow = [];
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 + 0.2,
+          r = 2.55 + Math.sin(i * 3) * 0.15,
+          h = 0.6 + (i % 3) * 0.25;
+        hull.push(
+          spike(
+            WH,
+            0.12 + (i % 2) * 0.04,
+            5,
+            [Math.cos(a) * r, 0, Math.sin(a) * r],
+            [Math.cos(a) * (r + 0.2), h, Math.sin(a) * (r + 0.2)],
+          ),
+        );
+        glow.push(
+          spike(
+            WH,
+            0.06,
+            4,
+            [Math.cos(a + 0.3) * 2.1, 0, Math.sin(a + 0.3) * 2.1],
+            [Math.cos(a + 0.3) * 2.15, 0.3 + (i % 2) * 0.15, Math.sin(a + 0.3) * 2.15],
+          ),
+        );
+      }
+      dark.push(box(WH, 0.14, 0.12, 0.95, { x: 0.96, y: 2.9 }));
+      glow.push(
+        box(WH, 0.05, 0.6, 0.05, { x: 1.0, y: 1.9 }),
+        bar(WH, 0.05, [1.0, 2.05, -0.3], [1.0, 1.75, 0], 0.03),
+        bar(WH, 0.05, [1.0, 2.05, 0.3], [1.0, 1.75, 0], 0.03),
+        bar(WH, 0.05, [1.0, 1.55, -0.2], [1.0, 1.55, 0.2], 0.03),
+      );
+      glow.push(
+        meshPart(new TorusGeometry(1.75, 0.03, 3, 36), WH, { y: 2.3, rx: Math.PI / 2 + 0.12 }),
+        meshPart(new TorusGeometry(0.85, 0.03, 3, 24), WH, { y: 2.3, rx: 1.2, ry: 0.5 }),
+      );
+      for (const z of [-1, 1]) {
+        hull.push(
+          spike(WH, 0.1, 5, [0.85, 2.4, z * 0.5], [1.3, 2.3, z * 0.75]),
+          spike(WH, 0.08, 5, [0.8, 2.15, z * 0.4], [1.2, 1.95, z * 0.6]),
+        );
+        hull.push(meshPart(new DodecahedronGeometry(0.3, 0), WH, { x: -0.05, y: 2.68, z: z * 1.2, sy: 0.45 }));
+        hull.push(spike(WH, 0.11, 5, [-0.9, 2.1, z * 0.3], [-1.45, 2.6, z * 0.45]));
+        dark.push(meshPart(new DodecahedronGeometry(0.22, 0), WH, { x: 1.5 * z, y: 1.1 + z * 0.3, z: 1.2 }));
+      }
+      hull.push(
+        spike(WH, 0.16, 5, [-0.95, 2.6, 0], [-1.6, 3.4, 0]),
+        spike(WH, 0.13, 5, [-0.9, 2.9, 0], [-1.3, 3.9, 0]),
+      );
+      dark.push(
+        meshPart(new DodecahedronGeometry(0.26, 0), WH, { x: -1.6, y: 1.5, z: 0.4 }),
+        meshPart(new DodecahedronGeometry(0.2, 0), WH, { x: 0.3, y: 1.0, z: -1.7 }),
+      );
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + 0.3,
+          x = Math.cos(a) * 0.75,
+          z = Math.sin(a) * 0.75;
+        pale.push(spike(WH, 0.07, 4, [x, 0.95, z], [x, 0.4 + (i % 3) * 0.12, z]));
+      }
+      const addMerged = (parts, mat) => parts.length && addMesh(mergeParts(parts), mat, 0, 0, 0);
+      addMerged(hull, hullMat);
+      addMerged(dark, darkMat);
+      addMerged(pale, paleIceMat);
+      addMerged(glow, glowMat);
+    }
     group.userData.fadeMats = [iceMat, paleIceMat, hullMat, darkMat, glowMat];
   } else if (type === "forge") {
     // 2.4.6: THE CRUCIBLE, a furnace golem: an iron crucible on stubby legs with molten metal inside
@@ -1228,6 +1649,79 @@ function buildBossModel(type, color) {
     let wheel = addMesh(new TorusGeometry(0.6, 0.14, 4, 8), hullMat, -1.62, 1.9, 0);
     wheel.rotation.y = Math.PI / 2;
     spin.push({ m: wheel, ax: "z", v: 1.4 });
+    // 2.9.0: detail pass (Prism and Crucible were still plain 2.4.6 builds): rim rivets, cauldron bands, molten
+    // cracks, pipes, brow, eyes, furnace teeth, knuckles and toe plates. Merged per material: three draw calls.
+    {
+      const WH = 0xffffff,
+        hull = [],
+        dark = [],
+        glow = [],
+        // a point on the 8-sided cauldron wall (faces are at 0.92 of the vertex radius)
+        wall = (theta, y, lateral = 0) => {
+          const r = 0.92 * (1.15 + 0.2 * (y - 1)) + 0.03;
+          return [r * Math.sin(theta) + Math.cos(theta) * lateral, y, r * Math.cos(theta) - Math.sin(theta) * lateral];
+        };
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        dark.push(box(WH, 0.14, 0.1, 0.14, { x: Math.cos(a) * 1.3, y: 3.29, z: Math.sin(a) * 1.3, ry: -a }));
+      }
+      for (const y of [1.55, 2.5]) {
+        const r = 0.93 * (1.15 + 0.2 * (y - 1)) + 0.05;
+        hull.push(meshPart(new TorusGeometry(r, 0.07, 4, 16), WH, { y, rx: Math.PI / 2 }));
+      }
+      // molten cracks running down the faces
+      for (const theta of [0.5, 1.5, 2.5, 5.5, 4.5]) {
+        let prev = wall(theta, 1.15);
+        for (const [y, lat] of [
+          [1.6, 0.1],
+          [2.05, -0.08],
+          [2.5, 0.06],
+          [2.9, -0.04],
+        ]) {
+          const next = wall(theta, y, lat);
+          glow.push(bar(WH, 0.05, prev, next, 0.03));
+          prev = next;
+        }
+      }
+      // pipes from the chimneys down the back, with elbows
+      for (const s of [1, -1]) {
+        hull.push(
+          pipe(WH, 0.09, 0.09, 6, [-1.05, 3.0, s * 0.55], [-1.42, 2.3, s * 0.72]),
+          pipe(WH, 0.09, 0.09, 6, [-1.42, 2.3, s * 0.72], [-1.45, 1.2, s * 0.72]),
+          ball(WH, 0.12, 6, 4, { x: -1.42, y: 2.3, z: s * 0.72 }),
+        );
+        glow.push(ball(WH, 0.06, 5, 3, { x: -1.44, y: 1.7, z: s * 0.72 }));
+        // toe plates and hazard marks on the legs
+        dark.push(box(WH, 0.42, 0.3, 0.95, { x: 0.46, y: 0.15, z: s * 0.95 }));
+        for (let i = 0; i < 3; i++) glow.push(box(WH, 0.03, 0.1, 0.62, { x: 0.41, y: 0.42 + i * 0.22, z: s * 0.95 }));
+        // hammer fist: knuckles and a hydraulic forearm
+        for (let c = -1; c <= 1; c++)
+          for (let r = 0; r < 2; r++)
+            dark.push(box(WH, 0.14, 0.16, 0.18, { x: 1.2, y: 1.05 + r * 0.42, z: s * 1.95 + c * 0.3 }));
+        hull.push(pipe(WH, 0.1, 0.1, 6, [0, 2.7, s * 1.85], [0.45, 1.75, s * 1.95]));
+        glow.push(box(WH, 0.05, 0.08, 0.5, { x: 1.17, y: 1.35, z: s * 1.95 }));
+        // head: eyes
+        glow.push(box(WH, 0.08, 0.12, 0.16, { x: 1.43, y: 3.22, z: s * 0.3 }));
+      }
+      // head: brow ridge and cheek plates, furnace mouth with teeth, slag drips, a pressure dial on the back
+      dark.push(
+        box(WH, 0.14, 0.1, 1.1, { x: 1.4, y: 3.46 }),
+        box(WH, 0.3, 0.3, 0.12, { x: 1.1, y: 2.85, z: 0.56 }),
+        box(WH, 0.3, 0.3, 0.12, { x: 1.1, y: 2.85, z: -0.56 }),
+      );
+      for (let i = -2; i <= 2; i++)
+        dark.push(
+          box(WH, 0.14, 0.14, 0.1, { x: 1.43, y: 2.12, z: i * 0.2 }),
+          box(WH, 0.14, 0.14, 0.1, { x: 1.43, y: 1.6, z: i * 0.2 + 0.1 }),
+        );
+      for (const z of [-0.3, 0.05, 0.4]) glow.push(spike(WH, 0.06, 4, [1.47, 1.6, z], [1.47, 1.2 - z * 0.2, z]));
+      glow.push(pipe(WH, 0.14, 0.14, 8, [-1.4, 2.6, 0.3], [-1.5, 2.6, 0.3]));
+      hull.push(pipe(WH, 0.19, 0.19, 8, [-1.36, 2.6, 0.3], [-1.42, 2.6, 0.3]));
+      const addMerged = (parts, mat) => parts.length && addMesh(mergeParts(parts), mat, 0, 0, 0);
+      addMerged(hull, hullMat);
+      addMerged(dark, darkMat);
+      addMerged(glow, glowMat);
+    }
     group.userData.chimneys = [
       [-1.05, 4.05, 0.55],
       [-1.05, 4.05, -0.55],
@@ -1310,6 +1804,13 @@ function healCrossGeometry() {
 }
 
 export {
+  meshPart,
+  mergeParts,
+  box,
+  ball,
+  bar,
+  pipe,
+  spike,
   debrisGeometry,
   discGeometry,
   enemyGeometry,
@@ -1322,10 +1823,3 @@ export {
   buildPlayerModel,
   wingDroneGeometry,
 };
-  meshPart,
-  mergeParts,
-  box,
-  ball,
-  bar,
-  pipe,
-  spike,
