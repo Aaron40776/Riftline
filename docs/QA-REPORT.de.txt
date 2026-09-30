@@ -1,73 +1,89 @@
-RIFTLINE v2.6.0 – STATISCHE STICKS, LÄNGERE KARTEN, UPGRADE-BALANCE
-Basis: v2.5.1 · Build r260a0930a-r1 · 30.09.2026
+RIFTLINE v2.7.0 – NEUE FIGUREN UND EIGENE SOUNDS
+Basis: v2.6.0 · Build r270a0930b-r1 · 30.09.2026
 
-Gewünscht: Upgrades nach den Wellen sind sich noch ähnlich, manche viel zu stark, manche viel zu
-schwach; Boss-/Biomtext und Kameraschwenk dauern zu kurz; die Touch-Sticks sollen sich beim
-Bewegen des Fingers nicht mitbewegen; selbst überlegen, was man verbessern kann.
+Gewünscht: Spieler und Gegner wirken roboterhaft und hässlich; bessere Figuren und eigene Sounds.
+Umsetzung: zwei Agents in getrennten Worktrees (Design: src/render/*, Sound: src/audio/sound.js),
+danach zusammengeführt und gemeinsam getestet. Reiner Optik- und Audio-Umbau: Der Determinismus-
+Test blieb mit unveränderter Referenz identisch.
 
-1) Touch-Sticks (Bewegen und Zielen)
-   Der Stick erscheint dort, wo der Finger aufsetzt, und bleibt dort (Wahl des Users). Vorher
-   wanderte die Mitte dem Finger nach, sobald er weiter als 1,25 Radien gezogen wurde. Jetzt
-   bleibt die Mitte fest, der Knauf wird am Kreisrand gezeichnet, die Stärke ist bei 1 gedeckelt.
-   Neuer Selbsttest v260 (Mitte bleibt, volle Stärke weit außen, zurück zur Mitte = 0, Zielrichtung
-   von der Aufsetzstelle); er schlägt mit dem alten Verhalten fehl.
+1) Design
+   - Drohne: pfeilförmiges Kampfschiff (Kanzel, gepfeilte Flügel mit leuchtenden Streifen, zwei
+     Triebwerke, deren Flamme mit der Geschwindigkeit wächst; neigt sich nach vorn und in Kurven).
+     Waffenaufsätze wie bisher, Grundfläche gleich (~0,65), Flügel ±0,78.
+   - 25 Gegnertypen mit eigener Silhouette und je einem Merkmal. Biologische Typen rund und
+     asymmetrisch (Swarmer mit Membranflügeln und Kiefern, Mite als Zecke mit einem Auge, Splitter
+     als Dreiklee, Leaper als Frosch, Hive als Hügel, Carrier als Rochen, Mender als Blüte),
+     Maschinen hart mit Platten, Schlitzen, Lichtern (Grunt, Gunner, Bomber, Brute, Sniper auf
+     Stativ, Bulwark mit Schild, Striker, Mortar, Turret, Charger mit Rammhorn, Minebot als Krabbe,
+     Sapper, Phantom, Sentinel, Drone, Driller, Beacon, Weaver als Spinne).
+   - Bosse: Warden (Schulterplatten, gehörnter Kopf, Zwillingskanonen), Hive Queen (Kopf mit
+     Kiefern und Fühlern, Stacheln, Eiersäcke), Rift Core (rotierende Kristallkrone); Prism und
+     Crucible unverändert.
+   - Dreiecke pro Typ (Körper + Leuchtteil) vorher → nachher: Summe 9 100 → 7 038, größter Typ ~400
+     (Sapper 408; vorher bis 1 000). Einfache Typen wurden absichtlich detaillierter.
+   - Bewegung ohne Zusatzgeometrie (pro Instanz, nur Matrixrechnung): Wackeln beim Gehen,
+     Hüpfen, Neigen in Bewegungsrichtung, Atmen/Schweben, stärkeres Stauchen bei Treffern,
+     Spawn-Pop mit halber Drehung, Tod: Schrumpfen + Drehen + Hüpfen (0,3 s, max. 40 gleichzeitig)
+     mit zweitem Splitterstoß in hellerer Farbe (auf der Akku-Stufe <800 Partikel ausgelassen).
+   - Biom-Skins kräftiger: Lava (dickere Adern, Glühen von unten), Frost (Kälterand, Glitzern;
+     nach dem ersten Durchgang zurückgenommen, weil rote Grunts ganz weiß wurden), Schleim
+     (mehr Fläche, leuchtet), Void (violette Risse, stärkerer Rand). Warnfarben der Angriffe
+     unverändert (Warnringe/-linien zeichnen die Renderer-Ringe, nicht der Skin).
+   - Bild-Kontrolle: Kontaktbögen vorher/nachher (alle Gegner, Drohne mit allen 7 Waffen, Bosse);
+     biome-shots und screens auf PC, Handy hoch und quer angesehen.
+   - Leistung: Rechenzeit von renderer.frame in einer schweren Szene (70 Gegner, Welle 20) Median
+     2,8–4,0 ms vorher, 3,1–5,5 ms nachher; Messung stark verrauscht (Software-WebGL, zweiter Agent
+     lief parallel). Kein deutlicher Unterschied erkennbar, aber keine genaue Messung.
 
-2) Längere Karten und Schwenk
-   Kameraschwenk zum Boss 1,5 s → 3 s (die Welt steht in der Zeit still), Boss-Warnbanner 2 s →
-   3 s, Bosskarte mindestens 2,8 s, Biomkarte 1,6 s → 3,5 s Wellenzeit (Mindestdauer 2,5 s). Die
-   Karten blockieren keine Eingabe.
+2) Sound (alles weiter mit WebAudio erzeugt, keine Audiodateien)
+   - Bestand vorher (von 60 Ereignisarten): alle 25 Gegner-Tode mit einem Klang, aim/charge
+     gleich, pick für alle Seltenheiten gleich, alle 6 Ereignisse gleich, Boss-Ereignisse stumm
+     (boss, bossAtk, bossDown, enrage, phase u. a.).
+   - Neu: 6 Todesfamilien über alle 25 Gegner (Pop, Squelch, Crunch, Zap, Clang, Shatter),
+     Telegraph-Klänge (Charger-Aufheulen, Sniper-Zielton, Mörser-Wurf mit Pfeifen, Bomber-Zündschnur
+     mit vier schneller werdenden Pieptönen, Minen-Setzen, Turret-Servo), ein Auftrittsmotiv pro
+     Boss (Hammerschläge, Amboss, Glas, nasses Wobbeln, Tritonus-Brummen) plus Klänge für
+     Angriffe, Enrage, Phasenwechsel und Boss-Tod, eine Boss-Variante der Biom-Musik (Tempo je
+     Biom 132–146 statt einheitlich 134; Synkopen, Oktavpuls, zusätzliche Stimme), Hinweiston und
+     Hintergrund für jedes Biom-Ereignis (Meltdown-Grollen, Whiteout-Wind, Spore-Bloom-Blubbern,
+     Rift-Storm-Sweeps), ein Klang je Upgrade-Seltenheit, Reroll, Wellenende, leises
+     Triebwerks-Brummen der Drohne (folgt der Geschwindigkeit), Karten-Hover mit der Maus.
+   - Abstimmung: Kompressor + Limiter + Soft-Clip (Spitze < 0,93), höchstens 24 gleichzeitige
+     Stimmen (Musik wird nie verdrängt), Lautstärke-/Stumm-Einstellungen gelten, nichts bei
+     pausiertem AudioContext.
+   - WICHTIG: Die Klänge konnte niemand anhören. Geprüft ist nur technisch (siehe Tests);
+     Lautstärke-Balance und Geschmack bitte beim Spielen beurteilen (besonders Boss-Musik und
+     Triebwerks-Brummen).
+   - Beim Zusammenführen korrigiert: Reroll spielte den Karten-Klang zusätzlich zum Reroll-Klang;
+     der Hover-Klang war noch nirgends verdrahtet.
 
-3) Upgrades
-   Messung: Bot spielt Welle 14 (Threat II, schnelle Spawns) mit Grund-Build plus einem Upgrade,
-   alle 7 Waffen, 5 Seeds; Vergleich von Clear-Zeit und Hüllenverlust. Erstmessung (vorher):
-   Overdrive +320 %, Cluster +270 %, Resonance +205 % (nur Epic), Tempest +196 %, Rebound +163 %
-   (nur Rare), Payload +140 %, Split Chamber +117 %, Overcharge +115 %, Chrono Dash +108 %;
-   dagegen Reactive Plating −20 %, Targeting Chip −10 %, Bounty −8 %, Cryo, Vector, Long Barrel,
-   Servo, Combo Surge, Orbital Blades, Last Stand, Overload, Shock Dash ≈ 0–10 %. Rapid Cycler
-   war nur halb so stark wie High-Yield Rounds.
-   Änderungen:
-   - Abgeschwächt: Resonance (+1 Kettensprung nur jede 2. Stufe, +6 % Kette), Payload (30 % + 10 %
-     pro Stufe statt 40 % + 15 %), Overcharge (Nova +30 % statt +40 %), Chrono Dash (1,5 s statt
-     2 s), Overdrive Pulse (jeder 5. statt 4. Schuss, doppelter statt dreifacher Schaden), Cluster
-     Payload (2 statt 3 Bomblets, weniger Schaden). Split Chamber und Rebound sind jetzt Epic.
-   - Gestärkt: Reactive Plating (30 + 20 Schaden, −4 % statt −8 % Feuerrate), Targeting Chip
-     (+10 % Krit und +0,06 Krit-Faktor pro Stufe), Rapid Cycler +15 %, Servo Thrusters +10 %,
-     Long Barrel +25 %, Cryo Rounds 20 %, Vector Capacitor −10 %, Last Stand −22 %, Shock Dash
-     40/64, Overload 32 + 12, Combo Surge 60/90, Orbital Blades 18, Phantom Dash −50 %,
-     Dragon's Breath doppelt so heiß.
-   - Zusammengelegt (ähnliche Wirkung): Capacitor Bank → Overcharge (jeder Kill +1 % Nova pro
-     Stufe), Bounty Protocol → Supply Loop (Elite-Kills +1 Shard pro Stufe). Alte Spielstände und
-     offene Angebote werden wie in 2.5.0 umgerechnet (RL_RETIRED_UPGRADES). 57 Upgrades.
-   - Das Werkstatt-Modul „Salvager" heißt „Shard Refinery" (das Run-Upgrade bleibt „Salvager
-     Core"); Bloodrush-Karten zeigen ihr Limit.
-   Nachmessung: Overdrive +212 %, Cluster +172 %, Resonance +76 %, Payload +87 %; die Spannweite
-   ist enger, aber die Messung ist grob (ein Bot, 5 Seeds, Evolutionen nur mit einer Waffe: einzelne
-   Werte schwanken zwischen Läufen um ±100 Punkte, z. B. Tempest, Dragon, Wingman). Nach der
-   Nachmessung noch angepasst: Kill-Bonus von Overcharge 2 % → 1 %, Overdrive 2,5× → 2×, Tempest
-   wieder +2 Sprünge. Dash-Upgrades (Vector, Shock Dash, Phantom) misst der Bot kaum (er dasht
-   nach festem Takt); ihre Werte sind nach Gefühl gesetzt.
-
-4) Tests
-   - Deep test: neuer Teil v260; Selbsttests für Overcharge/Supply Loop und die Anzahl (57).
-   - full-qa qol: Last-Stand-Prüfung an den neuen Wert angepasst.
-   - Determinismus-Referenz neu aufgenommen (Verhalten ändert sich absichtlich).
+3) Tests
+   - Deep test: neuer Teil v270Sound (alle Gegner/Bosse/Bossangriffe/Ereignisarten zugeordnet,
+     reale Ereignisverarbeitung, kein Ton ohne/mit pausiertem Kontext, Stimmenlimit, Stimmen enden)
+     und Offline-Render aller 159 Klänge (mono, 44,1 kHz, 2 s): 159/159 ohne Ausnahme, endliche
+     Werte, nicht stumm, Spitze < 0,95 (max. 0,52), alle enden ≤ 2,05 s.
+   - full-qa: Kartenklicks warten jetzt, bis die Karten entsperrt sind (0,65 s); der Test
+     „2.3.1 save: picking the upgrade starts the next wave" scheiterte sporadisch, weil er sofort
+     nach dem Anzeigen tippte (mit den schwereren Modellen im Software-Renderer zeigte sich das).
+   - Determinismus-Referenz unverändert.
 
 Offen:
-   - Balance nur mit Bot und Messungen geprüft, nicht von Hand gespielt; besonders die Stärke der
-     Evolutionen (Overdrive, Cluster) und der Dash-Upgrades bitte selbst beurteilen.
-   - Die Spielgefühl-Wirkung des längeren Schwenks (3 s) auf dem Handy nicht getestet.
+   - Klang unbeurteilt (s. o.). Boss-Verbesserungen der Modelle sind moderat: bei Queen und Core
+     wirken Kopf und Stacheln neben dem Körper klein – bitte im Lauf ansehen.
+   - Die Drohne ist auf dem Handy hochkant klein (wie bisher), aber an den Flügelstreifen
+     erkennbar.
+   - Leistungsmessung nicht exakt; auf echten Handys prüfen.
 
-Ergebnisse 2.6.0 (headless Chromium, Software-WebGL):
-  determinism   Referenz für die beabsichtigten Änderungen neu aufgenommen, danach 15 Fälle identisch
-  full-qa.mjs   363 Prüfungen: 1 Fehler im ersten Lauf (qol: Last Stand hatte noch die alten 36 %
-                fest im Test, Wert danach auf 22 %/Stufe gesetzt und Test angepasst), qol danach grün
+Ergebnisse 2.7.0 (headless Chromium, Software-WebGL):
+  determinism   15 Fälle identisch mit unveränderter Referenz
+  full-qa.mjs   365 Prüfungen, 0 Fehler (im ersten Lauf 1 sporadischer Fehler, siehe oben;
+                danach saves dreimal hintereinander grün)
   e2e.mjs       5 Geräteprofile, 0 Fehler
-  Deep test     ok (inkl. v260: statische Sticks; schlägt mit dem alten Verhalten fehl)
+  Deep test     ok (inkl. v270Sound, Offline-Render 159/159)
   world-audit   0 Befunde · data-audit ok · run-audit: Bot bis Welle 22, alle Checks OK
   sim           Pulse bis Welle 20 (Sieg), keine Fehler
   format        npm run format:check sauber
-  screens.mjs   PC, Handy hoch und quer ohne Fehler; Bilder angesehen (Upgrade-Wahl mit neuen
-                Werten, Bosskarte, Menüs)
+  screens.mjs   PC, Handy hoch und quer ohne Fehler; Bilder angesehen
 
 ================================================================================
 
