@@ -142,8 +142,11 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
       ctx.textBaseline = "middle";
       for (let num of renderer.nums) {
         if (num.life <= 0 || !project(num.x, num.y, num.z)) continue;
+        // 3.0.0: the size follows the number (a maxed Railgun shot is bigger than a Pulse hit) and a new number
+        // pops in for a moment
         let alpha = clamp(num.life / 0.35, 0, 1),
-          fontSize = num.crit ? 19 : num.burn ? 12 : 14;
+          pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.12) * 0.3,
+          fontSize = Math.min(32, (num.crit ? 14 : num.burn ? 9 : 11) + 3.4 * Math.log10(1 + Math.max(0, num.v))) * pop;
         ctx.font = `700 ${fontSize}px "Chakra Petch", "Barlow Semi Condensed", system-ui, sans-serif`;
         let text = String(Math.max(1, Math.round(num.v)));
         ctx.globalAlpha = alpha;
