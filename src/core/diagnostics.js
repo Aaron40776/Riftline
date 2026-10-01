@@ -1796,4 +1796,6 @@ export {
    2.5.0 B: event kinds of the workshop modules (self-test in selftest.js)
    ========================================================================== */
 RL_EVENT_KINDS.add("kit");
+for (const kind of ["grenade", "gadgetReady", "gadgetDeny", "maxed", "trapWarn", "trapFire", "trapArm"])
+  RL_EVENT_KINDS.add(kind);
 RL_EVENT_KINDS.add("barrier");

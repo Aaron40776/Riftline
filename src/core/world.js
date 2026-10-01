@@ -21,6 +21,7 @@ import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
 import { computeStats } from "./stats.js";
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
+import { rlPlanTraps, rlUpdateTraps } from "./traps.js";
 // 2.2.3: the run monitor observes the live run's world (used at run time only; circular import)
 import { RL_MON, rlMonStep, rlMonIssue, rlMonBeginWave } from "./diagnostics.js";
 
@@ -30,7 +31,8 @@ function rlCacheShards(world, value) {
 }
 /* 2.3.5: Armor Core absorbs part of the damage from enemies. Lava and acid are left to
    Hazard Seal, so the two modules do not stack on the same damage. */
-const RL_HAZARD_SRC = new Set(["lava", "acid"]);
+// 3.0.0: traps are environment too: the Armor Core does not soften them
+const RL_HAZARD_SRC = new Set(["lava", "acid", "trap"]);
 
 // 2.5.0 A: the six new run upgrades (levels from computeStats: skates, acidCoat, heatSink, slip,
 // surge, reactive). Their parts in step, fire, hurtPlayer, bulletHit, updateFeatures and addCombo
@@ -205,6 +207,7 @@ const rlStep = 1 / 60,
       }
       this.chronoT = 0;
       this.grenades = [];
+      this.traps = [];
       this.offer = null;
       this.offerBoss = false;
       this.state = "fight";
@@ -310,6 +313,8 @@ const rlStep = 1 / 60,
         this.plan = planWave(this.rng, wave, this.tm, !!boss, this.event ? waveEvents[this.event].plan : {});
         this.planIdx = 0;
         this.planTotal = this.plan.reduce((sum, group) => sum + group.members.length, 0);
+        // 3.0.0: the traps of this wave (none on boss waves and before wave 6)
+        this.traps = rlPlanTraps(this, wave, !!boss);
         this.groupT = 1.1;
         this.bossPending = boss;
         this.state = "fight";
@@ -707,6 +712,7 @@ const rlStep = 1 / 60,
               this.updateEBullets(slowDt);
               this.updateBeams(slowDt);
               this.updateHazards(slowDt);
+              rlUpdateTraps(this, slowDt);
               this.updatePickups(dt);
               this.updateMarkers(dt);
               this.updateFeatures(dt);

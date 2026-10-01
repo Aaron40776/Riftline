@@ -184,6 +184,8 @@ const RL_SOUND_EVENTS = {
   hatch: [{}, { big: true }],
   heal: [{}],
   maxed: [{ heal: 30, shards: 12 }],
+  grenade: [{}],
+  trapWarn: [{ fam: "floor" }, { fam: "beam" }, { fam: "mine" }],
   hurt: [{}],
   kill: [{ type: "grunt", r: 0.5 }],
   kit: [{}],
@@ -212,6 +214,10 @@ const RL_SOUND_EVENTS = {
 };
 const RL_SILENT_EVENTS = new Set([
   "ping", // damage marker, "hit" already sounds
+  "gadgetReady", // 3.0.0: the sound of the next grenade follows with the UI work
+  "gadgetDeny",
+  "trapFire", // the strike itself is a "boom" of kind "trap"
+  "trapArm",
   "pop", // a bullet expiring: far too frequent
   "spark", // impact effect, covered by "dmg"
   "spawn", // one enemy appears: the "portal" group sound covers it
@@ -1577,6 +1583,14 @@ const musicChords = {
             break;
           case "maxed":
             this.play("heal");
+            break;
+          case "grenade":
+            // 3.0.0: placeholder voices (the sound pass follows): the mortar thump for the throw and the
+            // rising warning tone for traps
+            this.play("lob");
+            break;
+          case "trapWarn":
+            this.play(ev.fam === "beam" ? "beamSmall" : "blinkWarn");
             break;
           case "block":
             this.play("block");
