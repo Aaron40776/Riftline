@@ -180,6 +180,21 @@ h2 { font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; }
 .act-btn.nova .ring { position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(var(--violet) var(--p, 0%), rgba(255, 255, 255, 0.06) 0); -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%); }
 .act-btn.nova.ready { color: #fff; border-color: var(--violet); box-shadow: 0 0 22px rgba(197, 139, 255, 0.7); animation: novaPulse 1.1s ease-in-out infinite; }
 @keyframes novaPulse { 50% { box-shadow: 0 0 34px rgba(197, 139, 255, 0.95); } }
+/* 3.0.0: GADGET (grenade) sits left of NOVA in one row above DASH; orange like the grenade's damage colour. */
+.act-row { display: flex; align-items: center; gap: 12px; }
+#hud.swap .act-row { flex-direction: row-reverse; }
+.act-btn.gadget { width: 60px; height: 60px; color: #ffb347; border-color: rgba(255, 179, 71, 0.55); }
+.act-btn.gadget .gico { position: relative; z-index: 2; width: 26px; height: 26px; margin-top: -6px; }
+.act-btn.gadget .ring { position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(rgba(255, 179, 71, 0.8) var(--q, 100%), rgba(255, 255, 255, 0.07) 0); -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%); }
+.act-btn.gadget .pips { position: absolute; z-index: 2; left: 0; right: 0; bottom: 7px; display: flex; justify-content: center; gap: 3px; }
+.act-btn.gadget .pips i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.16); }
+.act-btn.gadget .pips i.on { background: #ffb347; box-shadow: 0 0 5px rgba(255, 179, 71, 0.9); }
+.act-btn.gadget .key { display: none; position: absolute; z-index: 3; top: -4px; right: -4px; min-width: 16px; padding: 2px 4px; border-radius: 5px; background: rgba(10, 16, 30, 0.92); border: 1px solid var(--line2); font: 700 10px/1 var(--display); color: var(--dim); text-align: center; }
+body:not(.device-touch) .act-btn.gadget .key { display: block; }
+.act-btn.gadget.empty { color: rgba(255, 179, 71, 0.4); border-color: rgba(255, 179, 71, 0.22); }
+.act-btn.gadget.pop { animation: gadgetPop 0.38s ease-out; }
+.act-btn.gadget.deny { animation: deny 0.28s ease-out; }
+@keyframes gadgetPop { 0% { box-shadow: 0 0 0 0 rgba(255, 179, 71, 0.9); transform: scale(1.1); } 100% { box-shadow: 0 0 0 16px rgba(255, 179, 71, 0); transform: none; } }
 .act-btn:active { transform: scale(0.94); }
 #hud.swap .act { right: auto; left: calc(var(--sl) + 14px); align-items: flex-start; }
 #hud.swap .act-btn.nova { margin-right: 0; margin-left: 34px; }
@@ -654,6 +669,10 @@ body.device-phone.is-landscape #hud.swap .act { left: calc(var(--sl) + 10px); }
 body.device-phone.is-landscape #hud .act-btn { width: 58px; height: 58px; }
 body.device-phone.is-landscape #hud .act-btn.nova { width: 50px; height: 50px; margin-right: 24px; }
 body.device-phone.is-landscape #hud.swap .act-btn.nova { margin-left: 24px; }
+body.device-phone.is-landscape #hud .act-btn.gadget { width: 50px; height: 50px; }
+body.device-phone.is-landscape #hud .act-row { gap: 9px; }
+body.device-phone.is-landscape #hud .act-btn.gadget .gico { width: 22px; height: 22px; margin-top: -5px; }
+body.device-phone.is-landscape #hud .act-btn.gadget .pips { bottom: 5px; }
 body.device-phone.is-landscape #hud .combo-pop { top: calc(var(--st) + 18%); }
 body.device-phone.is-landscape #banner { top: 24%; }
 body.device-phone.is-landscape .coach { top: calc(var(--st) + 52px); width: min(310px, calc(100% - 24px)); padding: 8px 12px; }
@@ -1049,6 +1068,7 @@ body.device-desktop #home .bottom-nav button { box-shadow: 0 16px 42px rgba(0,0,
   #home::before { -webkit-mask-image: none; mask-image: none; }
   .btn, .icon-btn, .arrow, .act-btn, .card, .toast, .bn, .coach { animation: none !important; transition: none !important; }
   .act-btn.nova.ready { animation: none !important; }
+  .act-btn.gadget.pop { animation: none !important; }
 }
 
 
@@ -1198,6 +1218,7 @@ button:focus-visible, input:focus-visible { position: relative; z-index: 2; }
 @media (orientation: landscape) and (max-height: 390px) {
   body.device-phone.is-landscape #hud .act-btn { width: clamp(50px, 16vh, 58px); height: clamp(50px, 16vh, 58px); }
   body.device-phone.is-landscape #hud .act-btn.nova { width: clamp(44px, 14vh, 50px); height: clamp(44px, 14vh, 50px); }
+  body.device-phone.is-landscape #hud .act-btn.gadget { width: clamp(44px, 14vh, 50px); height: clamp(44px, 14vh, 50px); }
 }
 /* 2.3.4: the 2.3.3 wide-page rule (".screen.page > .scroll" up to 1240 px) also caught the
    settings list, so on desktop windows ≥ 1100 px its rows were 1240 px wide (switch 1200 px
@@ -1226,6 +1247,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast { text-align:
    buttons themselves (with their enlarged ring) take touches now; the rest goes to the aim side. */
 #hud .act { pointer-events: none; }
 #hud .act-btn { pointer-events: auto; }
+#hud .act-row { pointer-events: none; }
 /* 2.3.6: on 360 px wide phones the hull value ran into "WAVE 10/20". */
 @media (max-width: 400px) {
   #hud .wave-block { min-width: 0; }
@@ -1406,7 +1428,10 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
     <div id="hudInfo" class="hud-info num" hidden></div>
     <div id="coach" class="coach" hidden><div id="coachDots" class="coach-dots"></div><p id="coachText"></p></div>
     <div class="act">
-      <button id="novaBtn" class="act-btn nova" aria-label="Nova blast"><span class="ring"></span><span class="lbl">NOVA</span></button>
+      <div class="act-row">
+        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw grenade"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="7" fill="currentColor"/><rect x="9.5" y="4.5" width="5" height="3.5" rx="1" fill="currentColor"/><path d="M14.5 6h4l1.5-2.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 12.2a4.4 4.4 0 0 1 3-2" fill="none" stroke="rgba(4,6,12,0.55)" stroke-width="1.4" stroke-linecap="round"/></svg><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
+        <button id="novaBtn" class="act-btn nova" aria-label="Nova blast"><span class="ring"></span><span class="lbl">NOVA</span></button>
+      </div>
       <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="cd"></span><span class="ring"></span><span class="lbl">DASH<small id="dashSec"></small></span></button>
     </div>
   </div>
