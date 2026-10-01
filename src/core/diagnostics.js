@@ -201,6 +201,7 @@ let RL_REQUIRED_DOM = [
     "banner",
     "bestLine",
     "bossBar",
+    "gadgetBtn",
     "bossFill",
     "bossLag",
     "bossName",
