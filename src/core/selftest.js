@@ -16,6 +16,7 @@ import {
   RL_BOSS_ATK,
   RL_SOUND_EVENTS,
   RL_SILENT_EVENTS,
+  RL_TRAP_SOUND,
   MAX_VOICES,
   MUSIC_DUCK,
   BOSS_SOUND,
@@ -1678,6 +1679,18 @@ function selfTestV270Sound(result) {
       if (!known.has(id) && id !== "evolve") fail.push("duck-unknown-sound:" + id);
       if (!(depth > 0 && depth <= 0.15)) fail.push(`duck-depth:${id}:${depth}`);
     }
+    // 3.0.0: every trap skin warns with a sound of its own, every strike (floor, mine) has one, none is shared
+    const trapVoices = [];
+    for (const [skin, def] of Object.entries(TRAP_SKINS)) {
+      const voice = RL_TRAP_SOUND[skin];
+      if (!voice || !known.has(voice.warn)) fail.push("trap-warn-sound:" + skin);
+      else trapVoices.push(voice.warn);
+      if (def.fam !== "beam" && !(voice && known.has(voice.fire))) fail.push("trap-fire-sound:" + skin);
+      else if (voice && voice.fire) trapVoices.push(voice.fire);
+    }
+    if (new Set(trapVoices).size !== trapVoices.length) fail.push("trap-sounds-shared");
+    for (const id of ["grenadeThrow", "grenadeBlast", "gadgetReady", "gadgetNo", "resist"])
+      if (!known.has(id)) fail.push("no-sound:" + id);
     for (const table of [RL_CHARGE_VOICE, RL_DASH_VOICE, RL_BOSS_ATK])
       for (const id of Object.values(table)) if (id && !known.has(id)) fail.push("voice-missing-sound:" + id);
     for (const id of bossOrder) {

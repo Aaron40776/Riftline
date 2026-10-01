@@ -186,6 +186,31 @@ const distinct = await page.evaluate(async () => {
     ),
   );
   out.bosses = await group(byName(["warden", "forge", "prism", "queen", "core"].map((n) => "bossIntro:" + n)));
+  // 3.0.0: every trap strike, the grenade blast and the two big old blasts; the trap warnings of the floor and
+  // beam families (the mines' fuse beeps are compared on their own)
+  out.strikes = await group(
+    byName([
+      "tsPlate",
+      "tsCrusher",
+      "tsIce",
+      "tsGeyser",
+      "tsRift",
+      "tsMine",
+      "tsFrost",
+      "tsSpore",
+      "tsRiftMine",
+      "grenadeBlast",
+      "nova",
+      "boom",
+    ]),
+  );
+  out.warns = await group(
+    byName(["tcPlate:1", "tcCrusher:1", "tcIce:1", "tcGeyser:1", "tcRift:1", "tbLaser", "tbFlame", "tbRift"]),
+  );
+  out.fuses = await group(byName(["tmMine:0.45", "tmFrost:0.45", "tmSpore:0.45", "tmRift:0.45"]));
+  out.strikes.min < 0.4 && out.fail.push(`strikes too similar: ${out.strikes.pair} (${out.strikes.min.toFixed(2)})`);
+  out.warns.min < 0.3 && out.fail.push(`trap warnings too similar: ${out.warns.pair} (${out.warns.min.toFixed(2)})`);
+  out.fuses.min < 0.3 && out.fail.push(`mine fuses too similar: ${out.fuses.pair} (${out.fuses.min.toFixed(2)})`);
   out.weapons.min < 0.6 &&
     out.fail.push(`weapon shots too similar: ${out.weapons.pair} (${out.weapons.min.toFixed(2)})`);
   out.deaths.min < 0.5 &&
@@ -211,6 +236,9 @@ res.soundDistinct = {
   weapons: { min: distinct.weapons.min, pair: distinct.weapons.pair },
   deaths: { min: distinct.deaths.min, pair: distinct.deaths.pair },
   bosses: { min: distinct.bosses.min, pair: distinct.bosses.pair },
+  strikes: { min: distinct.strikes.min, pair: distinct.strikes.pair },
+  warns: { min: distinct.warns.min, pair: distinct.warns.pair },
+  fuses: { min: distinct.fuses.min, pair: distinct.fuses.pair },
   musicFlood: distinct.music.length,
   fail: distinct.fail,
 };
