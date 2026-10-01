@@ -654,10 +654,24 @@ const musicChords = {
           }
           break;
         case "flame":
-          // flame jet: a soft low roar of filtered noise with random crackle pops, no pitched part at all
-          if (this.gate(id, 0.11)) {
-            this.noise(0.22, 0.1, { f: 1200, to: 400, q: 0.5, rate: 0.5 * pitch });
-            this.noise(0.04, 0.05, { type: "highpass", f: 5e3, at: Math.random() * 0.12 });
+          // flame jet: one continuous roar. The weapon fires 15 times a second, so every shot starts a
+          // long, soft burst of filtered noise (slow 100 ms fade-in, long tail) that overlaps its
+          // neighbours; the old 3 ms attacks made a ticking and the pops were clicks. A low rumble with
+          // an airy hiss on every other shot and now and then a soft crackle, no pitched part at all.
+          // About three bursts overlap (voice budget), the gate keeps the rate at 7 per second.
+          if (this.gate(id, 0.14)) {
+            this.flameN = (this.flameN || 0) + 1;
+            this.noise(0.45, 0.075, { f: 1600, to: 500, q: 0.4, rate: 0.6 * pitch, attack: 0.1 });
+            if (this.flameN % 2 === 0)
+              this.noise(0.4, 0.02, { type: "bandpass", f: 2400 * pitch, to: 1500, q: 0.5, attack: 0.12 });
+            if (Math.random() < 0.35)
+              this.noise(0.06, 0.018, {
+                type: "bandpass",
+                f: 3200 + Math.random() * 1800,
+                q: 1.2,
+                attack: 0.012,
+                at: Math.random() * 0.25,
+              });
           }
           break;
         case "block":
@@ -2106,6 +2120,20 @@ const musicChords = {
               }
           }
           engine.simT = null;
+        } else if (spec.burst) {
+          // 2.9.2: continuous fire of one sound (n shots, `interval` apart): the first now, the rest at
+          // suspended times, so the rate gate and the voice limit behave as in the game
+          const { id, arg, n, interval } = spec.burst,
+            next = (i) => {
+              if (i >= n) return;
+              ctx.suspend(0.25 + i * interval).then(() => {
+                engine.play(id, arg);
+                ctx.resume();
+                next(i + 1);
+              });
+            };
+          engine.play(id, arg);
+          next(1);
         } else if (spec.noise) {
           // 2.9.1: a raw noise burst (tests that long bursts are not cut off)
           engine.noise(spec.noise.dur, spec.noise.vol, spec.noise.opts || {});
