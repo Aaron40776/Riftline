@@ -734,8 +734,13 @@ const musicChords = {
           this.noise(0.8, 0.06, { type: "highpass", f: 5e3, attack: 0.2 });
           break;
         case "hit":
-          if (this.gate(id, 0.035)) {
-            this.tone(1300 * pitch, 0.03, "triangle", 0.035);
+          // 2.9.1: while the flame is firing (it hits many enemies at once) the hit blips are rarer and
+          // quieter; at 28 per second they added a clacking to the flame roar
+          {
+            const flaming = this.ctx.currentTime - (this.last.flame ?? -9) < 0.3;
+            if (this.gate(id, flaming ? 0.12 : 0.035)) {
+              this.tone(1300 * pitch, 0.03, "triangle", flaming ? 0.016 : 0.035);
+            }
           }
           break;
         case "crit":
