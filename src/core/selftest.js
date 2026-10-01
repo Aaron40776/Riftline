@@ -1054,7 +1054,7 @@ function selfTestV246(result) {
 function selfTestV250A(result) {
   const fail = [],
     NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
-  if (upgradeList.length !== 52) fail.push("count:" + upgradeList.length);
+  if (upgradeList.length !== 55) fail.push("count:" + upgradeList.length);
   for (const [id, retired] of Object.entries(RL_RETIRED_UPGRADES)) {
     if (upgradesById[id]) fail.push("still-offered:" + id);
     const target = upgradesById[retired.to];
@@ -2011,6 +2011,93 @@ function selfTestV300(result) {
     if (!(world.hpMul > 142 * 4)) fail.push("hpMul-not-boosted:" + world.hpMul);
   } catch (err) {
     fail.push("exception:" + (err && err.message));
+  }
+  // the Grenade gadget
+  try {
+    const world = new World({ seed: 0x301, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(2);
+    world.state = "fight";
+    world.god = true;
+    world.hold = false;
+    world.arena.obs = [];
+    const player = world.player,
+      reset = () => {
+        for (const enemy of [...world.enemies]) enemy.dead = true;
+        world.enemies.length = 0;
+        world.plan = [];
+        world.planIdx = 0;
+        world.bossPending = null;
+        world.championPending = null;
+        world.grenades = [];
+        player.gadgetN = world.stats.gadgetMax;
+        player.gadgetT = 0;
+        // a far, tough dummy keeps the wave (and so the fight state) alive
+        world.state = "fight";
+        world.stateT = 0;
+        const dummy = world.spawnEnemy("turret", player.x, player.y - 17);
+        dummy.spawnT = 0;
+        dummy.maxHp = dummy.hp = 1e9;
+      },
+      spawn = (dx, dy, hp = 1e6) => {
+        const enemy = world.spawnEnemy("brute", player.x + dx, player.y + dy);
+        enemy.spawnT = 0;
+        enemy.maxHp = enemy.hp = hp;
+        return enemy;
+      },
+      run = (seconds, input = {}) => {
+        for (let i = 0; i < seconds * 60; i++)
+          world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false, ...(i === 0 ? input : {}) });
+      };
+    if (world.stats.gadgetMax !== 2 || player.gadgetN !== 2) fail.push("grenade-charges:" + player.gadgetN);
+    // thrown at the crowd, not at the lone enemy that is closer
+    reset();
+    const lone = spawn(-4, 0),
+      crowd = [spawn(8, 0), spawn(9.2, 0.5), spawn(8.4, -1)];
+    const before = world.fx.length;
+    world.useGadget({});
+    const throwEv = world.fx.slice(before).find((ev) => ev.k === "grenade");
+    if (!throwEv || Math.hypot(throwEv.tx - 8.5 - player.x, throwEv.ty - player.y) > 2.5)
+      fail.push("grenade-aim-crowd");
+    if (player.gadgetN !== 1) fail.push("grenade-charge-not-used");
+    run(1.2);
+    if (!crowd.every((enemy) => enemy.hp < enemy.maxHp)) fail.push("grenade-no-damage");
+    if (lone.hp < lone.maxHp - 1e-6 === true) fail.push("grenade-hit-the-lone-enemy");
+    if (!crowd.some((enemy) => enemy.slowT > 0)) fail.push("grenade-no-slow");
+    // recharge: one charge after gadgetCd, no throw without a charge
+    reset();
+    world.useGadget({});
+    world.useGadget({});
+    const denyBefore = world.fx.length;
+    if (world.useGadget({}) !== false || !world.fx.slice(denyBefore).some((ev) => ev.k === "gadgetDeny"))
+      fail.push("grenade-deny");
+    run(world.stats.gadgetCd + 0.3);
+    if (player.gadgetN < 1) fail.push("grenade-no-recharge:" + player.gadgetN);
+    // never into a wall: a wall 4 m ahead stops the throw in front of it
+    reset();
+    world.arena.obs = [{ x: player.x + 4, y: player.y, w: 0.4, h: 6, t: "b" }];
+    const wallBefore = world.fx.length;
+    world.useGadget({ aim: true, ax: 1, ay: 0 });
+    const wallEv = world.fx.slice(wallBefore).find((ev) => ev.k === "grenade");
+    if (!wallEv || wallEv.tx > player.x + 4 - 0.3) fail.push("grenade-through-wall");
+    world.arena.obs = [];
+    // Incendiary Mix sets survivors on fire; the cards change the numbers
+    reset();
+    world.up = { gfire: 1, gcells: 2, gblast: 2 };
+    world.stats = computeStats(world.weapon, world.up, world.ws);
+    if (world.stats.gadgetMax !== 4 || !(world.stats.gadgetR > 3.4 * 1.29) || !(world.stats.gadgetDmg > 1.59))
+      fail.push("grenade-cards");
+    player.gadgetN = world.stats.gadgetMax;
+    const victim = spawn(6, 0);
+    world.useGadget({ aim: true, ax: 1, ay: 0 });
+    run(1.4);
+    if (!(victim.burnT > 0)) fail.push("grenade-no-burn");
+    // nothing is thrown outside a fight
+    reset();
+    world.state = "cleared";
+    if (world.useGadget({}) !== false) fail.push("grenade-outside-fight");
+    world.state = "fight";
+  } catch (err) {
+    fail.push("grenade-exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v300: { ok: fail.length === 0, fail } };
 }

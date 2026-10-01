@@ -119,6 +119,12 @@ function computeStats(weaponId, run, workshop) {
   // Emergency Shield: barrier seconds and repair share once per wave below 30% hull
   stats.barrierT = 1 * moduleLevel("emergencyShield");
   stats.barrierHeal = 0.08 * moduleLevel("emergencyShield");
+  // 3.0.0: the Grenade gadget: charges, recharge time per charge, damage and radius, incendiary mix
+  stats.gadgetMax = 2 + level("gcells");
+  stats.gadgetCd = 6 * Math.max(0.5, 1 - 0.12 * level("gcells"));
+  stats.gadgetDmg = 1 + 0.3 * level("gblast");
+  stats.gadgetR = 3.4 * (1 + 0.15 * level("gblast"));
+  stats.gadgetFire = level("gfire");
   return stats;
 }
 function weaponRange(weapon) {
