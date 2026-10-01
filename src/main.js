@@ -436,7 +436,7 @@ const overlay = new Overlay(elementById("ov")),
         this.last = performance.now();
         setWakeLock(true);
         if (this.world) {
-          sound.setMusic(this.world.boss ? "boss" : "fight", this.world.biomeFor(this.world.wave).id);
+          sound.setMusic(this.world.boss ? "boss" : "fight", this.world.biomeFor(this.world.wave).id, true);
         }
       }
     },
@@ -821,7 +821,7 @@ function runFrame(dt) {
         renderer.frame(dimmed ? dt * 3 : dt, world);
       }
     }
-    sound.consume(world.fx);
+    sound.consume(world.fx, world.player);
     world.fx.length = 0;
     if (renderer && !(game.chooseShown || game.overShown)) {
       // 2.3.6: the "DRAG HERE TO MOVE" hints follow the input in use (like the coach texts since
