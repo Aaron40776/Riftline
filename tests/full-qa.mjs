@@ -2433,13 +2433,22 @@ for (const profName of ["desktop", "phone"])
           normalFog && s.fog < normalFog * 0.75,
           `${s.fog.toFixed(1)} vs ${normalFog && normalFog.toFixed(1)}`,
         );
-      if (biome === "void")
-        check(
-          L,
-          "rift storm: every portal shows where it jumps next",
-          s.portals > 0 && s.next === s.portals,
-          JSON.stringify(s),
-        );
+      if (biome === "void") {
+        // the telegraph is up in phases while the world runs on in real time (a frame takes about 0.3 s in
+        // software rendering): wait until every portal shows its target at once instead of sampling one instant
+        const all = await P.page
+          .waitForFunction(
+            () => {
+              const A = window.__riftTest.game.world.arena;
+              return A.portals.length > 0 && A.portals.every((q) => q.next);
+            },
+            null,
+            { timeout: 8000 },
+          )
+          .then(() => true)
+          .catch(() => false);
+        check(L, "rift storm: every portal shows where it jumps next", s.portals > 0 && all, JSON.stringify(s));
+      }
       if (biome === "works")
         check(
           L,

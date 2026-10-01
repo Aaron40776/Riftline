@@ -1,3 +1,100 @@
+RIFTLINE v3.0.0 – FALLEN, GRANATE, BURST-GRENZE UND SCHWERERES ENDLESS
+Basis: v2.9.1 · Build r300a1001b-r1 · 01.10.2026
+
+Gewünscht: Das Spiel soll nach den ersten Wellen schwerer werden (Fallen o. Ä., an die Biome angepasst) und
+im Endless extremer; außer Dash und Nova soll es ein aktives Gadget geben (Granate); Treffer in Teilen
+begrenzen. Gemeldet: Mit der Railgun (fast 100 % Crit, 6 Geschosse, alle Upgrades) stirbt bei Welle ~150
+alles in einem Angriff, das Spiel wird nicht schwerer.
+Leitgedanke des Eigentümers (jetzt in CLAUDE.md): alles passt organisch und dynamisch zusammen, das Spiel
+skaliert schwerer, mit schönen Sounds und Designs; neue Funktionen kommen mit Modell, Sound, Vorwarnung
+und Tests.
+
+1) Messung (Ausgangslage)
+   - Bot mit vollem Build (alle Upgrades samt Evolutionen, alle Workshop-Module) und Railgun (6 Geschosse,
+     95 % Crit), der entlang der dichtesten Gegnerreihe zielt: Kills mit einem Angriff 94 % (Welle 20),
+     95 % (100), 64 % (150), 39 % (300); alles innerhalb von 0,2 s tot. Größter Einzeltreffer etwa 1 600
+     bis 6 000, die angezeigte Summe 30 000 bis 90 000, weil die Zahlenanzeige pro Gegner aufsummierte. Die
+     „30 000 pro Angriff“ waren also eine Summe aus 6 Geschossen, Payload und Kettenblitzen.
+   - Der erste Benchmark (Bot zielt auf den nächsten Gegner) hatte dieses Verhalten nicht gezeigt; er war für
+     die Rail ungeeignet.
+
+2) Burst-Grenze und Endless-Kurve (core/difficulty.js)
+   - Ein Gegner verliert innerhalb von 0,25 s höchstens einen Anteil seiner maximalen HP, egal aus wie vielen
+     Quellen: bis Welle 40 keine Grenze, danach 0,9 − 0,0072 · (Welle − 40), mindestens 12 % (ab etwa Welle
+     148). Nova und Bosse sind ausgenommen. Abgewehrte Treffer senden ein Ereignis `ping` mit `resist`.
+   - Normale Gegner bekommen ab Welle 30 zusätzlich 3 % der Basis-HP pro Welle (x4,6 bei Welle 150).
+   - Wirkung (gleicher Bot, gleiche Rail): Kills mit einem Angriff 32 % (Welle 60), 6 % (100), 17 % (150),
+     1 % (300); innerhalb 0,2 s tot nur noch 29 % / 9 % / 25 % / 1 %.
+   - Die Schadenszahlen zeigen jetzt einzelne Angriffe (nur Treffer innerhalb von 0,15 s werden zusammengefasst)
+     statt eines laufenden Totals; größere Treffer sind größer gezeichnet.
+
+3) Granate (Taste G, Knopf GADGET)
+   - Zwei Ladungen, etwa 6 s je Ladung, Wurf in Zielrichtung (Aim-Stick) oder auf die dichteste Gruppe in
+     Sichtweite, nie in eine Wand und nur im Kampf; Explosion 90 · Schadensfaktor mit Rückstoß und 1,2 s
+     Verlangsamung; jede Welle beginnt mit allen Ladungen. Karten: Grenade Cells (+1 Granate, schneller),
+     Blast Core (+30 % Schaden, +15 % Radius), Incendiary Mix (Brand). 55 Upgrades.
+   - Oberfläche: GADGET-Knopf mit Granaten-Symbol, Ladepunkten und Aufladering (Handy hochkant, quer, klein;
+     am PC mit Tastenhinweis „G“), Wackeln bei fehlender Ladung, Aufploppen bei neuer Ladung; Tipps beim
+     ersten Fallen-Warnsignal und bei Welle 4.
+
+4) Fallen (core/traps.js), Biom-Skins
+   - Familien: Bodenschlag (ab Welle 6), Strahl (ab 9), Mine (ab 12); Skins: Yard Platte/Laser/Mine, Works
+     Crusher/Flamme, Vault Eisspitze/Frostmine, Marsh Geysir/Sporenmine, Void Riss-Burst/Riss-Strahl/Riss-Mine.
+   - Jede Falle warnt zuerst (Ring, Linie, blinkendes Licht), verletzt den Spieler (Armor Core mildert sie
+     nicht) und Gegner als Anteil ihrer HP; Nebenwirkungen Kälte, Säurelache, Rückstoß. Keine auf Boss-Wellen.
+   - Endless: etwa die Hälfte mehr Fallen, Pausen 20 % kürzer, Warnzeit 15 % kürzer (mindestens 0,7 s), ab
+     Welle 40 jagen Bodenschläge den Spieler, ein zweiter Strahl kreuzt den ersten. Minen lösen auch Gegner
+     aus und kommen nach 9 bis 14 s an anderer Stelle zurück.
+   - Platzierung mit eigenem Zufallsstrom (Seed + Welle), nie auf der Startfläche, nicht in Wänden, mit
+     Abstand zueinander.
+   - Bot-Messung (Durchschnitts-Build): Fallenschaden pro Wellenversuch etwa 28–114 (Welle 13–22), 170 (33),
+     330–680 (47–77) bei 11–24 Fallen; im Endless also gleichauf mit den stärksten Gegnerquellen.
+   - Tests: Selbsttest v300 (Freischaltwellen, Skins, Platzierung, Determinismus, Verhalten jeder Familie);
+     per Gegenprobe (Fallen deaktiviert) bestätigt, dass die Tests ohne Fallen fehlschlagen; dabei zwei
+     Fehler im Test selbst gefunden (Dummy-Gegner berührte den Spieler und löste dessen Schutzzeit aus;
+     Teststrahl drehte sich am Spieler vorbei).
+
+5) Optik, Sound, Oberfläche (drei Agents, zusammengeführt)
+   - Optik (neu: render/traps-view.js): je Skin ein eigenes Modell (Platte, Presse mit Schlagstempel, Eisspitzen,
+     Schlammgeysir, Siegel; Strahlköpfe; Minen mit Arm- und Zündlicht), Strahlen in Skin-Farben, Warnringe auf
+     dunklem Grund, damit sie auch auf dem hellen Vault-Boden lesbar sind; Granate mit Bogen, Landemarke und
+     Explosion (orange-gold, anders als die Nova) samt Glut; grauer Funke für abgewehrte Treffer. Bildzeit
+     im schweren Kampf mit 9–15 Fallen: Median +0,1–0,2 ms (Software-WebGL, im Rauschen).
+   - Sound: 26 neue Klänge (Granatenwurf und -explosion, bereit/verweigert, abgewehrter Treffer,
+     Fallen-Warnungen je Skin, Strahl-Summen, Minen-Zündfolgen, Schläge je Skin), Strahl-Warnung/-Hum mit
+     sauberem Ausklingen, Ducking der Musik bei den lauten Schlägen. Max. Spitze aller 205 Katalogklänge
+     0,73. Nicht gehört, nur offline gemessen.
+   - Oberfläche: siehe 3); Todestext „Crushed by a trap“, Verlauf „by a trap“, Schadensquelle „Arena traps“.
+
+6) Tests (headless Chromium, Software-WebGL)
+   - npm test: grün (Build, Deep test inkl. v300 und der neuen Sound-Prüfungen, full-qa files, data-audit,
+     Determinismus 15/15 mit der in diesem Release neu aufgenommenen Referenz; Fallen und Granate ändern
+     das Verhalten absichtlich).
+   - Volle QA: alle Prüfungen bestanden, mit folgenden Anmerkungen aus mehreren Läufen (jeweils einzeln
+     laufende Kette): (a) drei zeitabhängige Prüfungen scheiterten, weil ein Bild in Software-Rendering etwa
+     0,3 s dauert: „G ohne Ladung zeigt deny“, „G wirft eine Granate“, „Fallen-Tipp“ und „Rift-Storm: jedes
+     Portal zeigt sein Ziel“; die Tests warten jetzt auf die Wirkung statt eine feste Zeit zu schlafen und
+     sind danach grün. (b) World-Audit meldete „spawn-on-hazard ×27“ in Toxin Marsh (Welle 24 und 37):
+     Geysir- und Sporenfallen gossen eine Säurelache auf eine Stelle, an der gerade ein Gegner-Marker
+     gesetzt worden war; die Lache wird jetzt dort ausgelassen, Audit „no issues“.
+   - E2E: 0 Fehler. Audit (World-, Data- und Run-Audit): ok. Stresssimulation: keine Fehler, keine
+     ungültigen Werte. Screens und Biom-Bilder PC/Handy/Querformat: keine Seitenfehler. Bilder angesehen:
+     Kontaktbögen der Fallen (Crusher, Eisspitzen), Granaten-Explosion, GADGET-Knopf hochkant und quer.
+   - Format-Prüfung: ok.
+
+Offen:
+   - Gehört und gespielt hat es noch niemand: Fallen-Schaden und -Häufigkeit, Granate, Burst-Grenze und
+     Endless-Kurve sind per Bot abgestimmt; bitte spielen (Railgun-Build bei Welle 100–200) und Rückmeldung
+     geben, welche Werte zu hoch oder zu niedrig sind (Konstanten in core/difficulty.js und core/traps.js).
+   - Warnungen und Strahl-Summen sind absichtlich leise; Eis-Schlag ist der lauteste Klang; Crusher klingt dem
+     normalen Boom ähnlich; mehrere Strahlen desselben Skins brummen im Endless nur einmal.
+   - Mines/Strahlköpfe sind absichtlich klein gehalten (Skalierung in render/traps-view.js).
+   - Vom Gestaltungsprinzip noch offen: ruhige Wellenmusik mit eigenem Rhythmus und biom-typischen Geräuschen,
+     harte Boss-Tracks, Hör-Knopf in den Einstellungen (nächster Schritt), weitere Gadgets (Sentry,
+     Repulsor), Gravitationsbrunnen, Mutatoren und Herausforderungs-Wellen, Gadget-Wahl vor dem Run.
+
+================================================================================
+
 RIFTLINE v2.9.1 – FEHLERKORREKTUREN (ENDLESS, SOUND, GEGNER)
 Basis: v2.9.0 · Build r291a1001a-r1 · 01.10.2026
 
