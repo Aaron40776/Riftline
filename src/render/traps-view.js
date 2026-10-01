@@ -546,6 +546,8 @@ class TrapView {
     // above the trap's own plate (y 0.2), or its body would hide the ring
     const r = this.r,
       ring = r.ringPool.y(x, 0.2, z, 0, radius);
+    // a soft dark pool under the ring: red light on a pale floor (Cryo Vault) would wash out to pink-white
+    r.shadows.y(x, 0.03, z, 0, radius * 2.6);
     r.ringPool.colC(ring, WARN, 0.6 + Math.sin(r.time * (fast ? 50 : 25)) * 0.25 * k);
     const disc = r.discs.y(x, 0.19, z, 0, radius * k);
     r.discs.colC(disc, WARN, 0.18 + k * 0.14);
