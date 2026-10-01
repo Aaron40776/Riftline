@@ -155,7 +155,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   },
   /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Toxin Marsh damp */
   SFX_ROOM_BIOME = { yard: 0.28, works: 0.38, vault: 0.5, marsh: 0.2, void: 0.55 },
-  AMBIENCE_LEVEL = { meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
+  AMBIENCE_LEVEL = { blackout: 0.07, meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
   MAX_VOICES = 24,
   // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
   // 3.2.0: 36 (was 20): the boss tracks double-track their guitars (two amps) and play blast beats
@@ -360,11 +360,12 @@ function softClipCurve() {
 }
 
 const musicChords = {
+    // 3.4.0: Blackout City: Am F Dm E (the E major pulls back to A minor: film noir)
     yard: [
       [57, "m"],
       [53, "M"],
-      [48, "M"],
-      [55, "M"],
+      [50, "m"],
+      [52, "M"],
     ],
     works: [
       [50, "m"],
@@ -1238,6 +1239,23 @@ const musicChords = {
           this.eventCue(arg);
           break;
         case "erupt":
+          // 3.4.0: a live manhole of Blackout City arcs: a hard snap, crackles, a mains buzz and a falling zap
+          if (this.biome === "yard") {
+            if (this.gate(id, 0.25)) {
+              this.noise(0.03, 0.22, { type: "highpass", f: 3000, attack: 0.001 });
+              for (let i = 0; i < 6; i++)
+                this.noise(0.02, 0.09, {
+                  type: "bandpass",
+                  f: 2500 + Math.random() * 5000,
+                  q: 6,
+                  at: 0.02 + i * 0.05 + Math.random() * 0.03,
+                });
+              this.tone(100, 0.6, "sawtooth", 0.06, { lp: 1400, attack: 0.01, hold: 0.35 });
+              this.tone(101.5, 0.6, "square", 0.03, { lp: 900, attack: 0.01, hold: 0.35 });
+              this.tone(3200, 0.3, "sawtooth", 0.035, { to: 260, lp: 5000, at: 0.02 });
+            }
+            break;
+          }
           // vent eruption: hiss and a low swell, then the burst
           if (this.gate(id, 0.25)) {
             this.noise(0.6, 0.16, { f: 600, to: 2400, attack: 0.05 });
@@ -1905,10 +1923,14 @@ const musicChords = {
         case "tsCrusher":
           // piston slam: a heavy low hit, a short rubble roar and a ringing metal tail
           if (this.gate(id, 0.05)) {
-            this.tone(62, 0.55, "sine", 0.5, { to: 26 });
-            this.noise(0.35, 0.28, { f: 900, to: 100, attack: 0.002 });
-            this.tone(170, 0.12, "square", 0.08, { to: 80, lp: 700 });
-            [520, 783, 1247].forEach((f, i) => this.tone(f, 0.75 - i * 0.12, "sine", 0.045 - i * 0.01, { at: 0.02 }));
+            // 3.4.0: the metal is louder and clangs inharmonically (it was easy to mistake for a plain blast)
+            this.tone(62, 0.55, "sine", 0.45, { to: 26 });
+            this.noise(0.2, 0.2, { f: 900, to: 100, attack: 0.002 });
+            this.noise(0.04, 0.2, { type: "bandpass", f: 2600, q: 3, attack: 0.001 });
+            this.tone(170, 0.12, "square", 0.1, { to: 80, lp: 900 });
+            [520, 1435, 2390].forEach((f, i) =>
+              this.tone(f, 0.8 - i * 0.15, "sine", 0.07 - i * 0.015, { at: 0.01, attack: 0.001 }),
+            );
           }
           break;
         case "tsIce":
@@ -2081,6 +2103,17 @@ const musicChords = {
           }
           this.tone(90, 0.6, "sine", 0.15, { to: 55, at: 0.5 });
           this.noise(0.6, 0.05, { type: "bandpass", f: 500, q: 4, at: 0.4 });
+          break;
+        case "blackout":
+          // 3.4.0: the power dies: the mains hum sinks, the lights go out with three heavy clunks, a siren far away
+          this.tone(120, 1.4, "sawtooth", 0.12, { to: 28, lp: 700, hold: 0.2 });
+          this.tone(60, 1.4, "sine", 0.2, { to: 22 });
+          [0.5, 0.75, 1.0].forEach((at, i) => {
+            this.noise(0.05, 0.16 - i * 0.03, { type: "bandpass", f: 900 - i * 150, q: 2, at, attack: 0.001 });
+            this.tone(140 - i * 20, 0.12, "triangle", 0.12, { to: 60, at });
+          });
+          this.tone(640, 0.45, "triangle", 0.02, { to: 960, at: 1.05, attack: 0.15 });
+          this.tone(960, 0.45, "triangle", 0.018, { to: 640, at: 1.5, attack: 0.05 });
           break;
         case "riftstorm":
           this.tone(200, 1.2, "sine", 0.06, { to: 2400, attack: 0.5 });
@@ -2636,6 +2669,30 @@ const musicChords = {
           burbleAmp.connect(gain);
           break;
         }
+        case "blackout": {
+          // 3.4.0: a dying transformer: a 50 Hz buzz that flickers, and a crackle that comes and goes
+          let buzz = filter("lowpass", 400, 1.2, osc("sawtooth", 50)),
+            buzzAmp = ctx.createGain(),
+            flicker = osc("square", 5.3),
+            flickerDepth = ctx.createGain();
+          buzzAmp.gain.value = 0.5;
+          flickerDepth.gain.value = 0.35;
+          flicker.connect(flickerDepth);
+          flickerDepth.connect(buzzAmp.gain);
+          buzz.connect(buzzAmp);
+          buzzAmp.connect(gain);
+          let crackle = filter("bandpass", 3200, 4, loop(1.4)),
+            crackleAmp = ctx.createGain(),
+            swell = osc("sine", 0.23),
+            swellDepth = ctx.createGain();
+          crackleAmp.gain.value = 0.25;
+          swellDepth.gain.value = 0.25;
+          swell.connect(swellDepth);
+          swellDepth.connect(crackleAmp.gain);
+          crackle.connect(crackleAmp);
+          crackleAmp.connect(gain);
+          break;
+        }
         case "riftstorm": {
           // two close low tones that beat
           let a = osc("sine", 55),
@@ -2682,7 +2739,7 @@ const musicChords = {
     }
     /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (wind in
        the Cryo Vault, insects and murk in the Toxin Marsh, furnace and machines in the Ember Works, rain and city hum in
-       the Neon Yard, beating drones in the Void Core; see MUSIC_BEDS). It goes through the music chain (volume, fade,
+       Blackout City, beating drones in the Void Core; see MUSIC_BEDS). It goes through the music chain (volume, fade,
        glue) and is not a voice of the budget. */
     startMusicBed(kind, biome, fadeIn = 1.5) {
       let ctx = this.ctx,
@@ -2738,6 +2795,7 @@ const musicChords = {
       );
       out.connect(kind === "boss" ? this.pump : this.mus);
       recipe.build({ osc, loop, filt, lfo, level, root, bpm, boss: kind === "boss" });
+      if (kind === "boss" && recipe.bossExtra) recipe.bossExtra({ osc, loop, filt, lfo, level, root, bpm });
       this.mbed = { out, nodes };
     }
     stopMusicBed(fade = 0.8) {
@@ -2801,6 +2859,14 @@ const musicChords = {
           if (Math.random() < 0.4) this.tone(f * 0.6, 0.06, "sine", 0.03, { to: f * 1.1, at: 0.05 });
           break;
         }
+        case "blackout":
+          // a snap of sparks somewhere in the dark, now and then a far siren or thunder
+          this.accentT = now + 0.9 + Math.random() * 1.6;
+          for (let i = 0; i < 3; i++)
+            this.noise(0.02, 0.05, { type: "bandpass", f: 2500 + Math.random() * 4000, q: 5, at: i * 0.04 });
+          if (Math.random() < 0.25) this.noise(2.2, 0.06, { f: 160, to: 60, attack: 0.3, q: 0.7 });
+          else if (Math.random() < 0.3) this.tone(600, 0.8, "triangle", 0.012, { to: 900, attack: 0.3 });
+          break;
         case "riftstorm":
           // the sweep up or down, and a dry tick of a far discharge
           this.accentT = now + 2.4 + Math.random() * 1.2;
@@ -3088,7 +3154,7 @@ const musicChords = {
  of c). Under the notes a track has its atmosphere (MUSIC_BEDS: wind, insects, furnace, rain, drones), which is a loop
  and no voice of the budget.
  3.2.0: the calm themes are calmer and belong to their place (the Cryo Vault icy and windy, the Toxin Marsh damp and
- alive, the Ember Works a sleeping factory, the Neon Yard a rainy night drive, the Void Core dark and breathing); the
+ alive, the Ember Works a sleeping factory, Blackout City a noir night in the rain (3.4.0), the Void Core dark and breathing); the
  boss tracks are hard and dense: double-tracked guitars through two real amp chains (left and right), metal kicks
  with a beater click, blast beats, breakdowns, a kick that pumps the pads and guitars, a room reverb, and a lot of
  noises of their biome. Rules that keep the music cheap and the same everywhere:
@@ -3278,6 +3344,12 @@ const BED_LEVEL = { fight: 1, boss: 1 },
         level(filt("lowpass", 240, 0.8, osc("sawtooth", 50)), 0.03);
         level(osc("sine", 100), 0.008);
       },
+      // 3.4.0: over the boss fight a police helicopter circles (blades: low noise chopped 11 times a second)
+      bossExtra({ loop, filt, lfo, level }) {
+        const blades = level(filt("lowpass", 420, 1, loop(0.6)), 0.08);
+        lfo(11, 0.07, blades.gain, "square");
+        lfo(0.07, 0.03, blades.gain);
+      },
     },
     works: {
       gain: 1.41,
@@ -3341,51 +3413,65 @@ const BED_LEVEL = { fight: 1, boss: 1 },
 
 /* ---------- calm themes ---------- */
 
-/* Neon Yard, 96 BPM, A minor (Am F C G): a night drive in the rain. A soft kick on 1 and 3, a rim with room on 2 and
-   4, a shaker that comes with the intensity, a round triangle bass whose pattern changes per section, a warm saw pad,
-   a pluck arpeggio and a sine lead in the echo; the city: neon flicker, a far siren, data blips (rain and the hum of
-   the transformers are the atmosphere) */
-const YARD_CALM_BASS = ["x.....x...x.....", "x.....x.x...x...", "x..x....x.x.....", "x.....x...x..x.x"],
-  YARD_BLIPS = [2093, 2637, 3136, 3951, 4699];
+/* Blackout City, 92 BPM, A minor (Am F Dm E), a light swing: noir trip-hop in the rain. A dusty boom-bap (kick on 1
+   and the "and" of 2, a snare with room on 2 and 4, swung hats that come with the intensity, vinyl crackle), a
+   plucked upright bass walking the chord tones (its walk changes per section), an electric piano with a tremolo
+   playing the chords with their seventh, a muted trumpet in the echo in the second and fourth section; the city:
+   a far siren, thunder, police radio chatter (rain and the hum of dead transformers are the atmosphere) */
+const CITY_WALK = [
+    [0, 1, 2, 1],
+    [0, 2, 3, 2],
+    [0, 1, 2, 3],
+    [0, 2, 1, -1],
+  ],
+  CITY_KICK = ["x.....x.........", "x.....x...x.....", "x.....x.x.......", "x.....x...x...x."];
 function yardCalm(e, c) {
-  const { b, bar, L, chord, root, sec, cycle } = c,
-    k = kit(e, c);
-  if (b === 0 || b === 8) kick(k, 0.4, { f0: 125, f1: 45, dur: 0.2, pump: 0.7, rel: 0.12 });
-  if (L > 0.55 && sec >= 2 && b === 11) kick(k, 0.26, { f0: 125, f1: 45, dur: 0.16 });
-  if (b === 4 || b === 12) rim(k, 0.06 + 0.03 * L, { rev: 0.5 });
-  if (L > 0.25) hat(k, b % 4 === 2 ? 0.03 : 0.012, b % 4 === 2 ? 0.05 : 0.02, 8500, b % 2 ? 0.35 : -0.35);
-  if (pat(YARD_CALM_BASS[sec])[b]) {
-    const f = midiToFreq(root - 24 + (sec === 3 && b === 10 ? 7 : 0));
-    k.p.t(f, 0.34, "triangle", 0.12, { lp: 520 + 300 * L });
-    k.p.t(f, 0.3, "sine", 0.08);
+  const { b, bar, L, chord, root, sec, q } = c,
+    k = kit(e, c),
+    seventh = root + 10;
+  if (pat(CITY_KICK[sec])[b])
+    kick(k, b === 0 ? 0.42 : 0.3, { f0: 110, f1: 42, dur: 0.22, pump: b === 0 ? 0.75 : 0, rel: 0.14 });
+  if (b === 4 || b === 12) snare(k, 0.1 + 0.04 * L, { f: 1500, bf: 170, dur: 0.18, q: 0.7, rev: 0.45 });
+  if (L > 0.25 && b % 2 === 0) hat(k, b % 4 === 2 ? 0.024 : 0.014, 0.03, 7000, b % 4 === 2 ? 0.3 : -0.3);
+  if (R(c, 1) < 0.22) k.m.n(0.004, 0.025, { type: "highpass", f: 2500, opt: true, pan: P(c, 2) });
+  // the walking bass: one pluck per beat, the last beat of the bar leads to the next chord
+  if (b % 4 === 0) {
+    const step = CITY_WALK[sec][b >> 2],
+      n = step < 0 ? root - 13 : chord[step] - 24 + (step === 3 ? -12 : 0),
+      f = midiToFreq(n);
+    k.p.t(f, 0.38, "triangle", 0.15, { lp: 700 });
+    k.p.t(f, 0.3, "sine", 0.1);
   }
-  if (b === 0)
-    pad(k.p, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.4, 0.014, {
-      lp: 900 + 500 * L,
-      fade: 0.4,
-      det: 7,
-      rev: 0.45,
-    });
-  if (L > 0.3 && b % 2 === 0) {
-    const p = arpPatterns[(cycle + sec) % 4];
-    k.d.t(midiToFreq(chord[p[(b >> 1) % p.length]] + (sec === 3 ? 24 : 12)), 0.16, "triangle", 0.03, {
-      lp: 1600 + 900 * L,
-      rev: 0.25,
-    });
-  }
-  if (L > 0.6 && (sec & 1) === 1) {
+  // the electric piano: the chord with its seventh, a long chord on the one, a short push before the three
+  const keys = (dur, v) => {
+    const env = tremoloEnv(4.5, 0.25, dur, 0.04);
+    for (const n of [chord[1], chord[2], chord[0] + 12, seventh]) {
+      k.p.t(midiToFreq(n), dur, "sine", v, { env, rev: 0.35 });
+      k.p.t(midiToFreq(n) * 2, dur * 0.5, "sine", v * 0.18, { env: tremoloEnv(4.5, 0.25, dur * 0.5, 0.02) });
+    }
+  };
+  if (b === 0) keys(c.barSec * 0.55, 0.016 + 0.006 * L);
+  if (L > 0.35 && sec >= 1 && b === 7) keys(0.3, 0.012);
+  // the muted trumpet in the echo
+  if (L > 0.55 && (sec & 1) === 1) {
     const note = leadPatterns[bar & 3][b];
     if (note != null)
-      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.32, "sine", 0.04, { attack: 0.02, rev: 0.4 });
+      k.d.t(midiToFreq(chord[note % 4] + 12 + (note >= 4 ? 12 : 0)), 0.42, "sawtooth", 0.022, {
+        attack: 0.05,
+        lp: 1100,
+        rev: 0.45,
+        detune: q === "M" ? 4 : -4,
+      });
   }
-  if (b % 2 === 0 && R(c, 1) < 0.08)
-    k.m.n(0.08, 0.025, { type: "bandpass", f: 2800 + R(c, 2) * 1200, q: 9, env: FLICKER, opt: true, pan: P(c, 3) });
+  // the city: a far siren, thunder rolling in, radio chatter
   if (bar % 8 === 5 && b === 0) {
-    k.d.t(640, 0.9, "triangle", 0.014, { to: 980, attack: 0.3, opt: true, rev: 0.6, pan: -0.5 });
-    k.d.t(980, 0.9, "triangle", 0.012, { to: 640, at: 0.9, attack: 0.1, opt: true, rev: 0.6, pan: -0.5 });
+    k.d.t(640, 0.9, "triangle", 0.012, { to: 960, attack: 0.3, opt: true, rev: 0.7, pan: -0.6 });
+    k.d.t(960, 0.9, "triangle", 0.01, { to: 640, at: 0.9, attack: 0.1, opt: true, rev: 0.7, pan: -0.6 });
   }
-  if (b % 2 === 1 && R(c, 4) < 0.08 + 0.1 * L)
-    k.d.t(YARD_BLIPS[(R(c, 5) * 5) | 0], 0.024, "square", 0.01, { lp: 6000, opt: true, pan: P(c, 6) });
+  if (bar % 8 === 2 && b === 0) k.m.n(2.6, 0.07, { f: 200, to: 50, attack: 0.25, q: 0.7, opt: true, rev: 0.3 });
+  if (L > 0.3 && b % 2 === 0 && R(c, 3) < 0.05)
+    for (let i = 0; i < 4; i++)
+      k.d.n(0.05, 0.02, { type: "bandpass", f: 1400 + R(c, 4 + i) * 1600, q: 7, at: i * 0.07, opt: true, pan: 0.6 });
 }
 
 /* Ember Works, 84 BPM, D minor (Dm Bb C Am): the factory sleeps. Pistons (a dull chuff and a low thump) on 1 and 3,
@@ -3603,93 +3689,82 @@ function buildKicks(k, c, v = 0.45) {
   if (c.bar === 20 ? c.b % 2 === 0 : c.b < 15) mkick(k, v);
 }
 
-/* Neon Yard boss, 174 BPM, A minor: cyber breakcore metal. A chopped break (four kick and snare patterns, 32nd
-   stutters, ghost snares, a fill in every fourth bar), a distorted reese and 808 sub, double-tracked guitar stabs on
-   the syncopation (an open chord on the one of every second bar), an acid lead in the variation, glitch blips, vocal
-   chops and a siren; breakdown: half time, the kick and the low chug hit together, a huge snare with room; build:
-   kicks speed up, the guitars climb, snare roll, riser */
-const YB_K = ["x.x.......x.....", "x.x...x...x.x...", "x.....x.x.x.....", "x.x...x.....x.x."],
-  YB_S = ["....x..o.o..x..o", "....x.o..o..x.oo", "....x..o..o.x..o", "....x.o.o...x.o."],
-  YB_STAB = ["x..x..x...x..x..", "x..x..x.x..x..x.", "x.....x.x..x....", "x..x..x...x.x.x."],
-  YB_BREAK = "x..x..x.x..x.x..",
-  ACID_SCALE = [57, 60, 62, 64, 67, 69, 72],
-  ACID_GATE = ["x.x.x...x.x.x...", "xx.xx.x.xx.xx.x."];
+/* Blackout City boss, 128 BPM, A minor: darksynth industrial. Drop: four on the floor (a metal kick that pumps everything),
+   a rolling distorted sixteenth bassline that bounces between root and octave, a big clap and snare with room on 2 and
+   4, open hats on the off-beats, double-tracked guitar stabs on the one and the "and" of three with chugs before the
+   next bar, a police-siren lead that slides, helicopter blades and radio chatter; variation: a sixteenth arpeggio in
+   the echo over the chords and galloping chugs, the kick doubles at the end of each bar; breakdown: half time, a
+   huge snare, the chords ring, a helicopter passes overhead; build: kicks in eighths and sixteenths, the bass climbs,
+   roll, riser */
+const CB_BASS = ["x.xxx.xxx.xxx.xx", "xxxxx.xxxxxx.xxx"],
+  CB_OCT = [0, 12, 0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 12];
 function yardBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
-    q = bar & 3,
     g = root - 12,
-    f808 = subNote(root);
+    chop = (dur, v, pan) =>
+      k.m.n(dur, v, { f: 380, q: 0.9, env: tremoloEnv(11, 0.85, dur, 0.3), opt: true, pan, rev: 0.2 });
   if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) {
     crash(k, 0.12);
-    china(k, 0.06, 0.5);
+    china(k, 0.06, -0.5);
   }
   if (sec <= 1) {
-    const K = pat(YB_K[(q + sec) & 3]),
-      S = pat(q === 3 && b >= 12 ? "....x.......XXXX" : YB_S[(q + sec * 2) & 3]);
-    if (K[b]) {
-      mkick(k, 0.55, { pump: b === 0 ? 0.4 : 0.6 });
-      if (R(c, 1) < 0.15) mkick(k, 0.32, { at: c.half });
+    if (b % 4 === 0) mkick(k, 0.55, { f0: 190, f1: 46, dur: 0.09, pump: 0.45, rel: 0.11 });
+    if (sec === 1 && (b === 14 || b === 15)) mkick(k, 0.4, { f0: 190, f1: 46, dur: 0.07 });
+    if (b === 4 || b === 12) {
+      snare(k, 0.24, { f: 1900, bf: 200, dur: 0.16, crack: 0.8, rev: 0.45 });
+      clap(k, 0.1);
     }
-    if (S[b]) {
-      snare(k, 0.17 * S[b], { f: 2300, bf: 215, dur: 0.11, crack: 0.7, rev: 0.25 });
-      if (R(c, 2) < 0.14) snare(k, 0.07, { f: 2700, dur: 0.05, at: c.half });
-    } else if (!K[b] && R(c, 3) < 0.12) snare(k, 0.045, { f: 2500, dur: 0.04 });
-    bhat(k, b % 4 === 0 ? 0.05 : b % 2 === 0 ? 0.035 : 0.022, 0.025, 9000, b % 2 ? 0.4 : -0.2);
-    if (sec === 1 && b % 4 === 2) k.m.n(0.18, 0.03, { type: "bandpass", f: 6200, q: 2, pan: 0.6, opt: true });
-    if (b === 0 || b === 6 || b === 10) {
-      const dur = b === 0 ? 0.5 : 0.28;
-      for (const det of [-16, 16])
-        k.x.t(midiToFreq(root - 24), dur, "sawtooth", 0.05, { lp: 650, detune: det, hold: dur * 0.6 });
-      k.x.t(f808 * 1.35, dur + 0.1, "sine", 0.22, { to: f808, attack: 0.003 });
+    bhat(k, b % 4 === 2 ? 0.05 : 0.018, b % 4 === 2 ? 0.08 : 0.02, 8500, b % 4 === 2 ? 0.3 : -0.2);
+    // the rolling bassline (distorted) under everything
+    if (pat(CB_BASS[sec])[b]) {
+      const f = midiToFreq(root - 24 + CB_OCT[b]);
+      k.x.t(f, 0.11, "sawtooth", 0.06, { lp: 900, q: 2 });
+      if (b % 4 === 0) k.p.t(subNote(root), 0.2, "sine", 0.16);
     }
-    if (pat(YB_STAB[q])[b]) {
-      const open = b === 0 && (bar & 1) === 0;
-      gtr(k, g + (q === 3 && b >= 10 ? 3 : 0), open ? 0.42 : 0.09, 0.05, {
-        mute: !open,
-        oct: b === 0,
-        hold: open ? 0.2 : 0,
+    // guitars: a stab on the one and the "and" of three, chugs into the next bar
+    if (b === 0 || b === 10) gtr(k, g, b === 0 ? 0.36 : 0.22, 0.055, { oct: b === 0, hold: 0.12 });
+    if (b === 14 || b === 15) gtr(k, g + ((bar & 3) === 3 ? 3 : 0), 0.07, 0.05, { mute: true });
+    if (sec === 1 && (b === 2 || b === 3 || b === 6 || b === 7)) gtr(k, g, 0.07, 0.042, { mute: true });
+    // the siren lead: up and down a minor third, every second bar
+    if (sec === 0 && (bar & 1) === 1 && (b === 0 || b === 8)) {
+      const lo = midiToFreq(chord[0] + 24),
+        hi = midiToFreq(chord[0] + 27);
+      k.x.t(b === 0 ? lo : hi, c.barSec * 0.48, "sawtooth", 0.03, {
+        to: b === 0 ? hi : lo,
+        lp: 2600,
+        attack: 0.03,
+        rev: 0.3,
       });
     }
-    if (sec === 1 && pat(ACID_GATE[bar & 1])[b]) {
-      const note = ACID_SCALE[(b * 3 + bar * 2 + (b >> 2)) % 7] + (R(c, 4) < 0.3 ? 12 : 0);
-      k.x.t(midiToFreq(note), 0.085, "sawtooth", 0.045, { lp: 500, lpTo: R(c, 5) < 0.4 ? 3200 : 1400, q: 11 });
+    // the arpeggio of the variation
+    if (sec === 1) {
+      const p = arpPatterns[(bar + 1) % 4];
+      k.d.t(midiToFreq(chord[p[b % p.length]] + 24), 0.09, "sawtooth", 0.025, { lp: 2800, rev: 0.2 });
     }
-    if (b % 2 === 1 && R(c, 6) < 0.18)
-      k.d.t(2500 + R(c, 7) * 2500, 0.014, "square", 0.02, { lp: 7000, opt: true, pan: P(c, 8, 0.8) });
-    if (b % 8 === 6 && R(c, 9) < 0.55) {
-      const [f1, f2] = VOID_FORMANTS[(R(c, 10) * 3) | 0];
-      formant(k.m, f1 * 1.3, f2 * 1.3, 0.07, 0.07, { attack: 0.004, pan: P(c, 11, 0.6), rev: 0.2 });
-    }
-    if (q === 1 && b === 0) {
-      k.d.t(700, 0.6, "sawtooth", 0.012, { to: 1400, lp: 3000, opt: true, rev: 0.3 });
-      k.d.t(1400, 0.6, "sawtooth", 0.01, { to: 700, at: 0.6, lp: 3000, opt: true, rev: 0.3 });
-    }
+    if ((bar & 3) === 0 && b === 0) chop(c.barSec * 1.6, 0.06, P(c, 5));
+    if (b % 8 === 6 && R(c, 6) < 0.4)
+      for (let i = 0; i < 3; i++)
+        k.m.n(0.04, 0.035, { type: "bandpass", f: 1500 + R(c, 7 + i) * 1500, q: 7, at: i * 0.05, opt: true, pan: 0.6 });
     if (bar === 15 && b === 8) reverseCymbal(k, 0.08);
   } else if (sec === 2) {
-    if (pat(YB_BREAK)[b]) {
-      mkick(k, 0.6, { pump: 0.45 });
-      gtr(k, g, 0.12, 0.06, { mute: true });
+    if (b === 0) {
+      mkick(k, 0.6, { f0: 170, f1: 40, dur: 0.18, pump: 0.4 });
+      gtr(k, g, c.barSec * 0.9, 0.045, { oct: true, hold: c.barSec * 0.5, lp: 2600 });
+      k.p.t(subNote(root), 1.2, "sine", 0.26, { hold: 0.7 });
     }
     if (b === 8) {
-      snare(k, 0.26, { f: 1900, bf: 180, dur: 0.22, crack: 0.8, rev: 0.6 });
-      china(k, 0.07, -0.5);
+      snare(k, 0.28, { f: 1700, bf: 180, dur: 0.26, crack: 0.8, rev: 0.8 });
+      clap(k, 0.12);
     }
-    if (b === 0) {
-      crash(k, 0.08, 0.9);
-      k.x.t(f808 * 1.5, 1.1, "sine", 0.26, { to: f808, attack: 0.003 });
-      pad(k.p, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.2, 0.012, {
-        lp: 1600,
-        fade: 0.2,
-        det: 8,
-        rev: 0.5,
-      });
-    }
+    if (b === 6 || b === 14) mkick(k, 0.32);
     if (b % 4 === 2) bhat(k, 0.03, 0.05, 8000, 0.3);
+    if (b === 0 && bar === 16) chop(c.barSec * 3.5, 0.08, -0.6);
+    if (b === 0 && bar === 18) chop(c.barSec * 1.8, 0.07, 0.6);
     if (bar === 19 && b === 8) reverseCymbal(k, 0.08);
   } else {
-    buildKicks(k, c);
-    gtr(k, g + Math.floor(((bar - 20) * 16 + b) / 4), 0.07, 0.04, { mute: true });
+    buildKicks(k, c, 0.5);
+    k.x.t(midiToFreq(root - 24 + Math.floor(((bar - 20) * 16 + b) / 2)), 0.09, "sawtooth", 0.055, { lp: 1200, q: 2 });
     buildRoll(k, c);
     buildRiser(k, c);
   }
@@ -4108,8 +4183,8 @@ function previewLevel(bar) {
 
 const MUSIC_TRACKS = {
   yard: {
-    fight: { bpm: 96, bars: 16, swing: 0, gain: 1, play: yardCalm },
-    boss: { bpm: 174, bars: 22, swing: 0, gain: 1, play: yardBoss },
+    fight: { bpm: 92, bars: 16, swing: 0.12, gain: 1, play: yardCalm },
+    boss: { bpm: 128, bars: 22, swing: 0, gain: 1.25, play: yardBoss },
   },
   works: {
     fight: { bpm: 84, bars: 16, swing: 0, gain: 1, play: worksCalm },
@@ -4275,7 +4350,7 @@ function rlSoundCatalog() {
       ids([id], boss);
   }
   for (const rarity of [1, 2, 3, 4, 5]) ids(["pick"], rarity);
-  for (const id of ["elite", "rain", "meltdown", "whiteout", "bloom", "riftstorm"]) ids(["event"], id);
+  for (const id of ["elite", "rain", "blackout", "meltdown", "whiteout", "bloom", "riftstorm"]) ids(["event"], id);
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed });
   for (const biome of Object.keys(musicChords))
     for (const music of ["fight", "boss"]) add(`music:${biome}:${music}`, { music, biome });

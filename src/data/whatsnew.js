@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.4.0",
+    title: "Blackout City",
+    items: [
+      "Blackout City replaces the Neon Yard: wet streets at night in a power cut, rain, dead skyscrapers.",
+      "Live manholes crackle and arc: lure enemies onto them, the current stuns them.",
+      "New event BLACKOUT: the lights die and the manholes arc in a chain.",
+      "The Warden carries a police light bar; new noir theme and a darksynth boss track.",
+    ],
+  },
+  {
     version: "3.3.0",
     title: "Harder bosses, Endless mutators",
     items: [

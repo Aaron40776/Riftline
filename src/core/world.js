@@ -33,7 +33,7 @@ function rlCacheShards(world, value) {
 /* 2.3.5: Armor Core absorbs part of the damage from enemies. Lava and acid are left to
    Hazard Seal, so the two modules do not stack on the same damage. */
 // 3.0.0: traps are environment too: the Armor Core does not soften them
-const RL_HAZARD_SRC = new Set(["lava", "acid", "trap"]);
+const RL_HAZARD_SRC = new Set(["lava", "shock", "acid", "trap"]);
 
 // 2.5.0 A: the six new run upgrades (levels from computeStats: skates, acidCoat, heatSink, slip,
 // surge, reactive). Their parts in step, fire, hurtPlayer, bulletHit, updateFeatures and addCombo
@@ -465,7 +465,7 @@ const rlStep = 1 / 60,
       const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
       return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
     }
-    // 2.4.6: the boss of a boss wave is the boss of its biome (Neon Yard: Warden, Ember Works:
+    // 2.4.6: the boss of a boss wave is the boss of its biome (Blackout City: Warden, Ember Works:
     // Crucible, Cryo Vault: Frost Prism, Toxin Marsh: Hive Queen, Void Core: Rift Core). In waves 5–20
     // its hull follows the slot (wave 5, 10, 15, 20, see spawnBoss), because Queen, Prism and Crucible
     // can each come at wave 10 or 15; Endless keeps each boss's own hull as before.
@@ -870,6 +870,9 @@ const rlStep = 1 / 60,
           // 2.8.1: when the last pool is gone nobody stands in acid any more
           for (let enemy of this.enemies) enemy.corrode = false;
         }
+        // 3.4.0: in Blackout City the vents are live manholes: they arc (shock) instead of erupting lava, and the
+        // current stuns the enemies it catches (slowed) besides burning them
+        const shock = arena.biome.id === "yard";
         if (arena.vents.length && this.state === "fight")
           for (let vent of arena.vents) {
             let state = arena.ventState(vent, this.waveT);
@@ -885,7 +888,7 @@ const rlStep = 1 / 60,
                   9 * this.dmgMul * Math.max(0, 1 - (this.stats.hazardResist || 0)),
                   vent.x,
                   vent.y,
-                  "lava",
+                  shock ? "shock" : "lava",
                 );
               }
               this.hash.query(vent.x, vent.y, vent.r, (enemy) => {
@@ -894,7 +897,8 @@ const rlStep = 1 / 60,
                 let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
                 enemy.burnT = Math.max(enemy.burnT, 2);
                 enemy.burnDps = Math.max(burn, enemy.maxHp * 0.14);
-                enemy.burnSrc = "lava";
+                enemy.burnSrc = shock ? "shock" : "lava";
+                if (shock) enemy.slowT = Math.max(enemy.slowT, 1.2);
               });
             }
           }
@@ -1422,7 +1426,7 @@ const rlStep = 1 / 60,
       }
       if (hit && player.alive) {
         // 2.5.0 A: Heat Sink: lava and acid damage (after Hazmat) heat the drone up
-        if (stats.heatSink && (src === "lava" || src === "acid")) {
+        if (stats.heatSink && (src === "lava" || src === "shock" || src === "acid")) {
           player.heatT = RL_HEAT_TIME;
           this.addNova(3 * stats.heatSink);
         }
@@ -2953,6 +2957,17 @@ const rlStep = 1 / 60,
           vent.phase = phase;
           vent.st = "idle";
         }
+      } else if (id === "blackout") {
+        // three more manholes; they arc in a chain (one after another, ordered around the centre), every 4.8 s
+        add("vents", 3);
+        const vents = arena.vents.slice().sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x)),
+          period = 4.8;
+        vents.forEach((vent, i) => {
+          vent.period = period;
+          // a higher phase arcs sooner; every manhole is idle when the wave starts (cycle < warning at 2.1 s)
+          vent.phase = ((vents.length - 1 - i) / vents.length) * 1.9;
+          vent.st = "idle";
+        });
       } else if (id === "whiteout") add("ice", 3, [1.7, 2.5]);
       else if (id === "bloom") {
         for (const pool of arena.acid) {

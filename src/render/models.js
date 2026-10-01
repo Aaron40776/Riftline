@@ -1435,6 +1435,28 @@ function buildBossModel(type, color) {
     addMesh(new BoxGeometry(1, 0.75, 1.1), darkMat, 0.55, 3.0, 0);
     addMesh(new OctahedronGeometry(0.34, 0), glowMat, 1.0, 1.55, 0).scale.set(0.4, 1.3, 1);
     for (let i = -1; i <= 1; i++) addMesh(new BoxGeometry(0.06, 0.6, 0.12), glowMat, -1.02, 2.2, i * 0.4);
+    // 3.4.0: the Enforcer of the Blackout carries a police light bar that turns, red and blue
+    const bar = new Group();
+    bar.position.set(0.5, 3.48, 0);
+    group.add(bar);
+    addMesh(new BoxGeometry(0.5, 0.12, 0.5), darkMat, 0, -0.08, 0, bar);
+    addMesh(
+      new BoxGeometry(0.22, 0.16, 0.42),
+      new MeshBasicMaterial({ color: 0xff2030, toneMapped: false }),
+      0.13,
+      0.06,
+      0,
+      bar,
+    );
+    addMesh(
+      new BoxGeometry(0.22, 0.16, 0.42),
+      new MeshBasicMaterial({ color: 0x2050ff, toneMapped: false }),
+      -0.13,
+      0.06,
+      0,
+      bar,
+    );
+    spin.push({ m: bar, ax: "y", v: 7 });
   } else if (type === "queen") {
     addMesh(new SphereGeometry(1.35, 16, 10), hullMat, 0.3, 1.9, 0).scale.set(1.1, 0.8, 1);
     addMesh(new SphereGeometry(1.1, 14, 9), darkMat, -1.3, 1.6, 0).scale.set(1.3, 0.85, 0.9);

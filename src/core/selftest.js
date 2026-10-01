@@ -958,7 +958,7 @@ function selfTestV240(result) {
   if (biomeList.length !== 5) fail.push("biome-count:" + biomeList.length);
   for (const upgrade of upgradeList)
     if (upgrade.weapon && !weaponDefs[upgrade.weapon]) fail.push("evo-weapon:" + upgrade.id);
-  // route: Neon Yard first, then one biome per boss cycle, all five by wave 21
+  // route: Blackout City first, then one biome per boss cycle, all five by wave 21
   for (const seed of [11, 222, 3333, 44444]) {
     const world = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
       seen = new Set();
@@ -1002,7 +1002,7 @@ function selfTestV240(result) {
     return world.player.vx;
   };
   if (!(drift("vault") < drift("yard") * 0.6)) fail.push("vault-grip");
-  // enemy mix: each biome spawns more of its own enemies than Neon Yard does
+  // enemy mix: each biome spawns more of its own enemies than the plain mix does
   for (const [id, info] of Object.entries(RL_BIOME_INFO)) {
     if (!info.mix) continue;
     const own = Object.keys(info.mix).filter((type) => info.mix[type] > 1),
@@ -1411,7 +1411,7 @@ function selfTestV250C(result) {
     fair(storm.arena, "riftstorm");
   }
   // 4. signature enemies: every mix enemy of a biome can spawn from the biome's first wave; the
-  // enemy table itself is not changed, and Neon Yard keeps the global unlock waves
+  // enemy table itself is not changed, and the first biome (waves 1-5) keeps the global unlock waves
   const before = JSON.stringify(Object.values(enemyDefs).map((def) => def.from)),
     seen = {};
   for (let seed = 1; seed <= 40; seed++) {
@@ -1833,7 +1833,7 @@ function selfTestV270Sound(result) {
       for (const voice of engine.voices) {
         if (!(voice.end < 10) || voice.loop) fail.push("voice-never-ends");
       }
-      for (const bed of ["hum", "meltdown", "whiteout", "bloom", "riftstorm"]) {
+      for (const bed of ["hum", "blackout", "meltdown", "whiteout", "bloom", "riftstorm"]) {
         engine.startBed(bed);
         if (!engine.voices.some((voice) => voice.loop)) fail.push("bed-not-registered:" + bed);
         engine.stopBed(bed);
