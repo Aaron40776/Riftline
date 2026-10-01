@@ -177,6 +177,7 @@ function rlUpdateTraps(world, dt) {
         const warn = Math.max(0.7, skin.warn * p.warn);
         world._src = "trap";
         world.beam({
+          skin: trap.skin,
           x: trap.x,
           y: trap.y,
           a: trap.a,
@@ -190,6 +191,7 @@ function rlUpdateTraps(world, dt) {
         // Endless: a second beam crosses the first
         if (world.wave > 20)
           world.beam({
+            skin: trap.skin,
             x: trap.x,
             y: trap.y,
             a: trap.a + Math.PI / 2,

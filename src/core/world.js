@@ -2646,6 +2646,7 @@ const rlStep = 1 / 60,
         follow: opts.follow || null,
         live: false,
         color: opts.color || 0,
+        skin: opts.skin || null, // 3.0.0: trap beams name their skin (laser, flame, rift)
         src: this._src,
       };
       this.beams.push(beam);
