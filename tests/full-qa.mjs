@@ -861,6 +861,67 @@ for (const profName of ["desktop", "phone"])
       fx.swap && fx.contrast && fx.calm && fx.inputSwap,
       JSON.stringify(fx),
     );
+    // 3.1.0: the music block of the settings: a theme and a boss button for each biome; each toggles a looping
+    // preview, only one plays at a time, and it ends when the settings screen closes
+    const mpState = () =>
+      P.ev(() => {
+        const sound = window.__riftTest.game.sound;
+        return {
+          pv: sound.previewing(),
+          kind: sound.playKind,
+          on: [...document.querySelectorAll("#musicPreview button.on")].map(
+            (b) => b.parentElement.dataset.biome + ":" + b.dataset.music,
+          ),
+        };
+      });
+    const mp = await P.ev(() => ({
+      n: document.querySelectorAll("#musicPreview .seg button").length,
+      biomes: [...document.querySelectorAll("#musicPreview .seg")].map((seg) => seg.dataset.biome).join(),
+    }));
+    check(
+      L,
+      "settings: a theme and a boss button for each of the five biomes",
+      mp.n === 10 && mp.biomes === "yard,works,vault,marsh,void",
+      JSON.stringify(mp),
+    );
+    await P.tap('#musicPreview [data-biome="vault"] [data-music="boss"]');
+    let mps = await mpState();
+    check(
+      L,
+      "music preview: a boss button starts the boss track of its biome",
+      mps.pv && mps.pv.mode === "boss" && mps.pv.biome === "vault" && mps.kind === "boss" && eq(mps.on, ["vault:boss"]),
+      JSON.stringify(mps),
+    );
+    await P.tap('#musicPreview [data-biome="yard"] [data-music="fight"]');
+    mps = await mpState();
+    check(
+      L,
+      "music preview: another button replaces it (one plays at a time)",
+      mps.pv &&
+        mps.pv.mode === "fight" &&
+        mps.pv.biome === "yard" &&
+        mps.kind === "fight" &&
+        eq(mps.on, ["yard:fight"]),
+      JSON.stringify(mps),
+    );
+    await P.tap('#musicPreview [data-biome="yard"] [data-music="fight"]');
+    mps = await mpState();
+    check(
+      L,
+      "music preview: the same button stops it",
+      !mps.pv && mps.kind !== "fight" && eq(mps.on, []),
+      JSON.stringify(mps),
+    );
+    await P.tap('#musicPreview [data-biome="marsh"] [data-music="boss"]');
+    await P.back("settings");
+    mps = await mpState();
+    check(
+      L,
+      "music preview: leaving the settings screen stops it",
+      !mps.pv && mps.kind !== "boss" && eq(mps.on, []),
+      JSON.stringify(mps),
+    );
+    await P.nav("settings");
     await P.tap('#setQuality button[data-v="battery"]');
     await P.tap('#setZoom button[data-v="1.18"]');
     await P.ev(() => {
@@ -1172,6 +1233,17 @@ for (const profName of ["desktop", "phone"])
     await P.page.waitForFunction(() => !document.getElementById("cards").classList.contains("locked"), null, {
       timeout: 5000,
     });
+    // 3.1.0: record every music switch of the boss wave (the boss track must start when the boss appears)
+    await P.ev(() => {
+      const T = window.__riftTest,
+        sound = T.game.sound,
+        base = sound.setMusic.bind(sound);
+      window.__qaMusic = [];
+      sound.setMusic = (mode, biome) => {
+        window.__qaMusic.push({ mode, biome, boss: !!T.game.world?.boss });
+        return base(mode, biome);
+      };
+    });
     await P.ev(() => {
       window.__riftTest.game.world.wave = 9;
     });
@@ -1226,6 +1298,22 @@ for (const profName of ["desktop", "phone"])
         () => false,
       );
     check(L, "boss spawns with its health bar", bossUp);
+    const bm = await P.ev(() => {
+      const sound = window.__riftTest.game.sound;
+      return { calls: window.__qaMusic, kind: sound.playKind, over: sound.bossOver, step: sound.step };
+    });
+    check(
+      L,
+      "boss music: the calm theme at the wave start, the boss track exactly when the boss appears",
+      bm.calls[0].mode === "fight" &&
+        !bm.calls[0].boss &&
+        bm.calls.filter((call) => call.mode === "boss").length >= 1 &&
+        bm.calls.find((call) => call.mode === "boss").boss &&
+        bm.calls.find((call) => call.mode === "boss").biome === bm.calls[0].biome &&
+        bm.kind === "boss" &&
+        !bm.over,
+      JSON.stringify(bm),
+    );
     const cachesInBoss = await P.ev(() => {
       const w = window.__riftTest.game.world;
       return JSON.stringify(w.pickups.filter((p) => /cache/i.test(p.k || p.kind || p.type || "")).length);
@@ -1233,6 +1321,16 @@ for (const profName of ["desktop", "phone"])
     check(L, "no wave cache during the boss wave", cachesInBoss === "0", cachesInBoss);
     await P.ev(CLEAR);
     check(L, "boss kill → upgrade choice", await waitScreen("choose", 20000));
+    const be = await P.ev(() => {
+      const sound = window.__riftTest.game.sound;
+      return { kind: sound.playKind, over: sound.bossOver, heat: sound.heat };
+    });
+    check(
+      L,
+      "boss music: the boss track resolves into the calm theme when the boss is dead",
+      be.over && be.kind === "fight" && be.heat === 0,
+      JSON.stringify(be),
+    );
     await P.page.waitForTimeout(600);
     // final boss (wave 20) → victory → endless
     await P.ev(() => {
@@ -1870,7 +1968,11 @@ await section("qol", async (L) => {
     w.emit("trapWarn", { id: 1, fam: "floor", skin: "plate", x: 0, y: 0, r: 2, delay: 1, dur: 1 });
   });
   await P.page
-    .waitForFunction(() => document.querySelectorAll("#toasts .toast").length > 0, null, { timeout: 5000 })
+    .waitForFunction(
+      () => [...document.querySelectorAll("#toasts .toast")].some((t) => /Traps flash/.test(t.textContent)),
+      null,
+      { timeout: 5000 },
+    )
     .catch(() => {});
   const tip = await P.ev(() => [...document.querySelectorAll("#toasts .toast")].map((t) => t.textContent));
   check(

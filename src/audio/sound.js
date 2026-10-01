@@ -123,13 +123,11 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     scatter: 0.05,
     rocket: 0.05,
   },
-  /* boss wave music: tempo per biome (the fight theme runs at 122) and the stab voice */
-  BOSS_BPM = { yard: 138, works: 132, vault: 142, void: 146, marsh: 136 },
-  BOSS_STAB = { yard: "square", works: "sawtooth", vault: "triangle", void: "square", marsh: "sawtooth" },
   AMBIENCE_LEVEL = { meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
   MAX_VOICES = 24,
   // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
   MAX_MUSIC_VOICES = 20,
+  MUSIC_RESERVE = 4,
   /* sounds that are never dropped in favour of others when the voice limit is reached */
   KEY_SOUNDS = new Set([
     "hurt",
@@ -274,6 +272,16 @@ const RL_SILENT_EVENTS = new Set([
 
 /* soft clipper curve: linear up to 0.7, then a smooth knee towards 0.98 (input is clamped to +-1, so
  the output never exceeds 0.93) */
+/* 3.1.0: the curve of the distortion bus: a hard tanh with a little offset (even harmonics), unity at full drive */
+function distortionCurve() {
+  let n = 2049,
+    curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let x = (i / (n - 1)) * 2 - 1;
+    curve[i] = (Math.tanh(5 * (x + 0.08)) - Math.tanh(0.4)) / 0.97;
+  }
+  return curve;
+}
 function softClipCurve() {
   let n = 2049,
     curve = new Float32Array(n);
@@ -375,6 +383,19 @@ const musicChords = {
       this.duckT = -1e9;
       this.musicScheduled = 0;
       this.musicSkipped = 0;
+      // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the preview of the settings screen, the boss
+      // heat (0 calm, 1 after a phase change, 2 enraged), the stage buses and the counters of the voice budget
+      this.pv = null;
+      this.playKind = "off";
+      this.playBiome = "yard";
+      this.playPv = false;
+      this.heat = 0;
+      this.jump = false;
+      this.fade = null;
+      this.distIn = null;
+      this.musicPeak = 0;
+      this.musicShed = 0;
+      this.musicLog = null;
     }
     setIntensity(level) {
       this.want = Math.max(0, Math.min(1, level || 0));
@@ -437,8 +458,25 @@ const musicChords = {
       this.mus.gain.value = this.musVol * 0.6;
       // 2.9.0: the music passes a gain stage of its own that dips briefly on big hits (duck)
       this.duckGain = ctx.createGain();
-      this.mus.connect(this.duckGain);
+      // 3.1.0: a fade stage between the music and the duck (the calm theme fades back in after a boss), and one
+      // WaveShaper bus for everything that has to be distorted (guitars, 808 sub, growl); it joins the music again
+      this.fade = ctx.createGain();
+      this.mus.connect(this.fade);
+      this.fade.connect(this.duckGain);
       this.duckGain.connect(this.comp);
+      this.distIn = ctx.createGain();
+      this.dist = ctx.createWaveShaper();
+      this.dist.curve = distortionCurve();
+      this.dist.oversample = "2x";
+      this.distLP = ctx.createBiquadFilter();
+      this.distLP.type = "lowpass";
+      this.distLP.frequency.value = 5200;
+      this.distOut = ctx.createGain();
+      this.distOut.gain.value = 0.55;
+      this.distIn.connect(this.dist);
+      this.dist.connect(this.distLP);
+      this.distLP.connect(this.distOut);
+      this.distOut.connect(this.mus);
       this.delay = ctx.createDelay(1);
       this.delay.delayTime.value = 0.28;
       this.fb = ctx.createGain();
@@ -493,14 +531,16 @@ const musicChords = {
     /* Voice limit: at most MAX_VOICES oscillators/sources are alive. A new voice that finds the list
      full takes the place of the oldest voice of lower (or, for sounds, equal) priority; music (0)
      never drops anything and is skipped instead, loops (beds) are never dropped. */
-    claim(pri, start, end) {
+    claim(pri, start, end, opt) {
       let now = this.nowT();
       // 2.8.2: music (priority 0) is counted apart from the sounds. It used to share the list, and every
       // shot or hit that found it full took the oldest music note: the music stuttered and dropped out
       // in heavy fights. Music never takes a voice from anyone and is skipped when its own list is full.
+      // 3.1.0: the budget counts the voices that are alive at the start of the new one; a voice marked
+      // optional (texture sounds) leaves MUSIC_RESERVE places to the kick, the bass and the other essentials
       if (pri === 0) {
         let music = this.musicVoiceList;
-        if (music.length >= MAX_MUSIC_VOICES) {
+        if (music.length >= 12) {
           for (let i = music.length - 1; i >= 0; i--)
             if (music[i].end < now) {
               music[i] = music[music.length - 1];
@@ -508,10 +548,14 @@ const musicChords = {
             }
         }
         if (end > this.maxEnd && end < 1e8) this.maxEnd = end;
-        if (music.length >= MAX_MUSIC_VOICES) {
-          this.musicSkipped++;
+        let live = 0;
+        for (let i = 0; i < music.length; i++) if (music[i].end > start) live++;
+        if (live >= MAX_MUSIC_VOICES - (opt ? MUSIC_RESERVE : 0)) {
+          if (opt) this.musicShed++;
+          else this.musicSkipped++;
           return null;
         }
+        if (live + 1 > this.musicPeak) this.musicPeak = live + 1;
         let voice = { node: null, amp: null, pri: 0, start: start, end: end, loop: false };
         music.push(voice);
         this.musicScheduled++;
@@ -556,11 +600,20 @@ const musicChords = {
       this.dropped++;
       return voice;
     }
+    /* opts: to (end pitch), detune, attack, hold (flat level after the attack), lp/q (low-pass; lpTo ends the
+     sweep, lpCurve is a Float32Array of cut-offs over the whole note: wobble), env (Float32Array, 0..1: the whole
+     level curve replaces the exponential envelope: tremolo), dest/at/pri, opt (an optional music voice) */
     tone(freq, dur, wave, vol, opts = {}) {
       let ctx = this.ctx,
         start = ctx.currentTime + (opts.at || 0),
-        voice = this.claim(opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri, start, start + dur + 0.02);
+        voice = this.claim(
+          opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri,
+          start,
+          start + dur + 0.02,
+          opts.opt,
+        );
       if (!voice) return;
+      this.logMusic(voice, "t", freq, vol, opts);
       let osc = ctx.createOscillator(),
         amp = ctx.createGain();
       voice.node = osc;
@@ -573,16 +626,18 @@ const musicChords = {
       if (opts.detune) {
         osc.detune.value = opts.detune;
       }
-      let attack = opts.attack || 0.004;
-      amp.gain.setValueAtTime(1e-4, start);
-      amp.gain.exponentialRampToValueAtTime(vol, start + attack);
-      amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
+      this.envelope(amp, start, dur, vol, opts);
       let out = osc;
       if (opts.lp) {
         let filter = ctx.createBiquadFilter();
         filter.type = "lowpass";
         filter.frequency.value = opts.lp;
         filter.Q.value = opts.q || 0.7;
+        if (opts.lpCurve) filter.frequency.setValueCurveAtTime(opts.lpCurve, start, dur);
+        else if (opts.lpTo) {
+          filter.frequency.setValueAtTime(opts.lp, start);
+          filter.frequency.exponentialRampToValueAtTime(opts.lpTo, start + dur);
+        }
         out.connect(filter);
         out = filter;
       }
@@ -591,11 +646,33 @@ const musicChords = {
       osc.start(start);
       osc.stop(start + dur + 0.02);
     }
+    envelope(amp, start, dur, vol, opts) {
+      let attack = opts.attack || 0.004;
+      if (opts.env) {
+        let env = opts.env,
+          curve = new Float32Array(env.length);
+        for (let i = 0; i < env.length; i++) curve[i] = env[i] * vol;
+        amp.gain.setValueCurveAtTime(curve, start, dur);
+        return;
+      }
+      amp.gain.setValueAtTime(1e-4, start);
+      amp.gain.exponentialRampToValueAtTime(vol, start + attack);
+      // 2.9.2: opts.hold keeps the level flat for that long after the attack (sustained sounds such as the
+      // flame roar; the plain exponential decay drops 50 dB in a third of a second and pumps when repeated)
+      if (opts.hold) amp.gain.setValueAtTime(vol, start + attack + opts.hold);
+      amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
+    }
     noise(dur, vol, opts = {}) {
       let ctx = this.ctx,
         start = ctx.currentTime + (opts.at || 0),
-        voice = this.claim(opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri, start, start + dur + 0.02);
+        voice = this.claim(
+          opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri,
+          start,
+          start + dur + 0.02,
+          opts.opt,
+        );
       if (!voice) return;
+      this.logMusic(voice, "n", opts.f || 2e3, vol, opts);
       let src = ctx.createBufferSource();
       src.buffer = this.noiseBuf;
       // 2.9.1: the 1 s buffer is looped: a burst longer than what is left of it (it starts up to 0.5 s in)
@@ -612,17 +689,26 @@ const musicChords = {
       let amp = ctx.createGain();
       voice.node = src;
       voice.amp = amp;
-      amp.gain.setValueAtTime(1e-4, start);
-      amp.gain.exponentialRampToValueAtTime(vol, start + (opts.attack || 0.003));
-      // 2.9.2: opts.hold keeps the level flat for that long after the attack (sustained sounds such as the
-      // flame roar; the plain exponential decay drops 50 dB in a third of a second and pumps when repeated)
-      if (opts.hold) amp.gain.setValueAtTime(vol, start + (opts.attack || 0.003) + opts.hold);
-      amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
+      this.envelope(amp, start, dur, vol, { ...opts, attack: opts.attack || 0.003 });
       src.connect(filter);
       filter.connect(amp);
       amp.connect(opts.dest || this.sfx);
       src.start(start, Math.random() * 0.5);
       src.stop(start + dur + 0.02);
+    }
+    /* test hook: with musicLog set (an array) every music voice is recorded: kind, start, pitch, level, length,
+       bus (m music, d delay, x distortion) */
+    logMusic(voice, kind, pitch, vol, opts) {
+      if (!this.musicLog || voice.pri !== 0) return;
+      let dest = opts.dest;
+      this.musicLog.push({
+        kind,
+        t: voice.start,
+        pitch,
+        vol,
+        dur: voice.end - voice.start,
+        bus: dest === this.delay ? "d" : dest === this.distIn ? "x" : "m",
+      });
     }
     gate(key, gap) {
       let now = this.ctx.currentTime;
@@ -1620,8 +1706,8 @@ const musicChords = {
         case "tsMine":
           // a sharp mine blast: a crack, a hard body and a low rumble (no debris patter: that is the grenade)
           if (this.gate(id, 0.05)) {
-            this.noise(0.03, 0.26, { type: "highpass", f: 2e3, attack: 0.001 });
-            this.tone(950, 0.12, "square", 0.05, { to: 280, lp: 3e3 });
+            this.noise(0.04, 0.34, { type: "highpass", f: 2.4e3, attack: 0.001 });
+            this.tone(1100, 0.16, "square", 0.08, { to: 300, lp: 3.5e3 });
             this.noise(0.55, 0.3, { f: 1100, to: 90, attack: 0.001 });
             this.tone(75, 0.5, "sine", 0.42, { to: 30 });
             this.tone(200, 0.2, "sawtooth", 0.07, { to: 60, lp: 900 });
@@ -2038,28 +2124,124 @@ const musicChords = {
           }
           case "enrage":
             this.play("enrage", ev.id);
+            this.bossPush(2);
             break;
           case "phase":
             this.play("phase");
+            this.bossPush(1);
             break;
           case "bossDown":
-            this.bossOver = true;
+            this.bossEnd();
             this.play("bossDown", ev.id);
             break;
         }
     }
+    /* 3.1.0: mode "fight" is the calm theme of the biome, "boss" its boss track. The boss track starts on the
+     spot (main.js calls this when the boss appears, at the camera pan), not with the wave. */
     setMusic(mode, biome) {
-      if (mode === "boss" && this.mode !== "boss") {
-        this.bossOver = false;
-      }
+      if (mode === "boss") this.bossOver = false;
       this.mode = mode;
       if (biome) {
         this.biome = biome;
       }
+      // a preview of the settings screen ends when the game takes over the music
+      if (mode !== "menu") this.pv = null;
+      this.syncTrack();
     }
-    /* The boss is dead: the boss variant of the music fades back into the fight theme. */
+    /* The boss is dead: the boss track resolves (a last hit) and the calm theme fades back in. */
     bossEnd() {
       this.bossOver = true;
+      this.syncTrack();
+    }
+    /* the boss changes its phase or enrages: the track jumps back to its drop with more layers */
+    bossPush(level) {
+      if (this.playKind !== "boss" || level <= this.heat) return;
+      this.heat = level;
+      this.jump = true;
+    }
+    /* Settings screen: loop the calm theme (mode "fight") or the boss track (mode "boss") of a biome until
+     stopPreview(). The first tap unlocks the audio on phones. */
+    preview(mode, biome) {
+      if (!this.ok) return false;
+      this.unlock();
+      this.pv = { kind: mode === "boss" ? "boss" : "fight", biome: musicChords[biome] ? biome : "yard" };
+      this.syncTrack();
+      return true;
+    }
+    stopPreview() {
+      if (!this.pv) return;
+      this.pv = null;
+      this.syncTrack();
+    }
+    previewing() {
+      return this.pv ? { mode: this.pv.kind, biome: this.pv.biome } : null;
+    }
+    /* what should play now: "off", "menu", "fight" (calm) or "boss" */
+    wantKind() {
+      if (this.pv) return this.pv.kind;
+      if (this.mode === "boss") return this.bossOver ? "fight" : "boss";
+      return this.mode;
+    }
+    wantBiome() {
+      return this.pv ? this.pv.biome : musicChords[this.biome] ? this.biome : "yard";
+    }
+    /* Called when the wanted track changes: restarts the step counter on the spot, cuts the notes that were
+     already scheduled for the old track and plays the transition: a crash and an impact when the boss track
+     starts, a last hit when it resolves (the calm theme then fades back in over about 3 s). */
+    syncTrack() {
+      let kind = this.wantKind(),
+        biome = this.wantBiome(),
+        pv = !!this.pv;
+      if (kind === this.playKind && biome === this.playBiome && pv === this.playPv) return;
+      let from = this.playKind,
+        fromPv = this.playPv,
+        track = kind === "fight" || kind === "boss" ? musicTrack(kind, biome) : null;
+      this.playKind = kind;
+      this.playBiome = biome;
+      this.playPv = pv;
+      this.step = 0;
+      this.cycle = 0;
+      this.heat = 0;
+      this.jump = false;
+      let ctx = this.ctx;
+      if (!ctx || !this.fade) return;
+      try {
+        let now = ctx.currentTime,
+          gain = track ? track.gain : 1;
+        this.cutScheduled(now);
+        this.nextT = now + 0.03;
+        this.fade.gain.cancelScheduledValues(now);
+        if (from === "boss" && kind === "fight" && !pv && !fromPv) {
+          // resolve: the boss track ends on a last hit, then silence, then the calm theme fades in
+          this.fade.gain.setValueAtTime(1.1, now);
+          this.fade.gain.linearRampToValueAtTime(0.0001, now + 0.9);
+          this.fade.gain.linearRampToValueAtTime(gain, now + 4.1);
+          this.nextT = now + 0.9;
+          if (this.live() && this.musVol > 0) musicResolve(this, biome, 0);
+        } else {
+          this.fade.gain.setValueAtTime(gain, now);
+          if (kind === "boss" && (from === "fight" || pv) && this.live() && this.musVol > 0)
+            musicImpact(this, biome, 0);
+        }
+      } catch (err) {
+        this.fail(err);
+      }
+    }
+    /* the notes that were scheduled ahead (the scheduler looks 0.14 s ahead) for a track that has just ended */
+    cutScheduled(now) {
+      let list = this.musicVoiceList;
+      for (let i = list.length - 1; i >= 0; i--) {
+        let voice = list[i];
+        if (voice.start > now + 0.005 && voice.node) {
+          try {
+            voice.amp.gain.cancelScheduledValues(now);
+            voice.amp.gain.setValueAtTime(0, now);
+            voice.node.stop(now);
+          } catch {}
+          list[i] = list[list.length - 1];
+          list.pop();
+        }
+      }
     }
     /* Called every frame of a running world: `speed` (0..1, null: no engine hum) drives the drone
      hum, `ambience` is the id of the biome event that is on (or null). Everything here stops by
@@ -2322,100 +2504,65 @@ const musicChords = {
       } catch (err) {
         this.fail(err);
       }
+      this.syncTrack();
       if (this.nextT < ctx.currentTime - 0.5) {
         this.nextT = ctx.currentTime + 0.05;
       }
       for (; this.nextT < ctx.currentTime + 0.14; ) {
-        // the boss variant eases in with the boss and out again after it (about 3 s)
-        this.bossMix += ((this.mode === "boss" && !this.bossOver ? 1 : 0) - this.bossMix) * 0.08;
-        if (this.bossMix < 0.01) this.bossMix = 0;
-        let fightish = this.mode === "boss" || this.mode === "fight",
-          bpm = fightish ? 122 + ((BOSS_BPM[this.biome] || 134) - 122) * this.bossMix : 100;
-        if (this.mode !== "off" && this.musVol > 0) {
+        let info = trackInfo(this.playKind, this.playBiome);
+        if (this.playKind !== "off" && this.musVol > 0) {
           this.note(this.step, this.nextT);
         }
-        this.nextT += 60 / bpm / 4;
-        this.step = (this.step + 1) % 64;
+        this.nextT += 60 / info.bpm / 4;
+        this.step = (this.step + 1) % info.steps;
+        if (this.jump && this.step % 16 === 0) {
+          // phase change or enrage: back to the drop, with a crash and an impact
+          this.jump = false;
+          this.step = 0;
+          if (this.musVol > 0) musicImpact(this, this.playBiome, this.nextT - ctx.currentTime);
+        }
         if (this.step === 0) {
           this.cycle++;
         }
         this.intensity += (this.want - this.intensity) * 0.02;
       }
     }
+    /* One step (a sixteenth) of the music at `time`: the track of the biome plays it. Menu music is the old
+     slow pad theme. Everything it schedules goes through the music buses and its own voice list. */
     note(step, time) {
-      let chords = musicChords[this.biome] || musicChords.yard,
-        bar = Math.floor(step / 16),
-        beat = step % 16,
-        [root, quality] = chords[bar],
-        chord = [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
-        mix = this.bossMix,
-        fight = this.mode === "fight" || this.mode === "boss",
-        boss = mix > 0.5,
-        at = time - this.ctx.currentTime,
-        dest = this.mus;
-      if (fight) {
-        let level = Math.max(this.intensity, 0.7 * mix),
-          cycle = this.cycle,
-          fill = cycle % 2 === 1 && bar === 3 && beat >= 12;
-        if (beat % 4 === 0 && !(fill && beat > 12)) {
-          this.tone(150, 0.14, "sine", 0.5, { to: 42, dest, at });
-        }
-        if (level > 0.62 && beat % 8 === 7) {
-          this.tone(140, 0.1, "sine", 0.3, { to: 45, dest, at });
-        }
-        if (beat % 4 === 2) {
-          this.noise(0.03, 0.07, { type: "highpass", f: 7500, dest, at });
-        }
-        if ((level > 0.32 || boss) && beat % 2 === 1) {
-          this.noise(0.02, 0.03 + level * 0.02, { type: "highpass", f: 9e3, dest, at });
-        }
-        if (fill) {
-          this.noise(0.08, 0.06 + (beat - 12) * 0.025, {
-            type: "bandpass",
-            f: 1500 + (beat - 12) * 250,
-            q: 0.9,
-            dest,
-            at,
-          });
-        } else {
-          if (beat === 4 || beat === 12) {
-            this.noise(0.14, 0.14, { type: "bandpass", f: 1800, q: 0.8, dest, at });
-          }
-        }
-        let voice = musicVoices[this.biome] || musicVoices.yard;
-        if (beat % 2 === 0) {
-          this.tone(midiToFreq(root - 24 + (beat % 8 === 6 ? 12 : 0)), 0.16, voice.bass, 0.11, {
-            lp: (boss ? 700 : 520) + level * 380,
-            dest,
-            at,
-          });
-        }
-        if (beat % 2 === 0 || boss || level > 0.8) {
-          let pattern = arpPatterns[cycle % arpPatterns.length],
-            idx = (beat / (boss || level > 0.8 ? 1 : 2)) | 0,
-            midi = chord[pattern[idx % pattern.length]] + (cycle % 4 === 3 ? 24 : 12);
-          this.tone(midiToFreq(midi), 0.1, voice.arp, voice.arp === "sine" ? 0.045 : 0.025, {
-            lp: voice.lp + level * 1600,
-            dest: this.delay,
-            at,
-          });
-        }
-        if ((level > 0.45 || boss) && cycle % 2 === 0) {
-          let note = leadPatterns[bar % leadPatterns.length][beat];
-          if (note != null) {
-            this.tone(
-              midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)),
-              0.22,
-              voice.lead,
-              voice.lead === "sawtooth" || voice.lead === "square" ? 0.028 : 0.045,
-              { dest: this.delay, at, attack: 0.01, lp: 3e3 },
-            );
-          }
-        }
-        if (mix > 0.25) {
-          this.bossLayer(beat, bar, root, chord, voice, at, dest, mix);
-        }
-      } else {
+      let kind = this.playKind,
+        biome = this.playBiome,
+        chords = musicChords[biome] || musicChords.yard,
+        at = time - this.ctx.currentTime;
+      if (kind === "fight" || kind === "boss") {
+        let track = musicTrack(kind, biome),
+          bar = Math.floor(step / 16),
+          [root, quality] = chords[bar % 4],
+          level = kind === "boss" ? 1 : this.pv ? previewLevel(bar) : this.intensity,
+          s = step,
+          c = {
+            s,
+            bar,
+            b: step % 16,
+            at: track.swing && step % 2 === 1 ? at + track.swing * (60 / track.bpm / 4) : at,
+            L: level,
+            cycle: this.cycle,
+            heat: this.heat,
+            root,
+            q: quality,
+            ch: bar % 4,
+            sec: kind === "boss" ? bossSection(bar) : bar >> 2,
+            chord: [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
+            salt: biome.charCodeAt(0) * 7 + biome.charCodeAt(1),
+            barSec: 240 / track.bpm,
+          };
+        track.play(this, c);
+        if (kind === "boss" && this.heat > 0) bossHeatLayer(this, c);
+      } else if (kind === "menu") {
+        let [root, quality] = chords[Math.floor(step / 16)],
+          chord = [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
+          beat = step % 16,
+          dest = this.mus;
         if (beat === 0)
           for (let midi of chord.slice(0, 3)) {
             this.tone(midiToFreq(midi - 12), stepSeconds(100) * 16, "sawtooth", 0.025, {
@@ -2441,52 +2588,54 @@ const musicChords = {
         }
       }
     }
-    /* What the boss variant adds to the fight theme of its biome (same chords): syncopated chord
-     stabs, an octave pulse, an extra kick, a riser at the end of the phrase and one voice of its
-     own per biome. `mix` (0..1) fades everything in and out. */
-    bossLayer(beat, bar, root, chord, voice, at, dest, mix) {
-      if ((21577 >> beat) & 1) {
-        let wave = BOSS_STAB[this.biome] || "square";
-        this.tone(midiToFreq(chord[0] + 12), 0.09, wave, 0.018 * mix, { lp: voice.lp + 1200, dest: this.delay, at });
-        this.tone(midiToFreq(chord[2] + 12), 0.09, wave, 0.014 * mix, { lp: voice.lp + 1200, dest: this.delay, at });
-      }
-      if (beat % 4 === 3) {
-        this.tone(midiToFreq(root - 12), 0.1, voice.bass, 0.05 * mix, { lp: 600, dest, at });
-      }
-      if (beat % 8 === 6) {
-        this.tone(150, 0.1, "sine", 0.3 * mix, { to: 45, dest, at });
-      }
-      if (bar === 3 && (beat === 8 || beat === 12)) {
-        this.noise(0.22, 0.05 * mix, { type: "bandpass", f: 1500 + beat * 200, to: 7e3, q: 1, dest, at });
-      }
-      switch (this.biome) {
-        case "works":
-          if (beat === 8) {
-            this.noise(0.1, 0.08 * mix, { type: "bandpass", f: 1400, dest, at });
-            this.tone(260, 0.1, "triangle", 0.03 * mix, { dest, at });
-          }
-          break;
-        case "vault":
-          if (beat % 2 === 0) {
-            this.tone(midiToFreq(chord[3] + 24), 0.05, "sine", 0.014 * mix, { dest: this.delay, at });
-          }
-          break;
-        case "void":
-          if (beat === 0) {
-            this.tone(midiToFreq(root + 18), 0.3, "square", 0.014 * mix, { dest: this.delay, at, lp: 2500 });
-          }
-          break;
-        case "marsh":
-          if (beat % 4 === 0) {
-            this.tone(midiToFreq(root - 12), 0.18, "sawtooth", 0.05 * mix, { lp: 400, detune: 12, dest, at });
-          }
-          break;
-        default:
-          break;
-      }
-    }
     static catalog() {
       return rlSoundCatalog();
+    }
+    static trackInfo(kind, biome) {
+      return trackInfo(kind, biome);
+    }
+    /* Test hook: schedules `loops` loops of a track (nothing is rendered) and returns the counters of the voice
+       budget (musicPeak: most voices alive at once; musicSkipped and musicShed: notes the budget refused) and the
+       log of every voice, so that two runs (for example with a flood of sounds) can be compared note by note.
+       spec: music (fight|boss), biome, loops, intensity, heat, flood (sounds per step), pv (as a preview) */
+    static musicBudget(spec) {
+      let Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext,
+        ctx = new Offline(1, 44100, 44100),
+        engine = new SoundEngine(),
+        info = trackInfo(spec.music, spec.biome),
+        len = 60 / info.bpm / 4;
+      engine.attach(ctx);
+      engine.sfxVol = 1;
+      engine.mode = spec.music;
+      engine.biome = spec.biome;
+      engine.playKind = spec.music;
+      engine.playBiome = spec.biome;
+      engine.intensity = spec.intensity != null ? spec.intensity : 1;
+      engine.heat = spec.heat || 0;
+      engine.musicLog = [];
+      if (spec.pv) engine.pv = { kind: spec.music, biome: spec.biome };
+      for (let n = 0; n < info.steps * (spec.loops || 1); n++) {
+        engine.simT = n * len;
+        engine.cycle = Math.floor(n / info.steps);
+        engine.note(n % info.steps, engine.simT);
+        for (let k = 0; k < (spec.flood || 0); k++) {
+          engine.last = Object.create(null);
+          let flood = RL_FLOOD[(n * 7 + k) % RL_FLOOD.length];
+          engine.play(flood[0], flood[1]);
+        }
+      }
+      engine.simT = null;
+      return {
+        steps: info.steps * (spec.loops || 1),
+        seconds: info.steps * (spec.loops || 1) * len,
+        scheduled: engine.musicScheduled,
+        skipped: engine.musicSkipped,
+        shed: engine.musicShed,
+        peak: engine.musicPeak,
+        dropped: engine.dropped,
+        failed: !!engine.failed,
+        log: engine.musicLog,
+      };
     }
     /* Test hook: render one sound (or a bed, or a stretch of music) offline: mono, 44.1 kHz. The sound
      starts 0.25 s into the render (like in the game, where the compressors are already running). */
@@ -2509,20 +2658,30 @@ const musicChords = {
           engine.startBed(spec.bed);
           engine.stopBed(spec.bed, spec.stopAt || 1.2);
         } else if (spec.music) {
+          // 3.1.0: `seconds` of a calm theme or boss track from bar `fromBar`, at intensity `intensity` (calm) and
+          // heat `heat` (boss); musicLog (spec.log) records every music voice, `impact` plays the start of a boss track
           engine.mode = spec.music;
           engine.biome = spec.biome;
-          engine.bossMix = spec.music === "boss" ? 1 : 0;
-          engine.intensity = 0.9;
-          let bpm = spec.music === "boss" ? BOSS_BPM[spec.biome] : 122,
-            len = 60 / bpm / 4;
-          for (let step = 0, t = 0; t < seconds - 0.25; step++, t += len) {
+          engine.playKind = spec.music;
+          engine.playBiome = spec.biome;
+          engine.intensity = spec.intensity != null ? spec.intensity : 0.9;
+          engine.heat = spec.heat || 0;
+          if (spec.log) engine.musicLog = [];
+          if (spec.preview) engine.pv = { kind: spec.music, biome: spec.biome };
+          let info = trackInfo(spec.music, spec.biome),
+            len = 60 / info.bpm / 4,
+            first = (spec.fromBar || 0) * 16;
+          engine.fade.gain.value = musicTrack(spec.music, spec.biome).gain;
+          if (spec.impact) musicImpact(engine, spec.biome, 0);
+          for (let n = 0, t = 0; t < seconds - 0.25; n++, t += len) {
             engine.simT = base + t;
-            engine.note(step % 64, base + t);
+            engine.cycle = Math.floor((first + n) / info.steps);
+            engine.note((first + n) % info.steps, base + t);
             // 2.9.0: a flood of sounds in every step; the music notes must all be scheduled anyway
             if (spec.flood)
               for (let k = 0; k < 30; k++) {
                 engine.last = Object.create(null);
-                let flood = RL_FLOOD[(step * 7 + k) % RL_FLOOD.length];
+                let flood = RL_FLOOD[(n * 7 + k) % RL_FLOOD.length];
                 engine.play(flood[0], flood[1]);
               }
           }
@@ -2569,11 +2728,866 @@ const musicChords = {
         dropped: engine.dropped,
         musicScheduled: engine.musicScheduled,
         musicSkipped: engine.musicSkipped,
+        musicShed: engine.musicShed,
+        musicPeak: engine.musicPeak,
+        musicLog: engine.musicLog,
+        bpm: spec.music ? trackInfo(spec.music, spec.biome).bpm : 0,
         failed: !!engine.failed,
         samples: spec.wav ? Array.from(data.subarray(Math.round(base * 44100))) : null,
       };
     }
   };
+/* ==========================================================================
+ 3.1.0: the music. Every biome has a calm theme ("fight": 16 bars, four chords over four bars, four sections of
+ four bars) and a boss track (22 bars: drop 8, variation 8, half-time breakdown 4, build 2); the boss track is the
+ heavy sibling of the calm theme (same key and chords). A track is a tempo, a length and a play(engine, c)
+ function that is called for every sixteenth step and schedules that step's notes (see SoundEngine.note for the
+ fields of c). Rules that keep the music cheap and the same everywhere:
+ - everything a step schedules is chosen by the step, the chord and the intensity, or by the deterministic hash
+   rnd() (never Math.random), so the music is the same with and without a flood of sounds
+ - the voices of the music are limited to MAX_MUSIC_VOICES; texture sounds are "opt" voices that the engine
+   sheds first (never the kick, bass and chords); the tests check that nothing is ever shed
+ - sustained notes are one oscillator each; there is one shared WaveShaper bus (engine.distIn) for guitars,
+   808 sub, growl and stabs
+ ========================================================================== */
+function rnd(a, b, c) {
+  let x = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 2147483647)) | 0;
+  x = Math.imul(x ^ (x >>> 13), 1274126177);
+  x ^= x >>> 16;
+  return (x >>> 0) / 4294967296;
+}
+const R = (c, n) => rnd(c.cycle * 4096 + c.s, n, c.salt),
+  patCache = Object.create(null),
+  /* "x" a hit, "X" an accent, "o" a ghost note, "." a rest */
+  pat = (str) =>
+    patCache[str] ||
+    (patCache[str] = Array.from(str, (ch) => (ch === "x" ? 1 : ch === "X" ? 1.5 : ch === "o" ? 0.5 : 0))),
+  curveCache = Object.create(null);
+/* cut-off curve of a wobble bass: exponential between lo and hi, `period` seconds per cycle */
+function wobbleCurve(lo, hi, period, dur, phase) {
+  let key = `w${lo}:${hi}:${Math.round(period * 1e3)}:${Math.round(dur * 1e3)}:${phase}`;
+  if (curveCache[key]) return curveCache[key];
+  let n = Math.max(8, Math.ceil(dur * 120)),
+    curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let t = (i / (n - 1)) * dur;
+    curve[i] = lo * Math.pow(hi / lo, 0.5 + 0.5 * Math.sin((t / period) * 2 * Math.PI + phase));
+  }
+  return (curveCache[key] = curve);
+}
+/* level curve (0..1) of a tremolo (insect buzz, wobbling pad): `rate` Hz, `depth` 0..1, faded in and out */
+function tremoloEnv(rate, depth, dur, fade) {
+  let key = `t${rate}:${depth}:${Math.round(dur * 1e3)}:${fade}`;
+  if (curveCache[key]) return curveCache[key];
+  let n = Math.min(1600, Math.max(16, Math.ceil(dur * Math.max(100, rate * 10)))),
+    env = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let t = (i / (n - 1)) * dur,
+      win = Math.min(1, t / fade, (dur - t) / fade);
+    win = Math.sin((Math.max(0, win) * Math.PI) / 2) ** 2;
+    env[i] = win * (1 - depth + depth * (0.5 + 0.5 * Math.sin(t * rate * 2 * Math.PI)));
+  }
+  return (curveCache[key] = env);
+}
+/* a swell that is faded in and out by `fade` seconds with a sin^2 window: voices that start every `span` seconds
+   and last span + fade seconds cross-fade without a dip (pads and drones) */
+const padEnv = (dur, fade) => tremoloEnv(0, 0, dur, fade),
+  FLICKER = new Float32Array([0.9, 0.2, 1, 0.1, 0.8, 0.3, 1, 0.4, 0.2, 0]);
+/* one scheduling kit per step: m (music bus), d (the echo: far away) and x (distortion), each with t(one) for an
+   oscillator and n(oise) */
+function kit(e, c) {
+  const base = c.at,
+    bus = (dest) => ({
+      t: (f, d, w, v, o) => e.tone(f, d, w, v, { ...o, dest, at: base + ((o && o.at) || 0) }),
+      n: (d, v, o) => e.noise(d, v, { ...o, dest, at: base + ((o && o.at) || 0) }),
+    });
+  return { m: bus(e.mus), d: bus(e.delay), x: bus(e.distIn) };
+}
+const kick = (k, v, o = {}) => k.m.t(o.f0 || 150, o.dur || 0.14, "sine", v, { to: o.f1 || 42, at: o.at }),
+  clap = (k, v) => {
+    k.m.n(0.018, v, { type: "bandpass", f: 1500, q: 1.2, attack: 0.001 });
+    k.m.n(0.018, v * 0.9, { type: "bandpass", f: 1500, q: 1.2, attack: 0.001, at: 0.012 });
+    k.m.n(0.14, v * 0.7, { type: "bandpass", f: 1400, q: 0.9, at: 0.024 });
+  },
+  hat = (k, v, dur = 0.025, f = 8500) => k.m.n(dur, v, { type: "highpass", f }),
+  snare = (k, v, o = {}) => {
+    k.m.n(o.dur || 0.15, v, { type: "bandpass", f: o.f || 1800, q: o.q || 0.8, at: o.at });
+    k.m.t(o.bf || 190, 0.1, "triangle", v * 0.9, { to: (o.bf || 190) * 0.55, at: o.at });
+  },
+  anvil = (k, f, v) => {
+    k.m.n(0.09, v * 1.3, { type: "bandpass", f: 3200, q: 1.4, attack: 0.001 });
+    k.m.t(f, 0.5, "sine", v, { attack: 0.001 });
+    k.m.t(f * 2.76, 0.3, "sine", v * 0.7, { attack: 0.001 });
+  },
+  crash = (k, v, dur = 1.2) => k.m.n(dur, v, { type: "highpass", f: 5000, attack: 0.002, opt: true }),
+  /* the reversed cymbal: a noise that swells up to its end (before the next section) */
+  reverseCymbal = (k, v) => k.m.n(0.65, v, { type: "highpass", f: 3000, to: 10000, attack: 0.55, opt: true }),
+  /* a sub-bass note for chord root `root`: never below 29 (about 44 Hz), so that phones play it */
+  subNote = (root) => {
+    let base = root - 24;
+    return midiToFreq(base < 29 ? base + 12 : base);
+  };
+
+/* ---------- calm themes ---------- */
+
+/* Neon Yard, 118 BPM, A minor (Am F C G): synthwave stomp. Four on the floor, claps on 2 and 4, open hats on the
+   off-beats, a rolling eighth-note saw bass with octave jumps, saw pad, square arpeggio and triangle lead in the
+   echo; city texture: 100 Hz transformer hum, neon flicker, distant siren whoops, glitchy data blips, rain hiss */
+const YARD_BASS = [
+    [0, 0, 0, 0, 0, 0, 12, 0],
+    [0, 0, 12, 0, 0, 0, 12, 0],
+    [0, 12, 0, 12, 7, 12, 0, 12],
+    [0, 0, 12, 0, 0, 12, 7, 10],
+  ],
+  YARD_BLIPS = [2093, 2637, 3136, 3951, 4699];
+function yardCalm(e, c) {
+  const { b, bar, L, chord, root, sec, cycle } = c,
+    k = kit(e, c),
+    voice = musicVoices.yard,
+    fill = (bar & 3) === 3 && (sec & 1) === 1;
+  if (b % 4 === 0 && !(fill && b === 12)) kick(k, 0.5);
+  if ((b === 4 || b === 12) && !(fill && b === 12)) clap(k, 0.1);
+  if (fill && b >= 12) k.m.n(0.07, 0.05 + (b - 12) * 0.03, { type: "bandpass", f: 1500 + (b - 12) * 500, q: 0.9 });
+  if (b % 4 === 2) hat(k, 0.06, 0.07);
+  if (L > 0.4 && b % 2 === 1) hat(k, 0.022, 0.02, 10000);
+  if (b % 2 === 0)
+    k.m.t(midiToFreq(root - 24 + YARD_BASS[sec][b >> 1]), 0.2, voice.bass, 0.11, {
+      lp: 450 + L * 700 + (sec >= 2 ? 200 : 0),
+      q: 1.5,
+    });
+  if (b === 0 && L > 0.1) {
+    const dur = c.barSec + 0.25,
+      env = padEnv(dur, 0.25);
+    k.m.t(midiToFreq(chord[1]), dur, "sawtooth", 0.016, { lp: 900, env, detune: 6 });
+    k.m.t(midiToFreq(chord[2]), dur, "sawtooth", 0.016, { lp: 900, env, detune: -6 });
+  }
+  if (L > 0.15 && (b % 2 === 0 || L > 0.78)) {
+    const p = arpPatterns[(cycle + sec) % 4];
+    k.d.t(midiToFreq(chord[p[b % p.length]] + (sec === 3 ? 24 : 12)), 0.1, voice.arp, 0.025, { lp: 2200 + L * 1600 });
+  }
+  if (L > 0.5 && (sec & 1) === 1) {
+    const note = leadPatterns[bar & 3][b];
+    if (note != null)
+      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.22, voice.lead, 0.045, {
+        attack: 0.01,
+        lp: 3000,
+      });
+  }
+  // the city
+  if (b === 0 && (bar & 1) === 0)
+    k.m.t(100, c.barSec * 2 + 0.4, "sawtooth", 0.012, { lp: 480, env: padEnv(c.barSec * 2 + 0.4, 0.4), opt: true });
+  if (L > 0.2 && b % 2 === 0 && R(c, 1) < 0.16)
+    k.m.n(0.08, 0.03, { type: "bandpass", f: 2800 + R(c, 2) * 1200, q: 9, env: FLICKER, opt: true });
+  if (bar % 8 === 5 && b === 0) {
+    k.d.t(640, 0.7, "triangle", 0.02, { to: 980, attack: 0.18, opt: true });
+    k.d.t(980, 0.7, "triangle", 0.018, { to: 640, at: 0.7, attack: 0.05, opt: true });
+  }
+  if (b % 2 === 1 && R(c, 3) < 0.2 + 0.1 * L)
+    k.d.t(YARD_BLIPS[(R(c, 4) * 5) | 0], 0.024, "square", 0.012, { lp: 6000, opt: true });
+  if (b === 0)
+    k.m.n(c.barSec + 0.15, 0.011, { type: "highpass", f: 6500, env: padEnv(c.barSec + 0.15, 0.15), opt: true });
+  if (R(c, 5) < 0.07) k.m.t(3200 + R(c, 6) * 2800, 0.05, "sine", 0.012, { opt: true });
+}
+
+/* Ember Works, 96 BPM, D minor (Dm Bb C Am): industrial stomp. Long half-time kicks (beat 1, ghost kicks that move
+   from section to section), metal percussion as the rhythm section: an anvil on beat 3 of every bar, inharmonic
+   clangs, gear and chain ratchets, steam bursts, a furnace rumble; square bass, saw brass stabs, saw arpeggio and
+   lead in the echo */
+const WORKS_KICKS = [[10], [7, 10], [6, 10, 14], [10, 13]],
+  WORKS_BASS = [
+    [],
+    [
+      [6, 0],
+      [10, 7],
+    ],
+    [
+      [6, 0],
+      [10, 12],
+      [14, 7],
+    ],
+    [
+      [6, 0],
+      [10, 7],
+      [14, -2],
+    ],
+  ];
+function worksCalm(e, c) {
+  const { b, bar, L, chord, root, sec, cycle } = c,
+    k = kit(e, c),
+    voice = musicVoices.works;
+  if (b === 0) kick(k, 0.6, { f0: 110, f1: 36, dur: 0.32 });
+  if (L > 0.15 && WORKS_KICKS[sec].includes(b)) kick(k, 0.4, { f0: 120, f1: 40, dur: 0.2 });
+  if (b === 8) anvil(k, midiToFreq(chord[0] + 24), 0.07);
+  if (L > 0.4 && ((b === 14 && sec >= 1) || (b === 6 && sec === 3))) {
+    const f = midiToFreq(chord[(R(c, 1) * 3) | 0] + 36);
+    k.m.t(f, 0.6, "sine", 0.03, { attack: 0.002 });
+    k.m.t(f * 2.32, 0.35, "sine", 0.02, { attack: 0.002 });
+  }
+  if (L > 0.2 && b === 3)
+    for (let i = 0; i < 5; i++)
+      k.m.n(0.012, 0.05, { type: "bandpass", f: 4200, q: 3, at: [0, 0.03, 0.063, 0.101, 0.146][i], opt: true });
+  if (L > 0.55 && b === 11)
+    for (let i = 0; i < 4; i++)
+      k.m.n(0.014, 0.05, { type: "bandpass", f: 2200, q: 3, at: [0, 0.045, 0.1, 0.17][i], opt: true });
+  if ((bar & 1) === 1 && b === 13 && R(c, 2) < 0.6)
+    k.m.n(0.5, 0.05, { type: "highpass", f: 5200, to: 3000, attack: 0.03, opt: true });
+  if (b === 0) k.m.n(c.barSec + 0.3, 0.06, { f: 110, env: padEnv(c.barSec + 0.3, 0.3), opt: true });
+  if (L > 0.1 && b % 4 === 2) k.m.n(0.02, 0.035, { type: "bandpass", f: 6500, q: 4 });
+  if (b === 0) k.m.t(midiToFreq(root - 24), 0.55, voice.bass, 0.12, { lp: 380 + L * 300 });
+  for (const [step, semi] of WORKS_BASS[sec])
+    if (b === step && L > 0.2) k.m.t(midiToFreq(root - 24 + semi), 0.2, voice.bass, 0.1, { lp: 380 + L * 300 });
+  if (b === 0) {
+    k.m.t(midiToFreq(chord[0]), 0.55, "sawtooth", 0.03, { lp: 700 });
+    k.m.t(midiToFreq(chord[2]), 0.55, "sawtooth", 0.025, { lp: 700 });
+  }
+  if (b === 11 && sec >= 1 && L > 0.5) k.m.t(midiToFreq(chord[0]), 0.2, "sawtooth", 0.03, { lp: 700 });
+  if (L > 0.2 && b % 2 === 0) {
+    const p = arpPatterns[(cycle + sec) % 4];
+    k.d.t(midiToFreq(chord[p[(b >> 1) % p.length]] + 12), 0.1, voice.arp, 0.02, { lp: 1500 + L * 1000 });
+  }
+  if (L > 0.45 && (sec & 1) === 1) {
+    const note = leadPatterns[bar & 3][b];
+    if (note != null)
+      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.22, voice.lead, 0.028, {
+        attack: 0.01,
+        lp: 2400,
+      });
+  }
+}
+
+/* Cryo Vault, 104 BPM, E minor (Em C G D): sparse and cold. No kick until the intensity is high (one soft thump on
+   beat 1, a second one near the top), ticks of ice instead of a snare, flakes of hi-hat at hashed sixteenths, glass
+   arpeggios (sine plus a thin third partial) with gaps that change in every section, a cold triangle pad and
+   bass; wind, ice cracks, wind-chime partials from the E-minor pentatonic scale (inharmonic sines) and creaks */
+const VAULT_ARP = ["x...x...x..x....", "x.x..x.x..x.x..x", "x..x..x.x.x...x.", "x.x.x.x.x..x.x.."],
+  VAULT_CHIME = [76, 79, 81, 83, 86, 88];
+function vaultCalm(e, c) {
+  const { b, bar, L, chord, root, sec } = c,
+    k = kit(e, c);
+  if (L > 0.7 && b === 0) kick(k, 0.3, { f0: 120, f1: 50, dur: 0.2 });
+  if (L > 0.88 && b === 10) kick(k, 0.22, { f0: 120, f1: 50, dur: 0.2 });
+  if (L > 0.15 && (b === 6 || b === 14)) k.d.n(0.02, 0.05, { type: "bandpass", f: 3400, q: 2 });
+  if ((b % 2 === 1 || L > 0.6) && R(c, 5) < 0.2 + 0.4 * L) hat(k, 0.02 + R(c, 9) * 0.01, 0.012, 11000);
+  if (L > 0.1 && pat(VAULT_ARP[sec])[b]) {
+    const n = chord[[0, 2, 1, 3, 2, 1, 3][(bar * 7 + b) % 7]] + (R(c, 7) < 0.3 ? 36 : 24),
+      f = midiToFreq(n);
+    k.d.t(f, 0.22, "sine", 0.075);
+    if (L > 0.6 && sec >= 2) k.d.t(f * 3, 0.1, "sine", 0.02);
+  }
+  if (b === 0) {
+    const dur = c.barSec + 0.5,
+      env = padEnv(dur, 0.5);
+    k.m.t(midiToFreq(chord[0] + 12), dur, "triangle", 0.028, { env, lp: 1800 });
+    k.m.t(midiToFreq(chord[2] + 12), dur, "triangle", 0.024, { env, lp: 1800 });
+  }
+  if (b === 0) k.m.t(midiToFreq(root - 12), 0.9, "triangle", 0.11, { hold: 0.3, lp: 700 });
+  if (b === 10 && L > 0.5) k.m.t(midiToFreq(root - 5), 0.5, "triangle", 0.09, { lp: 700 });
+  if (b === 0 && (bar & 1) === 0)
+    k.m.n(4.2, 0.03, {
+      type: "bandpass",
+      f: (bar & 3) === 0 ? 500 : 1400,
+      to: (bar & 3) === 0 ? 1400 : 450,
+      q: 1.1,
+      attack: 1.2,
+      hold: 1.5,
+      opt: true,
+    });
+  if (b % 2 === 0 && b > 0 && R(c, 6) < 0.1) {
+    k.m.n(0.02, 0.07, { type: "highpass", f: 5200, opt: true });
+    k.m.t(3800, 0.08, "sine", 0.03, { to: 900, opt: true });
+  }
+  if (b % 2 === 0 && b > 0 && R(c, 8) < 0.03 + 0.04 * L) {
+    const f = midiToFreq(VAULT_CHIME[(R(c, 10) * 6) | 0]);
+    k.d.t(f, 1.7, "sine", 0.03, { opt: true });
+    k.d.t(f * 2.76, 0.7, "sine", 0.012, { opt: true });
+  }
+  if ((bar & 3) === 1 && b === 9 && R(c, 11) < 0.7) {
+    k.m.n(0.9, 0.035, { type: "bandpass", f: 260, to: 210, q: 9, attack: 0.3, opt: true });
+    k.m.t(78, 0.9, "sawtooth", 0.008, { to: 70, lp: 300, attack: 0.3, opt: true });
+  }
+}
+
+/* Toxin Marsh, 84 BPM, F minor (Fm Ab Eb Cm), swing: dub / trip-hop. Kick on 1 and 3 and a deep snare on 2 and 4
+   with an echo throw, swung closed hats, a triangle-plus-sub bass that hits the OFF-beats, wobbling saw pads (the
+   level wobbles 1.4 times a second), a dub chord skank in the echo; swamp: rising bubbles, frog croaks (a square
+   through a resonant low-pass, two pulses), insect buzz (noise with a 62 Hz tremolo), mud squelches, low drone */
+const MARSH_BASS = [
+  [3, 6, 11],
+  [3, 6, 10, 14],
+  [3, 7, 11],
+  [3, 6, 11, 14],
+];
+function marshCalm(e, c) {
+  const { b, bar, L, chord, root, sec } = c,
+    k = kit(e, c),
+    voice = musicVoices.marsh;
+  if (b === 0) kick(k, 0.5, { f0: 120, f1: 40, dur: 0.22 });
+  if (b === 10) kick(k, 0.35, { f0: 120, f1: 40, dur: 0.22 });
+  if (L > 0.5 && sec >= 1 && b === 7) kick(k, 0.22, { f0: 110, f1: 40, dur: 0.18 });
+  if (sec === 3 && b === 14) kick(k, 0.28, { f0: 110, f1: 40, dur: 0.18 });
+  if (b === 4 || b === 12) {
+    k.m.t(130, 0.22, "triangle", 0.22, { to: 70 });
+    k.m.n(0.2, 0.13, { type: "bandpass", f: 900, q: 0.7 });
+    k.d.n(0.12, 0.05, { type: "bandpass", f: 1100, q: 0.8 });
+  }
+  if (b % 2 === 0) hat(k, b % 4 === 0 ? 0.045 : 0.03, 0.02, 8000);
+  else if (L > 0.6) hat(k, 0.015, 0.015, 9000);
+  if (MARSH_BASS[sec].includes(b)) {
+    const semi = [0, 0, 7, 0][(bar + b) & 3];
+    k.m.t(midiToFreq(root - 12 + semi), 0.32, "triangle", 0.16, { lp: 500 });
+    k.m.t(midiToFreq(root - 24 + semi), 0.3, "sine", 0.12);
+  }
+  if (b === 0) {
+    const dur = c.barSec + 0.4,
+      env = tremoloEnv(1.4, 0.55, dur, 0.4);
+    k.m.t(midiToFreq(chord[1]), dur, "sawtooth", 0.02, { lp: 650, detune: 9, env });
+    k.m.t(midiToFreq(chord[2]), dur, "sawtooth", 0.02, { lp: 650, detune: -9, env });
+  }
+  if (b === 10 && sec >= 1 && L > 0.4) k.d.t(midiToFreq(chord[1] + 12), 0.08, "triangle", 0.03);
+  if (R(c, 1) < 0.09 + 0.05 * L) {
+    const f = 170 + R(c, 2) * 500;
+    k.m.t(f, 0.09, "sine", 0.05, { to: f * 1.9, opt: true });
+    if (R(c, 3) < 0.25) k.m.t(f * 0.7, 0.07, "sine", 0.035, { to: f * 1.4, at: 0.07, opt: true });
+  }
+  if (b % 2 === 1 && R(c, 4) < 0.035) {
+    const f = 95 + R(c, 5) * 30;
+    k.m.t(f, 0.11, "square", 0.03, { to: f * 1.35, lp: 650, q: 6, opt: true });
+    k.m.t(f * 1.1, 0.13, "square", 0.03, { to: f, lp: 650, q: 6, at: 0.15, opt: true });
+  }
+  if (L > 0.3 && sec >= 1 && b === 0 && (bar & 1) === 0 && R(c, 6) < 0.6)
+    k.m.n(1.3, 0.02, { type: "bandpass", f: 3300, q: 4, env: tremoloEnv(62, 0.8, 1.3, 0.2), opt: true });
+  if ((bar & 1) === 1 && b === 13 && R(c, 7) < 0.5) {
+    k.m.n(0.16, 0.08, { f: 900, to: 150, q: 7, opt: true });
+    k.m.t(180, 0.14, "sine", 0.07, { to: 55, opt: true });
+  }
+  if (b === 0 && (bar & 1) === 0)
+    k.m.t(midiToFreq(root - 24), c.barSec * 2 + 0.8, "sine", 0.1, { env: padEnv(c.barSec * 2 + 0.8, 0.8) });
+  if (L > 0.4 && (sec & 1) === 1) {
+    const note = leadPatterns[bar & 3][b];
+    if (note != null)
+      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.22, voice.lead, 0.045, {
+        attack: 0.01,
+        lp: 3000,
+      });
+  }
+}
+
+/* Void Core, 100 BPM, F# minor (F#m D A E): a broken beat in groups of 3+3+2+3+3+2 sixteenths. Deep kicks that
+   move in every bar, dry ticks (in the echo) on the group starts, one hard hit (noise burst and sub) every eight
+   bars, sparse hats; detuned saw drones, a reversed swell before every fourth bar, whispers (two band-passed noises
+   on vocal formants), long-tail pings in the echo, square arpeggio and lead on the group starts */
+const VOID_GROUPS = [0, 3, 6, 8, 11, 14],
+  VOID_KICKS = [
+    [0, 6, 11],
+    [0, 6, 8],
+    [0, 3, 11],
+    [0, 8, 14],
+  ],
+  VOID_FORMANTS = [
+    [700, 1200],
+    [300, 2300],
+    [500, 1800],
+  ];
+function voidCalm(e, c) {
+  const { b, bar, L, chord, root, sec } = c,
+    k = kit(e, c),
+    voice = musicVoices.void,
+    group = VOID_GROUPS.includes(b),
+    kicks = VOID_KICKS[(bar + sec) & 3];
+  if (kicks.includes(b)) kick(k, 0.55, { f0: 100, f1: 34, dur: 0.3 });
+  if (group && L > 0.1 && !kicks.includes(b)) k.d.n(0.02, 0.045, { type: "bandpass", f: 2400, q: 3 });
+  if (bar % 8 === 0 && b === 0) {
+    k.m.n(0.35, 0.16, { type: "bandpass", f: 1200, q: 0.8 });
+    k.m.t(70, 0.5, "sine", 0.5, { to: 30 });
+  }
+  if (L > 0.5 && !group && R(c, 9) < 0.12) hat(k, 0.02, 0.02, 9500);
+  if (b === 0 && (bar & 1) === 0) {
+    const dur = c.barSec * 2 + 1.2,
+      env = padEnv(dur, 1.2);
+    k.m.t(midiToFreq(root - 24), dur, "sawtooth", 0.035, { lp: 320, env, detune: -9 });
+    k.m.t(midiToFreq(root - 24), dur, "sawtooth", 0.035, { lp: 320, env, detune: 9 });
+  }
+  if ((bar & 3) === 3 && b === 6) {
+    k.m.n(1.6, 0.06, { type: "highpass", f: 800, to: 7000, attack: 1.45, opt: true });
+    k.m.t(200, 1.6, "sawtooth", 0.02, { to: 1200, attack: 1.5, lp: 2000, opt: true });
+  }
+  if (L > 0.2 && b % 2 === 0 && R(c, 10) < 0.07) {
+    const [f1, f2] = VOID_FORMANTS[(R(c, 12) * 3) | 0];
+    k.d.n(1.5, 0.035, { type: "bandpass", f: f1, q: 9, attack: 0.45, hold: 0.3, opt: true });
+    k.d.n(1.5, 0.03, { type: "bandpass", f: f2, q: 9, attack: 0.45, hold: 0.3, opt: true });
+  }
+  if (b % 2 === 0 && R(c, 11) < 0.07)
+    k.d.t(midiToFreq(chord[(R(c, 13) * 3) | 0] + (R(c, 14) < 0.5 ? 24 : 36)), 2.6, "sine", 0.035, { opt: true });
+  if (L > 0.2 && group) {
+    const p = arpPatterns[(sec + bar) % 4];
+    k.d.t(midiToFreq(chord[p[VOID_GROUPS.indexOf(b) % p.length]] + 12), 0.1, voice.arp, 0.025, { lp: 2600 });
+  }
+  if (L > 0.5 && (sec & 1) === 1 && group)
+    k.d.t(midiToFreq(chord[(b + bar) % 4] + 24), 0.25, voice.lead, 0.028, { attack: 0.01, lp: 3000 });
+  if (b === 0) k.m.t(midiToFreq(root - 24), 0.5, voice.bass, 0.11, { lp: 420 });
+  if (b === 11 && L > 0.4) k.m.t(midiToFreq(root - 17), 0.25, voice.bass, 0.09, { lp: 420 });
+}
+
+/* ---------- boss tracks ---------- */
+function bossSection(bar) {
+  return bar < 8 ? 0 : bar < 16 ? 1 : bar < 20 ? 2 : 3;
+}
+/* snare roll of the build: bar 20 eighths, bar 21 sixteenths, rising; the last step stays empty */
+function buildRoll(k, c) {
+  const { bar, b } = c,
+    on = bar === 20 ? b % 2 === 0 : b < 15;
+  if (on)
+    snare(k, 0.06 + 0.2 * (((bar - 20) * 16 + b) / 32), { f: 1800 + b * 90 + (bar - 20) * 600, dur: 0.07, bf: 220 });
+}
+function buildRiser(k, c, f0 = 400) {
+  if (c.bar === 20 && c.b === 0) {
+    k.m.n(2.7, 0.07, { type: "highpass", f: f0, to: 9000, q: 0.9, attack: 2.6, opt: true });
+    k.m.t(180, 2.7, "sawtooth", 0.016, { to: 1800, lp: 3000, attack: 2.6, opt: true });
+  }
+}
+
+/* Neon Yard boss, 175 BPM, A minor (Am F C G): cyber-breakcore. Chopped amen-style break (two bars alternate, the
+   fourth bar of four rolls into a snare fill, hashed stutters and ghost snares), a distorted 808 sub that glides
+   down on the kicks of beat 1 and the "and" of beat 3, an acid saw lead (resonant low-pass sweeping up on every
+   note) from the A minor pentatonic, glitchy blips; breakdown: half time with a saw pad and glass arps; build:
+   snare roll, riser */
+const YARD_AMEN_K = ["x.x.......x.....", "x.x...x...x.x..."],
+  YARD_AMEN_S = ["....x..o.o..x..o", "....x.o...x.x..x"],
+  ACID_SCALE = [57, 60, 62, 64, 67, 69, 72],
+  ACID_GATE = ["x.x.x...x.x.x...", "xx.xx.x.xx.xx.x."];
+function yardBoss(e, c) {
+  const { b, bar, sec, root, chord } = c,
+    k = kit(e, c),
+    odd = bar & 1,
+    last = (bar & 3) === 3,
+    f808 = subNote(root);
+  if (c.cycle + bar > 0 && b === 0 && (bar === 8 || bar === 16 || bar === 0)) crash(k, 0.1);
+  if (sec <= 1) {
+    const K = pat(YARD_AMEN_K[odd]),
+      S = pat(last ? "....x.......xxxx" : YARD_AMEN_S[odd]);
+    if (K[b]) {
+      kick(k, 0.5, { f0: 140, f1: 45, dur: 0.09 });
+      if (R(c, 1) < 0.12) kick(k, 0.3, { f0: 140, f1: 45, dur: 0.09, at: 0.043 });
+      if (b === 0 || b === 10) k.x.t(f808 * 1.35, 0.4, "sine", 0.26, { to: f808, attack: 0.003 });
+    }
+    if (S[b]) {
+      snare(k, 0.15 * S[b] + (last && b >= 12 ? (b - 12) * 0.02 : 0), { f: 2200, bf: 210, dur: 0.1 });
+      if (R(c, 2) < 0.1) snare(k, 0.08, { f: 2600, bf: 210, dur: 0.06, at: 0.043 });
+    } else if (R(c, 3) < 0.1) snare(k, 0.05, { f: 2400, dur: 0.05 });
+    hat(k, b % 4 === 0 ? 0.05 : b % 2 === 0 ? 0.035 : 0.022, 0.025, 9000);
+    if (pat(ACID_GATE[sec])[b]) {
+      const note = ACID_SCALE[(b * 3 + bar * 2 + (b >> 2)) % 7] + (sec === 1 && R(c, 4) < 0.35 ? 12 : 0);
+      k.x.t(midiToFreq(note), 0.085, "sawtooth", 0.05, { lp: 500, lpTo: R(c, 5) < 0.4 ? 2800 : 1200, q: 10 });
+    }
+    if (b % 2 === 1 && R(c, 6) < 0.14) k.d.t(2500 + R(c, 7) * 2500, 0.014, "square", 0.02, { lp: 7000, opt: true });
+    if (bar === 15 && b === 8) reverseCymbal(k, 0.07);
+  } else if (sec === 2) {
+    if (b === 0) {
+      kick(k, 0.55, { f0: 120, f1: 40, dur: 0.3 });
+      k.x.t(f808 * 1.35, 0.9, "sine", 0.26, { to: f808, attack: 0.003 });
+      for (const i of [0, 1, 2])
+        k.m.t(midiToFreq(chord[i]), c.barSec + 0.15, "sawtooth", 0.02, {
+          lp: 1400,
+          env: padEnv(c.barSec + 0.15, 0.15),
+          detune: (i - 1) * 8,
+        });
+    }
+    if (b === 8) {
+      snare(k, 0.2, { f: 2000, bf: 190, dur: 0.18 });
+      clap(k, 0.08);
+    }
+    if (b % 4 === 2) hat(k, 0.03);
+    if (b % 2 === 0) k.d.t(midiToFreq(chord[[0, 2, 1, 3][(b >> 1) & 3]] + 24), 0.12, "sine", 0.04);
+    if (bar === 19 && b === 8) reverseCymbal(k, 0.07);
+  } else {
+    if (b % 4 === 0 && bar === 20) kick(k, 0.5, { f0: 140, f1: 45, dur: 0.09 });
+    buildRoll(k, c);
+    buildRiser(k, c);
+  }
+}
+
+/* Ember Works boss, 150 BPM, D minor (Dm Bb C Am): industrial metal. A galloping palm-muted power-chord riff (saw
+   root and fifth through the distortion bus, gallop = eighth plus two sixteenths, the riff bends into F and Eb in
+   the last beats of bars two and four) doubled by a double-kick, snare on 2 and 4, an anvil on beat 3 of every
+   bar, ride-like cymbal eighths, a sustained open chord on beat 1; variation: a scream lead; breakdown: doom half
+   time (slow chords, snare and anvil only on 3); build: rising chromatic chug, snare roll, riser */
+const WORKS_GALLOP = "x.xxx.xxx.xxx.xx",
+  WORKS_KICK_B = "xx.xx.x.xx.xx.x.",
+  WORKS_BUILD = [
+    [0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3, 5, 5, 5, 5],
+    [5, 5, 6, 6, 7, 7, 8, 8, 10, 10, 11, 11, 12, 12, 13, 13],
+  ];
+function worksRiffSemi(bar, b) {
+  const q = bar & 3;
+  if (q === 1 && (b === 10 || b === 11)) return 3;
+  if (q === 3 && (b === 10 || b === 11)) return 1;
+  if (q === 3 && (b === 14 || b === 15)) return 3;
+  return 0;
+}
+function worksBoss(e, c) {
+  const { b, bar, sec, root, chord } = c,
+    k = kit(e, c),
+    g = root - 12,
+    chug = (semi, vol, dur = 0.08) => {
+      const f = midiToFreq(g + semi);
+      k.x.t(f, dur, "sawtooth", vol, { lp: 1100, q: 1 });
+      k.x.t(f * 1.498, dur, "sawtooth", vol * 0.8, { lp: 1100 });
+    };
+  if (c.cycle + bar > 0 && b === 0 && (bar & 3) === 0) crash(k, 0.1);
+  if (sec <= 1) {
+    if (b === 0) {
+      const f = midiToFreq(g);
+      k.x.t(f, 0.45, "sawtooth", 0.07, { lp: 1800, hold: 0.2 });
+      k.x.t(f * 1.498, 0.45, "sawtooth", 0.055, { lp: 1800, hold: 0.2 });
+    } else if (pat(WORKS_GALLOP)[b]) chug(worksRiffSemi(bar, b), b % 4 === 0 ? 0.07 : 0.05);
+    if (pat(sec === 0 ? WORKS_GALLOP : WORKS_KICK_B)[b]) kick(k, 0.4, { f0: 130, f1: 48, dur: 0.085 });
+    if (b === 4 || b === 12) snare(k, 0.2, { f: 2200, bf: 220, dur: 0.12 });
+    if (b === 8) anvil(k, midiToFreq(chord[0] + 24), 0.09);
+    if (b % 2 === 0) hat(k, 0.05, 0.04, 7500);
+    if (b === 0 || b === 8) k.m.t(midiToFreq(root - 24), 0.6, "sine", 0.2, { hold: 0.2 });
+    if (sec === 1 && b === 0)
+      k.x.t(midiToFreq(chord[[2, 3, 1, 3][bar & 3]] + 24), 1.2, "sawtooth", 0.035, {
+        lp: 3000,
+        attack: 0.03,
+        hold: 0.8,
+      });
+  } else if (sec === 2) {
+    if (b === 0 || b === 10) {
+      const f = midiToFreq(g);
+      k.x.t(f, 1.1, "sawtooth", 0.08, { lp: 1500, hold: 0.6 });
+      k.x.t(f * 1.498, 1.1, "sawtooth", 0.065, { lp: 1500, hold: 0.6 });
+      k.x.t(f * 2, 1.1, "sawtooth", 0.05, { lp: 1500, hold: 0.6 });
+    }
+    if (b === 0 || b === 6 || b === 14) kick(k, b === 0 ? 0.6 : 0.4, { f0: 110, f1: 38, dur: 0.25 });
+    if (b === 8) {
+      snare(k, 0.25, { f: 1800, bf: 180, dur: 0.2 });
+      anvil(k, midiToFreq(chord[0] + 24), 0.11);
+    }
+    if (b === 0 && (bar & 1) === 0) k.m.t(midiToFreq(root - 24), 3.1, "sine", 0.18, { attack: 0.1, hold: 2.6 });
+    if (b % 4 === 2) hat(k, 0.03, 0.04, 7500);
+    if (b === 12 && (bar & 1) === 1) k.m.t(midiToFreq(chord[1] + 36), 0.6, "sine", 0.03, { attack: 0.002 });
+  } else {
+    chug(WORKS_BUILD[bar - 20][b] || 0, 0.06);
+    if (b % 4 === 0) kick(k, 0.4, { f0: 130, f1: 48, dur: 0.085 });
+    buildRoll(k, c);
+    buildRiser(k, c);
+  }
+}
+
+/* Cryo Vault boss, 172 BPM, E minor (Em C G D): cold drum'n'bass. Two-step: kick on 1 and the "and" of 3, snare on 2
+   and 4 with ghost notes, eighth hats (sixteenths in the variation), a sine sub bass on the kicks, a detuned
+   reese through the distortion bus in the variation, 16th glass arps (sine plus a third partial) in the echo, a
+   triangle choir pad, reversed cymbals before every fourth bar; breakdown: pads in two octaves, arps, a single kick;
+   build: snare roll, riser */
+function vaultBoss(e, c) {
+  const { b, bar, sec, root, chord } = c,
+    k = kit(e, c),
+    sub = subNote(root);
+  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) crash(k, 0.1);
+  if (sec <= 1) {
+    if (b === 0 || b === 10 || (sec === 1 && b === 2)) kick(k, 0.5, { f0: 140, f1: 45, dur: 0.1 });
+    if (b === 4 || b === 12) snare(k, 0.3, { f: 2400, bf: 200, dur: 0.1 });
+    else if ([7, 9, 15].includes(b) && R(c, 1) < 0.35) snare(k, 0.08, { f: 2600, dur: 0.05 });
+    if (b % 2 === 0) hat(k, 0.07, 0.03, 9500);
+    else if (sec === 1) hat(k, 0.035, 0.02, 10000);
+    if (b === 14 && (sec === 1 || R(c, 2) < 0.4)) hat(k, 0.08, 0.1, 8500);
+    if (b === 0) k.m.t(sub, 0.6, "sine", 0.22, { hold: 0.3 });
+    if (b === 10) k.m.t(sub * 1.498, 0.35, "sine", 0.2);
+    if (sec === 1 && (b === 0 || b === 10)) {
+      const f = midiToFreq(root - 12),
+        dur = b === 0 ? 1.35 : 0.5,
+        hold = b === 0 ? 0.9 : 0.1;
+      k.x.t(f, dur, "sawtooth", 0.03, { lp: 420, hold, detune: -14 });
+      k.x.t(f, dur, "sawtooth", 0.03, { lp: 420, hold, detune: 14 });
+    }
+    if (b === 0)
+      for (const i of [0, 2])
+        k.m.t(midiToFreq(chord[i] + 12), c.barSec + 0.2, "triangle", 0.035, {
+          lp: 2000,
+          env: padEnv(c.barSec + 0.2, 0.2),
+          detune: (i - 1) * 8,
+        });
+    const f = midiToFreq(chord[[0, 2, 1, 3, 2, 1, 3, 2][b % 8]] + 24 + (b % 8 === 7 ? 12 : 0));
+    k.d.t(f, 0.11, "sine", 0.04);
+    if (b % 8 === 0) k.d.t(f * 3, 0.06, "sine", 0.01);
+    if ((bar & 3) === 3 && b === 8) reverseCymbal(k, 0.06);
+  } else if (sec === 2) {
+    if (b === 0) {
+      kick(k, 0.45, { f0: 130, f1: 42, dur: 0.2 });
+      k.m.t(sub, 1.3, "sine", 0.3, { hold: 0.8 });
+      for (const i of [0, 2]) {
+        k.m.t(midiToFreq(chord[i] + 12), c.barSec + 0.2, "triangle", 0.04, {
+          lp: 2000,
+          env: padEnv(c.barSec + 0.2, 0.2),
+          detune: (i - 1) * 8,
+        });
+        k.m.t(midiToFreq(chord[i] + 24), c.barSec + 0.2, "sine", 0.02, { env: padEnv(c.barSec + 0.2, 0.2) });
+      }
+    }
+    if (b === 12 && bar === 19) snare(k, 0.2, { f: 2000, dur: 0.15 });
+    if (b % 2 === 0) k.d.t(midiToFreq(chord[[0, 2, 1, 3][(b >> 1) & 3]] + 24), 0.14, "sine", 0.04);
+    if (bar === 19 && b === 8) reverseCymbal(k, 0.07);
+  } else {
+    if (b % 4 === 0 && bar === 20) kick(k, 0.5, { f0: 140, f1: 45, dur: 0.1 });
+    buildRoll(k, c);
+    buildRiser(k, c, 600);
+    if (b === 0) k.m.t(sub, 1.3, "sine", 0.3, { hold: 0.8 });
+  }
+}
+
+/* Toxin Marsh boss, 140 BPM, F minor (Fm Ab Eb Cm): sludge / wobble. Half time: kick on 1 (ghost on the "and" of
+   beat 2), a heavy distorted snare on 3, eighth hats; the wobble bass is a saw plus a resonant square an octave up
+   whose low-pass cut-offs sweep in opposite phase (a quarter-note wobble in the drop, eighth notes in the
+   variation, faster in the build) through the distortion bus; doom power chords (three detuned saws), a growl lead
+   in the variation, mud squelches and bubbles; breakdown: slow sub drone with a long wobble, kick and snare only;
+   build: snare roll, riser, the wobble speeds up */
+const MARSH_HALF = [
+  [0, 0],
+  [0, 0],
+  [0, 5],
+  [0, 3],
+];
+function marshBoss(e, c) {
+  const { b, bar, sec, root, chord } = c,
+    k = kit(e, c),
+    step = 60 / 140 / 4,
+    wob = (b0, len, semi, period) => {
+      if (b !== b0) return;
+      const dur = len * step,
+        base = root - 24 + semi,
+        f = midiToFreq(base < 29 ? base + 12 : base);
+      k.x.t(f, dur, "sawtooth", 0.1, {
+        lp: 160,
+        q: 5,
+        lpCurve: wobbleCurve(160, 1500, period * step, dur, 0),
+        hold: dur * 0.8,
+      });
+      k.x.t(f * 2, dur, "square", 0.045, {
+        lp: 200,
+        q: 9,
+        lpCurve: wobbleCurve(200, 1800, period * step, dur, Math.PI),
+        hold: dur * 0.8,
+      });
+    },
+    squelch = () => {
+      k.m.n(0.16, 0.08, { f: 900, to: 150, q: 7, opt: true });
+      k.m.t(180, 0.14, "sine", 0.07, { to: 55, opt: true });
+    };
+  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) crash(k, 0.1);
+  if (sec <= 1) {
+    if (b === 0) kick(k, 0.55, { f0: 130, f1: 40, dur: 0.2 });
+    if (b === 6 || (sec === 1 && b === 10)) kick(k, 0.3, { f0: 130, f1: 40, dur: 0.15 });
+    if (b === 8) {
+      snare(k, 0.24, { f: 900, bf: 140, dur: 0.22 });
+      k.x.t(120, 0.2, "triangle", 0.1, { to: 60 });
+    }
+    if (b % 2 === 0) hat(k, 0.045, 0.03, 8000);
+    else hat(k, 0.02, 0.015, 10000);
+    if (b % 4 === 1) k.m.n(0.02, 0.035, { type: "bandpass", f: 4200, q: 3 });
+    if (b % 4 === 3) k.m.n(0.02, 0.04, { type: "bandpass", f: 3000, q: 3 });
+    if (sec === 1 && (bar & 3) === 3 && b >= 12) snare(k, 0.1 + (b - 12) * 0.03, { f: 1800, dur: 0.06 });
+    if (sec === 0) {
+      wob(0, 8, MARSH_HALF[bar & 3][0], 4);
+      wob(8, 8, MARSH_HALF[bar & 3][1], 4);
+    } else {
+      wob(0, 6, 0, 2);
+      wob(6, 6, 0, 2);
+      wob(12, 4, [3, 0, 5, 7][bar & 3], 2);
+    }
+    if (b === 0 && (sec === 1 || (bar & 1) === 0)) {
+      const f = midiToFreq(root - 12);
+      for (const [mul, det] of [
+        [1, -10],
+        [1.498, 0],
+        [2, 10],
+      ])
+        k.x.t(f * mul, 1.5, "sawtooth", 0.04, { lp: 900, attack: 0.02, hold: 1.1, detune: det });
+    }
+    if (sec === 1 && (b === 0 || b === 10))
+      k.x.t(midiToFreq(chord[(bar & 1) === 1 ? 2 : 0] + 24), 0.5, "square", 0.035, { lp: 1400, q: 6 });
+    if (b === 6 && R(c, 1) < 0.4) squelch();
+    if (b % 2 === 1 && R(c, 2) < 0.06) {
+      const f = 170 + R(c, 3) * 500;
+      k.d.t(f, 0.09, "sine", 0.05, { to: f * 1.9, opt: true });
+    }
+  } else if (sec === 2) {
+    if (b === 0) kick(k, 0.6, { f0: 110, f1: 38, dur: 0.28 });
+    if (b === 8) {
+      snare(k, 0.26, { f: 800, bf: 130, dur: 0.25 });
+      k.x.t(120, 0.25, "triangle", 0.12, { to: 55 });
+    }
+    if (b === 0) {
+      const dur = 16 * step,
+        base = root - 24,
+        f = midiToFreq(base < 29 ? base + 12 : base);
+      k.x.t(f, dur, "sawtooth", 0.1, {
+        lp: 160,
+        q: 5,
+        lpCurve: wobbleCurve(160, 1200, 8 * step, dur, 0),
+        hold: dur * 0.8,
+      });
+    }
+    if (b === 0 && (bar & 1) === 0)
+      for (const mul of [1, 1.498])
+        k.x.t(midiToFreq(root - 12) * mul, 3, "sawtooth", 0.045, {
+          lp: 800,
+          attack: 0.05,
+          hold: 2.5,
+          detune: mul > 1 ? 9 : -9,
+        });
+    if (b === 6 && (bar & 1) === 1) squelch();
+  } else {
+    if (b === 0 || b === 8) wob(b, 8, 0, bar === 20 ? 2 : 1);
+    if (b === 0) kick(k, 0.5, { f0: 130, f1: 40, dur: 0.2 });
+    buildRoll(k, c);
+    buildRiser(k, c, 300);
+  }
+}
+
+/* Void Core boss, 160 BPM, F# minor (F#m D A E): cosmic horror. Three detuned saw drones (through the distortion
+   bus, one every two bars), tritone stabs (saw on the root and the root plus six semitones) on the broken groups of
+   the bar, a broken glitch break (four kick/snare patterns with hashed drop-outs, stutters and hat ticks), a
+   tape-stop fill (a stab that falls two octaves) every eighth bar; breakdown: drones, whispers and long pings in the
+   echo, a reversed swell, one hard hit; build: gated stabs that speed up and climb, snare roll, riser, tape-stop */
+const VOID_STAB = [
+    ["x..x..x.x..x..x.", "x..x.....x..x.x.", "x..x..x.....x...", "x.....x.x.x..x.."],
+    ["X..x..x.x.xx..x.", "x..x.x...x..xxx.", "x.xx..x.x...x.x.", "x..xx.x.x.x.xx.."],
+  ],
+  VOID_BREAK_K = ["x..x......x.....", "x.....x...x..x..", "x..x..x.....x...", "x.....x.x.x....."],
+  VOID_BREAK_S = ["......x...x...x.", "........x..x..x.", "....x.....x...x.", "......x.x...x..."];
+function voidBoss(e, c) {
+  const { b, bar, sec, root, chord } = c,
+    k = kit(e, c),
+    q = bar & 3,
+    f0 = midiToFreq(root),
+    stab = (vol, dur) => {
+      k.x.t(f0, dur, "sawtooth", vol, { lp: 2500 });
+      k.x.t(midiToFreq(root + 6), dur, "sawtooth", vol * 0.8, { lp: 2500 });
+    },
+    tapeStop = () => {
+      k.x.t(midiToFreq(root + 12), 0.6, "sawtooth", 0.06, { to: midiToFreq(root + 12) * 0.1, lp: 2400 });
+      k.x.t(midiToFreq(root + 18), 0.6, "sawtooth", 0.05, { to: midiToFreq(root + 18) * 0.1, lp: 2400 });
+    },
+    drone = (vol) => {
+      for (const det of [-14, 14])
+        k.x.t(midiToFreq(root - 24), c.barSec * 2 + 0.3, "sawtooth", vol, {
+          lp: 360,
+          env: padEnv(c.barSec * 2 + 0.3, 0.3),
+          detune: det,
+        });
+    };
+  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) crash(k, 0.1);
+  if (sec <= 1) {
+    if (b === 0 && (bar & 1) === 0) drone(0.04);
+    const st = pat(VOID_STAB[sec][q])[b];
+    if (st) stab(st > 1 ? 0.07 : 0.05, st > 1 ? 0.22 : 0.1);
+    if (pat(VOID_BREAK_K[q])[b] && R(c, 1) > 0.1) kick(k, 0.5, { f0: 140, f1: 38, dur: 0.12 });
+    if (pat(VOID_BREAK_S[q])[b] && R(c, 2) > 0.12) {
+      snare(k, 0.16, { f: 2600, bf: 240, dur: 0.09 });
+      if (R(c, 3) < 0.2) snare(k, 0.07, { f: 2600, dur: 0.05, at: 0.047 });
+    }
+    if (R(c, 4) < (sec === 1 ? 0.5 : 0.35)) hat(k, 0.025, 0.012, 12000);
+    if (R(c, 5) < (sec === 1 ? 0.1 : 0.05))
+      for (let i = 0; i < 3; i++) k.m.n(0.012, 0.06, { type: "highpass", f: 7000, at: i * 0.03, opt: true });
+    if ((bar & 7) === 7 && b === 12) tapeStop();
+  } else if (sec === 2) {
+    if (b === 0 && (bar & 1) === 0) drone(0.05);
+    if (b === 0) kick(k, 0.55, { f0: 110, f1: 36, dur: 0.3 });
+    if (b === 8 && (bar & 1) === 0) {
+      k.m.n(0.35, 0.18, { type: "bandpass", f: 1200, q: 0.8 });
+      k.m.t(70, 0.5, "sine", 0.5, { to: 30 });
+    }
+    if (b % 4 === 2 && R(c, 6) < 0.12) {
+      const [f1, f2] = VOID_FORMANTS[(R(c, 7) * 3) | 0];
+      k.d.n(1.4, 0.04, { type: "bandpass", f: f1, q: 9, attack: 0.4, hold: 0.3, opt: true });
+      k.d.n(1.4, 0.035, { type: "bandpass", f: f2, q: 9, attack: 0.4, hold: 0.3, opt: true });
+    }
+    if (b % 4 === 0 && R(c, 8) < 0.1)
+      k.d.t(midiToFreq(chord[(R(c, 9) * 3) | 0] + (R(c, 10) < 0.5 ? 24 : 36)), 2.6, "sine", 0.04, { opt: true });
+    if (bar === 19 && b === 4) {
+      k.m.n(1.6, 0.07, { type: "highpass", f: 800, to: 7000, attack: 1.45, opt: true });
+      k.m.t(200, 1.6, "sawtooth", 0.025, { to: 1200, attack: 1.5, lp: 2000, opt: true });
+    }
+  } else {
+    const gate = bar === 20 ? b % 2 === 0 : b < 15;
+    if (gate) {
+      const climb = (bar - 20) * 16 + b;
+      k.x.t(midiToFreq(root + Math.floor(climb / 4)), 0.07, "sawtooth", 0.05 + climb * 0.0012, { lp: 2500 });
+      k.x.t(midiToFreq(root + 6 + Math.floor(climb / 4)), 0.07, "sawtooth", 0.04, { lp: 2500 });
+    }
+    if (b === 0 && bar === 20) kick(k, 0.5, { f0: 140, f1: 38, dur: 0.12 });
+    buildRoll(k, c);
+    buildRiser(k, c, 500);
+    if (bar === 21 && b === 12) tapeStop();
+  }
+}
+
+/* what a phase change (heat 1) and the enrage (heat 2) add to every boss track: sixteenth hat ticks, a crash every
+   second bar; enraged: short kicks on the off-beats and an octave stab on the chord root every second beat */
+function bossHeatLayer(e, c) {
+  const k = kit(e, c);
+  if (c.b % 2 === 1) hat(k, 0.03, 0.02, 11000);
+  if (c.b === 0 && (c.bar & 1) === 0) crash(k, 0.08, 0.8);
+  if (c.heat >= 2) {
+    if (c.b % 4 === 2 && c.sec !== 2) kick(k, 0.3, { f0: 130, f1: 45, dur: 0.08 });
+    if (c.b % 8 === 0) k.x.t(midiToFreq(c.chord[0] + 24), 0.3, "sawtooth", 0.04, { lp: 3000 });
+  }
+}
+
+/* The crash and the impact when the boss track starts on the spot (also when a phase change or the enrage sends the
+   track back to its drop), and the last hit when the boss is dead: a crash, a sub boom and a power chord. */
+function musicImpact(e, biome, at) {
+  e.noise(1.5, 0.16, { type: "highpass", f: 4500, attack: 0.002, dest: e.mus, at });
+  e.tone(90, 0.7, "sine", 0.6, { to: 28, dest: e.mus, at });
+  e.noise(0.25, 0.2, { f: 900, to: 120, dest: e.mus, at });
+}
+function musicResolve(e, biome, at) {
+  const f = midiToFreq((musicChords[biome] || musicChords.yard)[0][0] - 12);
+  e.noise(1.8, 0.14, { type: "highpass", f: 4500, attack: 0.002, dest: e.mus, at });
+  e.tone(80, 0.8, "sine", 0.55, { to: 30, dest: e.mus, at });
+  e.tone(f, 1.6, "sawtooth", 0.06, { lp: 1200, hold: 0.6, dest: e.distIn, at });
+  e.tone(f * 1.498, 1.6, "sawtooth", 0.05, { lp: 1200, hold: 0.6, dest: e.distIn, at });
+}
+/* the intensity of a preview: it swells and falls over the 16 bars, so that the quiet and the full side of a calm
+   theme can both be heard */
+function previewLevel(bar) {
+  return 0.3 + 0.65 * (0.5 - 0.5 * Math.cos(((bar % 16) / 16) * 2 * Math.PI));
+}
+
+const MUSIC_TRACKS = {
+  yard: {
+    fight: { bpm: 118, bars: 16, swing: 0, gain: 1.05, play: yardCalm },
+    boss: { bpm: 175, bars: 22, swing: 0, gain: 1.35, play: yardBoss },
+  },
+  works: {
+    fight: { bpm: 96, bars: 16, swing: 0, gain: 1.05, play: worksCalm },
+    boss: { bpm: 150, bars: 22, swing: 0, gain: 1.15, play: worksBoss },
+  },
+  vault: {
+    fight: { bpm: 104, bars: 16, swing: 0, gain: 1.45, play: vaultCalm },
+    boss: { bpm: 172, bars: 22, swing: 0, gain: 1.2, play: vaultBoss },
+  },
+  marsh: {
+    fight: { bpm: 84, bars: 16, swing: 0.2, gain: 0.75, play: marshCalm },
+    boss: { bpm: 140, bars: 22, swing: 0, gain: 1, play: marshBoss },
+  },
+  void: {
+    fight: { bpm: 100, bars: 16, swing: 0, gain: 0.9, play: voidCalm },
+    boss: { bpm: 160, bars: 22, swing: 0, gain: 1.5, play: voidBoss },
+  },
+};
+function musicTrack(kind, biome) {
+  return (MUSIC_TRACKS[biome] || MUSIC_TRACKS.yard)[kind];
+}
+/* tempo (BPM) and length in sixteenth steps of what plays */
+function trackInfo(kind, biome) {
+  if (kind === "fight" || kind === "boss") {
+    const track = musicTrack(kind, biome);
+    return { bpm: track.bpm, steps: track.bars * 16 };
+  }
+  return { bpm: 100, steps: 64 };
+}
+
 /* 2.9.0: what the music flood test throws at the engine (sound id, argument): every weapon, deaths, blasts */
 const RL_FLOOD = [
   ...RL_SFX_VOICES.map((id) => [id]),
@@ -2708,6 +3722,8 @@ export {
   RL_SFX_VOICES,
   rlShotSfx,
   musicVoices,
+  MUSIC_TRACKS,
+  trackInfo,
   SoundEngine,
   RL_DEATH_FAMILY,
   RL_ESHOT_VOICE,

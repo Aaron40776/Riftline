@@ -1,3 +1,36 @@
+RIFTLINE v3.1.0 – MUSIK: EIGENE WELLENTHEMEN UND SCHWERE BOSS-TRACKS PRO BIOM
+Basis: v3.0.0 · Build r310a1001c-r1 · 01.10.2026
+
+Gewünscht: Die ruhige Wellenmusik klang pro Biom zu ähnlich (gleicher Beat). Jedes Biom soll eigenen Rhythmus
+und typische Klänge haben (Metall in Ember Works, Sumpf in Toxin Marsh usw.). Im Bosskampf soll pro Biom ein sehr
+schwerer, instrumentaler Metal-/Breakcore-Track laufen, der beim Kameraschwenk sofort startet. Die Musik soll
+sich im Spiel anhören lassen.
+
+1) Umsetzung (audio/sound.js, ui, main.js)
+   - Ruhige Themen: je Biom 16 Takte mit eigenem Tempo, Rhythmus und Klangfarben; die Entscheidungen laufen über
+     Hashes statt Math.random, die Musik ist reproduzierbar.
+   - Boss-Tracks: je Biom 22 Takte (Drop 8, Variation 8, Halftime-Breakdown 4, Aufbau 2), gemeinsame
+     Verzerrungs-Bus (WaveShaper). Start beim Ereignis `boss` (Kameraschwenk) mit Crash und Impact; Phasenwechsel
+     und Enrage verstärken den Track (`bossPush`), nach dem Sieg löst `bossDown` in das ruhige Thema auf.
+   - Eigene Musikstimmen-Liste (höchstens 20), optionale Textur-Stimmen werden zuerst abgegeben; Schüsse und
+     Treffer nehmen der Musik keine Stimmen weg.
+   - Settings › Music: 10 Hör-Knöpfe (5 ruhig, 5 Boss), `sound.preview/stopPreview/previewing`; die Knöpfe
+     setzen sich beim Schließen der Einstellungen zurück.
+
+2) Prüfung
+   - npm test (Deep-Test mit Musik-Check: 10 Tracks, 30 Stimmenbudgets, Musik-Flut; Determinismus 15/15
+     unverändert), npm run qa, e2e, audit, sim, screens: alle ohne Fehler, Screenshots angesehen.
+   - Zwei Testkorrekturen: der Mine-Schlag (tsMine) lag zufallsabhängig bei 0,40–0,51 Unterscheidbarkeit zu
+     „boom“ und riss einmal die Grenze 0,40; er hat jetzt einen schärferen Knall (0,46–0,53). Der QA-Test
+     „erster Fallen-Tipp“ wartet jetzt gezielt auf den Tipp, nicht auf irgendeinen Toast (eine Diagnose-Meldung
+     kam einmal zuvor).
+
+3) Offene Zweifel (nur nach Klang beurteilbar, unvermessen)
+   - Marsh und Void ruhig basslastig; Vault-Arpeggien evtl. zu leise; Säure-Linie und Wobble nicht fein
+     abgestimmt.
+   - Pause/Fortsetzen startet den Track neu. Der Schnitt von der ruhigen Musik in den Boss-Track dauert bis
+     zu 0,14 s.
+
 RIFTLINE v3.0.0 – FALLEN, GRANATE, BURST-GRENZE UND SCHWERERES ENDLESS
 Basis: v2.9.1 · Build r300a1001b-r1 · 01.10.2026
 

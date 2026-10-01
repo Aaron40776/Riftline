@@ -933,7 +933,8 @@ function handleWorldEvents(world) {
         if (!ev.boss && world.arena.portals.length) {
           showTipOnce("portal", "Portals move you across the arena. Shots fly through them too.");
         }
-        sound.setMusic(ev.boss ? "boss" : "fight", biome.id);
+        // 3.1.0: the boss track starts when the boss appears (case "boss"), until then the calm theme plays
+        sound.setMusic("fight", biome.id);
         if (ev.n === 2) {
           showTipOnce(
             "dash",
@@ -974,6 +975,8 @@ function handleWorldEvents(world) {
         ui.gadgetFlash("deny");
         break;
       case "boss":
+        // 3.1.0: the boss track starts on the spot, at the camera pan
+        sound.setMusic("boss", world.biomeFor(world.wave).id);
         ui.banner(ev.name, ev.title, "boss", 2600);
         showTipOnce("boss", "Bosses telegraph every attack. Marked zones and lines hit hard \u2014 move out.");
         if (world.boss && renderer) {

@@ -7,6 +7,7 @@ import {
   musicChords,
   RL_SFX_VOICES,
   musicVoices,
+  trackInfo,
   SoundEngine,
   rlSoundCatalog,
   RL_DEATH_FAMILY,
@@ -587,36 +588,54 @@ function selfTestExpansion23(result) {
         }
       }
   });
-  // 2c. music: every biome has its own theme and every step of fight/boss/menu music schedules cleanly
+  // 2c. music: every biome has a calm theme and a boss track; every step of both (and of the menu music)
+  // schedules cleanly through the real engine, within the voice budget, at every intensity and boss heat
   section("music", () => {
-    const OfflineAudio = typeof OfflineAudioContext !== "undefined" ? OfflineAudioContext : null;
+    const OfflineAudio = typeof OfflineAudioContext !== "undefined" ? OfflineAudioContext : null,
+      tempos = new Set();
     for (const biome of biomeList) {
       if (!musicChords[biome.id] || !musicVoices[biome.id]) {
         bad("music-missing", biome.id);
         continue;
       }
+      for (const kind of ["fight", "boss"]) {
+        const info = trackInfo(kind, biome.id);
+        if (!(info.bpm >= 80 && info.bpm <= 180 && info.steps % 16 === 0)) bad("music-track", `${biome.id}:${kind}`);
+        if (kind === "boss" && info.steps !== 22 * 16) bad("music-boss-structure", biome.id);
+        if (kind === "fight" && info.steps !== 16 * 16) bad("music-calm-structure", biome.id);
+        tempos.add(`${kind}:${info.bpm}`);
+      }
       if (!OfflineAudio) continue;
-      const sound = new SoundEngine(),
-        ctx = new OfflineAudio(1, 2205, 22050);
-      sound.ctx = ctx;
-      sound.mus = ctx.createGain();
-      sound.delay = ctx.createDelay(1);
-      sound.sfx = ctx.createGain();
-      sound.mus.connect(ctx.destination);
-      sound.delay.connect(sound.mus);
-      sound.sfx.connect(ctx.destination);
-      sound.noiseBuf = ctx.createBuffer(1, 2205, 22050);
-      sound.biome = biome.id;
-      for (const [mode, steps] of [
-        ["fight", 64],
-        ["menu", 16],
+      for (const [kind, intensity, heat] of [
+        ["fight", 0.9, 0],
+        ["fight", 0.05, 0],
+        ["boss", 1, 0],
+        ["boss", 1, 2],
+        ["menu", 0.9, 0],
       ]) {
-        sound.mode = mode;
-        sound.intensity = 0.9;
-        sound.cycle = 0;
-        for (let step = 0; step < steps; step++) sound.note(step, 0);
+        const sound = new SoundEngine();
+        sound.attach(new OfflineAudio(1, 2205, 22050));
+        sound.playKind = kind;
+        sound.playBiome = biome.id;
+        sound.intensity = intensity;
+        sound.heat = heat;
+        const info = trackInfo(kind, biome.id),
+          len = 60 / info.bpm / 4;
+        for (let step = 0; step < info.steps * 3; step++) {
+          sound.simT = step * len;
+          sound.cycle = Math.floor(step / info.steps);
+          sound.note(step % info.steps, sound.simT);
+        }
+        if (sound.failed) bad("music-error", `${biome.id}:${kind}`);
+        if (sound.musicSkipped || sound.musicShed || sound.musicPeak > 18)
+          bad(
+            "music-budget",
+            `${biome.id}:${kind} heat ${heat} skipped ${sound.musicSkipped} shed ${sound.musicShed} peak ${sound.musicPeak}`,
+          );
       }
     }
+    // five calm themes and five boss tracks, five different tempos each
+    if (tempos.size !== 10) bad("music-tempos", [...tempos].join(","));
   });
   // 2d. stragglers: a hunting enemy of every type closes in on a stationary player
   section("hunt", () => {
@@ -1771,9 +1790,10 @@ function selfTestV270Sound(result) {
       const runMusic = (flood) => {
         const eng = new SoundEngine();
         eng.attach(new OfflineAudioContext(1, 44100, 44100));
-        eng.mode = "fight";
-        eng.biome = "works";
+        eng.playKind = "fight";
+        eng.playBiome = "works";
         eng.intensity = 0.9;
+        eng.musicLog = [];
         const ids = [
           ...RL_SFX_VOICES,
           "boom",
@@ -1786,8 +1806,8 @@ function selfTestV270Sound(result) {
           "dArmor",
           "eshotBoss",
         ];
-        for (let step = 0; step < 64; step++) {
-          eng.simT = step * 0.123;
+        for (let step = 0; step < 256; step++) {
+          eng.simT = step * 0.156;
           eng.note(step, eng.simT);
           if (flood)
             for (let k = 0; k < 40; k++) {
@@ -1805,6 +1825,7 @@ function selfTestV270Sound(result) {
           `music-dropped-in-flood:${calm.musicScheduled}/${calm.musicSkipped} vs ${busy.musicScheduled}/${busy.musicSkipped}`,
         );
       if (calm.musicSkipped) fail.push("music-skipped-without-flood:" + calm.musicSkipped);
+      if (JSON.stringify(calm.musicLog) !== JSON.stringify(busy.musicLog)) fail.push("music-notes-differ-in-flood");
       if (!busy.dropped) fail.push("flood-did-not-fill-the-voice-list");
       if (!busy.duckGain || !(busy.duckT > -1e8)) fail.push("music-duck-never-fired");
       for (const voice of engine.voices) {
@@ -1816,6 +1837,57 @@ function selfTestV270Sound(result) {
         engine.stopBed(bed);
         if (engine.voices.some((voice) => voice.loop)) fail.push("bed-never-ends:" + bed);
         if (engine.beds[bed]) fail.push("bed-kept:" + bed);
+      }
+      // 3.1.0: the boss track starts on the spot with a crash (not with the wave), a phase change or the enrage sends
+      // it back to its drop, it resolves into the calm theme when the boss is dead, and a preview of the settings
+      // screen plays a track until it is stopped or the game takes over the music
+      {
+        const eng = new SoundEngine();
+        eng.attach(new OfflineAudioContext(1, 44100, 44100));
+        eng.musicLog = [];
+        eng.setMusic("fight", "marsh");
+        if (eng.playKind !== "fight" || eng.playBiome !== "marsh") fail.push("music-fight-not-selected");
+        eng.step = 37;
+        eng.setMusic("fight", "marsh");
+        if (eng.step !== 37) fail.push("music-restarts-on-every-wave");
+        const before = eng.musicLog.length;
+        eng.setMusic("boss", "marsh");
+        if (eng.playKind !== "boss" || eng.step !== 0 || eng.bossOver) fail.push("boss-track-not-started-on-the-spot");
+        if (!eng.musicLog.slice(before).some((voice) => voice.kind === "n" && voice.dur > 1.4))
+          fail.push("boss-start-without-crash");
+        eng.bossPush(1);
+        eng.bossPush(2);
+        if (eng.heat !== 2 || !eng.jump) fail.push("boss-heat-not-raised");
+        eng.bossPush(1);
+        if (eng.heat !== 2) fail.push("boss-heat-lowered");
+        const beforeEnd = eng.musicLog.length;
+        eng.bossEnd();
+        if (eng.playKind !== "fight" || eng.heat !== 0) fail.push("boss-track-not-resolved");
+        if (!eng.musicLog.slice(beforeEnd).some((voice) => voice.bus === "x")) fail.push("boss-end-without-last-hit");
+        eng.setMusic("menu");
+        if (eng.playKind !== "menu") fail.push("menu-music-not-selected");
+        eng.preview("boss", "void");
+        const pv = eng.previewing();
+        if (!pv || pv.mode !== "boss" || pv.biome !== "void" || eng.playKind !== "boss")
+          fail.push("preview-not-playing");
+        eng.setMusic("menu");
+        if (!eng.previewing()) fail.push("preview-stopped-by-the-menu-music");
+        eng.stopPreview();
+        if (eng.previewing() || eng.playKind !== "menu") fail.push("preview-not-stopped");
+        eng.preview("fight", "yard");
+        if (eng.playKind !== "fight" || eng.playBiome !== "yard") fail.push("calm-preview-not-playing");
+        eng.setMusic("fight", "vault");
+        if (eng.previewing() || eng.playBiome !== "vault") fail.push("preview-not-ended-by-the-game");
+        eng.preview("fight", "nowhere");
+        if (eng.playBiome !== "yard") fail.push("preview-of-an-unknown-biome");
+        eng.stopPreview();
+        // muted music: no transition sounds
+        eng.setVolumes(1, 0);
+        const muted = eng.musicLog.length;
+        eng.setMusic("boss", "yard");
+        eng.bossEnd();
+        if (eng.musicLog.length !== muted) fail.push("transition-sounds-while-muted");
+        if (eng.failed) fail.push("engine-error-in-music-transitions");
       }
       // the boss music variant fades in with the boss and out after it
       engine.setMusic("boss", "vault");

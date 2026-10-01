@@ -391,6 +391,10 @@ const getById = (id) => document.getElementById(id),
             this.renderSettings();
             this.g.settingsChanged();
           });
+      // 3.1.0: listen to the calm theme and the boss track of every biome (loops until stopped)
+      for (let seg of document.querySelectorAll("#musicPreview .seg"))
+        for (let btn of seg.querySelectorAll("button"))
+          this.click(btn, () => this.togglePreview(seg.dataset.biome, btn.dataset.music));
       this.click(getById("resetBtn"), async () => {
         if (
           (await this.confirm(
@@ -430,6 +434,11 @@ const getById = (id) => document.getElementById(id),
       }
       for (let id of menuScreens) getById(id).hidden = id !== screen;
       this.screen = screen;
+      // the music preview plays only while the settings screen is open
+      if (screen !== "settings") {
+        this.g.sound.stopPreview();
+        this.renderPreview();
+      }
       if (screen === "home") {
         this.stack = [];
         this.renderHome();
@@ -456,6 +465,8 @@ const getById = (id) => document.getElementById(id),
       this._show(this.stack.pop() || "home");
     }
     hideMenus() {
+      this.g.sound.stopPreview();
+      this.renderPreview();
       for (let id of menuScreens) getById(id).hidden = true;
       this.screen = "game";
     }
@@ -725,6 +736,7 @@ const getById = (id) => document.getElementById(id),
       getById("setCalm").checked = settings.calm;
       getById("setSfx").value = settings.sfx;
       getById("setMusic").value = settings.music;
+      this.renderPreview();
       for (let btn of getById("setQuality").querySelectorAll("button"))
         btn.classList.toggle("on", btn.dataset.v === settings.quality);
       for (let btn of getById("setZoom").querySelectorAll("button"))
@@ -736,6 +748,24 @@ const getById = (id) => document.getElementById(id),
       // 2.4.2: run timer and FPS counter
       getById("setTimer").checked = !!settings.timer;
       getById("setFps").checked = !!settings.fps;
+    }
+    /* a button of the music block toggles the loop of its track; only one plays at a time */
+    togglePreview(biome, mode) {
+      let sound = this.g.sound,
+        now = sound.previewing();
+      if (now && now.biome === biome && now.mode === mode) {
+        sound.stopPreview();
+      } else {
+        sound.preview(mode, biome);
+        if (this.save.settings.music <= 0) this.toast("Music volume is off \u2014 raise it to listen", "hint", 2600);
+      }
+      this.renderPreview();
+    }
+    renderPreview() {
+      let now = this.g.sound.previewing();
+      for (let seg of document.querySelectorAll("#musicPreview .seg"))
+        for (let btn of seg.querySelectorAll("button"))
+          btn.classList.toggle("on", !!now && now.biome === seg.dataset.biome && now.mode === btn.dataset.music);
     }
     renderLog() {
       let count = getErrorLog().length;
@@ -1627,6 +1657,7 @@ const hudFpsMeter = { frames: 0, since: 0, last: 0, fps: 0, shown: "" };
 const timedBuffChips = ["heat", "slip", "skate"];
 // 2.4.2: closes settings that were opened from the pause menu
 function closePauseSettings(ui) {
+  ui.g.sound.stopPreview();
   ui.rlFromPause = false;
   getById("settings").hidden = true;
   getById("settings").classList.remove("in-run");
