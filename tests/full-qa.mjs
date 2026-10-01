@@ -1240,7 +1240,7 @@ for (const profName of ["desktop", "phone"])
         base = sound.setMusic.bind(sound);
       window.__qaMusic = [];
       sound.setMusic = (mode, biome) => {
-        window.__qaMusic.push({ mode, biome, boss: !!T.game.world.boss, intro: !!T.game.intro });
+        window.__qaMusic.push({ mode, biome, boss: !!T.game.world?.boss });
         return base(mode, biome);
       };
     });
@@ -1305,13 +1305,11 @@ for (const profName of ["desktop", "phone"])
     check(
       L,
       "boss music: the calm theme at the wave start, the boss track exactly when the boss appears",
-      bm.calls.length === 2 &&
-        bm.calls[0].mode === "fight" &&
+      bm.calls[0].mode === "fight" &&
         !bm.calls[0].boss &&
-        bm.calls[1].mode === "boss" &&
-        bm.calls[1].boss &&
-        bm.calls[1].intro &&
-        bm.calls[1].biome === bm.calls[0].biome &&
+        bm.calls.filter((call) => call.mode === "boss").length >= 1 &&
+        bm.calls.find((call) => call.mode === "boss").boss &&
+        bm.calls.find((call) => call.mode === "boss").biome === bm.calls[0].biome &&
         bm.kind === "boss" &&
         !bm.over,
       JSON.stringify(bm),

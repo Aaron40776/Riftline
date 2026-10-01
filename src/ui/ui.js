@@ -435,7 +435,10 @@ const getById = (id) => document.getElementById(id),
       for (let id of menuScreens) getById(id).hidden = id !== screen;
       this.screen = screen;
       // the music preview plays only while the settings screen is open
-      if (screen !== "settings") this.g.sound.stopPreview();
+      if (screen !== "settings") {
+        this.g.sound.stopPreview();
+        this.renderPreview();
+      }
       if (screen === "home") {
         this.stack = [];
         this.renderHome();
@@ -463,6 +466,7 @@ const getById = (id) => document.getElementById(id),
     }
     hideMenus() {
       this.g.sound.stopPreview();
+      this.renderPreview();
       for (let id of menuScreens) getById(id).hidden = true;
       this.screen = "game";
     }
