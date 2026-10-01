@@ -1209,6 +1209,11 @@ const MAX_PARTICLES = 1400,
             this.burst(ev.x, ev.y, 1.4, 8, 3, hexColor(12099712), 0.5, 0.45, { up: 4, drag: 3 });
             this.flash(ev.x, ev.y, 2, 0.6, hexColor(16752957), 8);
             break;
+          case "mutator":
+            // 3.3.0: the rift mutates: a wide ring and a shake
+            this.ring(ev.x, ev.y, 1, 14, hexColor(16734778), 0.9);
+            this.addShake(0.5 * shakeK);
+            break;
           case "phase":
           case "enrage":
             this.ring(ev.x, ev.y, 1, 7, hexColor(16732120), 0.5);

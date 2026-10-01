@@ -436,6 +436,7 @@ function rlRunAudit(world, outcome, abandoned) {
  (renderer, sound or UI) or be explicitly internal. Boss events must only be
  emitted while a boss is alive — enemy code once reused "phase"/"dash". ---- */
 const RL_EVENT_KINDS = new Set([
+  "mutator",
   "aim",
   "beamWarn",
   "blink",

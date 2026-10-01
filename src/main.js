@@ -56,6 +56,7 @@ import { RL_BIOME_HAZARD, biomesById, biomeList, rlApplyBiomeFixes } from "./dat
 import { weaponOrder, weaponDefs } from "./data/weapons.js";
 import { waveEvents, spawnWeights, heavyEnemies } from "./core/waves.js";
 import { World, rlStep } from "./core/world.js";
+import { MUTATORS } from "./core/mutators.js";
 import { threatMods, milestones, workshopModules, threatLevels } from "./data/progression.js";
 import { upgradeList, upgradesById } from "./data/upgrades.js";
 import { mapTemplates, hitsObstacle, obstacleShapes, buildLayout, isConnected } from "./core/arena.js";
@@ -858,7 +859,21 @@ function menuBiomeIndex() {
  shows its name card during the camera pan (game.intro) in place of the plain name banner and
  counts as seen for the Codex (boss_<id>). */
 let cardWave = 0,
-  cardEvent = null;
+  cardEvent = null,
+  // 3.3.0: an Endless mutator gained on a biome's first wave is announced after the card (and after its event)
+  cardMutator = null;
+/* the banner and the cue of an Endless mutator */
+function announceMutator(ev) {
+  const mutator = MUTATORS[ev.id];
+  if (!mutator) return;
+  ui.banner(
+    `MUTATOR · ${mutator.name.toUpperCase()}${ev.level > 1 ? " " + "I".repeat(ev.level) : ""}`,
+    mutator.desc,
+    "warn",
+    2600,
+  );
+  sound.play("mutator", ev.id);
+}
 /* 2.7.0: what the sound engine needs every frame of a running world: the drone speed for the engine
  hum (null: no hum, e.g. between waves and while the boss card shows) and the biome event that is on
  for its ambience. The engine switches both off by itself when this stops (pause, menus). */
@@ -1064,6 +1079,12 @@ function handleWorldEvents(world) {
       case "enrage":
         ui.banner("ENRAGED", "", "warn", 1400);
         break;
+      case "mutator":
+        // 3.3.0: an Endless mutator joins the run (or gets a level stronger): after the title card if one shows
+        if (world.wave === 1 || world.biomeFor(world.wave - 1).id !== world.biomeFor(world.wave).id)
+          cardMutator = { ...ev, wave: world.wave };
+        else announceMutator(ev);
+        break;
       case "phase":
         ui.banner(`PHASE ${ev.n}`, "The core adapts", "warn", 1600);
         break;
@@ -1111,6 +1132,16 @@ function handleWorldEvents(world) {
           }
         }, 450);
       }
+      const mut = hold.kind === "biome" && cardMutator && cardMutator.wave === world.wave ? cardMutator : null;
+      if (hold.kind === "biome") cardMutator = null;
+      if (mut)
+        setTimeout(
+          () => {
+            if (game.world === world && !game.paused && world.state === "fight" && world.wave === mut.wave)
+              announceMutator(mut);
+          },
+          ev ? 3100 : 450,
+        );
       if (hold.kind === "biome") {
         cardEvent = null;
       }

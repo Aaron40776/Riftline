@@ -46,12 +46,15 @@ function trapCount(fam, wave) {
   if (wave > 20) count = Math.ceil(count * 1.5) + Math.floor(Math.max(0, wave - 40) / 20);
   return Math.min(count, fam === "floor" ? 9 : fam === "beam" ? 4 : 12);
 }
-// endless pace: pauses 20% shorter, warnings 15% shorter (never below 0.7 s)
-const pace = (wave) => (wave > 20 ? { cd: 0.8, warn: 0.85 } : { cd: 1, warn: 1 });
+// endless pace: pauses 20% shorter, warnings 15% shorter (never below 0.7 s); 3.3.0: the Trap Storm mutator takes
+// another 12% off the pauses per level
+const pace = (wave, storm = 0) => (wave > 20 ? { cd: 0.8 * (1 - 0.12 * storm), warn: 0.85 } : { cd: 1, warn: 1 });
 
 function rlPlanTraps(world, wave, boss) {
   const traps = [];
-  if (boss || wave < 6) return traps;
+  // 3.3.0: boss waves get floor traps from wave 15 on (half as many), so the later boss fights are fought on a
+  // dangerous floor too
+  if ((boss && wave < 15) || wave < 6) return traps;
   const biome = world.arena.biome.id,
     skins = BIOME_TRAPS[biome];
   if (!skins) return traps;
@@ -72,11 +75,13 @@ function rlPlanTraps(world, wave, boss) {
     }
     return null;
   };
-  for (const fam of ["floor", "beam", "mine"]) {
+  const storm = (world.mods && world.mods.trapstorm) || 0;
+  for (const fam of boss ? ["floor"] : ["floor", "beam", "mine"]) {
     const skinName = skins[fam];
     if (!skinName) continue;
     const skin = TRAP_SKINS[skinName],
-      count = trapCount(fam, wave);
+      base = trapCount(fam, wave) + (base0(fam, wave) ? storm : 0),
+      count = boss ? Math.ceil(base / 2) : base;
     for (let i = 0; i < count; i++) {
       const spot = place(skin.r || 1.2);
       if (!spot) break;
@@ -100,6 +105,9 @@ function rlPlanTraps(world, wave, boss) {
   }
   return traps;
 }
+
+// a family that is in play at this wave (the Trap Storm adds to those only)
+const base0 = (fam, wave) => wave >= TRAP_FROM[fam];
 
 // damage of a trap on the player: its base times the wave's enemy damage multiplier
 const trapDamage = (world, skin) => skin.dmg * world.dmgMul;
@@ -145,7 +153,7 @@ function trapStrike(world, trap, skin, radius) {
 
 function rlUpdateTraps(world, dt) {
   if (!world.traps.length || world.state !== "fight") return;
-  const p = pace(world.wave),
+  const p = pace(world.wave, (world.mods && world.mods.trapstorm) || 0),
     player = world.player;
   for (const trap of world.traps) {
     const skin = TRAP_SKINS[trap.skin];

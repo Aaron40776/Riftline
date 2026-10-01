@@ -21,6 +21,7 @@ import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange } from "../core/stats.js";
 import { RL_INPUT } from "./input.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
+import { MUTATORS } from "../core/mutators.js";
 import { markHomeViewDirty } from "../render/renderer.js";
 
 const RL_TOUCH_CLICK_GUARD = { until: 0, x: 0, y: 0, key: "" };
@@ -1181,6 +1182,15 @@ const getById = (id) => document.getElementById(id),
       if (world.event && world.state === "fight") {
         chips.unshift(["event", waveEvents[world.event].name, world.event === "elite" ? "#ffc84a" : "#7ff6ff", -1]);
       }
+      // 3.3.0: the Endless mutators in play (with their level)
+      for (const [id, level] of Object.entries(world.mods || {}))
+        if (MUTATORS[id])
+          chips.push([
+            "mut-" + id,
+            MUTATORS[id].name.toUpperCase() + (level > 1 ? " " + "I".repeat(level) : ""),
+            MUTATORS[id].color,
+            -1,
+          ]);
       if (player.onIce && world.state === "fight") {
         chips.push(["ice", "ICE", "#bff4ff", -1]);
       }

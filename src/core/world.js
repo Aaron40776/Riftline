@@ -22,6 +22,7 @@ import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHaz
 import { computeStats } from "./stats.js";
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 import { rlPlanTraps, rlUpdateTraps } from "./traps.js";
+import { rlMutatorsFor } from "./mutators.js";
 // 2.2.3: the run monitor observes the live run's world (used at run time only; circular import)
 import { RL_MON, rlMonStep, rlMonIssue, rlMonBeginWave } from "./diagnostics.js";
 
@@ -298,8 +299,16 @@ const rlStep = 1 / 60,
         player.nova = nova ?? Math.max(player.nova, novaFloor);
         this.waveT = 0;
         this.waveDmg = 0;
-        this.hpMul = (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) * this.tm.hp * endlessHpBoost(wave);
-        this.dmgMul = (1 + 0.035 * (wave - 1)) * this.tm.dmg;
+        // 3.3.0: the Endless mutators of this wave (see mutators.js): Armored adds hull, Barrage damage and shot speed
+        const mutators = rlMutatorsFor(this.seed, wave);
+        this.mods = mutators.mods;
+        this.hpMul =
+          (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) *
+          this.tm.hp *
+          endlessHpBoost(wave) *
+          (1 + 0.25 * (this.mods.armored || 0));
+        this.dmgMul = (1 + 0.035 * (wave - 1)) * this.tm.dmg * (1 + 0.1 * (this.mods.barrage || 0));
+        this.shotMul = 1 + 0.2 * (this.mods.barrage || 0);
         this.stragglerT = 0;
         let boss = this.bossFor(wave);
         this.event = this.eventFor(wave);
@@ -320,6 +329,8 @@ const rlStep = 1 / 60,
         this.state = "fight";
         this.stateT = 0;
         this.emit("wave", { n: wave, boss: boss, biome: biome.id, event: this.event });
+        if (mutators.gained && !resumed)
+          this.emit("mutator", { id: mutators.gained, level: this.mods[mutators.gained], x: player.x, y: player.y });
         // Nova start charge, the arena director's wave mode, supply caches and the director's bonus
         // group (kept additive to the wave set up above)
         if (nova == null && this.stats.novaStart > 0) player.nova = Math.min(100, player.nova + this.stats.novaStart);
@@ -1535,6 +1546,17 @@ const rlStep = 1 / 60,
           enemy.speed *= 1.35;
         }
       }
+      // 3.3.0: the Endless mutators (a hash of the enemy decides, so the wave's random stream stays the same)
+      const mods = this.mods;
+      if (mods && type !== "mite" && !opts.champion) {
+        const roll = (salt) => hashString(this.seed + ":" + salt + ":" + enemy.id) / 4294967296;
+        if (!enemy.affix && mods.volatile && roll("vol") < 0.2 * mods.volatile) enemy.affix = "volatile";
+        if (!enemy.affix && mods.shielded && roll("shd") < 0.15 * mods.shielded) {
+          enemy.affix = "shielded";
+          enemy.shield = enemy.shieldMax = hp * 0.45;
+        }
+        if (mods.hasted) enemy.speed *= 1 + 0.12 * mods.hasted;
+      }
       this.enemies.push(enemy);
       return enemy;
     }
@@ -1598,6 +1620,12 @@ const rlStep = 1 / 60,
         boss.y = arena.H - 5;
       }
       initBoss(this, boss);
+      // 3.3.0: the tier of a boss is the number of bosses before it in this run (wave 5: 0, wave 10: 1 …); a higher
+      // tier rests less between its attacks (down to 60 %)
+      boss.tier = Math.max(0, Math.floor(this.wave / 5) - 1);
+      boss.pace = Math.max(0.6, 1 - 0.08 * boss.tier);
+      // and more hull: the bot of the balance bench killed the bosses of waves 5-15 in 16-38 s, before their enrage
+      // mattered; +25% per tier, at most twice the hull (the first boss stays as it was)
       this.enemies.push(boss);
       this.boss = boss;
       this.emit("boss", { id: id, name: def.name, title: def.title });
@@ -1608,6 +1636,9 @@ const rlStep = 1 / 60,
         boss.hp *= hpScale;
         boss.maxHp *= hpScale;
       }
+      const tierHull = Math.min(2, 1 + 0.25 * boss.tier);
+      boss.hp *= tierHull;
+      boss.maxHp *= tierHull;
       return boss;
     }
     statusTick(enemy, dt) {
@@ -2474,8 +2505,8 @@ const rlStep = 1 / 60,
       let bullet = {
         x: x,
         y: y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
+        vx: Math.cos(angle) * speed * (this.shotMul || 1),
+        vy: Math.sin(angle) * speed * (this.shotMul || 1),
         r: opts.r || 0.24,
         dmg: dmg,
         life: opts.life || 5,

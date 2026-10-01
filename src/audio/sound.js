@@ -87,7 +87,14 @@ const RL_BOSS_ATK = {
   eruption: null,
   furnace: "bSummon",
   stoke: "bStoke",
+  // 3.3.0: the Overdrive attacks (they also sound the Overdrive alarm, bOverdrive)
+  lockdown: "bLance",
+  meltdown: "bStoke",
+  whiteout: "bNova",
+  plague: "bSummon",
+  collapse: "bRain",
 };
+const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse"]);
 const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   /* 2.9.0: every boss has a timbre (wave, filter) and a short motif (semitones above the root, two octaves up)
    that its telegraphs, roar and death share, so that the ear knows who is attacking: the Warden stern and
@@ -112,6 +119,8 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     phase: 0.1,
     boss: 0.1,
     bossIntro: 0.12,
+    mutator: 0.12,
+    bOverdrive: 0.1,
     evolve: 0.1,
     guardBreak: 0.08,
     thud: 0.08,
@@ -141,6 +150,8 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     thud: 0.25,
     evolve: 0.3,
     victory: 0.3,
+    mutator: 0.35,
+    bOverdrive: 0.3,
   },
   /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Toxin Marsh damp */
   SFX_ROOM_BIOME = { yard: 0.28, works: 0.38, vault: 0.5, marsh: 0.2, void: 0.55 },
@@ -152,6 +163,8 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   MUSIC_RESERVE = 6,
   /* sounds that are never dropped in favour of others when the voice limit is reached */
   KEY_SOUNDS = new Set([
+    "mutator",
+    "bOverdrive",
     "hurt",
     "die",
     "victory",
@@ -286,6 +299,7 @@ const RL_SOUND_EVENTS = {
   wingShot: [{}],
 };
 const RL_SILENT_EVENTS = new Set([
+  "mutator", // 3.3.0: main.js plays its cue with the banner (after the biome card)
   "pop", // a bullet expiring: far too frequent
   "spark", // impact effect, covered by "dmg"
   "spawn", // one enemy appears: the "portal" group sound covers it
@@ -1569,6 +1583,40 @@ const musicChords = {
             this.tone(140, 0.4, "sine", 0.06, { to: 90, attack: 0.15 });
           }
           break;
+        case "bOverdrive": {
+          // 3.3.0: the Overdrive alarm: a two-tone siren in the boss's timbre that climbs, a sub drop and its motif
+          let b = BOSS_SOUND[arg] || BOSS_SOUND.warden,
+            f = midiToFreq((BOSS_ROOT[arg] || 45) + 12);
+          for (let i = 0; i < 4; i++)
+            this.tone(f * (i % 2 ? 1.414 : 1) * (1 + i * 0.06), 0.2, b.wave, 0.07, {
+              at: i * 0.2,
+              lp: b.lp * 2.5,
+              attack: 0.01,
+              detune: b.det,
+            });
+          this.tone(110, 0.9, "sine", 0.4, { to: 30, at: 0.8 });
+          this.noise(0.8, 0.12, { f: 300, to: 3500, attack: 0.75, q: 1.2 });
+          this.noise(0.5, 0.12, { f: 1200, to: 150, at: 0.8 });
+          this.bossMotif(arg, 0.05, 0.85);
+          break;
+        }
+        case "mutator": {
+          // 3.3.0: the rift mutates: a swell that rises into a low hit, a dissonant chord (a tritone over the root)
+          // and a metallic ring
+          this.noise(0.9, 0.08, { type: "bandpass", f: 400, to: 4000, q: 2, attack: 0.85 });
+          this.tone(60, 0.9, "sawtooth", 0.05, { to: 240, lp: 900, attack: 0.85 });
+          this.tone(90, 0.8, "sine", 0.4, { to: 32, at: 0.85 });
+          this.noise(0.4, 0.14, { f: 900, to: 120, at: 0.85 });
+          for (const [semi, det] of [
+            [0, -8],
+            [6, 0],
+            [12, 8],
+          ])
+            this.tone(midiToFreq(38 + semi), 1, "sawtooth", 0.04, { at: 0.85, lp: 1200, detune: det, attack: 0.01 });
+          this.tone(1870, 1.1, "sine", 0.025, { at: 0.86, attack: 0.002 });
+          this.tone(1870 * 2.76, 0.6, "sine", 0.012, { at: 0.86, attack: 0.002 });
+          break;
+        }
         case "enrage": {
           // a roar on the boss's own pitch and timbre, then its motif once more
           let b = BOSS_SOUND[arg] || BOSS_SOUND.warden,
@@ -2314,6 +2362,7 @@ const musicChords = {
             break;
           case "bossAtk": {
             let voice = RL_BOSS_ATK[ev.atk];
+            if (RL_OVERDRIVE.has(ev.atk)) this.play("bOverdrive", ev.id);
             if (voice) this.play(voice, ev.id);
             break;
           }
@@ -4201,6 +4250,8 @@ function rlSoundCatalog() {
   ids(["hatch"], 1);
   // 3.0.0: grenade, resisted hits and traps
   ids(["grenadeThrow", "grenadeBlast", "gadgetReady", "gadgetNo", "resist"]);
+  // 3.3.0: the Endless mutator
+  ids(["mutator"], "volatile");
   ids(["tcPlate", "tcCrusher", "tcIce", "tcGeyser", "tcRift"], 1);
   for (const id of ["tbLaser", "tbFlame", "tbRift"]) add(id, { id, arg: { delay: 0.7, dur: 1.2 } });
   ids(["tmMine", "tmFrost", "tmSpore", "tmRift"], 0.45);
@@ -4208,7 +4259,19 @@ function rlSoundCatalog() {
   ids(["tsPlate", "tsCrusher", "tsIce", "tsGeyser", "tsRift", "tsMine", "tsFrost", "tsSpore", "tsRiftMine"]);
   for (const boss of Object.keys(BOSS_ROOT)) {
     ids(["bossIntro"], boss);
-    for (const id of ["bWind", "bRing", "bSlam", "bSummon", "bNova", "bLance", "bStoke", "bRain", "enrage", "bossDown"])
+    for (const id of [
+      "bWind",
+      "bRing",
+      "bSlam",
+      "bSummon",
+      "bNova",
+      "bLance",
+      "bStoke",
+      "bRain",
+      "bOverdrive",
+      "enrage",
+      "bossDown",
+    ])
       ids([id], boss);
   }
   for (const rarity of [1, 2, 3, 4, 5]) ids(["pick"], rarity);

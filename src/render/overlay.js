@@ -18,6 +18,12 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
     lances: "LANCES",
     cross: "LASER CROSS",
     rain: "BOMBARDMENT",
+    // 3.3.0: the Overdrive attacks of the enraged bosses
+    lockdown: "OVERDRIVE · LOCKDOWN",
+    meltdown: "OVERDRIVE · MELTDOWN",
+    whiteout: "OVERDRIVE · WHITEOUT",
+    plague: "OVERDRIVE · PLAGUE",
+    collapse: "OVERDRIVE · COLLAPSE",
     // 2.4.6: Frost Prism
     frostbeam: "FROST BEAM",
     icelances: "ICE LANCES",
