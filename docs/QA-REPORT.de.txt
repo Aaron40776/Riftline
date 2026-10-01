@@ -1,3 +1,69 @@
+RIFTLINE v2.9.0 – MEHR DETAILS (BIOME, GEGNER, BOSSE) UND UNTERSCHIEDLICHERE SOUNDS
+Basis: v2.8.1 · Build r290a0930e-r1 · 01.10.2026
+
+Gewünscht: alles soll gut und detailliert aussehen (mehr Biom- und Gegnerdetails) und unterschiedlich
+klingen; Schüsse und andere Sounds sollen die Hintergrundmusik nicht pausieren. Umsetzung: zwei Agents in
+getrennten Worktrees (Design: src/render/*, Sound: src/audio/sound.js), danach zusammengeführt und
+gemeinsam getestet. Reiner Optik- und Audio-Umbau: Determinismus-Referenz unverändert (15/15 identisch).
+
+1) Design
+   - Biome (neu: src/render/biome-props.js): je Biom eine Detailebene als EIN beleuchtetes und EIN
+     leuchtendes Mesh (zwei Draw Calls), Platzierung aus dem Arena-Seed (eigener Zufallsstrom, kein
+     Math.random, die bisherigen Props behalten ihre Lage). Außerhalb des Rands hohe Kulissen:
+     Yard Türme, Container, Serverracks, Flutlichter; Works Schornsteine mit Leuchtbändern, Öfen,
+     Rohrgestelle, Kräne, Schrotthaufen; Vault Eisspitzen mit Edelsteinen, Schneewehen, gefrorene
+     Wracks; Marsh tote Bäume, Riesenpilze mit Leuchtpunkten, Schilf, Knochen, Eier, Irrlichter; Void
+     schwebende Inseln mit Kristallen, Kristallspitzen, gebrochene Säulen. Innen nur flache oder niedrige
+     Decals (Chevrons, Gitter, Ruß, Zahnräder, Frostflecken, Pfützen, Seerosen, Runenkreise), nie auf
+     der Startfläche (Radius 5,8) und nie auf Hindernissen.
+   - Gegner: alle 25 Typen mit zweiter Detailstufe (Platten, Schlitze, Nieten, Lampen, Pupillen, Zähne,
+     Klauen, Schwänze, Leuchtkerne), Grundfläche und Draw Calls gleich; 242–462 Dreiecke je Typ
+     (vorher 116–408). Hive 452, Mortar 454, Brute 448 und Weaver (~460) liegen leicht über dem
+     Richtwert 450.
+   - Bosse: Crucible (Nietenrand, Kesselbänder, Schmelzrisse, Rohre, Zähne) und Frost Prism
+     (Kristallring, Runen, Halo, Eiszapfen, schwebender Fels) auf dem Detailniveau von Warden, Queen, Core.
+   - Frame-Zeit (Software-WebGL, schwere Welle, relative Zahlen): PC 330 → 347 ms (+5 %), Handy
+     313 → 330 ms (+5 %); Draw Calls 120 → 123 (PC), 104 → 108 (Handy); Dreiecke 30,7k → 51,6k (PC),
+     29,7k → 50,5k (Handy). Layout-Aufbau 20–75 ms je Arena. Echte GPU/Handy nicht gemessen.
+
+2) Sound (nicht gehört, nur offline gemessen)
+   - Sieben deutlich verschiedene Waffenschüsse: Pulse heller „Pew“, Scatter fettes Schrotgewehr,
+     Tesla hohes Knistern, Rail schwerer Schuss mit Metallnachklang, Rocket steigendes Rauschen,
+     Disc „Shing“ mit Wub, Flame tonloses Brüllen.
+   - Neun Todesfamilien (vorher sechs, je ≤0,25 s): Pop, Squelch, Crunch, Armor, Zap, Ghost, Clang,
+     Rattle, Shatter. Eigene Gegnerschüsse für Gunner, Drohne, Turret, Boss.
+   - Bosse: je Boss eigene Wellenform und Motiv für Telegraphen, Wut und Tod (Warden Quinte, Crucible
+     Dur, Prism Dur-Septime, Queen Moll-Septime, Core Tritonus).
+   - Biom-Ereignisse: Betten lauter (Meltdown 0,07→0,11 usw.) und mit neuen Schichten, dichtere Akzente.
+   - Upgrade-Auswahl: eigener Klang je Seltenheit (gewöhnlich bis legendär).
+   - Musik: eigene Stimmenliste (seit 2.8.1) bleibt; zusätzlich kurzes Ducken (höchstens 15 % für ca.
+     80 ms) bei großen Treffern; die Musik pausiert nie. Test: dieselben 64 Schritte erzeugen mit und ohne
+     40 Sounds pro Schritt gleich viele Musiknoten, keine übersprungen (10 Biom-/Modus-Kombinationen).
+   - Tests: 175 Klänge rendern offline endlich, nicht stumm, Spitze < 0,95 (max. 0,52), Ende ≤ 2,05 s;
+     spektrale Mindestabstände Waffen 0,75 (Schwelle 0,6), Tode 0,62 (0,5), Boss-Intros 0,47 (0,35).
+     WAV-Dateien aller Klänge liegen im Scratchpad (nicht im Repository).
+
+3) Ergebnisse 2.9.0 (headless Chromium, Software-WebGL)
+   - npm test: grün (Build, Deep test inkl. neuer Sound-Prüfungen, full-qa files, data-audit,
+     Determinismus 15/15 mit unveränderter Referenz).
+   - Volle QA: alle Prüfungen bestanden. E2E: 0 Fehler. Audit: ok. Stresssimulation: keine Fehler,
+     keine ungültigen Werte. Screens und Biom-Bilder PC/Handy/Querformat: keine Seitenfehler; Bilder
+     angesehen (Marsh PC, Works-Boss PC, Vault Handy): Details gut lesbar, Warnkreise und Gegner bleiben
+     erkennbar.
+
+Offen:
+   - Echt hören und auf echten Handys prüfen (Leistung: etwa +20k Dreiecke und wenige Draw Calls; die
+     Zahlen in outsideSpots(...)/scatter(...) in biome-props.js sind die Stellschrauben).
+   - Waffenklänge sind die häufigsten Klänge: lauter/fetter als vorher (Rail, Scatter), Spitze ≤0,4
+     vor dem Master-Limiter; 4 Stimmen je Schuss belasten das 24er-Limit bei vielen Gegnern etwas mehr.
+   - Gegnerdetails sind bei Spielgröße klein; Bosse und Kulissen verändern das Bild stärker.
+   - Hindernisse und Gefahren der Welle kennt der Biom-Aufbau nicht: innere Decals sind flach, dunkel
+     und aus der Startfläche heraus; ein dunkles Gitter kann unter einer Vent-Scheibe durchscheinen.
+   - Warn-Alarm der Bosse ist weiter gemeinsam, Weaver ohne Telegraph, Needler-Pathing,
+     Overlay-Pixeldichte u. a. aus der Review-Liste bleiben offen.
+
+================================================================================
+
 RIFTLINE v2.8.1 – FEHLERKORREKTUREN (OBERFLÄCHE, SPEICHERN, SPIELABLAUF) UND KLEINE PERFORMANCE
 Basis: v2.8.0 · Build r281a0930d-r1 · 30.09.2026
 
