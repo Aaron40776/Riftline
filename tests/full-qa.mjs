@@ -230,6 +230,22 @@ await section("files", async (L) => {
     meta.src.every((s) => files.includes(s)),
     meta.src.join(","),
   );
+  // What's new tab: the newest entry is this version, the badge shows until the tab was opened
+  const badge0 = await P.ev(() => !document.getElementById("newsBadge").hidden);
+  await P.nav("news");
+  const news = await P.ev(() => ({
+    shown: !document.getElementById("news").hidden,
+    first: document.querySelector("#newsList .section-h")?.textContent || "",
+    rows: document.querySelectorAll("#newsList .set-row").length,
+  }));
+  await P.back("news");
+  const badge1 = await P.ev(() => !document.getElementById("newsBadge").hidden);
+  check(
+    L,
+    "What's new: newest entry is this version, rows listed, badge gone after opening",
+    news.shown && news.first.startsWith(meta.v) && news.rows >= 3 && badge0 && !badge1,
+    JSON.stringify({ news, badge0, badge1, v: meta.v }),
+  );
   const inGame = await P.ev(() => (window.__riftTest.data && document.getElementById("verText")?.textContent) || "");
   check(L, "no failed requests while booting", !P.bad.length, P.bad.join(" | "));
   check(L, "no page errors while booting", !P.errors.length, P.errors.join(" | "));

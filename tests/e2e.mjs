@@ -84,7 +84,7 @@ for (const prof of PROFILES) {
     ok("home after back", await vis("home"));
     await audit("home");
     await page.screenshot({ path: `${SHOTS}/${prof.name}-home.png` });
-    for (const s of ["workshop", "records"]) {
+    for (const s of ["workshop", "records", "news"]) {
       await tap(`[data-go="${s}"]`);
       ok(`nav ${s}`, await vis(s));
       await audit(s);

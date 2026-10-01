@@ -22,7 +22,8 @@ README.md explains build, commands, project structure and hosting. Read it first
   `tests/fixtures/determinism.json` (`--update`) only for changes meant to alter game behaviour.
 - The version and build id exist only in `package.json` (`version`, `riftline.build`). After a
   bump run `npm install` so `package-lock.json` follows.
-- A release also adds its changes at the top of `changes` in `src/build-info.json` and a new
+- A release also adds a short player-facing entry at the top of `src/data/whatsnew.js` (the What's new tab; the
+  first entry must match the version, the QA checks it), its changes at the top of `changes` in `src/build-info.json` and a new
   section at the top of `docs/QA-REPORT.de.txt` (German, same layout as the earlier ones).
 - Run `npm test` before every commit. Before a release also run `npm run qa`, `npm run e2e`,
   `npm run audit` and `npm run screens`, and look at the screenshots.

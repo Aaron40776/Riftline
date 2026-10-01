@@ -249,7 +249,7 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .threat-name { font: 700 15px/1.1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; }
 .threat-name.hot { color: var(--pink); }
 .threat-desc { font-size: 13px; color: var(--dim); margin-top: 2px; }
-.bottom-nav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 460px; width: 100%; align-self: center; }
+.bottom-nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 460px; width: 100%; align-self: center; }
 .bottom-nav button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; font: 600 12px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); background: var(--panel); border: 1px solid var(--line); clip-path: var(--notch); --n: 8px; }
 .bottom-nav button .ico { width: 22px; height: 22px; color: var(--text); }
 .badge { position: absolute; top: 6px; right: calc(50% - 20px); width: 9px; height: 9px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 8px var(--pink); }
@@ -1472,6 +1472,7 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
     <nav class="bottom-nav">
       <button data-go="workshop"><span data-icon="wrench"></span>Workshop</button>
       <button data-go="records"><span data-icon="trophy"></span>Records<i id="recBadge" class="badge" hidden></i></button>
+      <button data-go="news"><span data-icon="info"></span>News<i id="newsBadge" class="badge" hidden></i></button>
       <button data-go="settings"><span data-icon="gear"></span>Settings</button>
     </nav>
   </section>
@@ -1503,6 +1504,15 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
       <h3 class="section-h">Milestones</h3>
       <div id="msList" class="list"></div>
     </div>
+  </section>
+
+  <!-- ====================================================== NEWS -->
+  <section id="news" class="screen page" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>What's new</h2>
+    </header>
+    <div id="newsList" class="scroll settings-body"></div>
   </section>
 
   <!-- ====================================================== SETTINGS -->

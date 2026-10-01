@@ -25,6 +25,10 @@ sich im Spiel anhören lassen.
      „erster Fallen-Tipp“ wartet jetzt gezielt auf den Tipp, nicht auf irgendeinen Toast (eine Diagnose-Meldung
      kam einmal zuvor).
 
+   - Neu: Tab „News“ (What's new) auf dem Startbildschirm mit kurzen englischen Notizen (src/data/whatsnew.js),
+     Punkt am Knopf bis der Tab einmal je Version geöffnet wurde; Navigation hat jetzt vier Knöpfe (Handy hoch
+     und quer angesehen). QA prüft: neuester Eintrag = Version, Zeilen vorhanden, Punkt verschwindet.
+
 3) Offene Zweifel (nur nach Klang beurteilbar, unvermessen)
    - Marsh und Void ruhig basslastig; Vault-Arpeggien evtl. zu leise; Säure-Linie und Wobble nicht fein
      abgestimmt.
