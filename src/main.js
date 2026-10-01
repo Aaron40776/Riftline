@@ -942,6 +942,14 @@ function handleWorldEvents(world) {
               : "Tip: DASH makes you untouchable for a moment.",
           );
         }
+        if (ev.n === 4) {
+          showTipOnce(
+            "grenade",
+            rlKeys()
+              ? "Tip: G throws a grenade at the thickest crowd. Charges refill over time."
+              : "Tip: tap the grenade button to lob a grenade at the thickest crowd. Hold the aim side to pick the spot.",
+          );
+        }
         if (ev.n === 3) {
           showTipOnce(
             "aim",
@@ -952,6 +960,19 @@ function handleWorldEvents(world) {
         }
         break;
       }
+      case "trapWarn":
+        // 3.0.0: the first trap warning explains the telegraphs once
+        showTipOnce(
+          "trap",
+          "Traps flash before they strike: rings on the floor, beams, mines. They hurt enemies too \u2014 lure them in.",
+        );
+        break;
+      case "gadgetReady":
+        ui.gadgetFlash("pop");
+        break;
+      case "gadgetDeny":
+        ui.gadgetFlash("deny");
+        break;
       case "boss":
         ui.banner(ev.name, ev.title, "boss", 2600);
         showTipOnce("boss", "Bosses telegraph every attack. Marked zones and lines hit hard \u2014 move out.");
