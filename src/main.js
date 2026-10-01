@@ -1017,6 +1017,10 @@ function handleWorldEvents(world) {
         store.data.run = world.snapshot();
         store.save("offer");
         break;
+      case "maxed":
+        // 2.9.1: nothing left to offer: no choice screen, the run goes on with a small reward
+        ui.toast(`ALL UPGRADES MAXED · hull +${ev.heal}, +${ev.shards} shards`, "gold", 3500);
+        break;
       case "combo":
         ui.comboPop(ev.n, ev.bonus);
         break;

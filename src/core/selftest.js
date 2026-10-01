@@ -1915,6 +1915,45 @@ function selfTestV291(result) {
   } catch (err) {
     fail.push("exception:" + (err && err.message));
   }
+  // everything maxed (hull healthy): the wave end must not open an empty upgrade choice; the run goes on
+  try {
+    const world = new World({ seed: 0x292, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(2);
+    world.state = "fight";
+    world.god = true;
+    world.hold = false;
+    for (const upgrade of upgradeList) world.up[upgrade.id] = upgrade.max;
+    world.stats = computeStats(world.weapon, world.up, world.ws);
+    world.player.hp = world.stats.maxHp;
+    world.arena.obs = [];
+    for (const enemy of [...world.enemies]) enemy.dead = true;
+    world.enemies.length = 0;
+    world.plan = [];
+    world.planIdx = 0;
+    world.bossPending = null;
+    world.championPending = null;
+    const shards0 = world.shards;
+    let maxed = false,
+      choose = false;
+    for (let step = 0; step < 600 && world.wave === 2; step++) {
+      world.step(1 / 60, { mx: 0, my: 0, aim: false, ax: 1, ay: 0, fire: false, assist: false });
+      if (world.state === "choose") choose = true;
+      if (world.fx.some((ev) => ev.k === "maxed")) maxed = true;
+      world.fx.length = 0;
+    }
+    if (choose) fail.push("maxed-opens-choice");
+    if (!maxed) fail.push("maxed-no-event");
+    if (world.wave !== 3 || world.state === "choose") fail.push(`maxed-stuck:wave ${world.wave} ${world.state}`);
+    if (!(world.shards > shards0)) fail.push("maxed-no-reward");
+    // a saved run stuck on an empty choice (offer []) resumes into the next wave
+    const snap = world.snapshot();
+    snap.offer = [];
+    snap.wave = 7;
+    const resumed = new World({ seed: 0x292, weapon: "pulse", threat: 0, ws: {}, snap });
+    if (resumed.state === "choose" || resumed.wave !== 8) fail.push(`maxed-resume:${resumed.state} ${resumed.wave}`);
+  } catch (err) {
+    fail.push("maxed-exception:" + (err && err.message));
+  }
   return { ...result, ok: result.ok && fail.length === 0, v291: { ok: fail.length === 0, fail } };
 }
 

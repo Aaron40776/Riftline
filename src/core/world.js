@@ -206,6 +206,8 @@ const rlStep = 1 / 60,
         this.offerBoss = !!snap.offerBoss;
         this.state = "choose";
         this.offer = offer.length ? offer : this.makeOffer();
+        // 2.9.1: a save stuck on an empty choice (everything maxed) goes on with the next wave
+        if (!this.offer.length) this.skipEmptyChoice();
       }
     }
     emit(kind, data) {
@@ -532,12 +534,34 @@ const rlStep = 1 / 60,
         this.weapon,
       );
     }
+    // 2.9.1: opens the upgrade choice after a wave. When nothing is left to offer (every upgrade at its
+    // maximum, hull healthy) there is nothing to choose: the empty screen used to hang the run for good.
+    beginChoice() {
+      const offer = this.makeOffer();
+      if (!offer.length) {
+        this.skipEmptyChoice();
+        return;
+      }
+      this.state = "choose";
+      this.stateT = 0;
+      this.offer = offer;
+      this.emit("offer");
+    }
+    // no cards: repair the hull a bit, pay a few shards and go on with the next wave
+    skipEmptyChoice() {
+      const player = this.player,
+        heal = Math.round(this.stats.maxHp * 0.35),
+        shards = 10 + Math.floor(this.wave / 2);
+      player.hp = Math.min(this.stats.maxHp, player.hp + heal);
+      this.shards += shards;
+      this.offer = null;
+      this.emit("maxed", { heal, shards });
+      this.startWave(this.wave + 1);
+    }
     continueEndless() {
       if (this.state === "victory") {
         this.endless = true;
-        this.state = "choose";
-        this.offer = this.makeOffer();
-        this.emit("offer");
+        this.beginChoice();
       }
     }
     step(dt, input) {
@@ -2730,10 +2754,7 @@ const rlStep = 1 / 60,
           this.stateT = 0;
           this.emit("victory");
         } else {
-          this.state = "choose";
-          this.stateT = 0;
-          this.offer = this.makeOffer();
-          this.emit("offer");
+          this.beginChoice();
         }
       }
     }

@@ -183,6 +183,7 @@ const RL_SOUND_EVENTS = {
   guardUp: [{}],
   hatch: [{}, { big: true }],
   heal: [{}],
+  maxed: [{ heal: 30, shards: 12 }],
   hurt: [{}],
   kill: [{ type: "grunt", r: 0.5 }],
   kit: [{}],
@@ -1544,6 +1545,9 @@ const musicChords = {
             break;
           case "offer":
             this.play("offer");
+            break;
+          case "maxed":
+            this.play("heal");
             break;
           case "block":
             this.play("block");
