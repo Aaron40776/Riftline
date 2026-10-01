@@ -1,3 +1,57 @@
+RIFTLINE v3.2.0 – MUSIK NEU: HARTE BOSS-TRACKS, RUHIGE ATMOSPHÄRE, RAUM FÜR DIE EFFEKTE
+Basis: v3.1.0 · Build r320a1001a-r1 · 01.10.2026
+
+Gewünscht: Die Tracks von 3.1.0 waren noch nicht gut genug. Die Wellenmusik soll ruhiger sein und zum Ort passen
+(z. B. eisig und windig im Eis-Biom), die Boss-Musik wirklich aggressiv und hart (viele Geräusche und Beats). Die
+Effekte dürfen besser klingen.
+
+1) Befund 3.1.0 (gemessen)
+   - Die „Gitarren“ liefen fast unverzerrt durch den Verzerrer: ihr Pegel (0,05) lag im linearen Teil der Kurve.
+   - Boss-Tracks: Abstand Spitze zu Mittel 16–23 dB (Metal etwa 8–12 dB), kaum Mitten, kein Raum, keine Kompression.
+
+2) Engine (audio/sound.js)
+   - Zwei Gitarren-Amps (links/rechts): Eingangsverstärkung, Tiefenschnitt 75 Hz, harte tanh-Kurve, Mittensenke
+     700 Hz, Präsenz 2,4 kHz, Box-Tiefpass 5,2 kHz. Riffs werden doppelt eingespielt (gegenläufig verstimmt). Ein
+     Versatz von 8 ms zwischen den Spuren kostete in Mono 2,7 dB (Kammfilter auf Handy-Lautsprechern) und wurde
+     entfernt.
+   - Musikkette: Eingang -> Fade -> Glue-Kompressor -> Make-up -> Lautstärke -> Duck. Ruhig sanft (2:1), Boss hart
+     (5:1, schneller Attack). Die Lautstärke sitzt jetzt hinter dem Kompressor (gleiches Verhalten bei jeder
+     Lautstärke).
+   - Pump-Bus: akzentuierte Kicks drücken Pads, Bass und Gitarren kurz weg (Sidechain-Gefühl).
+   - Hall: Musik 2 s, Effekte 1,4 s (erzeugte Impulse, gecacht). Effekte bekommen Raum nur bei großen Ereignissen
+     (Explosionen, Nova, Boss), Raumgröße je Biom (Vault/Void groß, Marsh trocken). Fallen-Schläge bleiben trocken
+     (sonst zu ähnlich zur Explosion: Test schlug mit 0,38 an).
+   - Stereo: Effekte werden nach der x-Position des Ereignisses relativ zur Drohne gepannt (20 m = 100 %, max. 80 %).
+   - Atmosphäre pro Track als Schleife unter den Noten (kein Stimmenbudget): Wind mit Böen und Pfeifen (Vault),
+     Insekten und Morast (Marsh), Ofen und Maschinen im Viertel-Takt (Works), Regen und Stadtbrummen (Yard),
+     schwebende Drohnen und Weltraumwind (Void). Pegel gemessen und eingestellt: ruhig etwa −40 dB, Vault-Wind −33 dB.
+   - Pause: der Track läuft beim Fortsetzen an seiner Stelle weiter (statt neu zu beginnen).
+   - Stimmenbudget der Musik 20 -> 36 (Doppelspuren, Blastbeats); gemessene Spitze höchstens 30.
+
+3) Tracks
+   - Ruhig (66–96 BPM statt 84–118): Yard Nachtfahrt im Regen, Works schlafende Fabrik, Vault Eishöhle ohne Beat mit
+     Eisglocken, Marsh Dub im Nebel mit Kalimba, Void dunkel mit Herzschlag.
+   - Boss: Yard Breakcore-Metal 174 (Break mit Stottern, Reese, Acid, Vocal-Chops), Works Industrial-Metal 160
+     (Galopp-Riff, Blastbeat, Djent-Breakdown, Ambosse, Hydraulik), Vault Black-Metal 172 (Blast, Tremolo-Akkorde,
+     Eisglocken-Melodie, Splitter), Marsh Sludge/Wobble 140 (Doom-Akkorde, Triolen-Chugs, Growl, Quatschen),
+     Void Glitch-Metal 150 (Tritonus-Riffs, Stotterer, Chor, Tape-Stop). Enrage legt Doppel-Kick, Oktav-Stabs und
+     Sirene darüber.
+   - Messung (Mono-Render, 24 s): Boss −19 bis −22 dB RMS, Spitzenabstand 14–19 dB (vorher 16–23); ruhig −29 bis
+     −36 dB.
+
+4) Prüfung
+   - npm test (Deep-Test, Musik-Budget, Unterscheidbarkeit, Determinismus 15/15 unverändert), qa, e2e, audit, screens.
+   - Testgrenzen angepasst: Tempo 60–190 BPM (ruhige Themen langsamer), Stimmen-Spitze 30 bei Budget 36; neue
+     Selbsttests: Atmosphäre läuft/endet, Pause setzt fort, Neustart beginnt oben.
+   - Gefundener Fehler beim Bau: Hunderte Test-Engines, die nie rendern, hielten je zwei Faltungshalls (mehrere MB):
+     der Deep-Test hing über 25 Minuten. Diese Engines bauen den Hall jetzt nicht (attach(ctx, { room: false })).
+   - Stereo-MP3-Vorschauen aller 10 Tracks an den Eigentümer geschickt (aus der Engine gerendert).
+
+5) Offene Zweifel (nicht gehört, nur gemessen)
+   - Ob die Gitarren „echt“ genug klingen und der Mix nicht matscht, lässt sich nur hören.
+   - Zwei Faltungshalls laufen dauerhaft: auf schwachen Handys Rechenlast prüfen.
+   - Stereo-Panning der Effekte nur nach x (links/rechts), nicht nach Tiefe.
+
 RIFTLINE v3.1.0 – MUSIK: EIGENE WELLENTHEMEN UND SCHWERE BOSS-TRACKS PRO BIOM
 Basis: v3.0.0 · Build r310a1001c-r1 · 01.10.2026
 

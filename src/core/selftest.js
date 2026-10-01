@@ -600,7 +600,7 @@ function selfTestExpansion23(result) {
       }
       for (const kind of ["fight", "boss"]) {
         const info = trackInfo(kind, biome.id);
-        if (!(info.bpm >= 80 && info.bpm <= 180 && info.steps % 16 === 0)) bad("music-track", `${biome.id}:${kind}`);
+        if (!(info.bpm >= 60 && info.bpm <= 190 && info.steps % 16 === 0)) bad("music-track", `${biome.id}:${kind}`);
         if (kind === "boss" && info.steps !== 22 * 16) bad("music-boss-structure", biome.id);
         if (kind === "fight" && info.steps !== 16 * 16) bad("music-calm-structure", biome.id);
         tempos.add(`${kind}:${info.bpm}`);
@@ -614,7 +614,7 @@ function selfTestExpansion23(result) {
         ["menu", 0.9, 0],
       ]) {
         const sound = new SoundEngine();
-        sound.attach(new OfflineAudio(1, 2205, 22050));
+        sound.attach(new OfflineAudio(1, 2205, 22050), { room: false });
         sound.playKind = kind;
         sound.playBiome = biome.id;
         sound.intensity = intensity;
@@ -627,7 +627,7 @@ function selfTestExpansion23(result) {
           sound.note(step % info.steps, sound.simT);
         }
         if (sound.failed) bad("music-error", `${biome.id}:${kind}`);
-        if (sound.musicSkipped || sound.musicShed || sound.musicPeak > 18)
+        if (sound.musicSkipped || sound.musicShed || sound.musicPeak > 30)
           bad(
             "music-budget",
             `${biome.id}:${kind} heat ${heat} skipped ${sound.musicSkipped} shed ${sound.musicShed} peak ${sound.musicPeak}`,
@@ -1789,7 +1789,7 @@ function selfTestV270Sound(result) {
       // the fight theme are scheduled with and without 40 sounds per step (the music has its own voice list)
       const runMusic = (flood) => {
         const eng = new SoundEngine();
-        eng.attach(new OfflineAudioContext(1, 44100, 44100));
+        eng.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
         eng.playKind = "fight";
         eng.playBiome = "works";
         eng.intensity = 0.9;
@@ -1843,13 +1843,24 @@ function selfTestV270Sound(result) {
       // screen plays a track until it is stopped or the game takes over the music
       {
         const eng = new SoundEngine();
-        eng.attach(new OfflineAudioContext(1, 44100, 44100));
+        eng.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
         eng.musicLog = [];
         eng.setMusic("fight", "marsh");
         if (eng.playKind !== "fight" || eng.playBiome !== "marsh") fail.push("music-fight-not-selected");
         eng.step = 37;
         eng.setMusic("fight", "marsh");
         if (eng.step !== 37) fail.push("music-restarts-on-every-wave");
+        // 3.2.0: a calm theme plays over its atmosphere; the pause menu keeps the place of the track and resuming goes
+        // on from there (a new start of the same theme without resume starts from the top)
+        if (!eng.mbed) fail.push("music-without-atmosphere");
+        eng.setMusic("menu");
+        if (eng.mbed) fail.push("atmosphere-kept-in-the-menu");
+        eng.setMusic("fight", "marsh", true);
+        if (eng.step !== 37) fail.push("pause-restarts-the-track");
+        eng.setMusic("menu");
+        eng.setMusic("fight", "marsh");
+        if (eng.step !== 0) fail.push("new-start-continues-an-old-track");
+        eng.step = 37;
         const before = eng.musicLog.length;
         eng.setMusic("boss", "marsh");
         if (eng.playKind !== "boss" || eng.step !== 0 || eng.bossOver) fail.push("boss-track-not-started-on-the-spot");

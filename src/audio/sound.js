@@ -123,11 +123,33 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     scatter: 0.05,
     rocket: 0.05,
   },
+  /* 3.2.0: the room of the big sounds (send level to the sound reverb); its size follows the biome (SFX_ROOM_BIOME).
+     The trap strikes stay dry: they have to be told apart from the blasts at once. */
+  SFX_ROOM = {
+    boom: 0.3,
+    grenadeBlast: 0.35,
+    nova: 0.3,
+    bigkill: 0.35,
+    die: 0.3,
+    bossIntro: 0.35,
+    bossDown: 0.4,
+    bSlam: 0.3,
+    enrage: 0.3,
+    phase: 0.25,
+    rocket: 0.15,
+    rail: 0.15,
+    thud: 0.25,
+    evolve: 0.3,
+    victory: 0.3,
+  },
+  /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Toxin Marsh damp */
+  SFX_ROOM_BIOME = { yard: 0.28, works: 0.38, vault: 0.5, marsh: 0.2, void: 0.55 },
   AMBIENCE_LEVEL = { meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
   MAX_VOICES = 24,
   // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
-  MAX_MUSIC_VOICES = 20,
-  MUSIC_RESERVE = 4,
+  // 3.2.0: 36 (was 20): the boss tracks double-track their guitars (two amps) and play blast beats
+  MAX_MUSIC_VOICES = 36,
+  MUSIC_RESERVE = 6,
   /* sounds that are never dropped in favour of others when the voice limit is reached */
   KEY_SOUNDS = new Set([
     "hurt",
@@ -282,6 +304,36 @@ function distortionCurve() {
   }
   return curve;
 }
+/* 3.2.0: the curve of the two guitar amps: a hard, slightly asymmetric tanh (the drive comes from the input gain) */
+function guitarCurve() {
+  let n = 4097,
+    curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.tanh(3.2 * (x + 0.04)) / Math.tanh(3.2) - Math.tanh(0.128) / Math.tanh(3.2);
+  }
+  return curve;
+}
+/* 3.2.0: the impulse of the music reverb: stereo noise that decays exponentially and gets darker as it decays */
+const impulseCache = Object.create(null);
+function roomImpulse(ctx, seconds) {
+  // the same impulse serves every context of a sample rate (the tests build hundreds of engines)
+  let key = ctx.sampleRate + ":" + seconds;
+  if (impulseCache[key]) return impulseCache[key];
+  let len = Math.round(ctx.sampleRate * seconds),
+    buf = (impulseCache[key] = ctx.createBuffer(2, len, ctx.sampleRate));
+  for (let ch = 0; ch < 2; ch++) {
+    let data = buf.getChannelData(ch),
+      lp = 0;
+    for (let i = 0; i < len; i++) {
+      let t = i / len,
+        a = 0.55 + 0.42 * t;
+      lp = lp * a + (Math.random() * 2 - 1) * (1 - a);
+      data[i] = lp * Math.pow(1 - t, 2.4) * (i < 90 ? i / 90 : 1) * 2.2;
+    }
+  }
+  return buf;
+}
 function softClipCurve() {
   let n = 2049,
     curve = new Float32Array(n);
@@ -396,6 +448,23 @@ const musicChords = {
       this.musicPeak = 0;
       this.musicShed = 0;
       this.musicLog = null;
+      // 3.2.0: the music processing (see buildGraph) and the place of a track kept over a pause (held)
+      this.glue = null;
+      this.makeup = null;
+      this.musLevel = null;
+      this.pump = null;
+      this.gtrL = null;
+      this.gtrR = null;
+      this.verbIn = null;
+      this.mbed = null;
+      this.held = null;
+      this.resumeWanted = false;
+      // 3.2.0: where the sounds are: the pan of the event being played (from its x relative to the listener) and
+      // its room send (SFX_ROOM)
+      this.curPan = 0;
+      this.curRev = 0;
+      this.sfxVerbIn = null;
+      this.sfxVerbOut = null;
     }
     setIntensity(level) {
       this.want = Math.max(0, Math.min(1, level || 0));
@@ -430,7 +499,9 @@ const musicChords = {
     }
     /* The master chain: sfx and music -> compressor -> limiter -> soft clipper -> output. The soft
      clipper keeps the signal below 0.93 whatever the mix does. */
-    buildGraph(ctx) {
+    /* opts.room: false leaves out the two reverbs (test engines that only count notes: every convolver holds the
+       transform of its impulse, megabytes each) */
+    buildGraph(ctx, opts = {}) {
       this.ctx = ctx;
       this.comp = ctx.createDynamicsCompressor();
       this.comp.threshold.value = -14;
@@ -454,16 +525,29 @@ const musicChords = {
       this.sfx = ctx.createGain();
       this.sfx.gain.value = this.sfxVol;
       this.sfx.connect(this.comp);
+      // 3.2.0: mus is the input of the music at unity; its volume is musLevel at the end of the music chain, so that
+      // the glue compressor works the same at every volume setting
       this.mus = ctx.createGain();
-      this.mus.gain.value = this.musVol * 0.6;
+      this.musLevel = ctx.createGain();
+      this.musLevel.gain.value = this.musVol * 0.6;
       // 2.9.0: the music passes a gain stage of its own that dips briefly on big hits (duck)
       this.duckGain = ctx.createGain();
       // 3.1.0: a fade stage between the music and the duck (the calm theme fades back in after a boss), and one
       // WaveShaper bus for everything that has to be distorted (guitars, 808 sub, growl); it joins the music again
       this.fade = ctx.createGain();
       this.mus.connect(this.fade);
-      this.fade.connect(this.duckGain);
+      // 3.2.0: fade -> glue compressor -> make-up gain -> volume -> duck (mixFor sets the glue per track kind)
+      this.glue = ctx.createDynamicsCompressor();
+      this.makeup = ctx.createGain();
+      this.fade.connect(this.glue);
+      this.glue.connect(this.makeup);
+      this.makeup.connect(this.musLevel);
+      this.musLevel.connect(this.duckGain);
       this.duckGain.connect(this.comp);
+      this.mixFor("fight");
+      // the pump: pads, bass, guitars and the distortion bus pass it; accented kicks dip it (a sidechain feel)
+      this.pump = ctx.createGain();
+      this.pump.connect(this.mus);
       this.distIn = ctx.createGain();
       this.dist = ctx.createWaveShaper();
       this.dist.curve = distortionCurve();
@@ -476,7 +560,70 @@ const musicChords = {
       this.distIn.connect(this.dist);
       this.dist.connect(this.distLP);
       this.distLP.connect(this.distOut);
-      this.distOut.connect(this.mus);
+      this.distOut.connect(this.pump);
+      // 3.2.0: two guitar amps, panned left and right, for double-tracked riffs: drive, a tight low cut, a mid scoop,
+      // some bite and a cabinet low-pass
+      let amp = (pan) => {
+        let input = ctx.createGain(),
+          hp = ctx.createBiquadFilter(),
+          shaper = ctx.createWaveShaper(),
+          scoop = ctx.createBiquadFilter(),
+          bite = ctx.createBiquadFilter(),
+          cab = ctx.createBiquadFilter(),
+          out = ctx.createGain();
+        input.gain.value = 9;
+        hp.type = "highpass";
+        hp.frequency.value = 75;
+        shaper.curve = guitarCurve();
+        shaper.oversample = "2x";
+        scoop.type = "peaking";
+        scoop.frequency.value = 700;
+        scoop.Q.value = 0.9;
+        scoop.gain.value = -5;
+        bite.type = "peaking";
+        bite.frequency.value = 2400;
+        bite.Q.value = 1.1;
+        bite.gain.value = 4;
+        cab.type = "lowpass";
+        cab.frequency.value = 5200;
+        cab.Q.value = 0.9;
+        out.gain.value = 0.28;
+        input.connect(hp);
+        hp.connect(shaper);
+        shaper.connect(scoop);
+        scoop.connect(bite);
+        bite.connect(cab);
+        cab.connect(out);
+        if (ctx.createStereoPanner) {
+          let panner = ctx.createStereoPanner();
+          panner.pan.value = pan;
+          out.connect(panner);
+          panner.connect(this.pump);
+        } else out.connect(this.pump);
+        return input;
+      };
+      this.gtrL = amp(-0.75);
+      this.gtrR = amp(0.75);
+      if (opts.room !== false) {
+        // 3.2.0: the room of the music: a generated 2 s impulse; voices send to it with opts.rev
+        this.verbIn = ctx.createGain();
+        let verb = ctx.createConvolver();
+        verb.buffer = roomImpulse(ctx, 2);
+        let verbOut = ctx.createGain();
+        verbOut.gain.value = 0.5;
+        this.verbIn.connect(verb);
+        verb.connect(verbOut);
+        verbOut.connect(this.mus);
+        // 3.2.0: the room of the big sounds (a shorter impulse); its level follows the biome (setMusic)
+        this.sfxVerbIn = ctx.createGain();
+        let sfxVerb = ctx.createConvolver();
+        sfxVerb.buffer = roomImpulse(ctx, 1.4);
+        this.sfxVerbOut = ctx.createGain();
+        this.sfxVerbOut.gain.value = SFX_ROOM_BIOME.yard;
+        this.sfxVerbIn.connect(sfxVerb);
+        sfxVerb.connect(this.sfxVerbOut);
+        this.sfxVerbOut.connect(this.sfx);
+      }
       this.delay = ctx.createDelay(1);
       this.delay.delayTime.value = 0.28;
       this.fb = ctx.createGain();
@@ -490,9 +637,9 @@ const musicChords = {
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     }
     /* Test hook: run the engine on an OfflineAudioContext (no scheduler, always "running"). */
-    attach(ctx) {
+    attach(ctx, opts) {
       this.offline = true;
-      this.buildGraph(ctx);
+      this.buildGraph(ctx, opts);
     }
     live() {
       return !!this.ctx && (this.offline || this.ctx.state === "running");
@@ -512,7 +659,7 @@ const musicChords = {
       if (!this.ctx) return;
       let now = this.ctx.currentTime;
       this.sfx.gain.setTargetAtTime(sfx, now, 0.05);
-      this.mus.gain.setTargetAtTime(music * 0.6, now, 0.1);
+      this.musLevel.gain.setTargetAtTime(music * 0.6, now, 0.1);
     }
     suspend() {
       try {
@@ -642,7 +789,7 @@ const musicChords = {
         out = filter;
       }
       out.connect(amp);
-      amp.connect(opts.dest || this.sfx);
+      this.route(amp, opts);
       osc.start(start);
       osc.stop(start + dur + 0.02);
     }
@@ -692,9 +839,44 @@ const musicChords = {
       this.envelope(amp, start, dur, vol, { ...opts, attack: opts.attack || 0.003 });
       src.connect(filter);
       filter.connect(amp);
-      amp.connect(opts.dest || this.sfx);
+      this.route(amp, opts);
       src.start(start, Math.random() * 0.5);
       src.stop(start + dur + 0.02);
+    }
+    /* 3.2.0: where a voice goes: its bus (opts.dest, the sounds by default), panned with opts.pan (-1..1) and sent to
+       the music reverb with opts.rev (send level) */
+    route(amp, opts) {
+      // a sound (no bus of its own) takes the pan and the room of the event that is being played
+      let dest = opts.dest || this.sfx,
+        pan = opts.pan != null ? opts.pan : opts.dest ? 0 : this.curPan,
+        rev = opts.rev != null ? opts.rev : opts.dest ? 0 : this.curRev,
+        room = opts.dest ? this.verbIn : this.sfxVerbIn;
+      if (pan && this.ctx.createStereoPanner) {
+        let panner = this.ctx.createStereoPanner();
+        panner.pan.value = Math.max(-1, Math.min(1, pan));
+        amp.connect(panner);
+        panner.connect(dest);
+      } else amp.connect(dest);
+      if (rev && room) {
+        let send = this.ctx.createGain();
+        send.gain.value = rev;
+        amp.connect(send);
+        send.connect(room);
+      }
+    }
+    /* 3.2.0: the glue of the music: gentle on the calm themes, hard and loud on the boss tracks (a dense wall) */
+    mixFor(kind) {
+      if (!this.glue) return;
+      let boss = kind === "boss",
+        g = this.glue,
+        now = this.ctx.currentTime;
+      g.threshold.setValueAtTime(boss ? -20 : -16, now);
+      g.ratio.setValueAtTime(boss ? 5 : 2, now);
+      g.knee.setValueAtTime(boss ? 3 : 10, now);
+      g.attack.setValueAtTime(boss ? 0.004 : 0.02, now);
+      g.release.setValueAtTime(boss ? 0.12 : 0.3, now);
+      this.makeup.gain.cancelScheduledValues(now);
+      this.makeup.gain.setValueAtTime(boss ? 2.1 : 1.1, now);
     }
     /* test hook: with musicLog set (an array) every music voice is recorded: kind, start, pitch, level, length,
        bus (m music, d delay, x distortion) */
@@ -707,7 +889,16 @@ const musicChords = {
         pitch,
         vol,
         dur: voice.end - voice.start,
-        bus: dest === this.delay ? "d" : dest === this.distIn ? "x" : "m",
+        bus:
+          dest === this.delay
+            ? "d"
+            : dest === this.distIn
+              ? "x"
+              : dest === this.gtrL || dest === this.gtrR
+                ? "g"
+                : dest === this.pump
+                  ? "p"
+                  : "m",
       });
     }
     gate(key, gap) {
@@ -719,6 +910,7 @@ const musicChords = {
     play(id, arg) {
       if (!this.live() || this.sfxVol <= 0) return;
       this.curPri = KEY_SOUNDS.has(id) ? 2 : 1;
+      this.curRev = SFX_ROOM[id] || 0;
       try {
         this._play(id, arg);
         if (MUSIC_DUCK[id]) this.duck(MUSIC_DUCK[id]);
@@ -726,6 +918,7 @@ const musicChords = {
         this.fail(err);
       } finally {
         this.curPri = 1;
+        this.curRev = 0;
       }
     }
     /* 2.9.0: a light sidechain: the music gain dips by `depth` (at most 15 %) for about 80 ms and comes back
@@ -1909,10 +2102,12 @@ const musicChords = {
           this._play("boss");
       }
     }
-    consume(events) {
+    /* listener: the player (3.2.0): a sound left or right of it is panned that way (16 m to the side: 80 %) */
+    consume(events, listener) {
       if (!this.live()) return;
       let kills = 0;
-      for (let ev of events)
+      for (let ev of events) {
+        this.curPan = listener && ev.x != null ? Math.max(-0.8, Math.min(0.8, (ev.x - listener.x) / 20)) : 0;
         switch (ev.k) {
           case "shot":
             this.play(rlShotSfx(ev.w));
@@ -2135,18 +2330,26 @@ const musicChords = {
             this.play("bossDown", ev.id);
             break;
         }
+      }
+      this.curPan = 0;
     }
     /* 3.1.0: mode "fight" is the calm theme of the biome, "boss" its boss track. The boss track starts on the
      spot (main.js calls this when the boss appears, at the camera pan), not with the wave. */
-    setMusic(mode, biome) {
-      if (mode === "boss") this.bossOver = false;
+    /* resume: back from the pause menu (the track goes on where it was instead of starting again) */
+    setMusic(mode, biome, resume) {
+      if (mode === "boss" && !resume) this.bossOver = false;
+      this.resumeWanted = !!resume;
       this.mode = mode;
       if (biome) {
         this.biome = biome;
+        // 3.2.0: the room of the sounds is the room of the biome
+        if (this.sfxVerbOut && SFX_ROOM_BIOME[biome])
+          this.sfxVerbOut.gain.setTargetAtTime(SFX_ROOM_BIOME[biome], this.ctx.currentTime, 0.3);
       }
       // a preview of the settings screen ends when the game takes over the music
       if (mode !== "menu") this.pv = null;
       this.syncTrack();
+      this.resumeWanted = false;
     }
     /* The boss is dead: the boss track resolves (a last hit) and the calm theme fades back in. */
     bossEnd() {
@@ -2196,12 +2399,18 @@ const musicChords = {
       let from = this.playKind,
         fromPv = this.playPv,
         track = kind === "fight" || kind === "boss" ? musicTrack(kind, biome) : null;
+      // 3.2.0: the pause menu keeps the place of a fight or boss track; resuming the run goes on from there
+      if ((from === "fight" || from === "boss") && kind === "menu" && !fromPv && !pv)
+        this.held = { kind: from, biome: this.playBiome, step: this.step, cycle: this.cycle, heat: this.heat };
+      let held = this.held,
+        resumed = !!held && this.resumeWanted && !pv && held.kind === kind && held.biome === biome;
+      if (kind !== "menu") this.held = null;
       this.playKind = kind;
       this.playBiome = biome;
       this.playPv = pv;
-      this.step = 0;
-      this.cycle = 0;
-      this.heat = 0;
+      this.step = resumed ? held.step : 0;
+      this.cycle = resumed ? held.cycle : 0;
+      this.heat = resumed ? held.heat : 0;
       this.jump = false;
       let ctx = this.ctx;
       if (!ctx || !this.fade) return;
@@ -2211,7 +2420,13 @@ const musicChords = {
         this.cutScheduled(now);
         this.nextT = now + 0.03;
         this.fade.gain.cancelScheduledValues(now);
-        if (from === "boss" && kind === "fight" && !pv && !fromPv) {
+        this.mixFor(kind);
+        this.stopMusicBed();
+        if (track) this.startMusicBed(kind, biome);
+        if (resumed) {
+          this.fade.gain.setValueAtTime(0.0001, now);
+          this.fade.gain.linearRampToValueAtTime(gain, now + 0.6);
+        } else if (from === "boss" && kind === "fight" && !pv && !fromPv) {
           // resolve: the boss track ends on a last hit, then silence, then the calm theme fades in
           this.fade.gain.setValueAtTime(1.1, now);
           this.fade.gain.linearRampToValueAtTime(0.0001, now + 0.9);
@@ -2229,6 +2444,10 @@ const musicChords = {
     }
     /* the notes that were scheduled ahead (the scheduler looks 0.14 s ahead) for a track that has just ended */
     cutScheduled(now) {
+      if (this.pump) {
+        this.pump.gain.cancelScheduledValues(now);
+        this.pump.gain.setValueAtTime(1, now);
+      }
       let list = this.musicVoiceList;
       for (let i = list.length - 1; i >= 0; i--) {
         let voice = list[i];
@@ -2412,6 +2631,77 @@ const musicChords = {
       if (end > this.maxEnd) this.maxEnd = end;
       delete this.beds[name];
     }
+    /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (wind in
+       the Cryo Vault, insects and murk in the Toxin Marsh, furnace and machines in the Ember Works, rain and city hum in
+       the Neon Yard, beating drones in the Void Core; see MUSIC_BEDS). It goes through the music chain (volume, fade,
+       glue) and is not a voice of the budget. */
+    startMusicBed(kind, biome, fadeIn = 1.5) {
+      let ctx = this.ctx,
+        recipe = MUSIC_BEDS[biome];
+      if (!ctx || !recipe || (kind !== "fight" && kind !== "boss")) return;
+      let now = ctx.currentTime,
+        out = ctx.createGain(),
+        nodes = [],
+        osc = (type, freq) => {
+          let node = ctx.createOscillator();
+          node.type = type;
+          node.frequency.value = freq;
+          node.start(now);
+          nodes.push(node);
+          return node;
+        },
+        loop = (rate) => {
+          let node = ctx.createBufferSource();
+          node.buffer = this.noiseBuf;
+          node.loop = true;
+          node.playbackRate.value = rate;
+          node.start(now, Math.random() * 0.5);
+          nodes.push(node);
+          return node;
+        },
+        filt = (type, freq, q, from) => {
+          let node = ctx.createBiquadFilter();
+          node.type = type;
+          node.frequency.value = freq;
+          node.Q.value = q;
+          from.connect(node);
+          return node;
+        },
+        lfo = (freq, depth, param, type = "sine") => {
+          let gain = ctx.createGain();
+          gain.gain.value = depth;
+          osc(type, freq).connect(gain);
+          gain.connect(param);
+        },
+        level = (from, vol) => {
+          let gain = ctx.createGain();
+          gain.gain.value = vol;
+          from.connect(gain);
+          gain.connect(out);
+          return gain;
+        },
+        root = midiToFreq((musicChords[biome] || musicChords.yard)[0][0]),
+        bpm = musicTrack(kind, biome).bpm;
+      out.gain.setValueAtTime(1e-4, now);
+      out.gain.linearRampToValueAtTime(
+        BED_LEVEL[kind] * recipe.gain * (kind === "boss" ? recipe.boss : 1),
+        now + fadeIn,
+      );
+      out.connect(kind === "boss" ? this.pump : this.mus);
+      recipe.build({ osc, loop, filt, lfo, level, root, bpm, boss: kind === "boss" });
+      this.mbed = { out, nodes };
+    }
+    stopMusicBed(fade = 0.8) {
+      let bed = this.mbed;
+      if (!bed) return;
+      this.mbed = null;
+      try {
+        let now = this.ctx.currentTime;
+        bed.out.gain.cancelScheduledValues(now);
+        bed.out.gain.setTargetAtTime(0, now, fade / 4);
+        for (let node of bed.nodes) node.stop(now + fade + 0.1);
+      } catch {}
+    }
     /* Runs with the scheduler: starts and stops the beds by the state set with setState and plays the
      periodic accents of the biome events. */
     syncAudio() {
@@ -2555,6 +2845,7 @@ const musicChords = {
             chord: [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
             salt: biome.charCodeAt(0) * 7 + biome.charCodeAt(1),
             barSec: 240 / track.bpm,
+            half: 30 / track.bpm / 4,
           };
         track.play(this, c);
         if (kind === "boss" && this.heat > 0) bossHeatLayer(this, c);
@@ -2604,7 +2895,7 @@ const musicChords = {
         engine = new SoundEngine(),
         info = trackInfo(spec.music, spec.biome),
         len = 60 / info.bpm / 4;
-      engine.attach(ctx);
+      engine.attach(ctx, { room: false });
       engine.sfxVol = 1;
       engine.mode = spec.music;
       engine.biome = spec.biome;
@@ -2612,6 +2903,7 @@ const musicChords = {
       engine.playBiome = spec.biome;
       engine.intensity = spec.intensity != null ? spec.intensity : 1;
       engine.heat = spec.heat || 0;
+      engine.mixFor(spec.music);
       engine.musicLog = [];
       if (spec.pv) engine.pv = { kind: spec.music, biome: spec.biome };
       for (let n = 0; n < info.steps * (spec.loops || 1); n++) {
@@ -2672,6 +2964,8 @@ const musicChords = {
             len = 60 / info.bpm / 4,
             first = (spec.fromBar || 0) * 16;
           engine.fade.gain.value = musicTrack(spec.music, spec.biome).gain;
+          engine.mixFor(spec.music);
+          if (!spec.noBed) engine.startMusicBed(spec.music, spec.biome, 0.05);
           if (spec.impact) musicImpact(engine, spec.biome, 0);
           for (let n = 0, t = 0; t < seconds - 0.25; n++, t += len) {
             engine.simT = base + t;
@@ -2738,17 +3032,24 @@ const musicChords = {
     }
   };
 /* ==========================================================================
- 3.1.0: the music. Every biome has a calm theme ("fight": 16 bars, four chords over four bars, four sections of
- four bars) and a boss track (22 bars: drop 8, variation 8, half-time breakdown 4, build 2); the boss track is the
- heavy sibling of the calm theme (same key and chords). A track is a tempo, a length and a play(engine, c)
- function that is called for every sixteenth step and schedules that step's notes (see SoundEngine.note for the
- fields of c). Rules that keep the music cheap and the same everywhere:
+ The music (3.1.0, reworked in 3.2.0). Every biome has a calm theme ("fight": 16 bars, four chords over four bars,
+ four sections of four bars) and a boss track (22 bars: drop 8, variation 8, half-time breakdown 4, build 2); the boss
+ track is the heavy sibling of the calm theme (same key and chords). A track is a tempo, a length and a play(engine, c)
+ function that is called for every sixteenth step and schedules that step's notes (see SoundEngine.note for the fields
+ of c). Under the notes a track has its atmosphere (MUSIC_BEDS: wind, insects, furnace, rain, drones), which is a loop
+ and no voice of the budget.
+ 3.2.0: the calm themes are calmer and belong to their place (the Cryo Vault icy and windy, the Toxin Marsh damp and
+ alive, the Ember Works a sleeping factory, the Neon Yard a rainy night drive, the Void Core dark and breathing); the
+ boss tracks are hard and dense: double-tracked guitars through two real amp chains (left and right), metal kicks
+ with a beater click, blast beats, breakdowns, a kick that pumps the pads and guitars, a room reverb, and a lot of
+ noises of their biome. Rules that keep the music cheap and the same everywhere:
  - everything a step schedules is chosen by the step, the chord and the intensity, or by the deterministic hash
    rnd() (never Math.random), so the music is the same with and without a flood of sounds
- - the voices of the music are limited to MAX_MUSIC_VOICES; texture sounds are "opt" voices that the engine
-   sheds first (never the kick, bass and chords); the tests check that nothing is ever shed
- - sustained notes are one oscillator each; there is one shared WaveShaper bus (engine.distIn) for guitars,
-   808 sub, growl and stabs
+ - the voices of the music are limited to MAX_MUSIC_VOICES; texture sounds are "opt" voices that the engine sheds
+   first (never the kick, bass and chords); the tests check that nothing is ever shed
+ - buses: m (music, dry), p (the pump: pads, bass, guitars), d (the echo: far away), x (distortion: 808, reese,
+   wobble, leads), l and r (the two guitar amps); any voice can send to the room with opts.rev and be panned with
+   opts.pan
  ========================================================================== */
 function rnd(a, b, c) {
   let x = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 2147483647)) | 0;
@@ -2757,6 +3058,8 @@ function rnd(a, b, c) {
   return (x >>> 0) / 4294967296;
 }
 const R = (c, n) => rnd(c.cycle * 4096 + c.s, n, c.salt),
+  /* a hashed pan position between -w and w */
+  P = (c, n, w = 0.7) => (R(c, n) * 2 - 1) * w,
   patCache = Object.create(null),
   /* "x" a hit, "X" an accent, "o" a ghost note, "." a rest */
   pat = (str) =>
@@ -2793,33 +3096,112 @@ function tremoloEnv(rate, depth, dur, fade) {
    and last span + fade seconds cross-fade without a dip (pads and drones) */
 const padEnv = (dur, fade) => tremoloEnv(0, 0, dur, fade),
   FLICKER = new Float32Array([0.9, 0.2, 1, 0.1, 0.8, 0.3, 1, 0.4, 0.2, 0]);
-/* one scheduling kit per step: m (music bus), d (the echo: far away) and x (distortion), each with t(one) for an
-   oscillator and n(oise) */
+/* one scheduling kit per step: the buses (see above), each with t(one) for an oscillator and n(oise) */
 function kit(e, c) {
   const base = c.at,
     bus = (dest) => ({
       t: (f, d, w, v, o) => e.tone(f, d, w, v, { ...o, dest, at: base + ((o && o.at) || 0) }),
       n: (d, v, o) => e.noise(d, v, { ...o, dest, at: base + ((o && o.at) || 0) }),
     });
-  return { m: bus(e.mus), d: bus(e.delay), x: bus(e.distIn) };
+  return {
+    e,
+    at: base,
+    m: bus(e.mus),
+    p: bus(e.pump),
+    d: bus(e.delay),
+    x: bus(e.distIn),
+    l: bus(e.gtrL),
+    r: bus(e.gtrR),
+  };
 }
-const kick = (k, v, o = {}) => k.m.t(o.f0 || 150, o.dur || 0.14, "sine", v, { to: o.f1 || 42, at: o.at }),
+/* the pump: the pads, bass and guitars dip to `depth` on an accented kick and come back with `rel` (seconds) */
+const pumpDip = (k, at, depth, rel = 0.09) => {
+    const gain = k.e.pump && k.e.pump.gain;
+    if (!gain) return;
+    const t = k.e.ctx.currentTime + k.at + at;
+    gain.setTargetAtTime(depth, t, 0.004);
+    gain.setTargetAtTime(1, t + 0.03, rel);
+  },
+  /* a kick: a sine that drops from f0 to f1; click adds the beater (a very short bright noise), pump dips the pump */
+  kick = (k, v, o = {}) => {
+    k.m.t(o.f0 || 150, o.dur || 0.14, "sine", v, { to: o.f1 || 42, at: o.at });
+    if (o.click) k.m.n(0.007, v * o.click, { type: "highpass", f: 3000, attack: 0.0005, at: o.at });
+    if (o.pump) pumpDip(k, o.at || 0, o.pump, o.rel);
+  },
+  /* the metal kick of the boss tracks: short, punchy, with a beater click */
+  mkick = (k, v, o = {}) => kick(k, v, { f0: 210, f1: 52, dur: 0.075, click: 0.55, ...o }),
   clap = (k, v) => {
     k.m.n(0.018, v, { type: "bandpass", f: 1500, q: 1.2, attack: 0.001 });
     k.m.n(0.018, v * 0.9, { type: "bandpass", f: 1500, q: 1.2, attack: 0.001, at: 0.012 });
     k.m.n(0.14, v * 0.7, { type: "bandpass", f: 1400, q: 0.9, at: 0.024 });
   },
-  hat = (k, v, dur = 0.025, f = 8500) => k.m.n(dur, v, { type: "highpass", f }),
+  hat = (k, v, dur = 0.025, f = 8500, pan = 0) => k.m.n(dur, v, { type: "highpass", f, pan }),
+  /* the hats of the boss tracks are brighter (they have to cut through the guitars) */
+  bhat = (k, v, dur, f, pan) => hat(k, v * 1.8, dur, f, pan),
+  /* a snare: a band of noise and a falling body tone; crack adds the bright attack, rev the room */
   snare = (k, v, o = {}) => {
-    k.m.n(o.dur || 0.15, v, { type: "bandpass", f: o.f || 1800, q: o.q || 0.8, at: o.at });
+    k.m.n(o.dur || 0.15, v, { type: "bandpass", f: o.f || 1800, q: o.q || 0.8, at: o.at, rev: o.rev, pan: o.pan });
     k.m.t(o.bf || 190, 0.1, "triangle", v * 0.9, { to: (o.bf || 190) * 0.55, at: o.at });
+    if (o.crack) k.m.n(0.03, v * o.crack, { type: "highpass", f: 4500, attack: 0.0008, at: o.at });
   },
-  anvil = (k, f, v) => {
-    k.m.n(0.09, v * 1.3, { type: "bandpass", f: 3200, q: 1.4, attack: 0.001 });
-    k.m.t(f, 0.5, "sine", v, { attack: 0.001 });
-    k.m.t(f * 2.76, 0.3, "sine", v * 0.7, { attack: 0.001 });
+  /* a rim click with a little room (the calm themes) */
+  rim = (k, v, o = {}) => {
+    k.m.n(0.014, v, { type: "bandpass", f: 2400, q: 5, rev: o.rev, pan: o.pan });
+    k.m.t(1700, 0.025, "triangle", v * 0.4, { pan: o.pan });
   },
-  crash = (k, v, dur = 1.2) => k.m.n(dur, v, { type: "highpass", f: 5000, attack: 0.002, opt: true }),
+  /* a china cymbal: a trashy band of noise */
+  china = (k, v, pan = 0) =>
+    k.m.n(0.5, v * 1.6, { type: "bandpass", f: 5200, q: 1.2, attack: 0.001, pan, rev: 0.25, opt: true }),
+  anvil = (k, f, v, pan = 0) => {
+    k.m.n(0.09, v * 1.3, { type: "bandpass", f: 3200, q: 1.4, attack: 0.001, pan });
+    k.m.t(f, 0.5, "sine", v, { attack: 0.001, pan, rev: 0.2 });
+    k.m.t(f * 2.76, 0.3, "sine", v * 0.7, { attack: 0.001, pan });
+  },
+  /* a metal clang far away: inharmonic partials and a knock */
+  clang = (bus, f, v, o = {}) => {
+    bus.n(0.04, v * 1.2, { type: "bandpass", f: 3500, q: 2, attack: 0.001, ...o });
+    bus.t(f, 1.1, "sine", v, { attack: 0.001, ...o });
+    bus.t(f * 2.76, 0.55, "sine", v * 0.55, { attack: 0.001, ...o });
+    bus.t(f * 5.4, 0.25, "sine", v * 0.3, { attack: 0.001, ...o });
+  },
+  /* a bell or a struck piece of ice: a sine and inharmonic partials that die away faster */
+  bell = (bus, f, v, dur = 1.4, o = {}) => {
+    bus.t(f, dur, "sine", v, { attack: 0.002, ...o });
+    bus.t(f * 2.76, dur * 0.4, "sine", v * 0.35, { attack: 0.002, ...o });
+    if (o.bright) bus.t(f * 5.4, dur * 0.18, "sine", v * 0.18, { attack: 0.002, ...o });
+  },
+  /* a vowel: two narrow bands of noise on its formants (whispers, choirs, vocal chops) */
+  formant = (bus, f1, f2, dur, v, o = {}) => {
+    bus.n(dur, v, { type: "bandpass", f: f1, q: 9, ...o });
+    bus.n(dur, v * 0.85, { type: "bandpass", f: f2, q: 9, ...o });
+  },
+  /* a pad: one oscillator per note with a sin^2 swell (padEnv), alternately detuned */
+  pad = (bus, notes, dur, v, o = {}) =>
+    notes.forEach((n, i) =>
+      bus.t(midiToFreq(n), dur, o.wave || "sawtooth", v, {
+        lp: o.lp || 1200,
+        env: padEnv(dur, o.fade || 0.3),
+        detune: (i & 1 ? 1 : -1) * (o.det || 0),
+        rev: o.rev,
+      }),
+    ),
+  /* a double-tracked power chord: root and fifth (and the octave with oct) on the left and on the right amp, the right
+     take detuned the other way (no delay between the takes: phones play mono, and a delay would comb-filter them). mute: palm-muted (dark and short), otherwise an open chord */
+  gtr = (k, midi, dur, v, o = {}) => {
+    const f = midiToFreq(midi),
+      lp = o.lp || (o.mute ? 900 : 3200);
+    for (const [side, det, dt] of [
+      [k.l, -7, 0],
+      [k.r, 7, 0],
+    ]) {
+      const at = (o.at || 0) + dt,
+        opts = { lp, detune: det, at, hold: o.hold, attack: o.attack };
+      side.t(f, dur, "sawtooth", v, opts);
+      side.t(f * 1.4983, dur, "sawtooth", v * 0.8, opts);
+      if (o.oct) side.t(f * 2, dur, "sawtooth", v * 0.55, { ...opts, detune: -det });
+    }
+  },
+  crash = (k, v, dur = 1.2) => k.m.n(dur, v * 1.6, { type: "highpass", f: 5000, attack: 0.002, opt: true, rev: 0.2 }),
   /* the reversed cymbal: a noise that swells up to its end (before the next section) */
   reverseCymbal = (k, v) => k.m.n(0.65, v, { type: "highpass", f: 3000, to: 10000, attack: 0.55, opt: true }),
   /* a sub-bass note for chord root `root`: never below 29 (about 44 Hz), so that phones play it */
@@ -2828,261 +3210,283 @@ const kick = (k, v, o = {}) => k.m.t(o.f0 || 150, o.dur || 0.14, "sine", v, { to
     return midiToFreq(base < 29 ? base + 12 : base);
   };
 
+/* ---------- the atmospheres ---------- */
+
+/* level of the atmosphere of a calm theme and of a boss track (times the boss factor of the biome) */
+/* gain: the level of the calm atmosphere, boss: the factor for the boss track (measured: a calm atmosphere alone at
+   about -40 dB, the wind of the Cryo Vault about -33 dB; under a boss track about -36 to -40 dB) */
+const BED_LEVEL = { fight: 1, boss: 1 },
+  MUSIC_BEDS = {
+    yard: {
+      gain: 0.86,
+      boss: 0.38,
+      build({ osc, loop, filt, lfo, level }) {
+        // rain: a bright hiss and a softer body; a far traffic swell; the hum of the transformers
+        level(filt("highpass", 5000, 0.5, loop(1)), 0.03);
+        level(filt("bandpass", 1600, 0.6, loop(0.8)), 0.018);
+        const traffic = level(filt("lowpass", 420, 0.7, loop(0.5)), 0.05);
+        lfo(0.05, 0.04, traffic.gain);
+        level(filt("lowpass", 240, 0.8, osc("sawtooth", 50)), 0.03);
+        level(osc("sine", 100), 0.008);
+      },
+    },
+    works: {
+      gain: 1.41,
+      boss: 0.61,
+      build({ loop, filt, lfo, level, bpm }) {
+        // the furnace rumbles, the machines thump in quarter notes far away, steam hisses now and then
+        level(filt("lowpass", 140, 0.9, loop(0.5)), 0.16);
+        const machine = level(filt("bandpass", 900, 2.5, loop(0.7)), 0.03);
+        lfo(bpm / 60, 0.03, machine.gain, "square");
+        const steam = level(filt("highpass", 6000, 0.6, loop(1.4)), 0.006);
+        lfo(0.07, 0.006, steam.gain);
+      },
+    },
+    vault: {
+      gain: 1.66,
+      boss: 0.44,
+      build({ loop, filt, lfo, level }) {
+        // wind: a broad band that wanders and comes in gusts, a thin whistle above it, cold air
+        const wind = filt("bandpass", 650, 0.8, loop(1));
+        lfo(0.09, 380, wind.frequency);
+        const gust = level(wind, 0.12);
+        lfo(0.045, 0.08, gust.gain);
+        const whistle = filt("bandpass", 1900, 9, loop(1.25));
+        lfo(0.06, 700, whistle.frequency);
+        const high = level(whistle, 0.05);
+        lfo(0.033, 0.035, high.gain);
+        level(filt("highpass", 7500, 0.5, loop(1.6)), 0.01);
+      },
+    },
+    marsh: {
+      gain: 1.5,
+      boss: 0.5,
+      build({ loop, filt, lfo, level }) {
+        // insects: a band of noise that buzzes 31 times a second and swells slowly; murk that wobbles below
+        const bugs = level(filt("bandpass", 4300, 5, loop(1.1)), 0.02);
+        lfo(31, 0.012, bugs.gain);
+        lfo(0.11, 0.008, bugs.gain);
+        const murk = filt("lowpass", 260, 2, loop(0.4));
+        lfo(0.4, 90, murk.frequency);
+        level(murk, 0.1);
+      },
+    },
+    void: {
+      gain: 0.59,
+      boss: 0.48,
+      build({ osc, loop, filt, lfo, level, root }) {
+        // two drones that beat against each other, a dark space wind, a high eerie tone that wavers
+        level(osc("sine", root / 4), 0.045);
+        level(osc("sine", root / 4 + 0.6), 0.045);
+        level(filt("lowpass", 300, 0.7, osc("sawtooth", root / 2 + 0.3)), 0.012);
+        const wind = filt("bandpass", 320, 1.1, loop(0.6));
+        lfo(0.03, 160, wind.frequency);
+        level(wind, 0.07);
+        const eerie = osc("sine", root * 4);
+        lfo(5, 6, eerie.frequency);
+        const high = level(eerie, 0.004);
+        lfo(0.07, 0.004, high.gain);
+      },
+    },
+  };
+
 /* ---------- calm themes ---------- */
 
-/* Neon Yard, 118 BPM, A minor (Am F C G): synthwave stomp. Four on the floor, claps on 2 and 4, open hats on the
-   off-beats, a rolling eighth-note saw bass with octave jumps, saw pad, square arpeggio and triangle lead in the
-   echo; city texture: 100 Hz transformer hum, neon flicker, distant siren whoops, glitchy data blips, rain hiss */
-const YARD_BASS = [
-    [0, 0, 0, 0, 0, 0, 12, 0],
-    [0, 0, 12, 0, 0, 0, 12, 0],
-    [0, 12, 0, 12, 7, 12, 0, 12],
-    [0, 0, 12, 0, 0, 12, 7, 10],
-  ],
+/* Neon Yard, 96 BPM, A minor (Am F C G): a night drive in the rain. A soft kick on 1 and 3, a rim with room on 2 and
+   4, a shaker that comes with the intensity, a round triangle bass whose pattern changes per section, a warm saw pad,
+   a pluck arpeggio and a sine lead in the echo; the city: neon flicker, a far siren, data blips (rain and the hum of
+   the transformers are the atmosphere) */
+const YARD_CALM_BASS = ["x.....x...x.....", "x.....x.x...x...", "x..x....x.x.....", "x.....x...x..x.x"],
   YARD_BLIPS = [2093, 2637, 3136, 3951, 4699];
 function yardCalm(e, c) {
   const { b, bar, L, chord, root, sec, cycle } = c,
-    k = kit(e, c),
-    voice = musicVoices.yard,
-    fill = (bar & 3) === 3 && (sec & 1) === 1;
-  if (b % 4 === 0 && !(fill && b === 12)) kick(k, 0.5);
-  if ((b === 4 || b === 12) && !(fill && b === 12)) clap(k, 0.1);
-  if (fill && b >= 12) k.m.n(0.07, 0.05 + (b - 12) * 0.03, { type: "bandpass", f: 1500 + (b - 12) * 500, q: 0.9 });
-  if (b % 4 === 2) hat(k, 0.06, 0.07);
-  if (L > 0.4 && b % 2 === 1) hat(k, 0.022, 0.02, 10000);
-  if (b % 2 === 0)
-    k.m.t(midiToFreq(root - 24 + YARD_BASS[sec][b >> 1]), 0.2, voice.bass, 0.11, {
-      lp: 450 + L * 700 + (sec >= 2 ? 200 : 0),
-      q: 1.5,
-    });
-  if (b === 0 && L > 0.1) {
-    const dur = c.barSec + 0.25,
-      env = padEnv(dur, 0.25);
-    k.m.t(midiToFreq(chord[1]), dur, "sawtooth", 0.016, { lp: 900, env, detune: 6 });
-    k.m.t(midiToFreq(chord[2]), dur, "sawtooth", 0.016, { lp: 900, env, detune: -6 });
+    k = kit(e, c);
+  if (b === 0 || b === 8) kick(k, 0.4, { f0: 125, f1: 45, dur: 0.2, pump: 0.7, rel: 0.12 });
+  if (L > 0.55 && sec >= 2 && b === 11) kick(k, 0.26, { f0: 125, f1: 45, dur: 0.16 });
+  if (b === 4 || b === 12) rim(k, 0.06 + 0.03 * L, { rev: 0.5 });
+  if (L > 0.25) hat(k, b % 4 === 2 ? 0.03 : 0.012, b % 4 === 2 ? 0.05 : 0.02, 8500, b % 2 ? 0.35 : -0.35);
+  if (pat(YARD_CALM_BASS[sec])[b]) {
+    const f = midiToFreq(root - 24 + (sec === 3 && b === 10 ? 7 : 0));
+    k.p.t(f, 0.34, "triangle", 0.12, { lp: 520 + 300 * L });
+    k.p.t(f, 0.3, "sine", 0.08);
   }
-  if (L > 0.15 && (b % 2 === 0 || L > 0.78)) {
-    const p = arpPatterns[(cycle + sec) % 4];
-    k.d.t(midiToFreq(chord[p[b % p.length]] + (sec === 3 ? 24 : 12)), 0.1, voice.arp, 0.025, { lp: 2200 + L * 1600 });
-  }
-  if (L > 0.5 && (sec & 1) === 1) {
-    const note = leadPatterns[bar & 3][b];
-    if (note != null)
-      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.22, voice.lead, 0.045, {
-        attack: 0.01,
-        lp: 3000,
-      });
-  }
-  // the city
-  if (b === 0 && (bar & 1) === 0)
-    k.m.t(100, c.barSec * 2 + 0.4, "sawtooth", 0.012, { lp: 480, env: padEnv(c.barSec * 2 + 0.4, 0.4), opt: true });
-  if (L > 0.2 && b % 2 === 0 && R(c, 1) < 0.16)
-    k.m.n(0.08, 0.03, { type: "bandpass", f: 2800 + R(c, 2) * 1200, q: 9, env: FLICKER, opt: true });
-  if (bar % 8 === 5 && b === 0) {
-    k.d.t(640, 0.7, "triangle", 0.02, { to: 980, attack: 0.18, opt: true });
-    k.d.t(980, 0.7, "triangle", 0.018, { to: 640, at: 0.7, attack: 0.05, opt: true });
-  }
-  if (b % 2 === 1 && R(c, 3) < 0.2 + 0.1 * L)
-    k.d.t(YARD_BLIPS[(R(c, 4) * 5) | 0], 0.024, "square", 0.012, { lp: 6000, opt: true });
   if (b === 0)
-    k.m.n(c.barSec + 0.15, 0.011, { type: "highpass", f: 6500, env: padEnv(c.barSec + 0.15, 0.15), opt: true });
-  if (R(c, 5) < 0.07) k.m.t(3200 + R(c, 6) * 2800, 0.05, "sine", 0.012, { opt: true });
-}
-
-/* Ember Works, 96 BPM, D minor (Dm Bb C Am): industrial stomp. Long half-time kicks (beat 1, ghost kicks that move
-   from section to section), metal percussion as the rhythm section: an anvil on beat 3 of every bar, inharmonic
-   clangs, gear and chain ratchets, steam bursts, a furnace rumble; square bass, saw brass stabs, saw arpeggio and
-   lead in the echo */
-const WORKS_KICKS = [[10], [7, 10], [6, 10, 14], [10, 13]],
-  WORKS_BASS = [
-    [],
-    [
-      [6, 0],
-      [10, 7],
-    ],
-    [
-      [6, 0],
-      [10, 12],
-      [14, 7],
-    ],
-    [
-      [6, 0],
-      [10, 7],
-      [14, -2],
-    ],
-  ];
-function worksCalm(e, c) {
-  const { b, bar, L, chord, root, sec, cycle } = c,
-    k = kit(e, c),
-    voice = musicVoices.works;
-  if (b === 0) kick(k, 0.6, { f0: 110, f1: 36, dur: 0.32 });
-  if (L > 0.15 && WORKS_KICKS[sec].includes(b)) kick(k, 0.4, { f0: 120, f1: 40, dur: 0.2 });
-  if (b === 8) anvil(k, midiToFreq(chord[0] + 24), 0.07);
-  if (L > 0.4 && ((b === 14 && sec >= 1) || (b === 6 && sec === 3))) {
-    const f = midiToFreq(chord[(R(c, 1) * 3) | 0] + 36);
-    k.m.t(f, 0.6, "sine", 0.03, { attack: 0.002 });
-    k.m.t(f * 2.32, 0.35, "sine", 0.02, { attack: 0.002 });
-  }
-  if (L > 0.2 && b === 3)
-    for (let i = 0; i < 5; i++)
-      k.m.n(0.012, 0.05, { type: "bandpass", f: 4200, q: 3, at: [0, 0.03, 0.063, 0.101, 0.146][i], opt: true });
-  if (L > 0.55 && b === 11)
-    for (let i = 0; i < 4; i++)
-      k.m.n(0.014, 0.05, { type: "bandpass", f: 2200, q: 3, at: [0, 0.045, 0.1, 0.17][i], opt: true });
-  if ((bar & 1) === 1 && b === 13 && R(c, 2) < 0.6)
-    k.m.n(0.5, 0.05, { type: "highpass", f: 5200, to: 3000, attack: 0.03, opt: true });
-  if (b === 0) k.m.n(c.barSec + 0.3, 0.06, { f: 110, env: padEnv(c.barSec + 0.3, 0.3), opt: true });
-  if (L > 0.1 && b % 4 === 2) k.m.n(0.02, 0.035, { type: "bandpass", f: 6500, q: 4 });
-  if (b === 0) k.m.t(midiToFreq(root - 24), 0.55, voice.bass, 0.12, { lp: 380 + L * 300 });
-  for (const [step, semi] of WORKS_BASS[sec])
-    if (b === step && L > 0.2) k.m.t(midiToFreq(root - 24 + semi), 0.2, voice.bass, 0.1, { lp: 380 + L * 300 });
-  if (b === 0) {
-    k.m.t(midiToFreq(chord[0]), 0.55, "sawtooth", 0.03, { lp: 700 });
-    k.m.t(midiToFreq(chord[2]), 0.55, "sawtooth", 0.025, { lp: 700 });
-  }
-  if (b === 11 && sec >= 1 && L > 0.5) k.m.t(midiToFreq(chord[0]), 0.2, "sawtooth", 0.03, { lp: 700 });
-  if (L > 0.2 && b % 2 === 0) {
+    pad(k.p, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.4, 0.014, {
+      lp: 900 + 500 * L,
+      fade: 0.4,
+      det: 7,
+      rev: 0.45,
+    });
+  if (L > 0.3 && b % 2 === 0) {
     const p = arpPatterns[(cycle + sec) % 4];
-    k.d.t(midiToFreq(chord[p[(b >> 1) % p.length]] + 12), 0.1, voice.arp, 0.02, { lp: 1500 + L * 1000 });
+    k.d.t(midiToFreq(chord[p[(b >> 1) % p.length]] + (sec === 3 ? 24 : 12)), 0.16, "triangle", 0.03, {
+      lp: 1600 + 900 * L,
+      rev: 0.25,
+    });
   }
-  if (L > 0.45 && (sec & 1) === 1) {
+  if (L > 0.6 && (sec & 1) === 1) {
     const note = leadPatterns[bar & 3][b];
     if (note != null)
-      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.22, voice.lead, 0.028, {
-        attack: 0.01,
-        lp: 2400,
+      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.32, "sine", 0.04, { attack: 0.02, rev: 0.4 });
+  }
+  if (b % 2 === 0 && R(c, 1) < 0.08)
+    k.m.n(0.08, 0.025, { type: "bandpass", f: 2800 + R(c, 2) * 1200, q: 9, env: FLICKER, opt: true, pan: P(c, 3) });
+  if (bar % 8 === 5 && b === 0) {
+    k.d.t(640, 0.9, "triangle", 0.014, { to: 980, attack: 0.3, opt: true, rev: 0.6, pan: -0.5 });
+    k.d.t(980, 0.9, "triangle", 0.012, { to: 640, at: 0.9, attack: 0.1, opt: true, rev: 0.6, pan: -0.5 });
+  }
+  if (b % 2 === 1 && R(c, 4) < 0.08 + 0.1 * L)
+    k.d.t(YARD_BLIPS[(R(c, 5) * 5) | 0], 0.024, "square", 0.01, { lp: 6000, opt: true, pan: P(c, 6) });
+}
+
+/* Ember Works, 84 BPM, D minor (Dm Bb C Am): the factory sleeps. Pistons (a dull chuff and a low thump) on 1 and 3,
+   the ticking of machines in eighths (its pattern changes per section), an anvil far away in the room, a chain
+   ratchet and a burst of steam; a low drone of root and fifth, a square bass, a dark brass swell and a saw lead in
+   the echo when it gets busy (the furnace and the far machines are the atmosphere) */
+const WORKS_CALM_BASS = ["x.......x.......", "x.....x.x.......", "x.......x..x....", "x.....x.x..x..x."],
+  WORKS_TICKS = ["x.x.x.x.x.x.x.x.", "x.xxx.x.x.xxx.x.", "x.x.x.xxx.x.x.xx", "xxx.x.x.xxx.x.x."];
+function worksCalm(e, c) {
+  const { b, bar, L, chord, root, sec } = c,
+    k = kit(e, c);
+  if (b === 0 || b === 8) {
+    k.m.n(0.2, 0.14, { f: 300, to: 80, q: 1.2 });
+    kick(k, 0.34, { f0: 90, f1: 38, dur: 0.22, pump: 0.8, rel: 0.15 });
+  }
+  if (pat(WORKS_TICKS[sec])[b])
+    k.m.n(0.014, b % 4 === 0 ? 0.04 : 0.022, { type: "bandpass", f: 5600, q: 7, pan: b % 4 === 0 ? -0.3 : 0.4 });
+  if (b === 4 && (bar & 1) === 1) clang(k.m, midiToFreq(chord[0] + 24), 0.045, { rev: 0.8, pan: -0.4 });
+  if (L > 0.45 && sec >= 2 && b === 12) clang(k.m, midiToFreq(chord[2] + 24), 0.03, { rev: 0.8, pan: 0.5 });
+  if (L > 0.3 && sec >= 1 && b === 6 && R(c, 1) < 0.5)
+    for (let i = 0; i < 5; i++)
+      k.m.n(0.012, 0.035, {
+        type: "bandpass",
+        f: 4200,
+        q: 3,
+        at: [0, 0.03, 0.063, 0.101, 0.146][i],
+        opt: true,
+        pan: -0.5,
+      });
+  if ((bar & 3) === 2 && b === 14)
+    k.m.n(0.9, 0.035, { type: "highpass", f: 5500, to: 3500, attack: 0.05, opt: true, pan: 0.5, rev: 0.3 });
+  if (b === 0 && (bar & 1) === 0)
+    pad(k.p, [root - 24, root - 17], c.barSec * 2 + 0.6, 0.03, { lp: 320, fade: 0.6, det: 5 });
+  if (pat(WORKS_CALM_BASS[sec])[b]) k.p.t(midiToFreq(root - 24), 0.4, "square", 0.07, { lp: 360 + 250 * L });
+  if (L > 0.4 && b === 0)
+    for (const i of [0, 1, 2])
+      k.p.t(midiToFreq(chord[i]), c.barSec * 0.9, "sawtooth", 0.014, {
+        lp: 300,
+        lpTo: 1300 + 600 * L,
+        attack: 0.5,
+        hold: 0.6,
+        detune: (i - 1) * 6,
+        rev: 0.4,
+      });
+  if (L > 0.55 && (sec & 1) === 1) {
+    const note = leadPatterns[bar & 3][b];
+    if (note != null)
+      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.3, "sawtooth", 0.022, {
+        attack: 0.02,
+        lp: 1500,
+        rev: 0.3,
       });
   }
 }
 
-/* Cryo Vault, 104 BPM, E minor (Em C G D): sparse and cold. No kick until the intensity is high (one soft thump on
-   beat 1, a second one near the top), ticks of ice instead of a snare, flakes of hi-hat at hashed sixteenths, glass
-   arpeggios (sine plus a thin third partial) with gaps that change in every section, a cold triangle pad and
-   bass; wind, ice cracks, wind-chime partials from the E-minor pentatonic scale (inharmonic sines) and creaks */
-const VAULT_ARP = ["x...x...x..x....", "x.x..x.x..x.x..x", "x..x..x.x.x...x.", "x.x.x.x.x..x.x.."],
+/* Cryo Vault, 72 BPM, E minor (Em C G D): an ice cavern. No beat at all until the intensity is high (then a slow
+   heartbeat), bells of ice in the echo and the room whose pattern changes per section, a glass pad, a deep sub on
+   every chord, ticks of ice, cracks, wind chimes and a creak (the wind, its gusts and its whistle are the
+   atmosphere) */
+const VAULT_BELLS = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", "x.x..x.x..x.x..x"],
   VAULT_CHIME = [76, 79, 81, 83, 86, 88];
 function vaultCalm(e, c) {
   const { b, bar, L, chord, root, sec } = c,
     k = kit(e, c);
-  if (L > 0.7 && b === 0) kick(k, 0.3, { f0: 120, f1: 50, dur: 0.2 });
-  if (L > 0.88 && b === 10) kick(k, 0.22, { f0: 120, f1: 50, dur: 0.2 });
-  if (L > 0.15 && (b === 6 || b === 14)) k.d.n(0.02, 0.05, { type: "bandpass", f: 3400, q: 2 });
-  if ((b % 2 === 1 || L > 0.6) && R(c, 5) < 0.2 + 0.4 * L) hat(k, 0.02 + R(c, 9) * 0.01, 0.012, 11000);
-  if (L > 0.1 && pat(VAULT_ARP[sec])[b]) {
-    const n = chord[[0, 2, 1, 3, 2, 1, 3][(bar * 7 + b) % 7]] + (R(c, 7) < 0.3 ? 36 : 24),
-      f = midiToFreq(n);
-    k.d.t(f, 0.22, "sine", 0.075);
-    if (L > 0.6 && sec >= 2) k.d.t(f * 3, 0.1, "sine", 0.02);
+  if (pat(VAULT_BELLS[sec])[b]) {
+    const n = chord[[0, 2, 1, 3, 2, 1, 3][(bar * 7 + b) % 7]] + (R(c, 1) < 0.25 ? 36 : 24);
+    bell(k.d, midiToFreq(n), 0.045, 1.4, { rev: 0.7, pan: P(c, 2, 0.6), bright: sec >= 2 });
   }
-  if (b === 0) {
-    const dur = c.barSec + 0.5,
-      env = padEnv(dur, 0.5);
-    k.m.t(midiToFreq(chord[0] + 12), dur, "triangle", 0.028, { env, lp: 1800 });
-    k.m.t(midiToFreq(chord[2] + 12), dur, "triangle", 0.024, { env, lp: 1800 });
-  }
-  if (b === 0) k.m.t(midiToFreq(root - 12), 0.9, "triangle", 0.11, { hold: 0.3, lp: 700 });
-  if (b === 10 && L > 0.5) k.m.t(midiToFreq(root - 5), 0.5, "triangle", 0.09, { lp: 700 });
-  if (b === 0 && (bar & 1) === 0)
-    k.m.n(4.2, 0.03, {
-      type: "bandpass",
-      f: (bar & 3) === 0 ? 500 : 1400,
-      to: (bar & 3) === 0 ? 1400 : 450,
-      q: 1.1,
-      attack: 1.2,
-      hold: 1.5,
-      opt: true,
+  if (b === 0)
+    pad(k.p, [chord[0] + 12, chord[2] + 12, chord[1] + 24], c.barSec + 0.8, 0.018, {
+      wave: "triangle",
+      lp: 2200,
+      fade: 0.8,
+      det: 6,
+      rev: 0.7,
     });
-  if (b % 2 === 0 && b > 0 && R(c, 6) < 0.1) {
-    k.m.n(0.02, 0.07, { type: "highpass", f: 5200, opt: true });
-    k.m.t(3800, 0.08, "sine", 0.03, { to: 900, opt: true });
+  if (b === 0) k.p.t(subNote(root), c.barSec * 0.95, "sine", 0.08, { attack: 0.3, hold: c.barSec * 0.5 });
+  if (L > 0.5 && b === 0) kick(k, 0.3, { f0: 100, f1: 40, dur: 0.25 });
+  if (L > 0.5 && b === 3) kick(k, 0.18, { f0: 100, f1: 40, dur: 0.2 });
+  if (L > 0.2 && b % 2 === 1 && R(c, 3) < 0.25 + 0.3 * L)
+    k.m.n(0.008, 0.035, { type: "highpass", f: 7500, pan: P(c, 4, 0.8), rev: 0.6 });
+  if (b % 4 === 2 && R(c, 5) < 0.08) {
+    k.m.n(0.02, 0.06, { type: "highpass", f: 5200, opt: true, pan: P(c, 6), rev: 0.4 });
+    k.m.t(3800, 0.08, "sine", 0.025, { to: 900, opt: true, pan: P(c, 6) });
   }
-  if (b % 2 === 0 && b > 0 && R(c, 8) < 0.03 + 0.04 * L) {
-    const f = midiToFreq(VAULT_CHIME[(R(c, 10) * 6) | 0]);
-    k.d.t(f, 1.7, "sine", 0.03, { opt: true });
-    k.d.t(f * 2.76, 0.7, "sine", 0.012, { opt: true });
-  }
-  if ((bar & 3) === 1 && b === 9 && R(c, 11) < 0.7) {
-    k.m.n(0.9, 0.035, { type: "bandpass", f: 260, to: 210, q: 9, attack: 0.3, opt: true });
+  if (b % 2 === 0 && b > 0 && R(c, 7) < 0.04 + 0.05 * L)
+    bell(k.d, midiToFreq(VAULT_CHIME[(R(c, 8) * 6) | 0]), 0.025, 1.7, { opt: true, rev: 0.5, pan: P(c, 9) });
+  if ((bar & 3) === 1 && b === 9 && R(c, 10) < 0.6) {
+    k.m.n(0.9, 0.03, { type: "bandpass", f: 260, to: 210, q: 9, attack: 0.3, opt: true });
     k.m.t(78, 0.9, "sawtooth", 0.008, { to: 70, lp: 300, attack: 0.3, opt: true });
   }
 }
 
-/* Toxin Marsh, 84 BPM, F minor (Fm Ab Eb Cm), swing: dub / trip-hop. Kick on 1 and 3 and a deep snare on 2 and 4
-   with an echo throw, swung closed hats, a triangle-plus-sub bass that hits the OFF-beats, wobbling saw pads (the
-   level wobbles 1.4 times a second), a dub chord skank in the echo; swamp: rising bubbles, frog croaks (a square
-   through a resonant low-pass, two pulses), insect buzz (noise with a 62 Hz tremolo), mud squelches, low drone */
-const MARSH_BASS = [
-  [3, 6, 11],
-  [3, 6, 10, 14],
-  [3, 7, 11],
-  [3, 6, 11, 14],
-];
+/* Toxin Marsh, 78 BPM, F minor (Fm Ab Eb Cm), swing: a foggy bayou dub. A soft kick on 1, a rim on 3 with an echo
+   throw, a lazy shaker, a bubbling sine bass on the off-beats that bends up (a bloop), a wobbling pad, dub chord
+   skanks and a kalimba melody of the F minor pentatonic in the echo; the swamp: rising bubbles, frog croaks, mud
+   squelches (insects and the murk are the atmosphere) */
+const MARSH_CALM_BASS = ["...x..x....x....", "...x..x...x...x.", "...x...x...x....", "...x..x....x..x."],
+  MARSH_PENTA = [65, 68, 70, 72, 75, 77, 80];
 function marshCalm(e, c) {
   const { b, bar, L, chord, root, sec } = c,
-    k = kit(e, c),
-    voice = musicVoices.marsh;
-  if (b === 0) kick(k, 0.5, { f0: 120, f1: 40, dur: 0.22 });
-  if (b === 10) kick(k, 0.35, { f0: 120, f1: 40, dur: 0.22 });
-  if (L > 0.5 && sec >= 1 && b === 7) kick(k, 0.22, { f0: 110, f1: 40, dur: 0.18 });
-  if (sec === 3 && b === 14) kick(k, 0.28, { f0: 110, f1: 40, dur: 0.18 });
-  if (b === 4 || b === 12) {
-    k.m.t(130, 0.22, "triangle", 0.22, { to: 70 });
-    k.m.n(0.2, 0.13, { type: "bandpass", f: 900, q: 0.7 });
-    k.d.n(0.12, 0.05, { type: "bandpass", f: 1100, q: 0.8 });
+    k = kit(e, c);
+  if (b === 0) kick(k, 0.42, { f0: 115, f1: 40, dur: 0.24, pump: 0.75, rel: 0.14 });
+  if (L > 0.4 && b === 10) kick(k, 0.25, { f0: 115, f1: 40, dur: 0.2 });
+  if (b === 8) {
+    rim(k, 0.08, { rev: 0.4 });
+    k.d.n(0.05, 0.04, { type: "bandpass", f: 2200, q: 3 });
   }
-  if (b % 2 === 0) hat(k, b % 4 === 0 ? 0.045 : 0.03, 0.02, 8000);
-  else if (L > 0.6) hat(k, 0.015, 0.015, 9000);
-  if (MARSH_BASS[sec].includes(b)) {
-    const semi = [0, 0, 7, 0][(bar + b) & 3];
-    k.m.t(midiToFreq(root - 12 + semi), 0.32, "triangle", 0.16, { lp: 500 });
-    k.m.t(midiToFreq(root - 24 + semi), 0.3, "sine", 0.12);
+  if (L > 0.2 && b % 2 === 0) hat(k, b % 4 === 0 ? 0.02 : 0.012, 0.03, 7500, b % 4 ? 0.3 : -0.3);
+  if (pat(MARSH_CALM_BASS[sec])[b]) {
+    const f = midiToFreq(root - 24 + [0, 0, 7, 0][(bar + b) & 3]);
+    k.p.t(f, 0.3, "sine", 0.15, { to: f * 1.06 });
+    k.p.t(f * 2, 0.22, "triangle", 0.04, { lp: 500 });
   }
   if (b === 0) {
     const dur = c.barSec + 0.4,
-      env = tremoloEnv(1.4, 0.55, dur, 0.4);
-    k.m.t(midiToFreq(chord[1]), dur, "sawtooth", 0.02, { lp: 650, detune: 9, env });
-    k.m.t(midiToFreq(chord[2]), dur, "sawtooth", 0.02, { lp: 650, detune: -9, env });
+      env = tremoloEnv(1.4, 0.5, dur, 0.4);
+    k.p.t(midiToFreq(chord[1]), dur, "sawtooth", 0.017, { lp: 620, detune: 9, env, rev: 0.35 });
+    k.p.t(midiToFreq(chord[2]), dur, "sawtooth", 0.017, { lp: 620, detune: -9, env, rev: 0.35 });
   }
-  if (b === 10 && sec >= 1 && L > 0.4) k.d.t(midiToFreq(chord[1] + 12), 0.08, "triangle", 0.03);
-  if (R(c, 1) < 0.09 + 0.05 * L) {
-    const f = 170 + R(c, 2) * 500;
-    k.m.t(f, 0.09, "sine", 0.05, { to: f * 1.9, opt: true });
-    if (R(c, 3) < 0.25) k.m.t(f * 0.7, 0.07, "sine", 0.035, { to: f * 1.4, at: 0.07, opt: true });
+  if (L > 0.3 && sec >= 1 && (b === 4 || b === 12))
+    for (const i of [0, 1, 2]) k.d.t(midiToFreq(chord[i] + 12), 0.07, "triangle", 0.016, { lp: 1800 });
+  if (L > 0.5 && b % 2 === 0 && R(c, 1) < 0.3) {
+    const f = midiToFreq(MARSH_PENTA[(R(c, 2) * 7) | 0]);
+    k.d.t(f, 0.3, "sine", 0.035, { attack: 0.002, rev: 0.3, pan: P(c, 3, 0.4) });
+    k.d.t(f * 3, 0.08, "sine", 0.01, { attack: 0.002, pan: P(c, 3, 0.4) });
   }
-  if (b % 2 === 1 && R(c, 4) < 0.035) {
-    const f = 95 + R(c, 5) * 30;
-    k.m.t(f, 0.11, "square", 0.03, { to: f * 1.35, lp: 650, q: 6, opt: true });
-    k.m.t(f * 1.1, 0.13, "square", 0.03, { to: f, lp: 650, q: 6, at: 0.15, opt: true });
+  if (R(c, 4) < 0.08 + 0.05 * L) {
+    const f = 170 + R(c, 5) * 500,
+      pan = P(c, 6, 0.8);
+    k.m.t(f, 0.09, "sine", 0.045, { to: f * 1.9, opt: true, pan });
+    if (R(c, 7) < 0.25) k.m.t(f * 0.7, 0.07, "sine", 0.03, { to: f * 1.4, at: 0.07, opt: true, pan });
   }
-  if (L > 0.3 && sec >= 1 && b === 0 && (bar & 1) === 0 && R(c, 6) < 0.6)
-    k.m.n(1.3, 0.02, { type: "bandpass", f: 3300, q: 4, env: tremoloEnv(62, 0.8, 1.3, 0.2), opt: true });
-  if ((bar & 1) === 1 && b === 13 && R(c, 7) < 0.5) {
-    k.m.n(0.16, 0.08, { f: 900, to: 150, q: 7, opt: true });
-    k.m.t(180, 0.14, "sine", 0.07, { to: 55, opt: true });
+  if (b % 2 === 1 && R(c, 8) < 0.035) {
+    const f = 95 + R(c, 9) * 30,
+      pan = P(c, 10, 0.8);
+    k.m.t(f, 0.11, "square", 0.028, { to: f * 1.35, lp: 650, q: 6, opt: true, pan, rev: 0.3 });
+    k.m.t(f * 1.1, 0.13, "square", 0.028, { to: f, lp: 650, q: 6, at: 0.15, opt: true, pan, rev: 0.3 });
   }
-  if (b === 0 && (bar & 1) === 0)
-    k.m.t(midiToFreq(root - 24), c.barSec * 2 + 0.8, "sine", 0.1, { env: padEnv(c.barSec * 2 + 0.8, 0.8) });
-  if (L > 0.4 && (sec & 1) === 1) {
-    const note = leadPatterns[bar & 3][b];
-    if (note != null)
-      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.22, voice.lead, 0.045, {
-        attack: 0.01,
-        lp: 3000,
-      });
+  if ((bar & 1) === 1 && b === 13 && R(c, 11) < 0.5) {
+    k.m.n(0.16, 0.07, { f: 900, to: 150, q: 7, opt: true, pan: -0.4 });
+    k.m.t(180, 0.14, "sine", 0.06, { to: 55, opt: true, pan: -0.4 });
   }
 }
 
-/* Void Core, 100 BPM, F# minor (F#m D A E): a broken beat in groups of 3+3+2+3+3+2 sixteenths. Deep kicks that
-   move in every bar, dry ticks (in the echo) on the group starts, one hard hit (noise burst and sub) every eight
-   bars, sparse hats; detuned saw drones, a reversed swell before every fourth bar, whispers (two band-passed noises
-   on vocal formants), long-tail pings in the echo, square arpeggio and lead on the group starts */
+/* Void Core, 66 BPM, F# minor (F#m D A E): dark and breathing. A slow heartbeat (two thumps) in every bar, drops of
+   water in the echo on the broken groups of the bar (3+3+2+3+3+2 sixteenths, higher in every section), detuned saw
+   drones, a reversed swell before every fourth bar, whispers, long pings far away, a square arpeggio and lead on the
+   group starts when it gets busy (the beating drones, the space wind and the eerie tone are the atmosphere) */
 const VOID_GROUPS = [0, 3, 6, 8, 11, 14],
-  VOID_KICKS = [
-    [0, 6, 11],
-    [0, 6, 8],
-    [0, 3, 11],
-    [0, 8, 14],
-  ],
   VOID_FORMANTS = [
     [700, 1200],
     [300, 2300],
@@ -3091,41 +3495,36 @@ const VOID_GROUPS = [0, 3, 6, 8, 11, 14],
 function voidCalm(e, c) {
   const { b, bar, L, chord, root, sec } = c,
     k = kit(e, c),
-    voice = musicVoices.void,
-    group = VOID_GROUPS.includes(b),
-    kicks = VOID_KICKS[(bar + sec) & 3];
-  if (kicks.includes(b)) kick(k, 0.55, { f0: 100, f1: 34, dur: 0.3 });
-  if (group && L > 0.1 && !kicks.includes(b)) k.d.n(0.02, 0.045, { type: "bandpass", f: 2400, q: 3 });
-  if (bar % 8 === 0 && b === 0) {
-    k.m.n(0.35, 0.16, { type: "bandpass", f: 1200, q: 0.8 });
-    k.m.t(70, 0.5, "sine", 0.5, { to: 30 });
-  }
-  if (L > 0.5 && !group && R(c, 9) < 0.12) hat(k, 0.02, 0.02, 9500);
-  if (b === 0 && (bar & 1) === 0) {
-    const dur = c.barSec * 2 + 1.2,
-      env = padEnv(dur, 1.2);
-    k.m.t(midiToFreq(root - 24), dur, "sawtooth", 0.035, { lp: 320, env, detune: -9 });
-    k.m.t(midiToFreq(root - 24), dur, "sawtooth", 0.035, { lp: 320, env, detune: 9 });
-  }
+    group = VOID_GROUPS.indexOf(b);
+  if (b === 0) kick(k, 0.36, { f0: 90, f1: 32, dur: 0.35, pump: 0.7, rel: 0.2 });
+  if (b === 3) kick(k, 0.28, { f0: 90, f1: 32, dur: 0.3 });
+  if (L > 0.6 && sec >= 2 && b === 8) kick(k, 0.22, { f0: 90, f1: 32, dur: 0.3 });
+  if (group > 0)
+    k.d.n(0.015, 0.03, { type: "bandpass", f: 1800 + 400 * sec + 250 * group, q: 6, pan: P(c, 1, 0.6), rev: 0.5 });
+  if (b === 0 && (bar & 1) === 0)
+    pad(k.p, [root - 24, root - 24, root - 17], c.barSec * 2 + 1.2, 0.028, { lp: 300 + 200 * L, fade: 1.2, det: 10 });
   if ((bar & 3) === 3 && b === 6) {
-    k.m.n(1.6, 0.06, { type: "highpass", f: 800, to: 7000, attack: 1.45, opt: true });
-    k.m.t(200, 1.6, "sawtooth", 0.02, { to: 1200, attack: 1.5, lp: 2000, opt: true });
+    k.m.n(1.6, 0.05, { type: "highpass", f: 800, to: 7000, attack: 1.45, opt: true });
+    k.m.t(200, 1.6, "sawtooth", 0.016, { to: 1200, attack: 1.5, lp: 2000, opt: true });
   }
-  if (L > 0.2 && b % 2 === 0 && R(c, 10) < 0.07) {
-    const [f1, f2] = VOID_FORMANTS[(R(c, 12) * 3) | 0];
-    k.d.n(1.5, 0.035, { type: "bandpass", f: f1, q: 9, attack: 0.45, hold: 0.3, opt: true });
-    k.d.n(1.5, 0.03, { type: "bandpass", f: f2, q: 9, attack: 0.45, hold: 0.3, opt: true });
+  if (L > 0.2 && b % 2 === 0 && R(c, 2) < 0.07) {
+    const [f1, f2] = VOID_FORMANTS[(R(c, 3) * 3) | 0];
+    formant(k.d, f1, f2, 1.5, 0.03, { attack: 0.45, hold: 0.3, opt: true, pan: P(c, 4), rev: 0.5 });
   }
-  if (b % 2 === 0 && R(c, 11) < 0.07)
-    k.d.t(midiToFreq(chord[(R(c, 13) * 3) | 0] + (R(c, 14) < 0.5 ? 24 : 36)), 2.6, "sine", 0.035, { opt: true });
-  if (L > 0.2 && group) {
+  if (b % 2 === 0 && R(c, 5) < 0.07)
+    k.d.t(midiToFreq(chord[(R(c, 6) * 3) | 0] + (R(c, 7) < 0.5 ? 24 : 36)), 2.6, "sine", 0.03, {
+      opt: true,
+      rev: 0.7,
+      pan: P(c, 8),
+    });
+  if (L > 0.3 && group >= 0) {
     const p = arpPatterns[(sec + bar) % 4];
-    k.d.t(midiToFreq(chord[p[VOID_GROUPS.indexOf(b) % p.length]] + 12), 0.1, voice.arp, 0.025, { lp: 2600 });
+    k.d.t(midiToFreq(chord[p[group % p.length]] + 12), 0.1, "square", 0.018, { lp: 2200, rev: 0.3 });
   }
-  if (L > 0.5 && (sec & 1) === 1 && group)
-    k.d.t(midiToFreq(chord[(b + bar) % 4] + 24), 0.25, voice.lead, 0.028, { attack: 0.01, lp: 3000 });
-  if (b === 0) k.m.t(midiToFreq(root - 24), 0.5, voice.bass, 0.11, { lp: 420 });
-  if (b === 11 && L > 0.4) k.m.t(midiToFreq(root - 17), 0.25, voice.bass, 0.09, { lp: 420 });
+  if (L > 0.6 && (sec & 1) === 1 && group >= 0)
+    k.d.t(midiToFreq(chord[(b + bar) % 4] + 24), 0.3, "square", 0.02, { attack: 0.01, lp: 2600, rev: 0.5 });
+  if (b === 0) k.p.t(midiToFreq(root - 24), 0.6, "sawtooth", 0.09, { lp: 380 });
+  if (b === 11 && L > 0.4) k.p.t(midiToFreq(root - 17), 0.3, "sawtooth", 0.07, { lp: 380 });
 }
 
 /* ---------- boss tracks ---------- */
@@ -3137,82 +3536,124 @@ function buildRoll(k, c) {
   const { bar, b } = c,
     on = bar === 20 ? b % 2 === 0 : b < 15;
   if (on)
-    snare(k, 0.06 + 0.2 * (((bar - 20) * 16 + b) / 32), { f: 1800 + b * 90 + (bar - 20) * 600, dur: 0.07, bf: 220 });
+    snare(k, 0.06 + 0.2 * (((bar - 20) * 16 + b) / 32), {
+      f: 1800 + b * 90 + (bar - 20) * 600,
+      dur: 0.07,
+      bf: 220,
+      crack: 0.4,
+    });
 }
 function buildRiser(k, c, f0 = 400) {
   if (c.bar === 20 && c.b === 0) {
-    k.m.n(2.7, 0.07, { type: "highpass", f: f0, to: 9000, q: 0.9, attack: 2.6, opt: true });
+    k.m.n(2.7, 0.08, { type: "highpass", f: f0, to: 9000, q: 0.9, attack: 2.6, opt: true });
     k.m.t(180, 2.7, "sawtooth", 0.016, { to: 1800, lp: 3000, attack: 2.6, opt: true });
   }
 }
+/* the kicks of the build: eighths in bar 20, sixteenths in bar 21 */
+function buildKicks(k, c, v = 0.45) {
+  if (c.bar === 20 ? c.b % 2 === 0 : c.b < 15) mkick(k, v);
+}
 
-/* Neon Yard boss, 175 BPM, A minor (Am F C G): cyber-breakcore. Chopped amen-style break (two bars alternate, the
-   fourth bar of four rolls into a snare fill, hashed stutters and ghost snares), a distorted 808 sub that glides
-   down on the kicks of beat 1 and the "and" of beat 3, an acid saw lead (resonant low-pass sweeping up on every
-   note) from the A minor pentatonic, glitchy blips; breakdown: half time with a saw pad and glass arps; build:
-   snare roll, riser */
-const YARD_AMEN_K = ["x.x.......x.....", "x.x...x...x.x..."],
-  YARD_AMEN_S = ["....x..o.o..x..o", "....x.o...x.x..x"],
+/* Neon Yard boss, 174 BPM, A minor: cyber breakcore metal. A chopped break (four kick and snare patterns, 32nd
+   stutters, ghost snares, a fill in every fourth bar), a distorted reese and 808 sub, double-tracked guitar stabs on
+   the syncopation (an open chord on the one of every second bar), an acid lead in the variation, glitch blips, vocal
+   chops and a siren; breakdown: half time, the kick and the low chug hit together, a huge snare with room; build:
+   kicks speed up, the guitars climb, snare roll, riser */
+const YB_K = ["x.x.......x.....", "x.x...x...x.x...", "x.....x.x.x.....", "x.x...x.....x.x."],
+  YB_S = ["....x..o.o..x..o", "....x.o..o..x.oo", "....x..o..o.x..o", "....x.o.o...x.o."],
+  YB_STAB = ["x..x..x...x..x..", "x..x..x.x..x..x.", "x.....x.x..x....", "x..x..x...x.x.x."],
+  YB_BREAK = "x..x..x.x..x.x..",
   ACID_SCALE = [57, 60, 62, 64, 67, 69, 72],
   ACID_GATE = ["x.x.x...x.x.x...", "xx.xx.x.xx.xx.x."];
 function yardBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
-    odd = bar & 1,
-    last = (bar & 3) === 3,
+    q = bar & 3,
+    g = root - 12,
     f808 = subNote(root);
-  if (c.cycle + bar > 0 && b === 0 && (bar === 8 || bar === 16 || bar === 0)) crash(k, 0.1);
+  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) {
+    crash(k, 0.12);
+    china(k, 0.06, 0.5);
+  }
   if (sec <= 1) {
-    const K = pat(YARD_AMEN_K[odd]),
-      S = pat(last ? "....x.......xxxx" : YARD_AMEN_S[odd]);
+    const K = pat(YB_K[(q + sec) & 3]),
+      S = pat(q === 3 && b >= 12 ? "....x.......XXXX" : YB_S[(q + sec * 2) & 3]);
     if (K[b]) {
-      kick(k, 0.5, { f0: 140, f1: 45, dur: 0.09 });
-      if (R(c, 1) < 0.12) kick(k, 0.3, { f0: 140, f1: 45, dur: 0.09, at: 0.043 });
-      if (b === 0 || b === 10) k.x.t(f808 * 1.35, 0.4, "sine", 0.26, { to: f808, attack: 0.003 });
+      mkick(k, 0.55, { pump: b === 0 ? 0.4 : 0.6 });
+      if (R(c, 1) < 0.15) mkick(k, 0.32, { at: c.half });
     }
     if (S[b]) {
-      snare(k, 0.15 * S[b] + (last && b >= 12 ? (b - 12) * 0.02 : 0), { f: 2200, bf: 210, dur: 0.1 });
-      if (R(c, 2) < 0.1) snare(k, 0.08, { f: 2600, bf: 210, dur: 0.06, at: 0.043 });
-    } else if (R(c, 3) < 0.1) snare(k, 0.05, { f: 2400, dur: 0.05 });
-    hat(k, b % 4 === 0 ? 0.05 : b % 2 === 0 ? 0.035 : 0.022, 0.025, 9000);
-    if (pat(ACID_GATE[sec])[b]) {
-      const note = ACID_SCALE[(b * 3 + bar * 2 + (b >> 2)) % 7] + (sec === 1 && R(c, 4) < 0.35 ? 12 : 0);
-      k.x.t(midiToFreq(note), 0.085, "sawtooth", 0.05, { lp: 500, lpTo: R(c, 5) < 0.4 ? 2800 : 1200, q: 10 });
+      snare(k, 0.17 * S[b], { f: 2300, bf: 215, dur: 0.11, crack: 0.7, rev: 0.25 });
+      if (R(c, 2) < 0.14) snare(k, 0.07, { f: 2700, dur: 0.05, at: c.half });
+    } else if (!K[b] && R(c, 3) < 0.12) snare(k, 0.045, { f: 2500, dur: 0.04 });
+    bhat(k, b % 4 === 0 ? 0.05 : b % 2 === 0 ? 0.035 : 0.022, 0.025, 9000, b % 2 ? 0.4 : -0.2);
+    if (sec === 1 && b % 4 === 2) k.m.n(0.18, 0.03, { type: "bandpass", f: 6200, q: 2, pan: 0.6, opt: true });
+    if (b === 0 || b === 6 || b === 10) {
+      const dur = b === 0 ? 0.5 : 0.28;
+      for (const det of [-16, 16])
+        k.x.t(midiToFreq(root - 24), dur, "sawtooth", 0.05, { lp: 650, detune: det, hold: dur * 0.6 });
+      k.x.t(f808 * 1.35, dur + 0.1, "sine", 0.22, { to: f808, attack: 0.003 });
     }
-    if (b % 2 === 1 && R(c, 6) < 0.14) k.d.t(2500 + R(c, 7) * 2500, 0.014, "square", 0.02, { lp: 7000, opt: true });
-    if (bar === 15 && b === 8) reverseCymbal(k, 0.07);
+    if (pat(YB_STAB[q])[b]) {
+      const open = b === 0 && (bar & 1) === 0;
+      gtr(k, g + (q === 3 && b >= 10 ? 3 : 0), open ? 0.42 : 0.09, 0.05, {
+        mute: !open,
+        oct: b === 0,
+        hold: open ? 0.2 : 0,
+      });
+    }
+    if (sec === 1 && pat(ACID_GATE[bar & 1])[b]) {
+      const note = ACID_SCALE[(b * 3 + bar * 2 + (b >> 2)) % 7] + (R(c, 4) < 0.3 ? 12 : 0);
+      k.x.t(midiToFreq(note), 0.085, "sawtooth", 0.045, { lp: 500, lpTo: R(c, 5) < 0.4 ? 3200 : 1400, q: 11 });
+    }
+    if (b % 2 === 1 && R(c, 6) < 0.18)
+      k.d.t(2500 + R(c, 7) * 2500, 0.014, "square", 0.02, { lp: 7000, opt: true, pan: P(c, 8, 0.8) });
+    if (b % 8 === 6 && R(c, 9) < 0.55) {
+      const [f1, f2] = VOID_FORMANTS[(R(c, 10) * 3) | 0];
+      formant(k.m, f1 * 1.3, f2 * 1.3, 0.07, 0.07, { attack: 0.004, pan: P(c, 11, 0.6), rev: 0.2 });
+    }
+    if (q === 1 && b === 0) {
+      k.d.t(700, 0.6, "sawtooth", 0.012, { to: 1400, lp: 3000, opt: true, rev: 0.3 });
+      k.d.t(1400, 0.6, "sawtooth", 0.01, { to: 700, at: 0.6, lp: 3000, opt: true, rev: 0.3 });
+    }
+    if (bar === 15 && b === 8) reverseCymbal(k, 0.08);
   } else if (sec === 2) {
-    if (b === 0) {
-      kick(k, 0.55, { f0: 120, f1: 40, dur: 0.3 });
-      k.x.t(f808 * 1.35, 0.9, "sine", 0.26, { to: f808, attack: 0.003 });
-      for (const i of [0, 1, 2])
-        k.m.t(midiToFreq(chord[i]), c.barSec + 0.15, "sawtooth", 0.02, {
-          lp: 1400,
-          env: padEnv(c.barSec + 0.15, 0.15),
-          detune: (i - 1) * 8,
-        });
+    if (pat(YB_BREAK)[b]) {
+      mkick(k, 0.6, { pump: 0.45 });
+      gtr(k, g, 0.12, 0.06, { mute: true });
     }
     if (b === 8) {
-      snare(k, 0.2, { f: 2000, bf: 190, dur: 0.18 });
-      clap(k, 0.08);
+      snare(k, 0.26, { f: 1900, bf: 180, dur: 0.22, crack: 0.8, rev: 0.6 });
+      china(k, 0.07, -0.5);
     }
-    if (b % 4 === 2) hat(k, 0.03);
-    if (b % 2 === 0) k.d.t(midiToFreq(chord[[0, 2, 1, 3][(b >> 1) & 3]] + 24), 0.12, "sine", 0.04);
-    if (bar === 19 && b === 8) reverseCymbal(k, 0.07);
+    if (b === 0) {
+      crash(k, 0.08, 0.9);
+      k.x.t(f808 * 1.5, 1.1, "sine", 0.26, { to: f808, attack: 0.003 });
+      pad(k.p, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.2, 0.012, {
+        lp: 1600,
+        fade: 0.2,
+        det: 8,
+        rev: 0.5,
+      });
+    }
+    if (b % 4 === 2) bhat(k, 0.03, 0.05, 8000, 0.3);
+    if (bar === 19 && b === 8) reverseCymbal(k, 0.08);
   } else {
-    if (b % 4 === 0 && bar === 20) kick(k, 0.5, { f0: 140, f1: 45, dur: 0.09 });
+    buildKicks(k, c);
+    gtr(k, g + Math.floor(((bar - 20) * 16 + b) / 4), 0.07, 0.04, { mute: true });
     buildRoll(k, c);
     buildRiser(k, c);
   }
 }
 
-/* Ember Works boss, 150 BPM, D minor (Dm Bb C Am): industrial metal. A galloping palm-muted power-chord riff (saw
-   root and fifth through the distortion bus, gallop = eighth plus two sixteenths, the riff bends into F and Eb in
-   the last beats of bars two and four) doubled by a double-kick, snare on 2 and 4, an anvil on beat 3 of every
-   bar, ride-like cymbal eighths, a sustained open chord on beat 1; variation: a scream lead; breakdown: doom half
-   time (slow chords, snare and anvil only on 3); build: rising chromatic chug, snare roll, riser */
+/* Ember Works boss, 160 BPM, D minor: industrial metal. Drop: a galloping palm-muted riff (it bends into F and Eb at
+   the end of bars two and four), double-tracked, with the double kick on the gallop, an open chord on the one, the
+   snare on 2 and 4, an anvil on 3, pipes ringing, hydraulic hiss; variation: kick on every sixteenth (a blast beat in
+   its second half), tremolo-picked chords and a scream lead; breakdown: djent chugs with the kick in unison, china,
+   a slow snare with room, a machine press and a dissonant chord ringing out; build: chromatic chugs, roll, riser */
 const WORKS_GALLOP = "x.xxx.xxx.xxx.xx",
-  WORKS_KICK_B = "xx.xx.x.xx.xx.x.",
+  WORKS_DJENT = "x..x.xx...x.x..x",
+  WORKS_TREM = [0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 5, 5, 3, 3, 1, 1],
   WORKS_BUILD = [
     [0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3, 5, 5, 5, 5],
     [5, 5, 6, 6, 7, 7, 8, 8, 10, 10, 11, 11, 12, 12, 13, 13],
@@ -3227,129 +3668,155 @@ function worksRiffSemi(bar, b) {
 function worksBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
-    g = root - 12,
-    chug = (semi, vol, dur = 0.08) => {
-      const f = midiToFreq(g + semi);
-      k.x.t(f, dur, "sawtooth", vol, { lp: 1100, q: 1 });
-      k.x.t(f * 1.498, dur, "sawtooth", vol * 0.8, { lp: 1100 });
-    };
-  if (c.cycle + bar > 0 && b === 0 && (bar & 3) === 0) crash(k, 0.1);
-  if (sec <= 1) {
-    if (b === 0) {
-      const f = midiToFreq(g);
-      k.x.t(f, 0.45, "sawtooth", 0.07, { lp: 1800, hold: 0.2 });
-      k.x.t(f * 1.498, 0.45, "sawtooth", 0.055, { lp: 1800, hold: 0.2 });
-    } else if (pat(WORKS_GALLOP)[b]) chug(worksRiffSemi(bar, b), b % 4 === 0 ? 0.07 : 0.05);
-    if (pat(sec === 0 ? WORKS_GALLOP : WORKS_KICK_B)[b]) kick(k, 0.4, { f0: 130, f1: 48, dur: 0.085 });
-    if (b === 4 || b === 12) snare(k, 0.2, { f: 2200, bf: 220, dur: 0.12 });
-    if (b === 8) anvil(k, midiToFreq(chord[0] + 24), 0.09);
-    if (b % 2 === 0) hat(k, 0.05, 0.04, 7500);
-    if (b === 0 || b === 8) k.m.t(midiToFreq(root - 24), 0.6, "sine", 0.2, { hold: 0.2 });
-    if (sec === 1 && b === 0)
-      k.x.t(midiToFreq(chord[[2, 3, 1, 3][bar & 3]] + 24), 1.2, "sawtooth", 0.035, {
+    g = root - 12;
+  if (c.cycle + bar > 0 && b === 0 && (bar & 3) === 0) {
+    crash(k, 0.11);
+    china(k, 0.06, -0.5);
+  }
+  if (sec === 0) {
+    if (b === 0) gtr(k, g, 0.42, 0.055, { oct: true, hold: 0.22 });
+    else if (pat(WORKS_GALLOP)[b])
+      gtr(k, g + worksRiffSemi(bar, b), 0.075, b % 4 === 0 ? 0.055 : 0.045, { mute: true });
+    if (b === 0 || pat(WORKS_GALLOP)[b]) mkick(k, 0.45, { pump: b % 4 === 0 ? 0.55 : 0 });
+    if (b === 4 || b === 12) snare(k, 0.22, { f: 2100, bf: 220, dur: 0.13, crack: 0.8, rev: 0.3 });
+    if (b === 8) anvil(k, midiToFreq(chord[0] + 24), 0.08, 0.3);
+    if (b === 14 && R(c, 1) < 0.6) clang(k.m, midiToFreq(chord[2] + 36), 0.025, { pan: 0.6, rev: 0.3, opt: true });
+    if (b % 2 === 0) bhat(k, 0.045, 0.04, 7500, b % 4 ? 0.4 : -0.1);
+    if ((bar & 1) === 1 && b === 12)
+      k.m.n(0.4, 0.05, { type: "highpass", f: 7000, to: 2500, attack: 0.01, pan: -0.6, opt: true });
+    if (b === 0 || b === 8) k.p.t(midiToFreq(root - 24), 0.55, "sine", 0.18, { hold: 0.2 });
+  } else if (sec === 1) {
+    const blast = (bar & 7) >= 4;
+    mkick(k, b % 4 === 0 ? 0.48 : 0.36, { pump: b === 0 ? 0.5 : 0 });
+    if (blast ? b % 2 === 1 : b === 4 || b === 12)
+      snare(k, blast ? 0.13 : 0.22, { f: 2100, bf: 220, dur: blast ? 0.08 : 0.13, crack: 0.6, rev: 0.2 });
+    if (b % 4 === 0) k.m.n(0.25, 0.035, { type: "bandpass", f: 5800, q: 2, pan: 0.5, opt: true });
+    gtr(k, g + WORKS_TREM[b] * (bar & 1), 0.08, 0.04, { lp: 2200 });
+    if (b === 0)
+      k.x.t(midiToFreq(chord[[2, 3, 1, 3][bar & 3]] + 24), c.barSec * 0.9, "sawtooth", 0.035, {
         lp: 3000,
-        attack: 0.03,
-        hold: 0.8,
+        attack: 0.04,
+        hold: c.barSec * 0.6,
+        rev: 0.4,
       });
+    if (b === 8 && (bar & 1) === 0) anvil(k, midiToFreq(chord[0] + 24), 0.08, -0.3);
+    if (b === 0 || b === 8) k.p.t(midiToFreq(root - 24), 0.5, "sine", 0.16, { hold: 0.2 });
   } else if (sec === 2) {
-    if (b === 0 || b === 10) {
-      const f = midiToFreq(g);
-      k.x.t(f, 1.1, "sawtooth", 0.08, { lp: 1500, hold: 0.6 });
-      k.x.t(f * 1.498, 1.1, "sawtooth", 0.065, { lp: 1500, hold: 0.6 });
-      k.x.t(f * 2, 1.1, "sawtooth", 0.05, { lp: 1500, hold: 0.6 });
+    if (pat(WORKS_DJENT)[b]) {
+      mkick(k, 0.6, { pump: 0.45 });
+      gtr(k, g - (b === 10 && (bar & 1) === 1 ? 1 : 0), 0.1, 0.06, { mute: true, lp: 700 });
     }
-    if (b === 0 || b === 6 || b === 14) kick(k, b === 0 ? 0.6 : 0.4, { f0: 110, f1: 38, dur: 0.25 });
+    if (b === 0) china(k, 0.08, -0.4);
     if (b === 8) {
-      snare(k, 0.25, { f: 1800, bf: 180, dur: 0.2 });
-      anvil(k, midiToFreq(chord[0] + 24), 0.11);
+      snare(k, 0.27, { f: 1800, bf: 180, dur: 0.24, crack: 0.8, rev: 0.7 });
+      anvil(k, midiToFreq(chord[0] + 24), 0.1);
     }
-    if (b === 0 && (bar & 1) === 0) k.m.t(midiToFreq(root - 24), 3.1, "sine", 0.18, { attack: 0.1, hold: 2.6 });
-    if (b % 4 === 2) hat(k, 0.03, 0.04, 7500);
-    if (b === 12 && (bar & 1) === 1) k.m.t(midiToFreq(chord[1] + 36), 0.6, "sine", 0.03, { attack: 0.002 });
+    if (b === 12 && (bar & 1) === 1) gtr(k, g + 1, 0.6, 0.05, { oct: true, hold: 0.3 });
+    if (b === 0 && (bar & 1) === 0) {
+      k.m.n(0.4, 0.14, { f: 500, to: 60, q: 1 });
+      k.m.t(55, 0.6, "sine", 0.4, { to: 30 });
+    }
+    if (b % 4 === 2) bhat(k, 0.03, 0.04, 7500, 0.3);
   } else {
-    chug(WORKS_BUILD[bar - 20][b] || 0, 0.06);
-    if (b % 4 === 0) kick(k, 0.4, { f0: 130, f1: 48, dur: 0.085 });
+    gtr(k, g + (WORKS_BUILD[bar - 20][b] || 0), 0.075, 0.05, { mute: true });
+    buildKicks(k, c);
     buildRoll(k, c);
     buildRiser(k, c);
   }
 }
 
-/* Cryo Vault boss, 172 BPM, E minor (Em C G D): cold drum'n'bass. Two-step: kick on 1 and the "and" of 3, snare on 2
-   and 4 with ghost notes, eighth hats (sixteenths in the variation), a sine sub bass on the kicks, a detuned
-   reese through the distortion bus in the variation, 16th glass arps (sine plus a third partial) in the echo, a
-   triangle choir pad, reversed cymbals before every fourth bar; breakdown: pads in two octaves, arps, a single kick;
-   build: snare roll, riser */
+/* Cryo Vault boss, 172 BPM, E minor: black metal of ice. Drop: a blast beat (the first four bars a double kick under
+   2 and 4, then kick and snare alternate), tremolo-picked open chords on every sixteenth, an ice bell melody on top
+   and shatters on the crashes; variation: a heavy two-step with a reese, big open chords, ice cracks and glass
+   arps; breakdown: half time, frozen chords ring out, a blizzard gust, bells; build: the tremolo climbs, roll, riser */
+const VAULT_MEL = [76, 79, 83, 81, 79, 76, 74, 76, 72, 76, 79, 78, 74, 78, 81, 79];
 function vaultBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
-    sub = subNote(root);
-  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) crash(k, 0.1);
-  if (sec <= 1) {
-    if (b === 0 || b === 10 || (sec === 1 && b === 2)) kick(k, 0.5, { f0: 140, f1: 45, dur: 0.1 });
-    if (b === 4 || b === 12) snare(k, 0.3, { f: 2400, bf: 200, dur: 0.1 });
-    else if ([7, 9, 15].includes(b) && R(c, 1) < 0.35) snare(k, 0.08, { f: 2600, dur: 0.05 });
-    if (b % 2 === 0) hat(k, 0.07, 0.03, 9500);
-    else if (sec === 1) hat(k, 0.035, 0.02, 10000);
-    if (b === 14 && (sec === 1 || R(c, 2) < 0.4)) hat(k, 0.08, 0.1, 8500);
-    if (b === 0) k.m.t(sub, 0.6, "sine", 0.22, { hold: 0.3 });
-    if (b === 10) k.m.t(sub * 1.498, 0.35, "sine", 0.2);
-    if (sec === 1 && (b === 0 || b === 10)) {
-      const f = midiToFreq(root - 12),
-        dur = b === 0 ? 1.35 : 0.5,
-        hold = b === 0 ? 0.9 : 0.1;
-      k.x.t(f, dur, "sawtooth", 0.03, { lp: 420, hold, detune: -14 });
-      k.x.t(f, dur, "sawtooth", 0.03, { lp: 420, hold, detune: 14 });
+    g = root - 12,
+    shatter = () => {
+      k.m.n(0.35, 0.09, { type: "highpass", f: 6000, attack: 0.001, rev: 0.5, opt: true, pan: -0.3 });
+      bell(k.d, midiToFreq(chord[0] + 48), 0.02, 0.6, { bright: true, opt: true, pan: 0.4 });
+    };
+  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) {
+    crash(k, 0.11);
+    shatter();
+  }
+  if (sec === 0) {
+    const blast = (bar & 7) >= 4;
+    if (!blast || b % 2 === 0) mkick(k, 0.4, { pump: b === 0 ? 0.55 : 0 });
+    if (blast ? b % 2 === 1 : b === 4 || b === 12)
+      snare(k, blast ? 0.12 : 0.24, { f: 2500, bf: 220, dur: blast ? 0.07 : 0.12, crack: 0.6, rev: 0.25 });
+    if (b % 4 === 0) k.m.n(0.2, 0.03, { type: "bandpass", f: 6400, q: 2, pan: 0.5, opt: true });
+    gtr(k, g + (b >= 12 && (bar & 1) === 1 ? 2 : 0), 0.09, 0.035, { lp: 3400, oct: b % 4 === 0 });
+    if (b % 4 === 0)
+      bell(k.d, midiToFreq(VAULT_MEL[((bar & 3) * 4 + (b >> 2)) % 16]), 0.05, 0.9, { rev: 0.5, bright: true });
+    if (b === 0) k.p.t(subNote(root), c.barSec * 0.9, "sine", 0.2, { hold: c.barSec * 0.5 });
+  } else if (sec === 1) {
+    if (b === 0 || b === 10 || (b === 3 && R(c, 1) < 0.5)) mkick(k, 0.55, { pump: 0.45 });
+    if (b === 4 || b === 12) snare(k, 0.28, { f: 2400, bf: 200, dur: 0.14, crack: 0.8, rev: 0.4 });
+    else if ((b === 7 || b === 9 || b === 15) && R(c, 2) < 0.35) snare(k, 0.07, { f: 2600, dur: 0.05 });
+    bhat(k, b % 2 === 0 ? 0.05 : 0.025, 0.025, 9500, b % 4 < 2 ? -0.4 : 0.4);
+    if (b === 0 || b === 10) {
+      const dur = b === 0 ? 1.3 : 0.5;
+      for (const det of [-14, 14])
+        k.x.t(midiToFreq(root - 24), dur, "sawtooth", 0.04, { lp: 500, hold: dur * 0.6, detune: det });
     }
-    if (b === 0)
-      for (const i of [0, 2])
-        k.m.t(midiToFreq(chord[i] + 12), c.barSec + 0.2, "triangle", 0.035, {
-          lp: 2000,
-          env: padEnv(c.barSec + 0.2, 0.2),
-          detune: (i - 1) * 8,
-        });
-    const f = midiToFreq(chord[[0, 2, 1, 3, 2, 1, 3, 2][b % 8]] + 24 + (b % 8 === 7 ? 12 : 0));
-    k.d.t(f, 0.11, "sine", 0.04);
-    if (b % 8 === 0) k.d.t(f * 3, 0.06, "sine", 0.01);
-    if ((bar & 3) === 3 && b === 8) reverseCymbal(k, 0.06);
+    if (b === 0) gtr(k, g, 0.7, 0.05, { oct: true, hold: 0.45 });
+    if (b === 10) gtr(k, g + ((bar & 1) === 1 ? 3 : -2), 0.35, 0.05, { oct: true, hold: 0.2 });
+    if (b % 4 === 2 && R(c, 3) < 0.4) {
+      const pan = P(c, 4, 0.8);
+      k.m.n(0.02, 0.08, { type: "highpass", f: 5000, pan, opt: true });
+      k.m.t(3600, 0.07, "sine", 0.03, { to: 800, pan, opt: true });
+    }
+    k.d.t(midiToFreq(chord[[0, 2, 1, 3, 2, 1, 3, 2][b % 8]] + 24 + (b % 8 === 7 ? 12 : 0)), 0.11, "sine", 0.03);
   } else if (sec === 2) {
     if (b === 0) {
-      kick(k, 0.45, { f0: 130, f1: 42, dur: 0.2 });
-      k.m.t(sub, 1.3, "sine", 0.3, { hold: 0.8 });
-      for (const i of [0, 2]) {
-        k.m.t(midiToFreq(chord[i] + 12), c.barSec + 0.2, "triangle", 0.04, {
-          lp: 2000,
-          env: padEnv(c.barSec + 0.2, 0.2),
-          detune: (i - 1) * 8,
-        });
-        k.m.t(midiToFreq(chord[i] + 24), c.barSec + 0.2, "sine", 0.02, { env: padEnv(c.barSec + 0.2, 0.2) });
-      }
+      mkick(k, 0.6, { pump: 0.4 });
+      gtr(k, g, c.barSec * 0.95, 0.045, { oct: true, hold: c.barSec * 0.6, lp: 2800 });
+      k.p.t(subNote(root), 1.3, "sine", 0.28, { hold: 0.8 });
     }
-    if (b === 12 && bar === 19) snare(k, 0.2, { f: 2000, dur: 0.15 });
-    if (b % 2 === 0) k.d.t(midiToFreq(chord[[0, 2, 1, 3][(b >> 1) & 3]] + 24), 0.14, "sine", 0.04);
-    if (bar === 19 && b === 8) reverseCymbal(k, 0.07);
+    if (b === 8) snare(k, 0.28, { f: 2000, bf: 190, dur: 0.25, crack: 0.8, rev: 0.8 });
+    if (b === 6 || b === 14) mkick(k, 0.35);
+    if (b === 0 && (bar & 1) === 0)
+      k.m.n(c.barSec * 1.8, 0.07, {
+        type: "bandpass",
+        f: 400,
+        to: 1800,
+        q: 1,
+        attack: c.barSec,
+        hold: 0.3,
+        opt: true,
+        rev: 0.3,
+      });
+    if (b % 2 === 0) k.d.t(midiToFreq(chord[[0, 2, 1, 3][(b >> 1) & 3]] + 24), 0.14, "sine", 0.04, { rev: 0.4 });
+    if (bar === 19 && b === 8) reverseCymbal(k, 0.08);
   } else {
-    if (b % 4 === 0 && bar === 20) kick(k, 0.5, { f0: 140, f1: 45, dur: 0.1 });
+    gtr(k, g + (Math.floor(((bar - 20) * 16 + b) / 2) % 12), 0.08, 0.035, { lp: 3400 });
+    buildKicks(k, c, 0.4);
     buildRoll(k, c);
     buildRiser(k, c, 600);
-    if (b === 0) k.m.t(sub, 1.3, "sine", 0.3, { hold: 0.8 });
+    if (bar === 21 && b === 12) shatter();
   }
 }
 
-/* Toxin Marsh boss, 140 BPM, F minor (Fm Ab Eb Cm): sludge / wobble. Half time: kick on 1 (ghost on the "and" of
-   beat 2), a heavy distorted snare on 3, eighth hats; the wobble bass is a saw plus a resonant square an octave up
-   whose low-pass cut-offs sweep in opposite phase (a quarter-note wobble in the drop, eighth notes in the
-   variation, faster in the build) through the distortion bus; doom power chords (three detuned saws), a growl lead
-   in the variation, mud squelches and bubbles; breakdown: slow sub drone with a long wobble, kick and snare only;
-   build: snare roll, riser, the wobble speeds up */
+/* Toxin Marsh boss, 140 BPM, F minor: sludge and wobble. Drop: half time, kick on 1 (a ghost on the "and" of 2), a
+   distorted snare on 3, the wobble bass (a saw and a resonant square an octave up whose filters sweep in opposite
+   phase, through the distortion), doom chords that ring for half a bar and muted chugs before the next, squelches
+   and bubbles; variation: triplet chugs with the kick in unison, a faster wobble, a growl lead and distorted croaks;
+   breakdown: a slow sub drone with a long wobble and a doom chord that rings for two bars; build: the wobble
+   speeds up, roll, riser */
 const MARSH_HALF = [
-  [0, 0],
-  [0, 0],
-  [0, 5],
-  [0, 3],
-];
+    [0, 0],
+    [0, 0],
+    [0, 5],
+    [0, 3],
+  ],
+  MARSH_TRIP = "x..x..x..x..x.x.";
 function marshBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
+    g = root - 12,
     step = 60 / 140 / 4,
     wob = (b0, len, semi, period) => {
       if (b !== b0) return;
@@ -3369,51 +3836,53 @@ function marshBoss(e, c) {
         hold: dur * 0.8,
       });
     },
-    squelch = () => {
-      k.m.n(0.16, 0.08, { f: 900, to: 150, q: 7, opt: true });
-      k.m.t(180, 0.14, "sine", 0.07, { to: 55, opt: true });
+    squelch = (pan) => {
+      k.m.n(0.16, 0.08, { f: 900, to: 150, q: 7, opt: true, pan });
+      k.m.t(180, 0.14, "sine", 0.07, { to: 55, opt: true, pan });
     };
-  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) crash(k, 0.1);
-  if (sec <= 1) {
-    if (b === 0) kick(k, 0.55, { f0: 130, f1: 40, dur: 0.2 });
-    if (b === 6 || (sec === 1 && b === 10)) kick(k, 0.3, { f0: 130, f1: 40, dur: 0.15 });
+  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) {
+    crash(k, 0.11);
+    china(k, 0.06, 0.4);
+  }
+  if (sec === 0) {
+    if (b === 0) mkick(k, 0.6, { f0: 160, f1: 42, dur: 0.12, pump: 0.4 });
+    if (b === 6) mkick(k, 0.35, { f0: 160, f1: 42, dur: 0.1 });
     if (b === 8) {
-      snare(k, 0.24, { f: 900, bf: 140, dur: 0.22 });
+      snare(k, 0.26, { f: 900, bf: 140, dur: 0.24, crack: 0.5, rev: 0.45 });
+      k.x.t(120, 0.22, "triangle", 0.1, { to: 60 });
+    }
+    bhat(k, b % 2 === 0 ? 0.045 : 0.02, b % 2 === 0 ? 0.03 : 0.015, b % 2 === 0 ? 8000 : 10000, b % 4 < 2 ? -0.3 : 0.3);
+    wob(0, 8, MARSH_HALF[bar & 3][0], 4);
+    wob(8, 8, MARSH_HALF[bar & 3][1], 4);
+    if (b === 0 || b === 8)
+      gtr(k, g + MARSH_HALF[bar & 3][b >> 3], c.barSec * 0.45, 0.05, { oct: true, hold: c.barSec * 0.3, lp: 2400 });
+    if (b === 13 || b === 14) gtr(k, g, 0.08, 0.05, { mute: true });
+    if (b === 6 && R(c, 1) < 0.4) squelch(P(c, 2));
+    if (b % 2 === 1 && R(c, 3) < 0.08) {
+      const f = 170 + R(c, 4) * 500;
+      k.d.t(f, 0.09, "sine", 0.05, { to: f * 1.9, opt: true, pan: P(c, 5, 0.8) });
+    }
+  } else if (sec === 1) {
+    if (pat(MARSH_TRIP)[b]) {
+      mkick(k, 0.5, { f0: 170, f1: 45, pump: b === 0 ? 0.45 : 0 });
+      gtr(k, g + (b >= 12 ? [3, 0, 5, 7][bar & 3] : 0), 0.1, 0.055, { mute: true });
+    }
+    if (b === 8) {
+      snare(k, 0.26, { f: 900, bf: 140, dur: 0.22, crack: 0.6, rev: 0.4 });
       k.x.t(120, 0.2, "triangle", 0.1, { to: 60 });
     }
-    if (b % 2 === 0) hat(k, 0.045, 0.03, 8000);
-    else hat(k, 0.02, 0.015, 10000);
-    if (b % 4 === 1) k.m.n(0.02, 0.035, { type: "bandpass", f: 4200, q: 3 });
-    if (b % 4 === 3) k.m.n(0.02, 0.04, { type: "bandpass", f: 3000, q: 3 });
-    if (sec === 1 && (bar & 3) === 3 && b >= 12) snare(k, 0.1 + (b - 12) * 0.03, { f: 1800, dur: 0.06 });
-    if (sec === 0) {
-      wob(0, 8, MARSH_HALF[bar & 3][0], 4);
-      wob(8, 8, MARSH_HALF[bar & 3][1], 4);
-    } else {
-      wob(0, 6, 0, 2);
-      wob(6, 6, 0, 2);
-      wob(12, 4, [3, 0, 5, 7][bar & 3], 2);
-    }
-    if (b === 0 && (sec === 1 || (bar & 1) === 0)) {
-      const f = midiToFreq(root - 12);
-      for (const [mul, det] of [
-        [1, -10],
-        [1.498, 0],
-        [2, 10],
-      ])
-        k.x.t(f * mul, 1.5, "sawtooth", 0.04, { lp: 900, attack: 0.02, hold: 1.1, detune: det });
-    }
-    if (sec === 1 && (b === 0 || b === 10))
-      k.x.t(midiToFreq(chord[(bar & 1) === 1 ? 2 : 0] + 24), 0.5, "square", 0.035, { lp: 1400, q: 6 });
-    if (b === 6 && R(c, 1) < 0.4) squelch();
-    if (b % 2 === 1 && R(c, 2) < 0.06) {
-      const f = 170 + R(c, 3) * 500;
-      k.d.t(f, 0.09, "sine", 0.05, { to: f * 1.9, opt: true });
-    }
+    bhat(k, 0.03, 0.02, 9000, b % 2 ? 0.4 : -0.4);
+    wob(0, 6, 0, 2);
+    wob(6, 6, 0, 2);
+    wob(12, 4, [3, 0, 5, 7][bar & 3], 2);
+    if (b === 0 || b === 10)
+      k.x.t(midiToFreq(chord[(bar & 1) === 1 ? 2 : 0] + 24), 0.5, "square", 0.035, { lp: 1400, lpTo: 600, q: 6 });
+    if (b === 15 && R(c, 6) < 0.5) k.x.t(95, 0.12, "square", 0.05, { to: 130, lp: 700, q: 6 });
+    if (b === 6 && R(c, 7) < 0.4) squelch(P(c, 8));
   } else if (sec === 2) {
-    if (b === 0) kick(k, 0.6, { f0: 110, f1: 38, dur: 0.28 });
+    if (b === 0) mkick(k, 0.6, { f0: 150, f1: 38, dur: 0.2, pump: 0.4 });
     if (b === 8) {
-      snare(k, 0.26, { f: 800, bf: 130, dur: 0.25 });
+      snare(k, 0.26, { f: 800, bf: 130, dur: 0.25, crack: 0.5, rev: 0.6 });
       k.x.t(120, 0.25, "triangle", 0.12, { to: 55 });
     }
     if (b === 0) {
@@ -3427,43 +3896,35 @@ function marshBoss(e, c) {
         hold: dur * 0.8,
       });
     }
-    if (b === 0 && (bar & 1) === 0)
-      for (const mul of [1, 1.498])
-        k.x.t(midiToFreq(root - 12) * mul, 3, "sawtooth", 0.045, {
-          lp: 800,
-          attack: 0.05,
-          hold: 2.5,
-          detune: mul > 1 ? 9 : -9,
-        });
-    if (b === 6 && (bar & 1) === 1) squelch();
+    if (b === 0 && (bar & 1) === 0) gtr(k, g, c.barSec * 1.9, 0.045, { oct: true, hold: c.barSec * 1.4, lp: 2000 });
+    if (b === 6 && (bar & 1) === 1) squelch(-0.4);
+    if (b % 4 === 2) k.m.n(0.05, 0.04, { f: 400, to: 120, q: 4, opt: true, pan: P(c, 9) });
   } else {
     if (b === 0 || b === 8) wob(b, 8, 0, bar === 20 ? 2 : 1);
-    if (b === 0) kick(k, 0.5, { f0: 130, f1: 40, dur: 0.2 });
+    buildKicks(k, c, 0.5);
+    if (b % 2 === 0) gtr(k, g + (bar - 20) * 5 + (b >> 2), 0.08, 0.045, { mute: true });
     buildRoll(k, c);
     buildRiser(k, c, 300);
   }
 }
 
-/* Void Core boss, 160 BPM, F# minor (F#m D A E): cosmic horror. Three detuned saw drones (through the distortion
-   bus, one every two bars), tritone stabs (saw on the root and the root plus six semitones) on the broken groups of
-   the bar, a broken glitch break (four kick/snare patterns with hashed drop-outs, stutters and hat ticks), a
-   tape-stop fill (a stab that falls two octaves) every eighth bar; breakdown: drones, whispers and long pings in the
-   echo, a reversed swell, one hard hit; build: gated stabs that speed up and climb, snare roll, riser, tape-stop */
+/* Void Core boss, 150 BPM, F# minor: cosmic horror glitch metal. Drop: a tritone riff of muted chugs on the broken
+   groups of the bar (double-tracked), broken kick and snare patterns with drop-outs and 32nd stutters, drones through
+   the distortion, a dissonant choir, a tape stop every eighth bar; variation: a blast with a dissonant tremolo
+   (root, minor second, tritone) and a screeching lead in the echo; breakdown: drones, whispers, a heartbeat kick,
+   distorted sub hits and a tritone chord that rings; build: gated chugs that climb, roll, riser, tape stop */
 const VOID_STAB = [
     ["x..x..x.x..x..x.", "x..x.....x..x.x.", "x..x..x.....x...", "x.....x.x.x..x.."],
     ["X..x..x.x.xx..x.", "x..x.x...x..xxx.", "x.xx..x.x...x.x.", "x..xx.x.x.x.xx.."],
   ],
   VOID_BREAK_K = ["x..x......x.....", "x.....x...x..x..", "x..x..x.....x...", "x.....x.x.x....."],
-  VOID_BREAK_S = ["......x...x...x.", "........x..x..x.", "....x.....x...x.", "......x.x...x..."];
+  VOID_BREAK_S = ["......x...x...x.", "........x..x..x.", "....x.....x...x.", "......x.x...x..."],
+  VOID_TREM = [0, 0, 1, 1, 6, 6, 1, 1, 0, 0, 1, 1, 6, 6, 7, 6];
 function voidBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
     q = bar & 3,
-    f0 = midiToFreq(root),
-    stab = (vol, dur) => {
-      k.x.t(f0, dur, "sawtooth", vol, { lp: 2500 });
-      k.x.t(midiToFreq(root + 6), dur, "sawtooth", vol * 0.8, { lp: 2500 });
-    },
+    g = root - 12,
     tapeStop = () => {
       k.x.t(midiToFreq(root + 12), 0.6, "sawtooth", 0.06, { to: midiToFreq(root + 12) * 0.1, lp: 2400 });
       k.x.t(midiToFreq(root + 18), 0.6, "sawtooth", 0.05, { to: midiToFreq(root + 18) * 0.1, lp: 2400 });
@@ -3476,77 +3937,119 @@ function voidBoss(e, c) {
           detune: det,
         });
     };
-  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) crash(k, 0.1);
-  if (sec <= 1) {
-    if (b === 0 && (bar & 1) === 0) drone(0.04);
-    const st = pat(VOID_STAB[sec][q])[b];
-    if (st) stab(st > 1 ? 0.07 : 0.05, st > 1 ? 0.22 : 0.1);
-    if (pat(VOID_BREAK_K[q])[b] && R(c, 1) > 0.1) kick(k, 0.5, { f0: 140, f1: 38, dur: 0.12 });
+  if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) {
+    crash(k, 0.11);
+    china(k, 0.07, -0.4);
+  }
+  if (sec === 0) {
+    if (b === 0 && (bar & 1) === 0) drone(0.035);
+    const st = pat(VOID_STAB[0][q])[b];
+    if (st)
+      gtr(k, g + (b >= 12 ? 6 : b >= 8 && q === 3 ? 1 : 0), st > 1 ? 0.2 : 0.09, 0.05, { mute: st <= 1, oct: st > 1 });
+    if (pat(VOID_BREAK_K[q])[b] && R(c, 1) > 0.1) mkick(k, 0.55, { f0: 190, f1: 40, pump: 0.5 });
     if (pat(VOID_BREAK_S[q])[b] && R(c, 2) > 0.12) {
-      snare(k, 0.16, { f: 2600, bf: 240, dur: 0.09 });
-      if (R(c, 3) < 0.2) snare(k, 0.07, { f: 2600, dur: 0.05, at: 0.047 });
+      snare(k, 0.17, { f: 2600, bf: 240, dur: 0.09, crack: 0.7, rev: 0.3 });
+      if (R(c, 3) < 0.2) snare(k, 0.07, { f: 2600, dur: 0.05, at: c.half });
     }
-    if (R(c, 4) < (sec === 1 ? 0.5 : 0.35)) hat(k, 0.025, 0.012, 12000);
-    if (R(c, 5) < (sec === 1 ? 0.1 : 0.05))
-      for (let i = 0; i < 3; i++) k.m.n(0.012, 0.06, { type: "highpass", f: 7000, at: i * 0.03, opt: true });
+    if (R(c, 4) < 0.35) bhat(k, 0.025, 0.012, 12000, P(c, 5, 0.8));
+    if (R(c, 6) < 0.06)
+      for (let i = 0; i < 4; i++)
+        k.m.n(0.012, 0.06, { type: "highpass", f: 7000, at: i * c.half * 0.5, opt: true, pan: P(c, 7) });
+    if (b === 0 && (bar & 1) === 1) {
+      const [f1, f2] = VOID_FORMANTS[q % 3];
+      formant(k.m, f1, f2, c.barSec, 0.025, { attack: 0.3, hold: c.barSec * 0.4, opt: true, rev: 0.6, pan: -0.3 });
+    }
     if ((bar & 7) === 7 && b === 12) tapeStop();
+  } else if (sec === 1) {
+    if (b === 0 && (bar & 1) === 0) drone(0.035);
+    mkick(k, b % 4 === 0 ? 0.48 : 0.34, { f0: 190, f1: 40, pump: b === 0 ? 0.5 : 0 });
+    if ((bar & 7) >= 4 ? b % 2 === 1 : b === 4 || b === 12)
+      snare(k, (bar & 7) >= 4 ? 0.12 : 0.22, { f: 2600, bf: 240, dur: 0.08, crack: 0.6, rev: 0.25 });
+    gtr(k, g + VOID_TREM[b], 0.08, 0.038, { lp: 2600 });
+    if (b % 8 === 0)
+      k.d.t(midiToFreq(root + 36), 0.45, "sine", 0.025, {
+        to: midiToFreq(root + (b === 0 ? 42 : 35)),
+        rev: 0.5,
+        pan: P(c, 8),
+      });
+    if (R(c, 9) < 0.08) bhat(k, 0.04, 0.01, 12000, P(c, 10, 0.8));
   } else if (sec === 2) {
-    if (b === 0 && (bar & 1) === 0) drone(0.05);
-    if (b === 0) kick(k, 0.55, { f0: 110, f1: 36, dur: 0.3 });
+    if (b === 0 && (bar & 1) === 0) {
+      drone(0.045);
+      gtr(k, g + 6, c.barSec * 1.8, 0.04, { oct: true, hold: c.barSec * 1.2, lp: 2000 });
+    }
+    if (b === 0 || b === 3) mkick(k, b === 0 ? 0.55 : 0.35, { f0: 150, f1: 34, dur: 0.2 });
     if (b === 8 && (bar & 1) === 0) {
-      k.m.n(0.35, 0.18, { type: "bandpass", f: 1200, q: 0.8 });
-      k.m.t(70, 0.5, "sine", 0.5, { to: 30 });
+      k.m.n(0.35, 0.18, { type: "bandpass", f: 1200, q: 0.8, rev: 0.5 });
+      k.x.t(70, 0.5, "sine", 0.3, { to: 30 });
     }
-    if (b % 4 === 2 && R(c, 6) < 0.12) {
-      const [f1, f2] = VOID_FORMANTS[(R(c, 7) * 3) | 0];
-      k.d.n(1.4, 0.04, { type: "bandpass", f: f1, q: 9, attack: 0.4, hold: 0.3, opt: true });
-      k.d.n(1.4, 0.035, { type: "bandpass", f: f2, q: 9, attack: 0.4, hold: 0.3, opt: true });
+    if (b % 4 === 2 && R(c, 11) < 0.15) {
+      const [f1, f2] = VOID_FORMANTS[(R(c, 12) * 3) | 0];
+      formant(k.d, f1, f2, 1.4, 0.035, { attack: 0.4, hold: 0.3, opt: true, rev: 0.5, pan: P(c, 13) });
     }
-    if (b % 4 === 0 && R(c, 8) < 0.1)
-      k.d.t(midiToFreq(chord[(R(c, 9) * 3) | 0] + (R(c, 10) < 0.5 ? 24 : 36)), 2.6, "sine", 0.04, { opt: true });
+    if (b % 4 === 0 && R(c, 14) < 0.1)
+      k.d.t(midiToFreq(chord[(R(c, 15) * 3) | 0] + (R(c, 16) < 0.5 ? 24 : 36)), 2.6, "sine", 0.035, {
+        opt: true,
+        rev: 0.6,
+      });
     if (bar === 19 && b === 4) {
       k.m.n(1.6, 0.07, { type: "highpass", f: 800, to: 7000, attack: 1.45, opt: true });
       k.m.t(200, 1.6, "sawtooth", 0.025, { to: 1200, attack: 1.5, lp: 2000, opt: true });
     }
   } else {
-    const gate = bar === 20 ? b % 2 === 0 : b < 15;
-    if (gate) {
-      const climb = (bar - 20) * 16 + b;
-      k.x.t(midiToFreq(root + Math.floor(climb / 4)), 0.07, "sawtooth", 0.05 + climb * 0.0012, { lp: 2500 });
-      k.x.t(midiToFreq(root + 6 + Math.floor(climb / 4)), 0.07, "sawtooth", 0.04, { lp: 2500 });
-    }
-    if (b === 0 && bar === 20) kick(k, 0.5, { f0: 140, f1: 38, dur: 0.12 });
+    const gate = bar === 20 ? b % 2 === 0 : b < 15,
+      climb = (bar - 20) * 16 + b;
+    if (gate) gtr(k, g + Math.floor(climb / 4), 0.07, 0.045 + climb * 0.0006, { mute: true });
+    buildKicks(k, c);
     buildRoll(k, c);
     buildRiser(k, c, 500);
     if (bar === 21 && b === 12) tapeStop();
   }
 }
 
-/* what a phase change (heat 1) and the enrage (heat 2) add to every boss track: sixteenth hat ticks, a crash every
-   second bar; enraged: short kicks on the off-beats and an octave stab on the chord root every second beat */
+/* what a phase change (heat 1) and the enrage (heat 2) add to every boss track: sixteenth hat ticks, a china every
+   second bar; enraged: a double kick on the off sixteenths, an octave stab on the chord root every second beat and a
+   rising siren every fourth bar */
 function bossHeatLayer(e, c) {
   const k = kit(e, c);
-  if (c.b % 2 === 1) hat(k, 0.03, 0.02, 11000);
-  if (c.b === 0 && (c.bar & 1) === 0) crash(k, 0.08, 0.8);
+  if (c.b % 2 === 1) bhat(k, 0.03, 0.02, 11000, c.b % 4 === 1 ? 0.5 : -0.5);
+  if (c.b === 0 && (c.bar & 1) === 0) china(k, 0.07, 0.4);
   if (c.heat >= 2) {
-    if (c.b % 4 === 2 && c.sec !== 2) kick(k, 0.3, { f0: 130, f1: 45, dur: 0.08 });
+    if (c.b % 2 === 1 && c.sec !== 2) mkick(k, 0.3);
     if (c.b % 8 === 0) k.x.t(midiToFreq(c.chord[0] + 24), 0.3, "sawtooth", 0.04, { lp: 3000 });
+    if (c.b === 0 && (c.bar & 3) === 0)
+      k.d.t(500, c.barSec, "sawtooth", 0.012, { to: 1500, lp: 2500, opt: true, rev: 0.3 });
   }
 }
 
 /* The crash and the impact when the boss track starts on the spot (also when a phase change or the enrage sends the
-   track back to its drop), and the last hit when the boss is dead: a crash, a sub boom and a power chord. */
+   track back to its drop): a crash, a sub drop, a burst and a huge open chord on both guitars. The last hit when the
+   boss is dead: a crash, a sub boom and a power chord that rings out in the room. */
 function musicImpact(e, biome, at) {
-  e.noise(1.5, 0.16, { type: "highpass", f: 4500, attack: 0.002, dest: e.mus, at });
-  e.tone(90, 0.7, "sine", 0.6, { to: 28, dest: e.mus, at });
-  e.noise(0.25, 0.2, { f: 900, to: 120, dest: e.mus, at });
+  const f = midiToFreq((musicChords[biome] || musicChords.yard)[0][0] - 12);
+  e.noise(1.6, 0.16, { type: "highpass", f: 4500, attack: 0.002, dest: e.mus, at, rev: 0.4 });
+  e.tone(95, 0.8, "sine", 0.6, { to: 28, dest: e.mus, at });
+  e.noise(0.3, 0.22, { f: 900, to: 120, dest: e.mus, at });
+  for (const [dest, det, dt] of [
+    [e.gtrL, -8, 0],
+    [e.gtrR, 8, 0],
+  ]) {
+    e.tone(f, 1.2, "sawtooth", 0.06, { lp: 3200, hold: 0.5, detune: det, dest, at: at + dt });
+    e.tone(f * 1.4983, 1.2, "sawtooth", 0.05, { lp: 3200, hold: 0.5, detune: det, dest, at: at + dt });
+  }
 }
 function musicResolve(e, biome, at) {
   const f = midiToFreq((musicChords[biome] || musicChords.yard)[0][0] - 12);
-  e.noise(1.8, 0.14, { type: "highpass", f: 4500, attack: 0.002, dest: e.mus, at });
+  e.noise(1.8, 0.14, { type: "highpass", f: 4500, attack: 0.002, dest: e.mus, at, rev: 0.5 });
   e.tone(80, 0.8, "sine", 0.55, { to: 30, dest: e.mus, at });
-  e.tone(f, 1.6, "sawtooth", 0.06, { lp: 1200, hold: 0.6, dest: e.distIn, at });
-  e.tone(f * 1.498, 1.6, "sawtooth", 0.05, { lp: 1200, hold: 0.6, dest: e.distIn, at });
+  e.tone(f / 2, 1.6, "sawtooth", 0.05, { lp: 900, hold: 0.6, dest: e.distIn, at });
+  for (const [dest, det] of [
+    [e.gtrL, -8],
+    [e.gtrR, 8],
+  ]) {
+    e.tone(f, 1.8, "sawtooth", 0.05, { lp: 2600, hold: 0.7, detune: det, dest, at, rev: 0.4 });
+    e.tone(f * 1.4983, 1.8, "sawtooth", 0.04, { lp: 2600, hold: 0.7, detune: det, dest, at, rev: 0.4 });
+  }
 }
 /* the intensity of a preview: it swells and falls over the 16 bars, so that the quiet and the full side of a calm
    theme can both be heard */
@@ -3556,24 +4059,24 @@ function previewLevel(bar) {
 
 const MUSIC_TRACKS = {
   yard: {
-    fight: { bpm: 118, bars: 16, swing: 0, gain: 1.05, play: yardCalm },
-    boss: { bpm: 175, bars: 22, swing: 0, gain: 1.35, play: yardBoss },
+    fight: { bpm: 96, bars: 16, swing: 0, gain: 1, play: yardCalm },
+    boss: { bpm: 174, bars: 22, swing: 0, gain: 1, play: yardBoss },
   },
   works: {
-    fight: { bpm: 96, bars: 16, swing: 0, gain: 1.05, play: worksCalm },
-    boss: { bpm: 150, bars: 22, swing: 0, gain: 1.15, play: worksBoss },
+    fight: { bpm: 84, bars: 16, swing: 0, gain: 1, play: worksCalm },
+    boss: { bpm: 160, bars: 22, swing: 0, gain: 1, play: worksBoss },
   },
   vault: {
-    fight: { bpm: 104, bars: 16, swing: 0, gain: 1.45, play: vaultCalm },
-    boss: { bpm: 172, bars: 22, swing: 0, gain: 1.2, play: vaultBoss },
+    fight: { bpm: 72, bars: 16, swing: 0, gain: 1, play: vaultCalm },
+    boss: { bpm: 172, bars: 22, swing: 0, gain: 1, play: vaultBoss },
   },
   marsh: {
-    fight: { bpm: 84, bars: 16, swing: 0.2, gain: 0.75, play: marshCalm },
+    fight: { bpm: 78, bars: 16, swing: 0.18, gain: 1, play: marshCalm },
     boss: { bpm: 140, bars: 22, swing: 0, gain: 1, play: marshBoss },
   },
   void: {
-    fight: { bpm: 100, bars: 16, swing: 0, gain: 0.9, play: voidCalm },
-    boss: { bpm: 160, bars: 22, swing: 0, gain: 1.5, play: voidBoss },
+    fight: { bpm: 66, bars: 16, swing: 0, gain: 1, play: voidCalm },
+    boss: { bpm: 150, bars: 22, swing: 0, gain: 1, play: voidBoss },
   },
 };
 function musicTrack(kind, biome) {

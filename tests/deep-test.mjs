@@ -232,7 +232,7 @@ const distinct = await page.evaluate(async () => {
     }
   return out;
 });
-// 3.1.0: the music. (1) The voice budget of the music (its own list of 20 voices): every calm theme and boss track
+// 3.1.0: the music. (1) The voice budget of the music (its own list of 36 voices since 3.2.0): every calm theme and boss track
 // over four loops at several intensities and boss heats never skips or sheds a note, peaks well below the limit,
 // schedules exactly the same notes, note by note, with and without a flood of sounds, and the sections of a track
 // differ from each other (nothing repeats every four bars). (2) Every track is rendered offline (six bars,
@@ -276,7 +276,7 @@ const music = await page.evaluate(async () => {
       if (!a.scheduled) fail.push(`${name}: no notes`);
       if (a.skipped || a.shed || (b && (b.skipped || b.shed)))
         fail.push(`${name}: the budget refused notes (${a.skipped}/${a.shed})`);
-      if (a.peak > 18) fail.push(`${name}: ${a.peak} voices alive at once (budget 20, essentials keep 4 spare)`);
+      if (a.peak > 30) fail.push(`${name}: ${a.peak} voices alive at once (budget 36, essentials keep 6 spare)`);
       if (b) {
         if (a1.scheduled !== b.scheduled || JSON.stringify(a1.log) !== JSON.stringify(b.log))
           fail.push(`${name}: notes differ with a flood of sounds (${a1.scheduled} vs ${b.scheduled})`);
