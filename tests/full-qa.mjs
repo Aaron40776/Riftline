@@ -1581,6 +1581,66 @@ for (const [name, vp, touch] of [
       };
     });
     check(L, "HUD: hull value and wave label do not touch", hud.waveStart - hud.hullEnd >= 6, JSON.stringify(hud));
+    // 3.0.0: the GADGET button: visible, inside the screen, clear of the other controls, named, with pips
+    const gad = await P.ev(() => {
+      const T = window.__riftTest,
+        w = T.game.world,
+        box = (e) => {
+          const r = e.getBoundingClientRect();
+          return { l: r.left, t: r.top, r: r.right, b: r.bottom };
+        },
+        hit = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t,
+        btn = document.getElementById("gadgetBtn"),
+        me = box(btn),
+        others = ["novaBtn", "dashBtn", "pauseBtn", "shardChip"]
+          .map((id) => document.getElementById(id))
+          .concat([...document.querySelectorAll("#hud .hp-block, #hud .wave-block")])
+          .filter((e) => e && e.offsetWidth)
+          .map((e) => ({ id: e.id || e.className, r: box(e) })),
+        pips = document.querySelectorAll("#gadgetPips i"),
+        key = document.getElementById("gadgetKey");
+      return {
+        shown: !!(btn.offsetWidth && btn.offsetHeight),
+        inside: me.l >= 0 && me.t >= 0 && me.r <= innerWidth && me.b <= innerHeight,
+        size: Math.round(me.r - me.l),
+        name: btn.getAttribute("aria-label"),
+        overlap: others.filter((o) => hit(me, o.r)).map((o) => o.id),
+        pips: pips.length,
+        lit: [...pips].filter((i) => i.classList.contains("on")).length,
+        want: w.stats.gadgetMax,
+        key: getComputedStyle(key).display !== "none" ? key.textContent : "",
+      };
+    });
+    check(
+      L,
+      "GADGET button: visible, on screen, named, clear of NOVA/DASH/pause/hull/wave",
+      gad.shown && gad.inside && /grenade/i.test(gad.name) && !gad.overlap.length,
+      JSON.stringify(gad),
+    );
+    check(L, "GADGET button: one pip per charge, all lit at the start", gad.pips === gad.want && gad.lit === gad.want);
+    check(
+      L,
+      touch ? "GADGET button: no key hint on touch screens" : "GADGET button: shows the key hint G",
+      touch ? gad.key === "" : gad.key === "G",
+      JSON.stringify(gad.key),
+    );
+    if (touch) {
+      check(L, "GADGET button: touch target of at least 44 px", gad.size >= 44, String(gad.size));
+      // a tap on the button queues a throw (the game loop consumes the flag, so the call is recorded)
+      const tapped = await P.ev(() => {
+        const input = window.__riftTest.game.input,
+          press = input.press,
+          seen = [];
+        input.press = (action) => {
+          seen.push(action);
+          return press.call(input, action);
+        };
+        document.getElementById("gadgetBtn").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+        input.press = press;
+        return seen;
+      });
+      check(L, "GADGET button: a tap queues a throw", tapped.join() === "gadget", tapped.join());
+    }
     // 2.3.6: gameplay hints stay off the drone (two hints hid it on landscape phones)
     await P.ev(() => {
       const T = window.__riftTest,
@@ -1621,13 +1681,13 @@ for (const [name, vp, touch] of [
           for (let y = a.top + 1; y < a.bottom; y += 3) {
             all++;
             const e = document.elementFromPoint(x, y);
-            if (e && !e.closest("#novaBtn, #dashBtn") && e.id !== "touch") n++;
+            if (e && !e.closest("#novaBtn, #dashBtn, #gadgetBtn") && e.id !== "touch") n++;
           }
         return Math.round((100 * n) / all);
       });
       check(
         L,
-        "every touch near NOVA/DASH hits a button or the aim side",
+        "every touch near NOVA/DASH/GADGET hits a button or the aim side",
         dead === 0,
         `${dead} % of the button box is dead`,
       );
@@ -1744,6 +1804,80 @@ await section("qol", async (L) => {
     "AZERTY: Q (the A position) moves left without firing the Nova",
     az.left && !az.nova && az.released,
     JSON.stringify(az),
+  );
+  // 3.0.0: G throws a grenade (one charge less, the pips follow), the first trap warning shows its tip
+  await P.page.waitForFunction(() => window.__riftTest.game.world.state === "fight", null, { timeout: 30000 });
+  const gr = await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    w.god = true;
+    return { n: w.player.gadgetN, max: w.stats.gadgetMax };
+  });
+  await P.page.keyboard.press("g");
+  // wait for the throw to be processed (in software rendering a frame takes about 0.3 s)
+  await P.page
+    .waitForFunction(
+      () => {
+        const w = window.__riftTest.game.world;
+        return w.player.gadgetN < w.stats.gadgetMax;
+      },
+      null,
+      { timeout: 5000 },
+    )
+    .catch(() => {});
+  const gr2 = await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    return {
+      n: w.player.gadgetN,
+      flying: w.grenades.length,
+      lit: document.querySelectorAll("#gadgetPips i.on").length,
+      empty: document.getElementById("gadgetBtn").classList.contains("empty"),
+    };
+  });
+  check(
+    L,
+    "G throws a grenade: one charge less, a grenade in flight, the pips follow",
+    gr.n === gr.max && gr2.n === gr.max - 1 && gr2.lit === gr2.n && !gr2.empty,
+    JSON.stringify({ gr, gr2 }),
+  );
+  await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    w.player.gadgetN = 0;
+    w.player.gadgetT = 3;
+  });
+  await P.page.keyboard.press("g");
+  // the flash lasts 0.28 s: wait for it to show up instead of sleeping (a slow frame loop made a fixed wait flaky)
+  const sawDeny = await P.page
+    .waitForFunction(() => document.getElementById("gadgetBtn").classList.contains("deny"), null, { timeout: 3000 })
+    .then(() => true)
+    .catch(() => false);
+  const dn = await P.ev(
+    (deny) => ({
+      deny,
+      empty: document.getElementById("gadgetBtn").classList.contains("empty"),
+      ring: document.getElementById("gadgetBtn").style.getPropertyValue("--q"),
+    }),
+    sawDeny,
+  );
+  check(
+    L,
+    "G without a charge: the button flashes deny, shows empty and a recharge ring",
+    dn.deny && dn.empty && !!dn.ring,
+    JSON.stringify(dn),
+  );
+  await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    w.player.gadgetN = w.stats.gadgetMax;
+    w.emit("trapWarn", { id: 1, fam: "floor", skin: "plate", x: 0, y: 0, r: 2, delay: 1, dur: 1 });
+  });
+  await P.page
+    .waitForFunction(() => document.querySelectorAll("#toasts .toast").length > 0, null, { timeout: 5000 })
+    .catch(() => {});
+  const tip = await P.ev(() => [...document.querySelectorAll("#toasts .toast")].map((t) => t.textContent));
+  check(
+    L,
+    "first trap warning: one-time tip about the telegraphs",
+    tip.some((t) => /Traps flash/.test(t)),
+    JSON.stringify(tip),
   );
   // upgrade choice by keys: locked for 650 ms, then 1–4 pick and R rerolls
   await P.ev(CLEAR);
@@ -2299,13 +2433,22 @@ for (const profName of ["desktop", "phone"])
           normalFog && s.fog < normalFog * 0.75,
           `${s.fog.toFixed(1)} vs ${normalFog && normalFog.toFixed(1)}`,
         );
-      if (biome === "void")
-        check(
-          L,
-          "rift storm: every portal shows where it jumps next",
-          s.portals > 0 && s.next === s.portals,
-          JSON.stringify(s),
-        );
+      if (biome === "void") {
+        // the telegraph is up in phases while the world runs on in real time (a frame takes about 0.3 s in
+        // software rendering): wait until every portal shows its target at once instead of sampling one instant
+        const all = await P.page
+          .waitForFunction(
+            () => {
+              const A = window.__riftTest.game.world.arena;
+              return A.portals.length > 0 && A.portals.every((q) => q.next);
+            },
+            null,
+            { timeout: 8000 },
+          )
+          .then(() => true)
+          .catch(() => false);
+        check(L, "rift storm: every portal shows where it jumps next", s.portals > 0 && all, JSON.stringify(s));
+      }
       if (biome === "works")
         check(
           L,
@@ -2505,11 +2648,11 @@ for (const profName of ["desktop", "phone", "land"])
         const c = document.querySelector("#titleCard .tc-panel");
         if (!c) return null;
         const r = c.getBoundingClientRect();
-        return ["novaBtn", "dashBtn"]
+        return ["novaBtn", "dashBtn", "gadgetBtn"]
           .map((id) => document.getElementById(id).getBoundingClientRect())
           .some((b) => b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top);
       });
-      check(L, "boss card: clear of the NOVA and DASH buttons", btn === false, String(btn));
+      check(L, "boss card: clear of the NOVA, DASH and GADGET buttons", btn === false, String(btn));
     }
     const saved = await P.stored();
     check(L, "boss counts as seen for the Codex", saved.seen.boss_warden === true);

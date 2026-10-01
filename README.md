@@ -18,6 +18,7 @@ built with three.js and plain JavaScript. There is no framework.
 | Aim and fire | hold the left mouse button (auto-fire shoots the nearest enemy otherwise) | drag on the right half |
 | Dash | `Space` or `Shift` | `DASH` button |
 | Nova | `E` (also `Q`, `F`) | `NOVA` button |
+| Grenade | `G` | `GADGET` button (aimed with the aim stick) |
 | Pause | `Esc` or `P` | pause button |
 | Pick an upgrade | `1`–`4`, `R` rerolls | tap a card |
 | Back in menus | `Esc` | back button |
@@ -34,7 +35,10 @@ AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY) mov
 | Look and sound | Procedural low-poly models with a silhouette of their own for the drone, 25 enemies and 5 bosses, animated per instance; all sounds and music are synthesised with WebAudio (no audio files) |
 | Bosses | 5, one per biome: The Warden (Neon Yard), The Crucible (Ember Works), Frost Prism (Cryo Vault), Hive Queen (Toxin Marsh), Rift Core (Void Core); a boss wave brings the boss of its biome, its hull follows the wave (5, 10, 15, 20) |
 | Biomes | 5, one per boss cycle: waves 1–5 Neon Yard, 6–15 two of Ember Works, Cryo Vault and Toxin Marsh in a seeded order, 16–20 Void Core, the third from wave 21 in Endless. Each has its own floor, props, border, particles, light, music, hazard and enemy mix: Neon Yard (open ground), Ember Works (lava vents, heavy enemies), Cryo Vault (slick floor and ice, shielded/ranged enemies), Toxin Marsh (acid pools and fog, swarms), Void Core (portals over the abyss, teleporters). A new biome opens with a title card; each hazard biome has one event per visit: Meltdown (Ember Works), Whiteout (Cryo Vault), Spore Bloom (Toxin Marsh), Rift Storm (Void Core) |
-| Upgrades | 52, 13 of them evolutions; each does something of its own (2.5.0–2.8.0 folded the copies and weak ones into the originals and rebalanced them) |
+| Upgrades | 55, 13 of them evolutions; each does something of its own (2.5.0–2.8.0 folded the copies and weak ones into the originals and rebalanced them; 3.0.0 added three grenade cards) |
+| Grenade | the gadget on `G`: two charges, about 6 s per charge, thrown where you aim or at the densest group in sight, blast with a short slow; cards Grenade Cells, Blast Core, Incendiary Mix |
+| Traps | from wave 6 the arena fights back, with a skin per biome: floor strikes (electric plate, piston crusher, ice spikes, acid geyser, rift burst), sweeping beams (laser, flame jet, rift beam, from wave 9) and mines (from wave 12); all warn first, hurt you and, as a share of their hull, enemies; none on boss waves; many more and faster in Endless |
+| Difficulty beyond wave 20 | Endless hulls grow faster after wave 30, and from wave 40 an enemy can lose only a shrinking share of its hull within a quarter of a second, whatever lands (`core/difficulty.js`) |
 | Workshop | 18 permanent modules, among them Starter Kit, Hazard Attunement and Emergency Shield |
 | Milestones | 47 with shard rewards |
 | Codex | in Records: every enemy, boss and upgrade you have seen |
@@ -67,7 +71,7 @@ of the full QA. Before a release run
 ```
 src/
   main.js          entry point: boot, game controller, main loop, wiring
-  core/            simulation and services: world, arena, waves, AI, stats, save, diagnostics (runtime log and monitor), selftest (deep self-test), util
+  core/            simulation and services: world, arena, waves, AI, stats, traps, difficulty, save, diagnostics (runtime log and monitor), selftest (deep self-test), util
   data/            tables: weapons, enemies, upgrades, progression (workshop, milestones, threat), biomes
   render/          three.js renderer, models, biome visuals and skins, 2D overlay
   audio/           sound effects and music

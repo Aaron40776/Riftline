@@ -50,11 +50,13 @@ function rlRenderHistory() {
       ? "a lava vent"
       : id === "acid"
         ? "acid"
-        : enemyDefs[id]
-          ? "a " + enemyDefs[id].name
-          : bossDefs[id]
-            ? bossDefs[id].name
-            : "";
+        : id === "trap"
+          ? "a trap"
+          : enemyDefs[id]
+            ? "a " + enemyDefs[id].name
+            : bossDefs[id]
+              ? bossDefs[id].name
+              : "";
   el.innerHTML = history
     .map((run) => {
       const icon = run.outcome === "win" ? "trophy" : run.outcome === "quit" ? "close" : "skull",
@@ -153,6 +155,9 @@ const getById = (id) => document.getElementById(id),
     ],
     ["Chain jumps", (stats) => (stats.arc ? stats.arcJumps : 0), String],
     ["Blast", (stats) => stats.payloadF, formatPercent],
+    ["Grenades", (stats) => stats.gadgetMax, String], // 3.0.0
+    ["Grenade recharge", (stats) => stats.gadgetCd, formatCooldown],
+    ["Grenade blast", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
     ["Burn", (stats) => stats.thermite, formatPercent],
     ["Repair chance", (stats) => stats.siphonCh, formatPercent],
     ["Nova radius", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
@@ -171,6 +176,8 @@ const getById = (id) => document.getElementById(id),
     pop: ["Bomber blasts", "#ffe14a"],
     lava: ["Lava", "#ff6a2a"],
     inferno: ["Inferno", "#ff5a3a"],
+    grenade: ["Grenades", "#ffb347"],
+    trap: ["Arena traps", "#aeb9cf"], // 3.0.0: enemies caught by a trap
     other: ["Other", "#93a2bf"],
   },
   escapeHtml = (text) =>
@@ -312,6 +319,10 @@ const getById = (id) => document.getElementById(id),
           btn.classList.add("deny");
           this.g.sound.play("deny");
         }
+      });
+      onPress(getById("gadgetBtn"), () => {
+        // the deny flash comes from the simulation's gadgetDeny event (no charge, or outside a fight)
+        this.g.input.press("gadget");
       });
       this.click(getById("pauseBtn"), () => this.g.pause());
       this.click(getById("resumeBtn"), () => this.g.resume());
@@ -1049,6 +1060,31 @@ const getById = (id) => document.getElementById(id),
         getById("novaBtn").style.setProperty("--p", pct + "%");
         getById("novaBtn").classList.toggle("ready", pct >= 100);
       });
+      // 3.0.0: grenade charges as pips, recharge ring from gadgetT/gadgetCd
+      const gadgetN = player.gadgetN | 0,
+        gadgetMax = stats.gadgetMax | 0;
+      update("gadgetPips", gadgetN + "/" + gadgetMax, () => {
+        const pips = getById("gadgetPips");
+        while (pips.children.length < gadgetMax) {
+          pips.appendChild(document.createElement("i"));
+        }
+        while (pips.children.length > gadgetMax) {
+          pips.lastChild.remove();
+        }
+        for (let i = 0; i < pips.children.length; i++) {
+          pips.children[i].classList.toggle("on", i < gadgetN);
+        }
+        const btn = getById("gadgetBtn");
+        btn.classList.toggle("empty", gadgetN <= 0);
+        btn.setAttribute("aria-label", `Throw grenade, ${gadgetN} of ${gadgetMax} ready`);
+      });
+      const gadgetPct =
+        gadgetN >= gadgetMax || !(stats.gadgetCd > 0)
+          ? 100
+          : Math.round(clamp(1 - player.gadgetT / stats.gadgetCd, 0, 1) * 100);
+      update("gadgetRing", gadgetPct, (pct) => {
+        getById("gadgetBtn").style.setProperty("--q", pct + "%");
+      });
       // 2.4.2: run timer and FPS counter
       const settings = store.data.settings,
         now = performance.now(),
@@ -1337,7 +1373,8 @@ const getById = (id) => document.getElementById(id),
       getById("overBest").hidden = !(result.best || result.fastest);
       getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST";
       let killer = result.killer ? enemyDefs[result.killer] || bossDefs[result.killer] : null;
-      getById("overCause").hidden = !killer && result.killer !== "lava" && result.killer !== "acid";
+      getById("overCause").hidden =
+        !killer && result.killer !== "lava" && result.killer !== "acid" && result.killer !== "trap";
       if (killer) {
         getById("overCause").textContent = `Destroyed by ${bossDefs[result.killer] ? killer.name : "a " + killer.name}`;
       } else {
@@ -1346,6 +1383,8 @@ const getById = (id) => document.getElementById(id),
         } else {
           if (result.killer === "acid") {
             getById("overCause").textContent = "Dissolved in acid";
+          } else if (result.killer === "trap") {
+            getById("overCause").textContent = "Crushed by a trap";
           }
         }
       }
@@ -1457,6 +1496,13 @@ const getById = (id) => document.getElementById(id),
     }
     hideCrash() {
       getById("crash").hidden = true;
+    }
+    // 3.0.0: the GADGET button reacts to the simulation: "ready" pops it, "deny" shakes it
+    gadgetFlash(kind) {
+      const btn = getById("gadgetBtn");
+      btn.classList.remove(kind);
+      btn.offsetWidth;
+      btn.classList.add(kind);
     }
     hurtFlash() {
       if (this.calm) return;

@@ -20,6 +20,8 @@ import { threatMods } from "../data/progression.js";
 import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
 import { computeStats } from "./stats.js";
+import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
+import { rlPlanTraps, rlUpdateTraps } from "./traps.js";
 // 2.2.3: the run monitor observes the live run's world (used at run time only; circular import)
 import { RL_MON, rlMonStep, rlMonIssue, rlMonBeginWave } from "./diagnostics.js";
 
@@ -29,7 +31,8 @@ function rlCacheShards(world, value) {
 }
 /* 2.3.5: Armor Core absorbs part of the damage from enemies. Lava and acid are left to
    Hazard Seal, so the two modules do not stack on the same damage. */
-const RL_HAZARD_SRC = new Set(["lava", "acid"]);
+// 3.0.0: traps are environment too: the Armor Core does not soften them
+const RL_HAZARD_SRC = new Set(["lava", "acid", "trap"]);
 
 // 2.5.0 A: the six new run upgrades (levels from computeStats: skates, acidCoat, heatSink, slip,
 // surge, reactive). Their parts in step, fire, hurtPlayer, bulletHit, updateFeatures and addCombo
@@ -107,7 +110,17 @@ const rlStep = 1 / 60,
   PLAYER_RADIUS = 0.55,
   MAX_PLAYER_BULLETS = 420,
   MAX_ENEMY_BULLETS = 360,
-  blastSources = { nova: "nova", inferno: "inferno", pop: "pop", bomber: "pop", payload: "payload", rocket: "weapon" },
+  blastSources = {
+    nova: "nova",
+    inferno: "inferno",
+    pop: "pop",
+    bomber: "pop",
+    payload: "payload",
+    rocket: "weapon",
+    grenade: "grenade",
+  },
+  // 3.0.0: base damage of a grenade (times the damage multiplier and the Blast Core cards)
+  GRENADE_DAMAGE = 90,
   World = class {
     constructor(opts) {
       let snap = opts.snap || null;
@@ -182,6 +195,9 @@ const rlStep = 1 / 60,
         portalT: 0,
         onIce: false,
         shotN: 0,
+        // 3.0.0: Grenade gadget: charges and the time until the next one is back
+        gadgetN: this.stats.gadgetMax,
+        gadgetT: 0,
         slowT: 0,
         acidT: 0,
         inAcid: false,
@@ -190,6 +206,8 @@ const rlStep = 1 / 60,
         this.player.hp = clamp(snap.hp, 1, this.stats.maxHp);
       }
       this.chronoT = 0;
+      this.grenades = [];
+      this.traps = [];
       this.offer = null;
       this.offerBoss = false;
       this.state = "fight";
@@ -271,12 +289,16 @@ const rlStep = 1 / 60,
         player.target = null;
         player.alive = true;
         player.shield = this.stats.shieldCd > 0;
+        // 3.0.0: every wave starts with all grenades
+        player.gadgetN = this.stats.gadgetMax;
+        player.gadgetT = 0;
+        this.grenades = [];
         player.shieldT = 0;
         let novaFloor = 25 * (this.ws.nova || 0);
         player.nova = nova ?? Math.max(player.nova, novaFloor);
         this.waveT = 0;
         this.waveDmg = 0;
-        this.hpMul = (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) * this.tm.hp;
+        this.hpMul = (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) * this.tm.hp * endlessHpBoost(wave);
         this.dmgMul = (1 + 0.035 * (wave - 1)) * this.tm.dmg;
         this.stragglerT = 0;
         let boss = this.bossFor(wave);
@@ -291,6 +313,8 @@ const rlStep = 1 / 60,
         this.plan = planWave(this.rng, wave, this.tm, !!boss, this.event ? waveEvents[this.event].plan : {});
         this.planIdx = 0;
         this.planTotal = this.plan.reduce((sum, group) => sum + group.members.length, 0);
+        // 3.0.0: the traps of this wave (none on boss waves and before wave 6)
+        this.traps = rlPlanTraps(this, wave, !!boss);
         this.groupT = 1.1;
         this.bossPending = boss;
         this.state = "fight";
@@ -501,7 +525,10 @@ const rlStep = 1 / 60,
       if (upgrade.rarity === 5) {
         this.evolved++;
       }
+      const gadgetBefore = this.stats.gadgetMax;
       this.stats = computeStats(this.weapon, this.up, this.ws);
+      // 3.0.0: a new grenade cell comes charged
+      player.gadgetN = Math.min(this.stats.gadgetMax, player.gadgetN + (this.stats.gadgetMax - gadgetBefore));
       if (id === "hp") {
         player.hp = Math.min(this.stats.maxHp, player.hp + 20 + (this.stats.maxHp - oldMaxHp - 20));
       }
@@ -681,9 +708,11 @@ const rlStep = 1 / 60,
               }
               this.updateTrails(dt);
               this.updatePBullets(dt);
+              this.updateGrenades(slowDt);
               this.updateEBullets(slowDt);
               this.updateBeams(slowDt);
               this.updateHazards(slowDt);
+              rlUpdateTraps(this, slowDt);
               this.updatePickups(dt);
               this.updateMarkers(dt);
               this.updateFeatures(dt);
@@ -921,6 +950,15 @@ const rlStep = 1 / 60,
       input = input || {};
       player.iT = Math.max(0, player.iT - dt);
       player.dashCdT = Math.max(0, player.dashCdT - dt);
+      // 3.0.0: grenade recharge, one charge at a time
+      if (player.gadgetN < stats.gadgetMax && this.state === "fight") {
+        player.gadgetT -= dt;
+        if (player.gadgetT <= 0) {
+          player.gadgetN++;
+          player.gadgetT = player.gadgetN < stats.gadgetMax ? stats.gadgetCd : 0;
+          this.emit("gadgetReady", { n: player.gadgetN });
+        }
+      }
       player.hurtT = Math.max(0, player.hurtT - dt);
       if (player.rushT > 0) {
         player.rushT -= dt;
@@ -1045,6 +1083,9 @@ const rlStep = 1 / 60,
       }
       if (input.nova) {
         this.nova();
+      }
+      if (input.gadget) {
+        this.useGadget(input);
       }
     }
     // 2.8.0: shots stop at walls (only the Lance slug flies through), so nothing behind a wall is a target
@@ -1207,6 +1248,80 @@ const rlStep = 1 / 60,
           this.emit("zap", { x: enemy.x, y: enemy.y });
         }
       });
+    }
+    // 3.0.0: the Grenade. Thrown where the player aims (manual aim) or at the densest group of enemies in sight,
+    // never into a wall; it flies for a moment, then blasts (damage to enemies only, no friendly fire)
+    grenadeTarget(input) {
+      const player = this.player;
+      let angle = player.aim,
+        dist = 6;
+      if (input.aim && (input.ax || input.ay)) {
+        angle = Math.atan2(input.ay, input.ax);
+        dist = 9;
+      } else {
+        const near = [];
+        for (const enemy of this.enemies) {
+          if (enemy.dead || enemy.ghost || near.length >= 60) continue;
+          if (Math.hypot(enemy.x - player.x, enemy.y - player.y) < 14 && this.canSee(enemy)) near.push(enemy);
+        }
+        let best = null,
+          bestScore = -1e9;
+        for (const enemy of near) {
+          let crowd = 0;
+          for (const other of near) if (Math.hypot(other.x - enemy.x, other.y - enemy.y) < 3) crowd++;
+          const score = crowd * 10 - Math.hypot(enemy.x - player.x, enemy.y - player.y) * 0.3 + (enemy.elite ? 4 : 0);
+          if (score > bestScore) {
+            bestScore = score;
+            best = enemy;
+          }
+        }
+        if (best) {
+          angle = Math.atan2(best.y - player.y, best.x - player.x);
+          dist = Math.hypot(best.x - player.x, best.y - player.y);
+        }
+      }
+      const reach = this.arena.rayLen(player.x, player.y, angle, dist);
+      dist = Math.max(1.5, Math.min(dist, reach - 0.4));
+      return { x: player.x + Math.cos(angle) * dist, y: player.y + Math.sin(angle) * dist, dist };
+    }
+    useGadget(input) {
+      const player = this.player,
+        stats = this.stats;
+      if (!player.alive || this.state !== "fight") return false;
+      if (player.gadgetN <= 0) {
+        this.emit("gadgetDeny");
+        return false;
+      }
+      const target = this.grenadeTarget(input),
+        dur = 0.3 + target.dist * 0.03;
+      player.gadgetN--;
+      if (player.gadgetT <= 0) player.gadgetT = stats.gadgetCd;
+      this.grenades.push({ fx: player.x, fy: player.y, tx: target.x, ty: target.y, t: 0, dur });
+      this.emit("grenade", { x: player.x, y: player.y, tx: target.x, ty: target.y, dur });
+      return true;
+    }
+    updateGrenades(dt) {
+      if (!this.grenades.length) return;
+      const stats = this.stats;
+      for (const grenade of this.grenades) {
+        grenade.t += dt;
+        if (grenade.t < grenade.dur) continue;
+        grenade.done = true;
+        const radius = stats.gadgetR,
+          dmg = GRENADE_DAMAGE * stats.dmgMul * stats.gadgetDmg;
+        this.explode(grenade.tx, grenade.ty, radius, dmg, {
+          enemies: true,
+          knock: 7,
+          kind: "grenade",
+          burn: stats.gadgetFire ? dmg * 0.15 : 0,
+        });
+        // the blast rattles what it does not kill: enemies in it are slowed for a moment
+        this.hash.query(grenade.tx, grenade.ty, radius, (enemy) => {
+          if (!enemy.dead && !enemy.boss && Math.hypot(enemy.x - grenade.tx, enemy.y - grenade.ty) < radius + enemy.r)
+            enemy.slowT = Math.max(enemy.slowT, 1.2);
+        });
+      }
+      this.grenades = this.grenades.filter((grenade) => !grenade.done);
     }
     nova() {
       let player = this.player,
@@ -1669,6 +1784,16 @@ const rlStep = 1 / 60,
         if (enemy.corrode && !enemy.boss) {
           dmg *= 1.25;
         }
+        // 3.0.0: burst cap (see core/difficulty.js); the Nova and bosses are exempt
+        if (!enemy.boss && src !== "nova") {
+          const taken = this.burstCap(enemy, dmg);
+          if (taken <= 0) {
+            enemy.flash = Math.max(enemy.flash, 0.35);
+            this.emit("ping", { x: enemy.x, y: enemy.y, resist: true });
+            return;
+          }
+          dmg = taken;
+        }
         dmg = this.capPhase(enemy, dmg);
         enemy.hp -= dmg;
         this.dmgDealt += Math.min(dmg, enemy.hp + dmg);
@@ -1688,6 +1813,19 @@ const rlStep = 1 / 60,
           this.killEnemy(enemy);
         }
       }
+    }
+    // how much of a hit lands: at most burstFraction(wave) of the enemy's hull per BURST_WINDOW
+    burstCap(enemy, dmg) {
+      const fraction = burstFraction(this.wave);
+      if (fraction >= 1) return dmg;
+      if (this.time - (enemy.burstT ?? -9) > BURST_WINDOW) {
+        enemy.burstT = this.time;
+        enemy.burstD = 0;
+      }
+      const room = Math.max(0, enemy.maxHp * fraction - enemy.burstD),
+        taken = Math.min(dmg, room);
+      enemy.burstD += taken;
+      return taken;
     }
     capPhase(enemy, dmg) {
       if (!enemy.boss || enemy.type !== "core") return dmg;
@@ -2508,6 +2646,7 @@ const rlStep = 1 / 60,
         follow: opts.follow || null,
         live: false,
         color: opts.color || 0,
+        skin: opts.skin || null, // 3.0.0: trap beams name their skin (laser, flame, rift)
         src: this._src,
       };
       this.beams.push(beam);

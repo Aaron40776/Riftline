@@ -153,6 +153,31 @@ const upgradeList = [
     icon: "drone",
     desc: () => "A drone that fights beside you",
   },
+  // 3.0.0: the Grenade gadget (key G, a button on touch screens) and its cards
+  {
+    id: "gcells",
+    name: "Grenade Cells",
+    rarity: 2,
+    max: 3,
+    icon: "target",
+    desc: () => "+1 grenade and 12% faster recharge",
+  },
+  {
+    id: "gblast",
+    name: "Blast Core",
+    rarity: 2,
+    max: 4,
+    icon: "burst",
+    desc: () => "Grenades deal +30% damage and +15% radius",
+  },
+  {
+    id: "gfire",
+    name: "Incendiary Mix",
+    rarity: 3,
+    max: 1,
+    icon: "flame",
+    desc: () => "Grenades set enemies in the blast on fire",
+  },
   {
     id: "bloodrush",
     name: "Bloodrush",

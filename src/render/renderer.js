@@ -50,6 +50,7 @@ import { smoothstep, clamp, TAU, easeOutBack, dampFactor, angleDiff } from "../c
 import { biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
 import { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles } from "./biome-visuals.js";
+import { TrapView } from "./traps-view.js";
 
 const tmpColor = new Color(),
   InstancePool = class {
@@ -385,6 +386,8 @@ const MAX_PARTICLES = 1400,
     toxic: hexColor(11861821),
   },
   beamColor = new Color(16732064),
+  // 3.0.0: the grey-white of a hit that the burst cap swallowed
+  resistColor = new Color(14608110),
   Renderer = class {
     constructor(canvas, opts = {}) {
       this.canvas = canvas;
@@ -429,6 +432,8 @@ const MAX_PARTICLES = 1400,
     }
     initPools() {
       let scene = this.scene;
+      // 3.0.0: traps and the grenade (its pools are made when a skin first appears)
+      this.trapView = new TrapView(this, InstancePool);
       this.texGlow = makeGlowTexture();
       this.texShadow = makeShadowTexture();
       this.texSpark = makeSparkTexture();
@@ -532,6 +537,7 @@ const MAX_PARTICLES = 1400,
         this.debris,
         this.sprites,
         this.sparks,
+        ...this.trapView.list,
       ];
     }
     initParticles() {
@@ -878,28 +884,42 @@ const MAX_PARTICLES = 1400,
             break;
           case "dmg": {
             if (showNumbers) {
-              let existing = ev.id
-                ? this.nums.find(
-                    (num) => num.id === ev.id && num.life > 0.45 && !num.burn == !ev.burn && !num.shield == !ev.shield,
-                  )
-                : null;
+              // 3.0.0: only the hits of one attack (within 0.15 s of the first) add up; then the number fades and
+              // the next hits make a new one, so a maxed Railgun shows its single shots, not a running total
+              let existing = null;
+              if (ev.id)
+                for (const num of this.nums)
+                  if (
+                    num.id === ev.id &&
+                    this.time - num.t0 <= 0.15 &&
+                    !num.burn == !ev.burn &&
+                    !num.shield == !ev.shield
+                  ) {
+                    existing = num;
+                    break;
+                  }
               if (existing) {
                 existing.v += ev.v;
                 existing.crit = existing.crit || ev.crit;
-                existing.life = Math.max(existing.life, 0.55);
               } else {
-                if (this.nums.length < 60) {
-                  this.nums.push({
-                    id: ev.id,
-                    x: ev.x + (Math.random() - 0.5) * 0.4,
-                    z: ev.y,
-                    y: 1.4,
-                    v: ev.v,
-                    crit: ev.crit,
-                    burn: ev.burn,
-                    shield: ev.shield,
-                    life: ev.crit ? 0.8 : 0.6,
-                  });
+                const num = {
+                  id: ev.id,
+                  x: ev.x + (Math.random() - 0.5) * 0.4,
+                  z: ev.y,
+                  y: 1.4,
+                  v: ev.v,
+                  crit: ev.crit,
+                  burn: ev.burn,
+                  shield: ev.shield,
+                  life: ev.crit ? 0.8 : 0.6,
+                  t0: this.time,
+                };
+                if (this.nums.length < 60) this.nums.push(num);
+                else {
+                  // full: the smallest number makes room for a bigger one
+                  let low = 0;
+                  for (let i = 1; i < this.nums.length; i++) if (this.nums[i].v < this.nums[low].v) low = i;
+                  if (this.nums[low].v < ev.v) this.nums[low] = num;
                 }
               }
             }
@@ -981,6 +1001,12 @@ const MAX_PARTICLES = 1400,
             break;
           }
           case "boom": {
+            // 3.0.0: a trap strike is drawn per skin by its trapFire event, the grenade has a blast of its own
+            if (ev.kind === "trap") break;
+            if (ev.kind === "grenade") {
+              this.trapView.blast(ev, world, shakeK);
+              break;
+            }
             let color =
                 ev.kind === "nova"
                   ? hexColor(8386303)
@@ -1070,7 +1096,42 @@ const MAX_PARTICLES = 1400,
             this.burst(ev.x, ev.y, 0.7, 3, 5, whiteColor, 0.2, 0.2, { spark: true });
             break;
           case "ping":
+            if (ev.resist) {
+              // 3.0.0: the burst cap swallowed this hit: a short grey-white spark and a small hexagon of a shield
+              if (this.time - (this.lastResist || 0) > 0.04) {
+                this.lastResist = this.time;
+                this.burst(ev.x, ev.y, 1, 3, 4, resistColor, 0.16, 0.16, { spark: true, drag: 5 });
+                this.emit(ev.x, 1, ev.y, 0, 0, 0, 0.12, 0.8, resistColor, { drag: 0 });
+                for (let i = 0; i < 6; i++)
+                  this.line(
+                    ev.x + Math.cos((i / 6) * TAU) * 0.38,
+                    ev.y + Math.sin((i / 6) * TAU) * 0.38,
+                    ev.x + Math.cos(((i + 1) / 6) * TAU) * 0.38,
+                    ev.y + Math.sin(((i + 1) / 6) * TAU) * 0.38,
+                    resistColor,
+                    0.16,
+                    0.05,
+                    1,
+                  );
+              }
+              break;
+            }
             this.burst(ev.x, ev.y, 1.2, 2, 4, hexColor(10466520), 0.2, 0.25, { spark: true });
+            break;
+          case "trapFire":
+          case "trapArm":
+            this.trapView.event(ev, world, shakeK);
+            break;
+          case "grenade":
+            this.burst(ev.x, ev.y, 0.9, 5, 4, hexColor(16757575), 0.25, 0.18, { spark: true, drag: 4 });
+            this.ring(ev.x, ev.y, 0.2, 0.9, hexColor(16757575), 0.2, 0.9);
+            break;
+          case "gadgetReady":
+            this.ring(world.player.x, world.player.y, 0.3, 1.2, hexColor(16757575), 0.3, 0.1);
+            this.burst(world.player.x, world.player.y, 0.9, 5, 3, hexColor(16772812), 0.35, 0.16, { spark: true });
+            break;
+          case "gadgetDeny":
+            this.burst(world.player.x, world.player.y, 0.9, 4, 2.5, resistColor, 0.25, 0.14, { spark: true, drag: 4 });
             break;
           case "dash":
             this.ring(world.player.x, world.player.y, 0.3, 1.4, hexColor(8386303), 0.25);
@@ -1893,6 +1954,14 @@ const MAX_PARTICLES = 1400,
           this.sprites.colC(halo, healColor, 0.5 + Math.sin(time * 6) * 0.15);
         }
       }
+      try {
+        this.trapView.update(dt, world);
+      } catch (err) {
+        if (!this.rlTrapErr) {
+          logError("traps", err);
+          this.rlTrapErr = true;
+        }
+      }
       this.drawFeatures(dt, world);
       for (let marker of world.markers) {
         let k = clamp(marker.t / marker.dur, 0, 1),
@@ -1954,6 +2023,8 @@ const MAX_PARTICLES = 1400,
         let len = beam.cur || beam.len,
           ex = beam.x + Math.cos(beam.a) * len,
           ez = beam.y + Math.sin(beam.a) * len;
+        // 3.0.0: trap beams wear the colours of their skin (the warning phase below stays red for every beam)
+        if (beam.live && beam.skin && !this.contrast && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
         if (beam.live) {
           // 2.4.6: a beam can bring its own colour (Frost Prism: ice); Clear warnings keeps yellow
           let flicker = 0.85 + Math.random() * 0.3,

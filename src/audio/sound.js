@@ -115,6 +115,9 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     evolve: 0.1,
     guardBreak: 0.08,
     thud: 0.08,
+    grenadeBlast: 0.1,
+    tsCrusher: 0.08,
+    tsRift: 0.08,
     bSlam: 0.08,
     rail: 0.06,
     scatter: 0.05,
@@ -146,6 +149,28 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     "heart",
     "pick",
   ]);
+/* 3.0.0: the sound of each trap skin: charge (floor), hum (beam), fuse (mine) when it warns, and the strike */
+const RL_TRAP_SOUND = {
+  plate: { warn: "tcPlate", fire: "tsPlate" },
+  crusher: { warn: "tcCrusher", fire: "tsCrusher" },
+  icespike: { warn: "tcIce", fire: "tsIce" },
+  geyser: { warn: "tcGeyser", fire: "tsGeyser" },
+  riftburst: { warn: "tcRift", fire: "tsRift" },
+  laser: { warn: "tbLaser" },
+  flame: { warn: "tbFlame" },
+  rift: { warn: "tbRift" },
+  mine: { warn: "tmMine", fire: "tsMine" },
+  frost: { warn: "tmFrost", fire: "tsFrost" },
+  spore: { warn: "tmSpore", fire: "tsSpore" },
+  riftmine: { warn: "tmRift", fire: "tsRiftMine" },
+};
+/* the beeps of the mines per skin: pitch, wave, filter (and an end-pitch factor for a chirp) */
+const RL_MINE_BEEP = {
+  mine: { f: 1500, wave: "square", lp: 4e3 },
+  frost: { f: 2400, wave: "triangle", lp: 6e3 },
+  spore: { f: 700, wave: "sine", lp: 2e3, to: 0.8 },
+  riftmine: { f: 900, wave: "sawtooth", lp: 2500 },
+};
 /* Event kinds that sound (with sample payloads, used by the self-test to check that the consumer
  really reacts to each) and the ones that stay silent on purpose. Every kind of RL_EVENT_KINDS is in
  exactly one of the two. */
@@ -184,6 +209,36 @@ const RL_SOUND_EVENTS = {
   hatch: [{}, { big: true }],
   heal: [{}],
   maxed: [{ heal: 30, shards: 12 }],
+  grenade: [{}],
+  gadgetReady: [{}],
+  gadgetDeny: [{}],
+  ping: [{ resist: true }],
+  trapWarn: [
+    { fam: "floor", skin: "plate", delay: 1 },
+    { fam: "floor", skin: "crusher", delay: 1 },
+    { fam: "floor", skin: "icespike", delay: 1 },
+    { fam: "floor", skin: "geyser", delay: 1 },
+    { fam: "floor", skin: "riftburst", delay: 1 },
+    { fam: "beam", skin: "laser", delay: 1, dur: 2 },
+    { fam: "beam", skin: "flame", delay: 1, dur: 2 },
+    { fam: "beam", skin: "rift", delay: 1, dur: 2 },
+    { fam: "mine", skin: "mine", delay: 0.45 },
+    { fam: "mine", skin: "frost", delay: 0.45 },
+    { fam: "mine", skin: "spore", delay: 0.45 },
+    { fam: "mine", skin: "riftmine", delay: 0.45 },
+  ],
+  trapFire: [
+    { skin: "plate" },
+    { skin: "crusher" },
+    { skin: "icespike" },
+    { skin: "geyser" },
+    { skin: "riftburst" },
+    { skin: "mine" },
+    { skin: "frost" },
+    { skin: "spore" },
+    { skin: "riftmine" },
+  ],
+  trapArm: [{ skin: "mine" }, { skin: "frost" }, { skin: "spore" }, { skin: "riftmine" }],
   hurt: [{}],
   kill: [{ type: "grunt", r: 0.5 }],
   kit: [{}],
@@ -211,7 +266,6 @@ const RL_SOUND_EVENTS = {
   wingShot: [{}],
 };
 const RL_SILENT_EVENTS = new Set([
-  "ping", // damage marker, "hit" already sounds
   "pop", // a bullet expiring: far too frequent
   "spark", // impact effect, covered by "dmg"
   "spawn", // one enemy appears: the "portal" group sound covers it
@@ -1305,6 +1359,304 @@ const musicChords = {
           this.tone(880, 0.2, "sine", 0.04, { at: 0.15 });
           break;
         default:
+          this.trapSound(id, arg);
+          break;
+      }
+    }
+    /* 3.0.0: a held tone (flat level between a soft attack and a short release, so that it ends cleanly), with
+     an optional vibrato (wob: {rate, depth Hz}) and tremolo (trem: {rate, depth 0..0.9}). Used by the trap
+     beams, which sound for as long as the beam lives. */
+    hum(freq, dur, wave, vol, opts = {}) {
+      let ctx = this.ctx,
+        start = ctx.currentTime + (opts.at || 0),
+        voice = this.claim(this.curPri, start, start + dur + 0.02);
+      if (!voice) return;
+      let osc = ctx.createOscillator(),
+        amp = ctx.createGain(),
+        attack = Math.min(opts.attack || 0.08, dur * 0.4),
+        release = Math.min(opts.release || 0.15, dur * 0.4);
+      voice.node = osc;
+      voice.amp = amp;
+      osc.type = wave;
+      osc.frequency.setValueAtTime(freq, start);
+      if (opts.to) osc.frequency.exponentialRampToValueAtTime(Math.max(20, opts.to), start + dur);
+      amp.gain.setValueAtTime(1e-4, start);
+      amp.gain.exponentialRampToValueAtTime(vol, start + attack);
+      amp.gain.setValueAtTime(vol, start + dur - release);
+      amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
+      let out = osc;
+      if (opts.lp) {
+        let filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.value = opts.lp;
+        out.connect(filter);
+        out = filter;
+      }
+      out.connect(amp);
+      amp.connect(this.sfx);
+      osc.start(start);
+      osc.stop(start + dur + 0.02);
+      for (let [mod, param, depth] of [
+        [opts.wob, osc.frequency, opts.wob && opts.wob.depth],
+        [opts.trem, amp.gain, opts.trem && vol * opts.trem.depth],
+      ]) {
+        if (!mod) continue;
+        let lfo = ctx.createOscillator(),
+          lfoGain = ctx.createGain();
+        lfo.frequency.value = mod.rate;
+        lfoGain.gain.value = depth;
+        lfo.connect(lfoGain);
+        lfoGain.connect(param);
+        lfo.start(start);
+        lfo.stop(start + dur + 0.02);
+      }
+    }
+    /* 3.0.0: the sounds of the grenade gadget and of the traps (see RL_TRAP_SOUND for the event mapping).
+     Every biome has its own timbre: the Yard plate zaps, the Works crusher slams metal, the Vault ice
+     cracks, the Marsh geyser gurgles, the Void sigil implodes. The warnings rise (charge) and end where
+     the strike begins; strikes are loud but never reach full scale; the beams hum until they end. */
+    trapSound(id, arg) {
+      let r = Math.random,
+        pitch = 1 + (r() - 0.5) * 0.06;
+      // the time of a warning (arg: seconds, or {delay, dur} for a beam), kept within what the tests render
+      let d = Math.max(0.3, Math.min(1.6, (arg && arg.delay) || arg || 1));
+      switch (id) {
+        // ---- grenade ----
+        case "grenadeThrow":
+          // pin clink (two metal ticks), the whoosh of the throw and a soft thump of the hand
+          if (this.gate(id, 0.1)) {
+            this.tone(3300, 0.05, "triangle", 0.05, { to: 3000 });
+            this.tone(4700, 0.04, "sine", 0.035, { at: 0.035 });
+            this.noise(0.03, 0.05, { type: "bandpass", f: 4200, q: 6, at: 0.01 });
+            this.noise(0.3, 0.12, { type: "bandpass", f: 500, to: 2600, q: 1.1, attack: 0.1, at: 0.07 });
+            this.tone(140, 0.12, "sine", 0.16, { to: 70, at: 0.07 });
+          }
+          break;
+        case "grenadeBlast":
+          // a punchy frag boom: a hard crack, a short mid body, a tight sub and a patter of debris
+          if (this.gate(id, 0.05)) {
+            this.noise(0.04, 0.22, { type: "highpass", f: 3500, attack: 0.001 });
+            this.noise(0.38, 0.3, { f: 2400, to: 220, attack: 0.001 });
+            this.tone(95 * pitch, 0.34, "sine", 0.38, { to: 34 });
+            this.tone(260, 0.1, "square", 0.05, { to: 90, lp: 1500 });
+            [0.1, 0.17, 0.22, 0.31, 0.38, 0.47].forEach((at, i) =>
+              this.noise(0.035, 0.05 - i * 0.004, { type: "bandpass", f: 2200 + ((i * 1300) % 3400), q: 5, at }),
+            );
+            this.tone(1500, 0.18, "sine", 0.025, { to: 700, at: 0.04 });
+          }
+          break;
+        case "gadgetReady":
+          if (this.gate(id, 0.2)) {
+            this.tone(1760, 0.07, "sine", 0.05);
+            this.tone(2640, 0.09, "sine", 0.03, { at: 0.05 });
+          }
+          break;
+        case "gadgetNo":
+          // the grenade is not ready: a dull double buzz
+          if (this.gate(id, 0.2)) {
+            this.tone(96, 0.1, "square", 0.07, { lp: 480 });
+            this.tone(88, 0.12, "square", 0.07, { lp: 420, at: 0.12 });
+          }
+          break;
+        case "resist":
+          // a hit the burst cap swallows: a quiet, dull metallic tink
+          if (this.gate(id, 0.08)) {
+            this.tone(1250 * pitch, 0.07, "triangle", 0.028, { lp: 3e3 });
+            this.noise(0.025, 0.03, { type: "bandpass", f: 2300, q: 8 });
+          }
+          break;
+        // ---- floor warnings: a rising charge in the biome's timbre ----
+        case "tcPlate":
+          if (this.gate(id, 0.12)) {
+            this.tone(260, d + 0.05, "square", 0.035, { to: 1500, lp: 3500, attack: d * 0.92 });
+            this.tone(130, d + 0.05, "sawtooth", 0.03, { to: 700, lp: 900, attack: d * 0.92 });
+            for (let i = 0; i < 7; i++)
+              this.tone(3e3 + r() * 3e3, 0.02, "square", 0.014, { at: d * (0.3 + (0.65 * i) / 7), lp: 7e3 });
+          }
+          break;
+        case "tcCrusher":
+          if (this.gate(id, 0.12)) {
+            this.tone(55, d + 0.05, "sawtooth", 0.09, { to: 130, lp: 420, attack: d * 0.9 });
+            this.noise(d, 0.05, { type: "bandpass", f: 300, to: 1100, q: 2, attack: d * 0.85 });
+            this.tone(180, 0.06, "square", 0.03, { lp: 900, at: 0.12 });
+            this.tone(210, 0.06, "square", 0.03, { lp: 900, at: d * 0.55 });
+          }
+          break;
+        case "tcIce":
+          if (this.gate(id, 0.12)) {
+            this.tone(1500, d + 0.05, "sine", 0.035, { to: 3200, attack: d * 0.92 });
+            this.tone(1512, d + 0.05, "sine", 0.03, { to: 3270, attack: d * 0.92 });
+            this.noise(d, 0.02, { type: "highpass", f: 6e3, attack: d * 0.8 });
+            for (let i = 0; i < 5; i++)
+              this.tone(4e3 + r() * 2500, 0.03, "sine", 0.02, { at: d * (0.25 + (0.7 * i) / 5) });
+          }
+          break;
+        case "tcGeyser":
+          if (this.gate(id, 0.12)) {
+            this.noise(d, 0.06, { f: 250, to: 900, attack: d * 0.9 });
+            for (let i = 0; i < 7; i++) {
+              let f = 180 + r() * 220;
+              this.tone(f, 0.07, "sine", 0.05, { to: f * 1.9, lp: 900, at: d * Math.pow(i / 7, 0.8) });
+            }
+          }
+          break;
+        case "tcRift":
+          // a reversed swell: the sound is drawn inwards
+          if (this.gate(id, 0.12)) {
+            this.noise(d, 0.06, { type: "bandpass", f: 200, to: 3e3, q: 1.5, attack: d * 0.95 });
+            this.tone(1e3, d + 0.05, "sine", 0.035, { to: 150, attack: d * 0.9 });
+            this.tone(1020, d + 0.05, "sine", 0.03, { to: 155, attack: d * 0.9 });
+          }
+          break;
+        // ---- beams: a charging hum while it warns, then a sustained sound until it ends ----
+        case "tbLaser":
+        case "tbFlame":
+        case "tbRift": {
+          if (!this.gate(id, 0.2)) break;
+          let on = Math.min(2.4, (arg && arg.dur) || 2);
+          if (id === "tbLaser") {
+            this.tone(400, d + 0.05, "sine", 0.04, { to: 1800, attack: d * 0.92 });
+            this.tone(800, d + 0.05, "square", 0.012, { to: 3600, lp: 5e3, attack: d * 0.92 });
+            this.hum(170, on, "sawtooth", 0.035, { at: d, lp: 650, attack: 0.05 });
+            this.hum(2400, on, "sine", 0.014, { at: d, trem: { rate: 38, depth: 0.7 }, attack: 0.05 });
+            this.noise(on, 0.02, { type: "highpass", f: 6500, hold: on - 0.3, attack: 0.05, at: d });
+          } else if (id === "tbFlame") {
+            this.noise(d, 0.07, { f: 300, to: 1300, attack: d * 0.9 });
+            this.tone(70, d + 0.05, "sawtooth", 0.05, { to: 140, lp: 400, attack: d * 0.9 });
+            this.noise(on, 0.12, { f: 1000, q: 0.6, hold: on - 0.35, attack: 0.08, at: d });
+            this.hum(62, on, "sawtooth", 0.05, { at: d, lp: 300, trem: { rate: 9, depth: 0.5 } });
+          } else {
+            this.tone(220, d + 0.05, "sine", 0.04, { to: 440, attack: d * 0.92 });
+            this.tone(224, d + 0.05, "sine", 0.035, { to: 450, attack: d * 0.92 });
+            this.noise(d, 0.03, { type: "highpass", f: 4e3, attack: d * 0.9 });
+            this.hum(150, on, "sine", 0.05, { at: d, wob: { rate: 5, depth: 14 } });
+            this.hum(156, on, "sine", 0.04, { at: d, wob: { rate: 6.5, depth: 18 } });
+            this.hum(620, on, "triangle", 0.018, { at: d, wob: { rate: 7, depth: 90 }, lp: 2e3 });
+            this.noise(on, 0.02, { type: "highpass", f: 5e3, hold: on - 0.3, attack: 0.1, at: d });
+          }
+          break;
+        }
+        // ---- mines: arming and the fuse (beeps that speed up) ----
+        case "tArm": {
+          // the mine is live: two short beeps, the pitch and timbre of its skin
+          if (!this.gate(id, 0.15)) break;
+          let s = RL_MINE_BEEP[arg] || RL_MINE_BEEP.mine;
+          this.tone(s.f, 0.06, s.wave, 0.03, { lp: s.lp });
+          this.tone(s.f * 1.5, 0.08, s.wave, 0.03, { at: 0.09, lp: s.lp });
+          break;
+        }
+        case "tmMine":
+        case "tmFrost":
+        case "tmSpore":
+        case "tmRift": {
+          // fuse: five beeps whose gaps shrink and whose pitch rises over the fuse time
+          if (!this.gate(id, 0.15)) break;
+          let s = RL_MINE_BEEP[{ tmMine: "mine", tmFrost: "frost", tmSpore: "spore", tmRift: "riftmine" }[id]],
+            k = d / 0.45;
+          [0, 0.14, 0.25, 0.33, 0.39].forEach((at, i) => {
+            let f = s.f * (1 + i * 0.12);
+            this.tone(f, 0.05 * Math.max(0.6, k), s.wave, 0.04, {
+              at: at * k,
+              lp: s.lp,
+              to: s.to ? f * s.to : undefined,
+            });
+          });
+          break;
+        }
+        // ---- strikes ----
+        case "tsPlate":
+          // electric zap and a dull thud
+          if (this.gate(id, 0.05)) {
+            this.noise(0.12, 0.2, { type: "highpass", f: 4e3, attack: 0.001 });
+            this.tone(2800, 0.16, "square", 0.07, { to: 220, lp: 5e3 });
+            this.tone(88, 0.3, "sine", 0.4, { to: 38 });
+            this.tone(120, 0.22, "sawtooth", 0.07, { lp: 800, at: 0.02 });
+            for (let i = 0; i < 4; i++)
+              this.tone(2e3 + r() * 4e3, 0.02, "square", 0.025, { at: 0.04 + i * 0.045, lp: 7e3 });
+          }
+          break;
+        case "tsCrusher":
+          // piston slam: a heavy low hit, a short rubble roar and a ringing metal tail
+          if (this.gate(id, 0.05)) {
+            this.tone(62, 0.55, "sine", 0.5, { to: 26 });
+            this.noise(0.35, 0.28, { f: 900, to: 100, attack: 0.002 });
+            this.tone(170, 0.12, "square", 0.08, { to: 80, lp: 700 });
+            [520, 783, 1247].forEach((f, i) => this.tone(f, 0.75 - i * 0.12, "sine", 0.045 - i * 0.01, { at: 0.02 }));
+          }
+          break;
+        case "tsIce":
+          // glass crack, then the shatter: a cloud of tiny high ticks
+          if (this.gate(id, 0.05)) {
+            this.noise(0.05, 0.14, { type: "highpass", f: 5e3, attack: 0.001 });
+            this.tone(3200, 0.12, "sine", 0.08, { to: 1800 });
+            this.tone(110, 0.2, "sine", 0.2, { to: 55 });
+            for (let i = 0; i < 12; i++)
+              this.tone(2600 + r() * 4800, 0.045, "sine", 0.03 * (1 - i / 16), { at: 0.06 + i * 0.035 + r() * 0.02 });
+            this.noise(0.45, 0.03, { type: "highpass", f: 7e3, at: 0.08 });
+          }
+          break;
+        case "tsGeyser":
+          // a burst of water and mud, then wet gurgles
+          if (this.gate(id, 0.05)) {
+            this.noise(0.4, 0.2, { type: "bandpass", f: 500, to: 2200, q: 0.9, attack: 0.02 });
+            this.tone(140, 0.28, "sine", 0.3, { to: 70 });
+            for (let i = 0; i < 5; i++) {
+              let f = 160 + r() * 140;
+              this.tone(f, 0.09, "sine", 0.06, { to: f * 2.2, lp: 1000, at: 0.14 + i * 0.09 });
+              this.noise(0.07, 0.03, { type: "bandpass", f: 900, q: 3, at: 0.14 + i * 0.09 });
+            }
+          }
+          break;
+        case "tsRift":
+          // implosion: a reversed swell collapses into a deep thud
+          if (this.gate(id, 0.05)) {
+            this.noise(0.3, 0.12, { f: 200, to: 4e3, attack: 0.28 });
+            this.tone(900, 0.3, "sine", 0.05, { to: 120, attack: 0.27 });
+            this.tone(105, 0.55, "sine", 0.45, { to: 28, at: 0.3 });
+            this.noise(0.25, 0.2, { f: 1500, to: 120, attack: 0.002, at: 0.3 });
+            this.tone(300, 0.3, "sawtooth", 0.04, { to: 50, lp: 800, at: 0.3, detune: 30 });
+          }
+          break;
+        case "tsMine":
+          // a sharp mine blast: a crack, a hard body and a low rumble (no debris patter: that is the grenade)
+          if (this.gate(id, 0.05)) {
+            this.noise(0.03, 0.26, { type: "highpass", f: 2e3, attack: 0.001 });
+            this.tone(950, 0.12, "square", 0.05, { to: 280, lp: 3e3 });
+            this.noise(0.55, 0.3, { f: 1100, to: 90, attack: 0.001 });
+            this.tone(75, 0.5, "sine", 0.42, { to: 30 });
+            this.tone(200, 0.2, "sawtooth", 0.07, { to: 60, lp: 900 });
+          }
+          break;
+        case "tsFrost":
+          // a cold blast: a low boom that cracks into a bright shatter and a fading whoosh of frost
+          if (this.gate(id, 0.05)) {
+            this.tone(100, 0.35, "sine", 0.34, { to: 40 });
+            this.noise(0.04, 0.16, { type: "highpass", f: 6e3, attack: 0.001 });
+            this.noise(0.6, 0.1, { type: "bandpass", f: 5e3, to: 1500, q: 1, attack: 0.03 });
+            [0.05, 0.1, 0.16, 0.22, 0.3].forEach((at, i) =>
+              this.tone(3e3 + i * 700, 0.1, "triangle", 0.03, { at, to: 2000 + i * 300 }),
+            );
+          }
+          break;
+        case "tsSpore":
+          // a wet pop and a hissing spray of spores
+          if (this.gate(id, 0.05)) {
+            this.tone(320, 0.14, "sine", 0.3, { to: 70 });
+            this.noise(0.12, 0.2, { type: "bandpass", f: 700, to: 300, q: 1.5, attack: 0.002 });
+            this.noise(0.7, 0.09, { type: "bandpass", f: 3200, to: 1800, q: 0.8, attack: 0.05 });
+            this.tone(200, 0.1, "sine", 0.07, { to: 450, at: 0.2 });
+          }
+          break;
+        case "tsRiftMine":
+          // a short implosion: a quick reversed swell, a deep thump and a detuned fall
+          if (this.gate(id, 0.05)) {
+            this.noise(0.12, 0.1, { f: 400, to: 3500, attack: 0.11 });
+            this.tone(150, 0.4, "sine", 0.4, { to: 26, at: 0.12 });
+            this.tone(500, 0.35, "sawtooth", 0.06, { to: 55, lp: 1200, at: 0.12 });
+            this.tone(510, 0.35, "sawtooth", 0.05, { to: 58, lp: 1200, at: 0.12, detune: 40 });
+          }
+          break;
+        default:
           break;
       }
     }
@@ -1494,7 +1846,15 @@ const musicChords = {
             }
             break;
           case "boom":
-            this.play(ev.kind === "payload" || ev.kind === "pop" ? "smallboom" : "boom");
+            // 3.0.0: the grenade and the traps have blasts of their own (grenadeBlast, trapFire)
+            if (ev.kind === "trap") break;
+            this.play(
+              ev.kind === "grenade"
+                ? "grenadeBlast"
+                : ev.kind === "payload" || ev.kind === "pop"
+                  ? "smallboom"
+                  : "boom",
+            );
             break;
           case "nova":
             this.play("nova");
@@ -1577,6 +1937,32 @@ const musicChords = {
             break;
           case "maxed":
             this.play("heal");
+            break;
+          case "grenade":
+            this.play("grenadeThrow");
+            break;
+          case "gadgetReady":
+            this.play("gadgetReady");
+            break;
+          case "gadgetDeny":
+            this.play("gadgetNo");
+            break;
+          case "ping":
+            // the old ping (shield phase) stays silent; a hit the burst cap swallows tinks
+            if (ev.resist) this.play("resist");
+            break;
+          case "trapWarn": {
+            let voice = RL_TRAP_SOUND[ev.skin];
+            if (voice) this.play(voice.warn, ev.fam === "beam" ? { delay: ev.delay, dur: ev.dur } : ev.delay);
+            break;
+          }
+          case "trapFire": {
+            let voice = RL_TRAP_SOUND[ev.skin];
+            if (voice && voice.fire) this.play(voice.fire);
+            break;
+          }
+          case "trapArm":
+            this.play("tArm", ev.skin);
             break;
           case "block":
             this.play("block");
@@ -2296,6 +2682,13 @@ function rlSoundCatalog() {
   ]);
   ids(["hatch"], 0);
   ids(["hatch"], 1);
+  // 3.0.0: grenade, resisted hits and traps
+  ids(["grenadeThrow", "grenadeBlast", "gadgetReady", "gadgetNo", "resist"]);
+  ids(["tcPlate", "tcCrusher", "tcIce", "tcGeyser", "tcRift"], 1);
+  for (const id of ["tbLaser", "tbFlame", "tbRift"]) add(id, { id, arg: { delay: 0.7, dur: 1.2 } });
+  ids(["tmMine", "tmFrost", "tmSpore", "tmRift"], 0.45);
+  for (const skin of ["mine", "frost", "spore", "riftmine"]) ids(["tArm"], skin);
+  ids(["tsPlate", "tsCrusher", "tsIce", "tsGeyser", "tsRift", "tsMine", "tsFrost", "tsSpore", "tsRiftMine"]);
   for (const boss of Object.keys(BOSS_ROOT)) {
     ids(["bossIntro"], boss);
     for (const id of ["bWind", "bRing", "bSlam", "bSummon", "bNova", "bLance", "bStoke", "bRain", "enrage", "bossDown"])
@@ -2323,6 +2716,7 @@ export {
   RL_BOSS_ATK,
   RL_SOUND_EVENTS,
   RL_SILENT_EVENTS,
+  RL_TRAP_SOUND,
   MAX_VOICES,
   MUSIC_DUCK,
   BOSS_SOUND,

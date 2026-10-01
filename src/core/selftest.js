@@ -16,6 +16,7 @@ import {
   RL_BOSS_ATK,
   RL_SOUND_EVENTS,
   RL_SILENT_EVENTS,
+  RL_TRAP_SOUND,
   MAX_VOICES,
   MUSIC_DUCK,
   BOSS_SOUND,
@@ -41,6 +42,8 @@ import { waveEvents, planWave, set_RL_BIOME_MIX_CUR, RL_BIOME_EVENT, rlEnemyFrom
 import { World } from "./world.js";
 import { threatMods, workshopModules, modulesById, RL_RETIRED_MODULES } from "../data/progression.js";
 import { upgradeList, upgradesById, RL_RETIRED_UPGRADES } from "../data/upgrades.js";
+import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
+import { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount } from "./traps.js";
 import { hitsObstacle, buildLayout, isConnected, RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
 import { computeStats } from "./stats.js";
 import {
@@ -441,6 +444,7 @@ function rlSelfTest() {
   result = selfTestV270Sound(result);
   result = selfTestV280(result);
   result = selfTestV291(result);
+  result = selfTestV300(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -1052,7 +1056,7 @@ function selfTestV246(result) {
 function selfTestV250A(result) {
   const fail = [],
     NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
-  if (upgradeList.length !== 52) fail.push("count:" + upgradeList.length);
+  if (upgradeList.length !== 55) fail.push("count:" + upgradeList.length);
   for (const [id, retired] of Object.entries(RL_RETIRED_UPGRADES)) {
     if (upgradesById[id]) fail.push("still-offered:" + id);
     const target = upgradesById[retired.to];
@@ -1675,6 +1679,18 @@ function selfTestV270Sound(result) {
       if (!known.has(id) && id !== "evolve") fail.push("duck-unknown-sound:" + id);
       if (!(depth > 0 && depth <= 0.15)) fail.push(`duck-depth:${id}:${depth}`);
     }
+    // 3.0.0: every trap skin warns with a sound of its own, every strike (floor, mine) has one, none is shared
+    const trapVoices = [];
+    for (const [skin, def] of Object.entries(TRAP_SKINS)) {
+      const voice = RL_TRAP_SOUND[skin];
+      if (!voice || !known.has(voice.warn)) fail.push("trap-warn-sound:" + skin);
+      else trapVoices.push(voice.warn);
+      if (def.fam !== "beam" && !(voice && known.has(voice.fire))) fail.push("trap-fire-sound:" + skin);
+      else if (voice && voice.fire) trapVoices.push(voice.fire);
+    }
+    if (new Set(trapVoices).size !== trapVoices.length) fail.push("trap-sounds-shared");
+    for (const id of ["grenadeThrow", "grenadeBlast", "gadgetReady", "gadgetNo", "resist"])
+      if (!known.has(id)) fail.push("no-sound:" + id);
     for (const table of [RL_CHARGE_VOICE, RL_DASH_VOICE, RL_BOSS_ATK])
       for (const id of Object.values(table)) if (id && !known.has(id)) fail.push("voice-missing-sound:" + id);
     for (const id of bossOrder) {
@@ -1955,6 +1971,258 @@ function selfTestV291(result) {
     fail.push("maxed-exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v291: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.0.0: burst cap, Endless hull curve ---- */
+function selfTestV300(result) {
+  const fail = [];
+  try {
+    const world = new World({ seed: 0x300, weapon: "pulse", threat: 0, ws: {} });
+    const target = (wave, hp = 1000, type = "brute") => {
+      world.startWave(wave);
+      world.state = "fight";
+      world.god = true;
+      for (const enemy of [...world.enemies]) enemy.dead = true;
+      world.enemies.length = 0;
+      world.plan = [];
+      world.planIdx = 0;
+      world.bossPending = null;
+      world.championPending = null;
+      const enemy = world.spawnEnemy(type, world.player.x + 6, world.player.y);
+      enemy.spawnT = 0;
+      enemy.maxHp = enemy.hp = hp;
+      return enemy;
+    };
+    // up to wave 40 nothing is capped: one big hit kills
+    let enemy = target(20);
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    if (!enemy.dead) fail.push("capped-too-early");
+    // wave 100: at most burstFraction(100) of the hull within the window, however many hits land
+    const f100 = burstFraction(100);
+    enemy = target(100);
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    const lost = 1000 - enemy.hp;
+    if (enemy.dead || lost > 1000 * f100 + 1e-6 || lost < 1000 * f100 - 1e-6)
+      fail.push(`burst-cap:${lost} want ${1000 * f100}`);
+    // a ping marks the resisted hits
+    const before = world.fx.length;
+    world.hurtEnemy(enemy, 50, 0, 0, 0, false, "weapon");
+    if (!world.fx.slice(before).some((ev) => ev.k === "ping" && ev.resist)) fail.push("resist-ping");
+    // after the window the next burst lands again
+    world.time += BURST_WINDOW + 0.05;
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    if (!(1000 - enemy.hp > lost + 1)) fail.push("window-never-reopens");
+    // the Nova and bosses are exempt
+    enemy = target(100);
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "nova");
+    if (!enemy.dead) fail.push("nova-capped");
+    if (!(burstFraction(40) === 1 && burstFraction(400) === 0.12 && burstFraction(70) < 1)) fail.push("fraction-curve");
+    // Endless hull curve
+    if (endlessHpBoost(30) !== 1 || !(endlessHpBoost(150) > 4 && endlessHpBoost(150) < 5)) fail.push("hp-boost");
+    world.startWave(150);
+    if (!(world.hpMul > 142 * 4)) fail.push("hpMul-not-boosted:" + world.hpMul);
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  // the Grenade gadget
+  try {
+    const world = new World({ seed: 0x301, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(2);
+    world.state = "fight";
+    world.god = true;
+    world.hold = false;
+    world.arena.obs = [];
+    const player = world.player,
+      reset = () => {
+        for (const enemy of [...world.enemies]) enemy.dead = true;
+        world.enemies.length = 0;
+        world.plan = [];
+        world.planIdx = 0;
+        world.bossPending = null;
+        world.championPending = null;
+        world.grenades = [];
+        player.gadgetN = world.stats.gadgetMax;
+        player.gadgetT = 0;
+        // a far, tough dummy keeps the wave (and so the fight state) alive
+        world.state = "fight";
+        world.stateT = 0;
+        const dummy = world.spawnEnemy("turret", player.x, player.y - 17);
+        dummy.spawnT = 0;
+        dummy.maxHp = dummy.hp = 1e9;
+      },
+      spawn = (dx, dy, hp = 1e6) => {
+        const enemy = world.spawnEnemy("brute", player.x + dx, player.y + dy);
+        enemy.spawnT = 0;
+        enemy.maxHp = enemy.hp = hp;
+        return enemy;
+      },
+      run = (seconds, input = {}) => {
+        for (let i = 0; i < seconds * 60; i++)
+          world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false, ...(i === 0 ? input : {}) });
+      };
+    if (world.stats.gadgetMax !== 2 || player.gadgetN !== 2) fail.push("grenade-charges:" + player.gadgetN);
+    // thrown at the crowd, not at the lone enemy that is closer
+    reset();
+    const lone = spawn(-4, 0),
+      crowd = [spawn(8, 0), spawn(9.2, 0.5), spawn(8.4, -1)];
+    const before = world.fx.length;
+    world.useGadget({});
+    const throwEv = world.fx.slice(before).find((ev) => ev.k === "grenade");
+    if (!throwEv || Math.hypot(throwEv.tx - 8.5 - player.x, throwEv.ty - player.y) > 2.5)
+      fail.push("grenade-aim-crowd");
+    if (player.gadgetN !== 1) fail.push("grenade-charge-not-used");
+    run(1.2);
+    if (!crowd.every((enemy) => enemy.hp < enemy.maxHp)) fail.push("grenade-no-damage");
+    if (lone.hp < lone.maxHp - 1e-6 === true) fail.push("grenade-hit-the-lone-enemy");
+    if (!crowd.some((enemy) => enemy.slowT > 0)) fail.push("grenade-no-slow");
+    // recharge: one charge after gadgetCd, no throw without a charge
+    reset();
+    world.useGadget({});
+    world.useGadget({});
+    const denyBefore = world.fx.length;
+    if (world.useGadget({}) !== false || !world.fx.slice(denyBefore).some((ev) => ev.k === "gadgetDeny"))
+      fail.push("grenade-deny");
+    run(world.stats.gadgetCd + 0.3);
+    if (player.gadgetN < 1) fail.push("grenade-no-recharge:" + player.gadgetN);
+    // never into a wall: a wall 4 m ahead stops the throw in front of it
+    reset();
+    world.arena.obs = [{ x: player.x + 4, y: player.y, w: 0.4, h: 6, t: "b" }];
+    const wallBefore = world.fx.length;
+    world.useGadget({ aim: true, ax: 1, ay: 0 });
+    const wallEv = world.fx.slice(wallBefore).find((ev) => ev.k === "grenade");
+    if (!wallEv || wallEv.tx > player.x + 4 - 0.3) fail.push("grenade-through-wall");
+    world.arena.obs = [];
+    // Incendiary Mix sets survivors on fire; the cards change the numbers
+    reset();
+    world.up = { gfire: 1, gcells: 2, gblast: 2 };
+    world.stats = computeStats(world.weapon, world.up, world.ws);
+    if (world.stats.gadgetMax !== 4 || !(world.stats.gadgetR > 3.4 * 1.29) || !(world.stats.gadgetDmg > 1.59))
+      fail.push("grenade-cards");
+    player.gadgetN = world.stats.gadgetMax;
+    const victim = spawn(6, 0);
+    world.useGadget({ aim: true, ax: 1, ay: 0 });
+    run(1.4);
+    if (!(victim.burnT > 0)) fail.push("grenade-no-burn");
+    // nothing is thrown outside a fight
+    reset();
+    world.state = "cleared";
+    if (world.useGadget({}) !== false) fail.push("grenade-outside-fight");
+    world.state = "fight";
+  } catch (err) {
+    fail.push("grenade-exception:" + (err && err.message));
+  }
+  // traps: which wave, which family, which skin; placement; behaviour of each family
+  try {
+    const world = new World({ seed: 0x302, weapon: "pulse", threat: 0, ws: {} });
+    const seen = {};
+    for (let wave = 1; wave <= 60; wave++) {
+      world.startWave(wave);
+      const traps = world.traps,
+        biome = world.arena.biome.id,
+        boss = !!world.bossFor(wave);
+      if ((wave < 6 || boss) && traps.length) fail.push(`traps-where-none-belong:${wave}`);
+      for (const trap of traps) {
+        const skin = TRAP_SKINS[trap.skin];
+        if (!skin || skin.fam !== trap.fam || BIOME_TRAPS[biome][trap.fam] !== trap.skin)
+          fail.push(`trap-skin:${wave}:${trap.skin}`);
+        if (wave < TRAP_FROM[trap.fam]) fail.push(`trap-too-early:${wave}:${trap.fam}`);
+        if (Math.hypot(trap.x, trap.y - 2) < 6.4) fail.push(`trap-on-start:${wave}`);
+        if (world.arena.blocked(trap.x, trap.y, 0.3)) fail.push(`trap-in-wall:${wave}`);
+        (seen[biome] ||= new Set()).add(trap.skin);
+      }
+      for (let i = 0; i < traps.length; i++)
+        for (let j = i + 1; j < traps.length; j++)
+          if (Math.hypot(traps[i].x - traps[j].x, traps[i].y - traps[j].y) < 4.4) fail.push(`traps-too-close:${wave}`);
+    }
+    for (const [biome, skins] of Object.entries(BIOME_TRAPS))
+      for (const skin of Object.values(skins))
+        if (!seen[biome] || !seen[biome].has(skin)) fail.push(`skin-never-used:${biome}:${skin}`);
+    if (
+      !(
+        trapCount("floor", 30) > trapCount("floor", 12) &&
+        trapCount("mine", 30) > trapCount("mine", 12) &&
+        trapCount("floor", 6) === 1 &&
+        trapCount("beam", 8) === 0
+      )
+    )
+      fail.push("trap-counts");
+    // same seed and wave: the same traps
+    world.startWave(23);
+    const first = JSON.stringify(world.traps.map((trap) => [trap.skin, trap.x.toFixed(3), trap.y.toFixed(3)]));
+    world.startWave(23);
+    if (JSON.stringify(world.traps.map((trap) => [trap.skin, trap.x.toFixed(3), trap.y.toFixed(3)])) !== first)
+      fail.push("traps-not-deterministic");
+    // behaviour: every family warns first, then hurts the player and the enemies near it
+    const arm = (spec) => {
+      world.startWave(8);
+      world.state = "fight";
+      world.god = false;
+      world.hold = false;
+      for (const enemy of [...world.enemies]) enemy.dead = true;
+      world.enemies.length = 0;
+      world.markers = [];
+      world.plan = [{ gap: 99, members: [{ type: "grunt", elite: false }] }];
+      world.planIdx = 0;
+      world.groupT = 99;
+      world.bossPending = null;
+      world.arena.obs = [];
+      world.player.hp = world.stats.maxHp;
+      world.player.iT = 0;
+      world.player.slowT = 0;
+      world.traps = [{ id: 1, t: 0, wait: 0, hunt: false, a: 0, dir: 1, ...spec }];
+      // beside the trap, inside its radius but out of touching distance of the player (even a touch with no
+      // damage would start the player's protection time)
+      const foe = world.spawnEnemy("brute", spec.x + 2.0, spec.y);
+      foe.spawnT = 0;
+      foe.maxHp = foe.hp = 1000;
+      // the dummy must not hurt the player itself, or the trap's damage cannot be told apart
+      foe.dmg = 0;
+      foe.speed = 0;
+      const events = [];
+      let seenEv = world.fx.length;
+      for (let i = 0; i < 60 * 4; i++) {
+        world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false });
+        for (; seenEv < world.fx.length; seenEv++) events.push(world.fx[seenEv].k);
+        if (world.fx.length > 3000) world.fx.length = seenEv = 0;
+      }
+      return { events, foe, trap: world.traps[0], hp: world.player.hp };
+    };
+    const at = (dx = 0, dy = 0) => ({ x: world.player.x + dx, y: world.player.y + dy });
+    world.startWave(8);
+    const base = at();
+    let r = arm({ fam: "floor", skin: "crusher", st: "idle", r: 2.6, ...base });
+    if (!(r.hp < world.stats.maxHp))
+      fail.push(
+        `floor-trap-no-damage:${r.hp}:${[...new Set(r.events)].filter((k) => !/dmg|spark|pop|shot/.test(k)).join()}`,
+      );
+    if (!(r.foe.hp < 1000 * (1 - 0.14) + 1)) fail.push("floor-trap-spares-enemies:" + r.foe.hp);
+    if (r.events.indexOf("trapWarn") < 0 || r.events.indexOf("trapFire") < r.events.indexOf("trapWarn"))
+      fail.push("floor-trap-no-warning");
+    r = arm({ fam: "floor", skin: "icespike", st: "idle", r: 2.2, ...base });
+    if (!(r.hp < world.stats.maxHp) || !(world.player.slowT > 0 || r.events.includes("chill")))
+      fail.push("icespike-no-chill");
+    const acidBefore = world.arena.acid.length;
+    r = arm({ fam: "floor", skin: "geyser", st: "idle", r: 2.0, ...base });
+    if (world.arena.acid.length <= 0 || world.arena.acid.length < acidBefore) fail.push("geyser-no-acid");
+    // the beam turns 0.5 rad/s from the moment it warns: it starts 0.55 rad behind the player and sweeps over
+    // him when it goes live
+    r = arm({ fam: "beam", skin: "laser", st: "idle", r: 0.8, ...at(-6, 0), a: -0.55 });
+    if (!(r.hp < world.stats.maxHp) || r.events.indexOf("trapWarn") < 0)
+      fail.push(
+        `beam-trap-no-damage:${r.hp}:${[...new Set(r.events)].filter((k) => !/dmg|spark|pop|shot/.test(k)).join()}`,
+      );
+    r = arm({ fam: "mine", skin: "mine", st: "unarmed", r: 2.6, ...at(0.6, 0) });
+    if (!(r.hp < world.stats.maxHp) || r.trap.st === "armed" || !r.events.includes("trapArm"))
+      fail.push("mine-did-not-go-off");
+    if (!(r.foe.hp < 1000 * (1 - 0.18) + 1)) fail.push("mine-spares-enemies:" + r.foe.hp);
+    // a trap is not softened by the Armor Core
+    world.up = { ...world.up };
+  } catch (err) {
+    fail.push("traps-exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v300: { ok: fail.length === 0, fail } };
 }
 
 // the "Deep test" button of the diagnostics dialog (rlRunHealth({deep:true})) runs this

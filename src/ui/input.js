@@ -16,7 +16,7 @@ const Input = class {
     this.aim = newStick();
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, down: false, active: false, t: 0 };
-    this.pending = { dash: false, nova: false };
+    this.pending = { dash: false, nova: false, gadget: false };
     this.swap = false;
     this.R = 56;
     this.enabled = true;
@@ -210,6 +210,11 @@ const Input = class {
         this.pending.nova = true;
         ev.preventDefault();
       }
+      // 3.0.0: G throws a grenade
+      if (down && !ev.repeat && name === "g") {
+        this.pending.gadget = true;
+        ev.preventDefault();
+      }
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(name)) {
         if (down) {
           this.keys.add(name);
@@ -247,6 +252,7 @@ const Input = class {
     this.mouse.active = false;
     this.pending.dash = false;
     this.pending.nova = false;
+    this.pending.gadget = false;
   }
   // 2.3.6: for the camera pan to a new boss. It dropped every input, so a finger held on the
   // move side did nothing after the pan until it was lifted, and held keys stopped. Now only
@@ -254,6 +260,7 @@ const Input = class {
   settle() {
     this.pending.dash = false;
     this.pending.nova = false;
+    this.pending.gadget = false;
   }
   sample(world, settings) {
     let radius = (this.R = clamp(Math.min(window.innerWidth, window.innerHeight) * 0.14, 44, 72)),
@@ -334,9 +341,11 @@ const Input = class {
       assist: settings.assist !== false,
       dash: this.pending.dash,
       nova: this.pending.nova,
+      gadget: this.pending.gadget,
     };
     this.pending.dash = false;
     this.pending.nova = false;
+    this.pending.gadget = false;
     return out;
   }
 };
