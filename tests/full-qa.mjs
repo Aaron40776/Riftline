@@ -1813,7 +1813,17 @@ await section("qol", async (L) => {
     return { n: w.player.gadgetN, max: w.stats.gadgetMax };
   });
   await P.page.keyboard.press("g");
-  await P.page.waitForTimeout(400);
+  // wait for the throw to be processed (in software rendering a frame takes about 0.3 s)
+  await P.page
+    .waitForFunction(
+      () => {
+        const w = window.__riftTest.game.world;
+        return w.player.gadgetN < w.stats.gadgetMax;
+      },
+      null,
+      { timeout: 5000 },
+    )
+    .catch(() => {});
   const gr2 = await P.ev(() => {
     const w = window.__riftTest.game.world;
     return {
@@ -1835,12 +1845,19 @@ await section("qol", async (L) => {
     w.player.gadgetT = 3;
   });
   await P.page.keyboard.press("g");
-  await P.page.waitForTimeout(300);
-  const dn = await P.ev(() => ({
-    deny: document.getElementById("gadgetBtn").classList.contains("deny"),
-    empty: document.getElementById("gadgetBtn").classList.contains("empty"),
-    ring: document.getElementById("gadgetBtn").style.getPropertyValue("--q"),
-  }));
+  // the flash lasts 0.28 s: wait for it to show up instead of sleeping (a slow frame loop made a fixed wait flaky)
+  const sawDeny = await P.page
+    .waitForFunction(() => document.getElementById("gadgetBtn").classList.contains("deny"), null, { timeout: 3000 })
+    .then(() => true)
+    .catch(() => false);
+  const dn = await P.ev(
+    (deny) => ({
+      deny,
+      empty: document.getElementById("gadgetBtn").classList.contains("empty"),
+      ring: document.getElementById("gadgetBtn").style.getPropertyValue("--q"),
+    }),
+    sawDeny,
+  );
   check(
     L,
     "G without a charge: the button flashes deny, shows empty and a recharge ring",
@@ -1852,7 +1869,9 @@ await section("qol", async (L) => {
     w.player.gadgetN = w.stats.gadgetMax;
     w.emit("trapWarn", { id: 1, fam: "floor", skin: "plate", x: 0, y: 0, r: 2, delay: 1, dur: 1 });
   });
-  await P.page.waitForTimeout(300);
+  await P.page
+    .waitForFunction(() => document.querySelectorAll("#toasts .toast").length > 0, null, { timeout: 5000 })
+    .catch(() => {});
   const tip = await P.ev(() => [...document.querySelectorAll("#toasts .toast")].map((t) => t.textContent));
   check(
     L,

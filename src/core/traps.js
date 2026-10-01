@@ -133,7 +133,12 @@ function trapStrike(world, trap, skin, radius) {
     );
     if (skin.special === "chill") enemy.slowT = Math.max(enemy.slowT, 1.6);
   });
-  if (skin.special === "acid") world.arena.acid.push({ x: trap.x, y: trap.y, r: radius * 0.85, life: 7 });
+  // the acid puddle stays off a spot where an enemy is about to appear (spawns keep away from hazards)
+  if (
+    skin.special === "acid" &&
+    !world.markers.some((marker) => Math.hypot(marker.x - trap.x, marker.y - trap.y) < radius * 0.85 + 0.8)
+  )
+    world.arena.acid.push({ x: trap.x, y: trap.y, r: radius * 0.85, life: 7 });
   world.emit("boom", { x: trap.x, y: trap.y, r: radius, kind: "trap" });
   world.emit("trapFire", { id: trap.id, fam: trap.fam, skin: trap.skin, x: trap.x, y: trap.y, r: radius });
 }
