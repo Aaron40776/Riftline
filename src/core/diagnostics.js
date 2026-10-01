@@ -470,6 +470,7 @@ const RL_EVENT_KINDS = new Set([
   "hurt",
   "kill",
   "lob",
+  "maxed",
   "mend",
   "mine",
   "nova",

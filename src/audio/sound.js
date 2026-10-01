@@ -183,6 +183,7 @@ const RL_SOUND_EVENTS = {
   guardUp: [{}],
   hatch: [{}, { big: true }],
   heal: [{}],
+  maxed: [{ heal: 30, shards: 12 }],
   hurt: [{}],
   kill: [{ type: "grunt", r: 0.5 }],
   kit: [{}],
@@ -543,6 +544,9 @@ const musicChords = {
       if (!voice) return;
       let src = ctx.createBufferSource();
       src.buffer = this.noiseBuf;
+      // 2.9.1: the 1 s buffer is looped: a burst longer than what is left of it (it starts up to 0.5 s in)
+      // used to be cut off; white noise has no audible seam
+      src.loop = true;
       src.playbackRate.value = opts.rate || 1;
       let filter = ctx.createBiquadFilter();
       filter.type = opts.type || "lowpass";
@@ -556,6 +560,9 @@ const musicChords = {
       voice.amp = amp;
       amp.gain.setValueAtTime(1e-4, start);
       amp.gain.exponentialRampToValueAtTime(vol, start + (opts.attack || 0.003));
+      // 2.9.2: opts.hold keeps the level flat for that long after the attack (sustained sounds such as the
+      // flame roar; the plain exponential decay drops 50 dB in a third of a second and pumps when repeated)
+      if (opts.hold) amp.gain.setValueAtTime(vol, start + (opts.attack || 0.003) + opts.hold);
       amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
       src.connect(filter);
       filter.connect(amp);
@@ -650,10 +657,31 @@ const musicChords = {
           }
           break;
         case "flame":
-          // flame jet: a soft low roar of filtered noise with random crackle pops, no pitched part at all
-          if (this.gate(id, 0.11)) {
-            this.noise(0.22, 0.1, { f: 1200, to: 400, q: 0.5, rate: 0.5 * pitch });
-            this.noise(0.04, 0.05, { type: "highpass", f: 5e3, at: Math.random() * 0.12 });
+          // flame jet: one continuous roar. The weapon fires 15 times a second, so every shot starts a
+          // long, soft burst of filtered noise (slow 100 ms fade-in, long tail) that overlaps its
+          // neighbours; the old 3 ms attacks made a ticking and the pops were clicks. A low rumble with
+          // an airy hiss on every other shot and now and then a soft crackle, no pitched part at all.
+          // About three bursts overlap (voice budget), the gate keeps the rate at 7 per second.
+          if (this.gate(id, 0.14)) {
+            this.flameN = (this.flameN || 0) + 1;
+            this.noise(0.5, 0.045, { f: 1500, to: 800, q: 0.4, rate: 0.6 * pitch, attack: 0.08, hold: 0.22 });
+            if (this.flameN % 2 === 0)
+              this.noise(0.45, 0.014, {
+                type: "bandpass",
+                f: 2400 * pitch,
+                to: 1800,
+                q: 0.5,
+                attack: 0.09,
+                hold: 0.2,
+              });
+            if (Math.random() < 0.35)
+              this.noise(0.06, 0.018, {
+                type: "bandpass",
+                f: 3200 + Math.random() * 1800,
+                q: 1.2,
+                attack: 0.012,
+                at: Math.random() * 0.25,
+              });
           }
           break;
         case "block":
@@ -706,8 +734,13 @@ const musicChords = {
           this.noise(0.8, 0.06, { type: "highpass", f: 5e3, attack: 0.2 });
           break;
         case "hit":
-          if (this.gate(id, 0.035)) {
-            this.tone(1300 * pitch, 0.03, "triangle", 0.035);
+          // 2.9.1: while the flame is firing (it hits many enemies at once) the hit blips are rarer and
+          // quieter; at 28 per second they added a clacking to the flame roar
+          {
+            const flaming = this.ctx.currentTime - (this.last.flame ?? -9) < 0.3;
+            if (this.gate(id, flaming ? 0.12 : 0.035)) {
+              this.tone(1300 * pitch, 0.03, "triangle", flaming ? 0.016 : 0.035);
+            }
           }
           break;
         case "crit":
@@ -1542,6 +1575,9 @@ const musicChords = {
           case "offer":
             this.play("offer");
             break;
+          case "maxed":
+            this.play("heal");
+            break;
           case "block":
             this.play("block");
             break;
@@ -2075,6 +2111,12 @@ const musicChords = {
         base = 0;
       engine.attach(ctx);
       engine.sfxVol = 1;
+      if (spec.burst)
+        for (let i = 1; i < spec.burst.n; i++)
+          ctx.suspend(0.25 + i * spec.burst.interval).then(() => {
+            engine.play(spec.burst.id, spec.burst.arg);
+            ctx.resume();
+          });
       ctx.suspend(0.25).then(() => {
         base = ctx.currentTime;
         if (spec.bed) {
@@ -2099,6 +2141,13 @@ const musicChords = {
               }
           }
           engine.simT = null;
+        } else if (spec.burst) {
+          // 2.9.2: continuous fire of one sound: the first shot now, the others at times registered
+          // before rendering starts (see below), so the rate gate and the voice limit behave as in the game
+          engine.play(spec.burst.id, spec.burst.arg);
+        } else if (spec.noise) {
+          // 2.9.1: a raw noise burst (tests that long bursts are not cut off)
+          engine.noise(spec.noise.dur, spec.noise.vol, spec.noise.opts || {});
         } else {
           engine.play(spec.id, spec.arg);
         }

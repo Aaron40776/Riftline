@@ -1138,9 +1138,12 @@ function updateEnemy(game, enemy, dt) {
     if (dist < 7) {
       enemy.vx = (-dx / dist) * enemy.speed;
       enemy.vy = (-dy / dist) * enemy.speed;
-    } else if (dist > 11) {
-      enemy.vx = Math.cos(ang) * enemy.speed;
-      enemy.vy = Math.sin(ang) * enemy.speed;
+    } else if (dist > 11 || !enemy.los) {
+      // 2.9.1: path around obstacles (it flew straight at the player and got stuck on boxes); also when it
+      // has no line of sight at medium range, so it works its way to a firing position
+      game.chaseDir(enemy);
+      enemy.vx = game.cdx * enemy.speed;
+      enemy.vy = game.cdy * enemy.speed;
     } else {
       enemy.vx = Math.cos(ang + Math.PI / 2) * side * enemy.speed;
       enemy.vy = Math.sin(ang + Math.PI / 2) * side * enemy.speed;
@@ -1259,6 +1262,23 @@ function updateEnemy(game, enemy, dt) {
     enemy.vx = Math.cos(ang + Math.PI / 2) * side * enemy.speed;
     enemy.vy = Math.sin(ang + Math.PI / 2) * side * enemy.speed;
     enemy.face = turnToward(enemy.face, ang, 8 * dt);
+    // 2.9.1: the shot is announced: after the warp the weaver aims for 0.45 s (the lock-on sound plays and it
+    // holds still) and fires only then, at where the player is at that moment
+    if (enemy.st === 1) {
+      enemy.t2 -= dt;
+      enemy.vx *= 0.3;
+      enemy.vy *= 0.3;
+      if (enemy.t2 <= 0) {
+        enemy.st = 0;
+        if (player.alive) {
+          const aim = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+          for (const off of [-0.22, 0, 0.22])
+            game.shoot(enemy.x, enemy.y, aim + off, 24, enemy.dmg * 0.72, { kind: "weaver", life: 2.6 });
+        }
+        enemy.t = 3.4 + game.rng.next() * 1.2;
+      }
+      return;
+    }
     enemy.t -= dt;
     // 2.8.1: a dead player is not shot at any more
     if (enemy.t <= 0 && !player.alive) enemy.t = 1;
@@ -1272,10 +1292,9 @@ function updateEnemy(game, enemy, dt) {
         game.arena.resolve(enemy, enemy.r);
         game.emit("warp", { x: ox, y: oy, tx: enemy.x, ty: enemy.y, who: "weaver" });
       }
-      const aim = spot ? Math.atan2(player.y - enemy.y, player.x - enemy.x) : ang;
-      for (const off of [-0.22, 0, 0.22])
-        game.shoot(enemy.x, enemy.y, aim + off, 24, enemy.dmg * 0.72, { kind: "weaver", life: 2.6 });
-      enemy.t = 3.4 + game.rng.next() * 1.2;
+      enemy.st = 1;
+      enemy.t2 = 0.45;
+      game.emit("aim", { x: enemy.x, y: enemy.y, type: "weaver" });
     }
     return;
   }

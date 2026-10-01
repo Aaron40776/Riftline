@@ -1,3 +1,67 @@
+RIFTLINE v2.9.1 – FEHLERKORREKTUREN (ENDLESS, SOUND, GEGNER)
+Basis: v2.9.0 · Build r291a1001a-r1 · 01.10.2026
+
+Gewünscht: Die offenen Punkte der Durchsicht abarbeiten; im Spiel gemeldet: bei Welle ~150 mit allen
+Upgrades hängt das Spiel am Auswahlbildschirm; Ember Jet klingt nach Klicken statt nach Flamme.
+
+1) Endless: leerer Auswahlbildschirm (gemeldet bei Welle ~150)
+   - Ursache: Sind alle Upgrades auf Maximum (und die Hülle über 70 %), ist das Angebot leer; das Spiel
+     öffnete den Auswahlbildschirm trotzdem, ohne Karten, und der Run kam nicht weiter.
+   - Jetzt: Das Wellenende überspringt die Auswahl, repariert 35 % der Hülle, zahlt 10 + Welle/2
+     Shards und startet die nächste Welle (Ereignis „maxed“, Hinweis „ALL UPGRADES MAXED“). Ein
+     gespeicherter Run, der schon auf der leeren Auswahl hängt, geht beim Laden mit der nächsten Welle
+     weiter. Gilt auch beim Weiterspielen nach dem Sieg (Endless).
+   - Test (Deep test v291): alles auf Maximum, Welle räumen → keine Auswahl, Ereignis, Belohnung,
+     Welle +1; Spielstand mit leerem Angebot setzt in Welle +1 fort.
+   - Determinismus-Referenz: nur Daten-Hash und Ereignisliste (neues Ereignis „maxed“) geändert, alle
+     Simulationen unverändert.
+
+2) Sound
+   - Ember Jet: Jeder Schuss (15 pro Sekunde) war ein kurzer Rauschstoß mit 3 ms Einblendung plus
+     hohem Knack: Ticken und Klicken. Jetzt startet jeder Schuss einen weichen, überlappenden,
+     gehaltenen Stoß (80 ms Einblendung, 0,22 s Haltephase) mit Rumpeln, Zischen und seltenem leisen
+     Knistern. Treffer-Piepser sind während des Flammenfeuers seltener und leiser.
+     Test (Deep test): 2 s Dauerfeuer offline, Lautstärkeschwankung in 40-ms-Fenstern: alter Klang 0,55,
+     neuer 0,10–0,14 (Grenze 0,3). Erster Versuch (reine exponentielle Ausblendung) war mit 0,72
+     schlechter als der alte; das hat der Test aufgedeckt.
+   - Lange Rausch-Klänge (Rakete, Flamme, Biom-Ereignisse) wurden nach etwa 0,6 s abgeschnitten (nur
+     1 s Puffer, Start bis 0,5 s darin): Puffer läuft jetzt in Schleife. Test: 1,9-s-Stoß ist bis
+     über 1,2 s hörbar (ohne Fix brach er bei 0,62 s ab; Fehler vorher reproduziert).
+   - Nicht gehört (kein Audio-Ausgang), nur offline gemessen.
+
+3) Gegner
+   - Weaver kündigt den Schuss an (Lock-on-Ton, 0,45 s Zielphase nach dem Teleport, dann Schuss auf die
+     Position in diesem Moment). Test v291 prüft Ereignis und Zeit (22–36 Schritte).
+   - Drohne wählt bei großer Entfernung oder ohne Sichtlinie den Weg über das Wegfeld (blieb an Kisten
+     hängen). Kein eigener Test.
+
+4) Sonstiges
+   - Instanzierte Arena-Props geben ihre Puffer beim Arena-Wechsel frei (dispose).
+   - Nach einem Grafik-Reset durch den Browser erscheint ein Hinweis.
+   - README-Beispiel für die Simulation nutzt eine vorhandene Waffe (rail statt ion); tools/serve.js
+     antwortet auf kaputte URLs mit 400 statt abzustürzen.
+
+5) Ergebnisse 2.9.1 (headless Chromium, Software-WebGL)
+   - npm test: grün (Build, Deep test inkl. v291 und Flammen-/Rausch-Prüfungen, full-qa files,
+     data-audit, Determinismus 15/15 mit der neu aufgenommenen Referenz).
+   - Volle QA: alle Prüfungen bestanden. E2E: 0 Fehler. Audit: ok. Stresssimulation: keine Fehler,
+     keine ungültigen Werte. Screens und Biom-Bilder PC/Handy/Querformat: keine Seitenfehler.
+   - Format-Prüfung: ok.
+   - Hinweis zum Ablauf: Die Kette lief mehrfach (Zwischenstände vor dem Flammenklang und mit/ohne
+     Maxed-Fix), jeweils einzeln und grün; der letzte Lauf deckt den fertigen Stand ab.
+
+Offen:
+   - Sound weiter ungehört; besonders Flamme prüfen. Auch andere oft wiederholte Sounds (Treffer,
+     Kettenblitz) wurden nicht einzeln auf Pumpen gemessen.
+   - Endless-Schwierigkeit: Bei Welle ~150 mit vollem Build ist das Spiel zu leicht (gemeldet: ca. 30k
+     Schaden pro Angriff, alles stirbt mit einem Treffer, Gegnerzahl bei etwa 500 gedeckelt). Nach
+     meinem Code-Lesen passt 30k nicht zu den Faktoren (Basisschaden 12–58, höchstens etwa 7x durch
+     Upgrades); Ursache ungeklärt, ein Benchmark mit vollem Build ist als Nächstes geplant, danach ein
+     Endless-Umbau (Treffer-Obergrenze, Fallen, Mutatoren, härtere Gegner) als 3.0.0.
+   - Balance (Dash-Untergrenze, Orbital Blades) und Handy-Performance bleiben für 2.9.2.
+
+================================================================================
+
 RIFTLINE v2.9.0 – MEHR DETAILS (BIOME, GEGNER, BOSSE) UND UNTERSCHIEDLICHERE SOUNDS
 Basis: v2.8.1 · Build r290a0930e-r1 · 01.10.2026
 

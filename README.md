@@ -52,7 +52,7 @@ npm test             # build + deep self-test + file/PWA contract + data audit +
 npm run qa           # full QA: saves, settings, workshop, runs on PC and phone, layout, buttons (~10 min)
 npm run e2e          # end-to-end with real pointer/touch input on 5 device sizes
 npm run audit        # world audit (routes, walls, spawns), data audit, bot run to wave 22 + post-run audit
-npm run sim -- pulse,ion 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
+npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
 npm run format       # Prettier over src/, tests/, tools/ (CI runs npm run format:check)
 npm run screens      # screenshot of every screen and every biome on PC, phone and landscape phone -> tests/shots/
 ```

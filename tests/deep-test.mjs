@@ -21,11 +21,12 @@ const res = await page.evaluate(() => {
     v260: r.v260?.fail,
     v270Sound: r.v270Sound?.fail,
     v280: r.v280?.fail,
+    v291: r.v291?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
 // below full scale, and every voice has ended when the render does (nothing stays alive)
-const sound = await page.evaluate(async () => {
+const sound = await page.evaluate(async (FLAME_CV_MAX) => {
   const engine = window.__riftTest.game.sound.constructor,
     fail = [],
     catalog = engine.catalog();
@@ -45,8 +46,30 @@ const sound = await page.evaluate(async () => {
       fail.push(`${name}: ${err && err.message}`);
     }
   }
-  return { count: catalog.length, maxPeak, longest, fail };
-});
+  // 2.9.1: a 1.9 s noise burst (longer than the 1 s noise buffer) must still be audible until its envelope
+  // has faded: with the old one-shot buffer it was cut after 0.5-1 s
+  for (const rate of [1, 0.5]) {
+    const r = await engine.renderOffline({ noise: { dur: 1.9, vol: 0.2, opts: { type: "lowpass", f: 4000, rate } } });
+    if (!(r.lastAudible > 1.2)) fail.push(`long noise (rate ${rate}) cut off at ${r.lastAudible.toFixed(2)} s`);
+  }
+  // 2.9.2: continuous fire must sound continuous. Ember Jet fires 15 times a second; rendered offline for
+  // 2 s, the loudness in 40 ms windows between 0.5 s and 1.5 s must not pulse (a ticking sound has a high
+  // spread of the window levels relative to their mean; a steady roar a low one)
+  const flame = await engine.renderOffline({ burst: { id: "flame", n: 26, interval: 1 / 15 }, wav: true });
+  const win = 1764,
+    levels = [];
+  for (let t = Math.round(0.5 * 44100); t + win <= Math.round(1.5 * 44100); t += win) {
+    let sum = 0;
+    for (let i = 0; i < win; i++) sum += flame.samples[t + i] ** 2;
+    levels.push(Math.sqrt(sum / win));
+  }
+  const mean = levels.reduce((a, b) => a + b, 0) / levels.length,
+    flameCv = Math.sqrt(levels.reduce((a, b) => a + (b - mean) ** 2, 0) / levels.length) / (mean || 1);
+  if (!(mean > 0.003)) fail.push(`flame fire is silent (mean level ${mean})`);
+  if (!(flameCv < FLAME_CV_MAX))
+    fail.push(`flame fire pulses: loudness spread ${flameCv.toFixed(2)} (max ${FLAME_CV_MAX})`);
+  return { count: catalog.length, maxPeak, longest, flameCv, fail };
+}, 0.3);
 res.soundRender = sound;
 // 2.9.0: the sounds must differ from each other. Every weapon shot (strict), every death family and every boss
 // intro (softer) is rendered and described by four numbers (spectral centroid, duration, zero-crossing rate,
