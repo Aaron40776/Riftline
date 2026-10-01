@@ -21,7 +21,15 @@ const TYPES = {
 export function serve(dir, port = 8124, { base = "/", quiet = true } = {}) {
   const root = path.resolve(dir);
   const server = http.createServer((req, res) => {
-    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    let p;
+    try {
+      p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    } catch {
+      // 2.9.1: a malformed escape such as "%" used to throw out of the request handler
+      res.writeHead(400);
+      res.end("bad request");
+      return;
+    }
     if (base !== "/" && p === base.replace(/\/$/, "")) {
       res.writeHead(301, { location: base });
       res.end();

@@ -440,6 +440,7 @@ function rlSelfTest() {
   result = selfTestV260(result);
   result = selfTestV270Sound(result);
   result = selfTestV280(result);
+  result = selfTestV291(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -1874,6 +1875,47 @@ function selfTestV280(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v280: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 2.9.1: the Weaver announces its shot (lock-on sound and 0.45 s of aiming after the warp) ---- */
+function selfTestV291(result) {
+  const fail = [];
+  try {
+    const world = new World({ seed: 0x291, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(5);
+    world.state = "fight";
+    world.god = true;
+    world.hold = false;
+    world.arena.obs = [];
+    for (const enemy of [...world.enemies]) enemy.dead = true;
+    world.enemies.length = 0;
+    world.plan = [];
+    world.planIdx = 0;
+    world.bossPending = null;
+    world.championPending = null;
+    const player = world.player,
+      weaver = world.spawnEnemy("weaver", player.x + 8, player.y);
+    weaver.spawnT = 0;
+    weaver.t = 0;
+    let seen = 0,
+      aimStep = -1,
+      shotStep = -1;
+    for (let step = 0; step < 400 && shotStep < 0; step++) {
+      world.step(1 / 60, { mx: 0, my: 0, aim: false, ax: 1, ay: 0, fire: false, assist: false });
+      for (; seen < world.fx.length; seen++) {
+        const ev = world.fx[seen];
+        if (ev.k === "aim" && ev.type === "weaver" && aimStep < 0) aimStep = step;
+      }
+      if (aimStep >= 0 && shotStep < 0 && world.eb.some((bullet) => bullet.kind === "weaver")) shotStep = step;
+      if (world.fx.length > 4000) world.fx.length = seen = 0;
+    }
+    if (aimStep < 0) fail.push("weaver-no-aim-event");
+    else if (shotStep < 0) fail.push("weaver-never-shoots");
+    else if (shotStep - aimStep < 22 || shotStep - aimStep > 36) fail.push("weaver-aim-time:" + (shotStep - aimStep));
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v291: { ok: fail.length === 0, fail } };
 }
 
 // the "Deep test" button of the diagnostics dialog (rlRunHealth({deep:true})) runs this

@@ -21,6 +21,7 @@ const res = await page.evaluate(() => {
     v260: r.v260?.fail,
     v270Sound: r.v270Sound?.fail,
     v280: r.v280?.fail,
+    v291: r.v291?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
@@ -44,6 +45,12 @@ const sound = await page.evaluate(async () => {
     } catch (err) {
       fail.push(`${name}: ${err && err.message}`);
     }
+  }
+  // 2.9.1: a 1.9 s noise burst (longer than the 1 s noise buffer) must still be audible until its envelope
+  // has faded: with the old one-shot buffer it was cut after 0.5-1 s
+  for (const rate of [1, 0.5]) {
+    const r = await engine.renderOffline({ noise: { dur: 1.9, vol: 0.2, opts: { type: "lowpass", f: 4000, rate } } });
+    if (!(r.lastAudible > 1.2)) fail.push(`long noise (rate ${rate}) cut off at ${r.lastAudible.toFixed(2)} s`);
   }
   return { count: catalog.length, maxPeak, longest, fail };
 });

@@ -136,6 +136,10 @@ void main() {
       this.layKey = layout.key;
       this.biomeId = biome.id;
       this.group.traverse((obj) => {
+        // 2.9.1: instanced props also own GPU buffers (matrices, colours) that the geometry does not free
+        if (obj.isInstancedMesh) {
+          obj.dispose();
+        }
         if (obj.geometry) {
           obj.geometry.dispose();
         }

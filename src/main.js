@@ -224,7 +224,13 @@ try {
   logError("webgl", err);
 }
 elementById("gl").addEventListener("webglcontextlost", () => logError("webgl", "context lost"));
-elementById("gl").addEventListener("webglcontextrestored", () => logError("webgl", "context restored"));
+elementById("gl").addEventListener("webglcontextrestored", () => {
+  logError("webgl", "context restored");
+  // 2.9.1: say so; the picture may flicker or look different for a moment (it used to be only logged)
+  try {
+    ui.toast("Graphics were reset by the browser and restored.", "warn");
+  } catch {}
+});
 let _resizeRaf = 0,
   _resizeWhy = "resize",
   _resizeFollowTimer = 0;

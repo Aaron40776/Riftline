@@ -543,6 +543,9 @@ const musicChords = {
       if (!voice) return;
       let src = ctx.createBufferSource();
       src.buffer = this.noiseBuf;
+      // 2.9.1: the 1 s buffer is looped: a burst longer than what is left of it (it starts up to 0.5 s in)
+      // used to be cut off; white noise has no audible seam
+      src.loop = true;
       src.playbackRate.value = opts.rate || 1;
       let filter = ctx.createBiquadFilter();
       filter.type = opts.type || "lowpass";
@@ -2099,6 +2102,9 @@ const musicChords = {
               }
           }
           engine.simT = null;
+        } else if (spec.noise) {
+          // 2.9.1: a raw noise burst (tests that long bursts are not cut off)
+          engine.noise(spec.noise.dur, spec.noise.vol, spec.noise.opts || {});
         } else {
           engine.play(spec.id, spec.arg);
         }
