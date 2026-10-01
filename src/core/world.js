@@ -20,6 +20,7 @@ import { threatMods } from "../data/progression.js";
 import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
 import { computeStats } from "./stats.js";
+import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 // 2.2.3: the run monitor observes the live run's world (used at run time only; circular import)
 import { RL_MON, rlMonStep, rlMonIssue, rlMonBeginWave } from "./diagnostics.js";
 
@@ -276,7 +277,7 @@ const rlStep = 1 / 60,
         player.nova = nova ?? Math.max(player.nova, novaFloor);
         this.waveT = 0;
         this.waveDmg = 0;
-        this.hpMul = (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) * this.tm.hp;
+        this.hpMul = (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) * this.tm.hp * endlessHpBoost(wave);
         this.dmgMul = (1 + 0.035 * (wave - 1)) * this.tm.dmg;
         this.stragglerT = 0;
         let boss = this.bossFor(wave);
@@ -1669,6 +1670,16 @@ const rlStep = 1 / 60,
         if (enemy.corrode && !enemy.boss) {
           dmg *= 1.25;
         }
+        // 3.0.0: burst cap (see core/difficulty.js); the Nova and bosses are exempt
+        if (!enemy.boss && src !== "nova") {
+          const taken = this.burstCap(enemy, dmg);
+          if (taken <= 0) {
+            enemy.flash = Math.max(enemy.flash, 0.35);
+            this.emit("ping", { x: enemy.x, y: enemy.y, resist: true });
+            return;
+          }
+          dmg = taken;
+        }
         dmg = this.capPhase(enemy, dmg);
         enemy.hp -= dmg;
         this.dmgDealt += Math.min(dmg, enemy.hp + dmg);
@@ -1688,6 +1699,19 @@ const rlStep = 1 / 60,
           this.killEnemy(enemy);
         }
       }
+    }
+    // how much of a hit lands: at most burstFraction(wave) of the enemy's hull per BURST_WINDOW
+    burstCap(enemy, dmg) {
+      const fraction = burstFraction(this.wave);
+      if (fraction >= 1) return dmg;
+      if (this.time - (enemy.burstT ?? -9) > BURST_WINDOW) {
+        enemy.burstT = this.time;
+        enemy.burstD = 0;
+      }
+      const room = Math.max(0, enemy.maxHp * fraction - enemy.burstD),
+        taken = Math.min(dmg, room);
+      enemy.burstD += taken;
+      return taken;
     }
     capPhase(enemy, dmg) {
       if (!enemy.boss || enemy.type !== "core") return dmg;

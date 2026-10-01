@@ -41,6 +41,7 @@ import { waveEvents, planWave, set_RL_BIOME_MIX_CUR, RL_BIOME_EVENT, rlEnemyFrom
 import { World } from "./world.js";
 import { threatMods, workshopModules, modulesById, RL_RETIRED_MODULES } from "../data/progression.js";
 import { upgradeList, upgradesById, RL_RETIRED_UPGRADES } from "../data/upgrades.js";
+import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 import { hitsObstacle, buildLayout, isConnected, RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
 import { computeStats } from "./stats.js";
 import {
@@ -441,6 +442,7 @@ function rlSelfTest() {
   result = selfTestV270Sound(result);
   result = selfTestV280(result);
   result = selfTestV291(result);
+  result = selfTestV300(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -1955,6 +1957,62 @@ function selfTestV291(result) {
     fail.push("maxed-exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v291: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.0.0: burst cap, Endless hull curve ---- */
+function selfTestV300(result) {
+  const fail = [];
+  try {
+    const world = new World({ seed: 0x300, weapon: "pulse", threat: 0, ws: {} });
+    const target = (wave, hp = 1000, type = "brute") => {
+      world.startWave(wave);
+      world.state = "fight";
+      world.god = true;
+      for (const enemy of [...world.enemies]) enemy.dead = true;
+      world.enemies.length = 0;
+      world.plan = [];
+      world.planIdx = 0;
+      world.bossPending = null;
+      world.championPending = null;
+      const enemy = world.spawnEnemy(type, world.player.x + 6, world.player.y);
+      enemy.spawnT = 0;
+      enemy.maxHp = enemy.hp = hp;
+      return enemy;
+    };
+    // up to wave 40 nothing is capped: one big hit kills
+    let enemy = target(20);
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    if (!enemy.dead) fail.push("capped-too-early");
+    // wave 100: at most burstFraction(100) of the hull within the window, however many hits land
+    const f100 = burstFraction(100);
+    enemy = target(100);
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    const lost = 1000 - enemy.hp;
+    if (enemy.dead || lost > 1000 * f100 + 1e-6 || lost < 1000 * f100 - 1e-6)
+      fail.push(`burst-cap:${lost} want ${1000 * f100}`);
+    // a ping marks the resisted hits
+    const before = world.fx.length;
+    world.hurtEnemy(enemy, 50, 0, 0, 0, false, "weapon");
+    if (!world.fx.slice(before).some((ev) => ev.k === "ping" && ev.resist)) fail.push("resist-ping");
+    // after the window the next burst lands again
+    world.time += BURST_WINDOW + 0.05;
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "weapon");
+    if (!(1000 - enemy.hp > lost + 1)) fail.push("window-never-reopens");
+    // the Nova and bosses are exempt
+    enemy = target(100);
+    world.hurtEnemy(enemy, 100000, 0, 0, 0, false, "nova");
+    if (!enemy.dead) fail.push("nova-capped");
+    if (!(burstFraction(40) === 1 && burstFraction(400) === 0.12 && burstFraction(70) < 1)) fail.push("fraction-curve");
+    // Endless hull curve
+    if (endlessHpBoost(30) !== 1 || !(endlessHpBoost(150) > 4 && endlessHpBoost(150) < 5)) fail.push("hp-boost");
+    world.startWave(150);
+    if (!(world.hpMul > 142 * 4)) fail.push("hpMul-not-boosted:" + world.hpMul);
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v300: { ok: fail.length === 0, fail } };
 }
 
 // the "Deep test" button of the diagnostics dialog (rlRunHealth({deep:true})) runs this
