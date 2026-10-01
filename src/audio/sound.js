@@ -1706,8 +1706,8 @@ const musicChords = {
         case "tsMine":
           // a sharp mine blast: a crack, a hard body and a low rumble (no debris patter: that is the grenade)
           if (this.gate(id, 0.05)) {
-            this.noise(0.03, 0.26, { type: "highpass", f: 2e3, attack: 0.001 });
-            this.tone(950, 0.12, "square", 0.05, { to: 280, lp: 3e3 });
+            this.noise(0.04, 0.34, { type: "highpass", f: 2.4e3, attack: 0.001 });
+            this.tone(1100, 0.16, "square", 0.08, { to: 300, lp: 3.5e3 });
             this.noise(0.55, 0.3, { f: 1100, to: 90, attack: 0.001 });
             this.tone(75, 0.5, "sine", 0.42, { to: 30 });
             this.tone(200, 0.2, "sawtooth", 0.07, { to: 60, lp: 900 });

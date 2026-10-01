@@ -1968,7 +1968,11 @@ await section("qol", async (L) => {
     w.emit("trapWarn", { id: 1, fam: "floor", skin: "plate", x: 0, y: 0, r: 2, delay: 1, dur: 1 });
   });
   await P.page
-    .waitForFunction(() => document.querySelectorAll("#toasts .toast").length > 0, null, { timeout: 5000 })
+    .waitForFunction(
+      () => [...document.querySelectorAll("#toasts .toast")].some((t) => /Traps flash/.test(t.textContent)),
+      null,
+      { timeout: 5000 },
+    )
     .catch(() => {});
   const tip = await P.ev(() => [...document.querySelectorAll("#toasts .toast")].map((t) => t.textContent));
   check(
