@@ -20,6 +20,7 @@ import { milestones, workshopModules, rlRetired, threatLevels } from "../data/pr
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange } from "../core/stats.js";
 import { RL_INPUT } from "./input.js";
+import { WHATS_NEW } from "../data/whatsnew.js";
 import { markHomeViewDirty } from "../render/renderer.js";
 
 const RL_TOUCH_CLICK_GUARD = { until: 0, x: 0, y: 0, key: "" };
@@ -125,7 +126,7 @@ function iconSvg(name, cls = "") {
   return `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
 const getById = (id) => document.getElementById(id),
-  menuScreens = ["home", "workshop", "records", "settings"],
+  menuScreens = ["home", "workshop", "records", "news", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
   formatPercent = (value) => Math.round(value * 100) + "%",
   formatCooldown = (value) => (value > 0 ? formatTenths(value) + " s" : "off"),
@@ -449,6 +450,9 @@ const getById = (id) => document.getElementById(id),
       if (screen === "records") {
         this.renderRecords();
       }
+      if (screen === "news") {
+        this.renderNews();
+      }
       if (screen === "settings") {
         this.renderSettings();
       }
@@ -496,6 +500,7 @@ const getById = (id) => document.getElementById(id),
       }
       this.updatePlayState();
       getById("recBadge").hidden = !this.g.claimable().length;
+      getById("newsBadge").hidden = !!save.seen["news_" + GAME_VERSION];
       let stats = save.stats;
       getById("bestLine").hidden = !stats.runs;
       if (stats.runs) {
@@ -724,6 +729,15 @@ const getById = (id) => document.getElementById(id),
         this.toast(`${ms.name}: +${ms.reward} shards`, "gold");
         this.renderRecords();
       }
+    }
+    // the What's new tab: opening it marks this version's notes as read (the badge on the home screen goes away)
+    renderNews() {
+      getById("newsList").innerHTML = WHATS_NEW.map(
+        (entry, i) =>
+          `<h3 class="section-h">${escapeHtml(entry.version)} · ${escapeHtml(entry.title)}${i === 0 ? " · current" : ""}</h3>` +
+          `<div class="set-group">${entry.items.map((t) => `<div class="set-row"><span>${escapeHtml(t)}</span></div>`).join("")}</div>`,
+      ).join("");
+      this.markSeen(["news_" + GAME_VERSION]);
     }
     renderSettings() {
       let settings = this.save.settings;
