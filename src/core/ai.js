@@ -521,6 +521,13 @@ const bossPatterns = {
 bossPatterns.forge = ["hammer", "slag", "eruption", "furnace", "hammer", "slag", "stoke"];
 // 2.4.6: colour of the Frost Prism's live beams (the warning lines keep the warning colour)
 const PRISM_ICE = 12578815;
+/* 3.3.0: the Overdrive of every boss. Once it is enraged a boss adds one signature attack to its pattern (right after
+   the enrage, then once per pattern cycle). Each is built from telegraphed attacks of the game: the Warden's laser
+   lockdown grid, the Crucible's expanding lava rings, the Prism's three-beam whiteout, the Queen's acid plague, the
+   Core's collapse (a bombardment grid under a beam cross). */
+const OVERDRIVE = { warden: "lockdown", forge: "meltdown", prism: "whiteout", queen: "plague", core: "collapse" },
+  /* the bosses that call reinforcements of their biome when enraged (the Queen and the Core summon anyway) */
+  REINFORCE = { warden: true, forge: true, prism: true };
 function initBoss(game, boss) {
   boss.st = "walk";
   boss.t = 2.2;
@@ -532,8 +539,15 @@ function initBoss(game, boss) {
 }
 function nextBossAttack(game, boss) {
   let attacks = bossPatterns[boss.type];
-  boss.st = attacks[boss.pattern % attacks.length];
-  boss.pattern++;
+  if (boss.odDue && OVERDRIVE[boss.type]) {
+    boss.odDue = false;
+    boss.st = OVERDRIVE[boss.type];
+  } else {
+    boss.st = attacks[boss.pattern % attacks.length];
+    boss.pattern++;
+    // a new cycle of the pattern: the enraged boss uses its Overdrive again
+    if (boss.enraged && boss.pattern % attacks.length === 0) boss.odDue = true;
+  }
   boss.t = 0;
   boss.t2 = 0;
   boss.n = 0;
@@ -541,7 +555,8 @@ function nextBossAttack(game, boss) {
 }
 function endBossAttack(boss, delay) {
   boss.st = "walk";
-  boss.t = delay;
+  // 3.3.0: later bosses (a higher tier, see World.spawnBoss) rest less between attacks
+  boss.t = delay * (boss.pace || 1);
   boss.n = 0;
   boss.t2 = 0;
 }
@@ -560,7 +575,9 @@ function updateBoss(game, boss, dt) {
     shotDmg = boss.dmg * 0.7;
   if (!boss.enraged && hpFrac < (boss.type === "queen" ? 0.4 : 0.5)) {
     boss.enraged = true;
+    boss.odDue = true;
     game.emit("enrage", { id: boss.type, x: boss.x, y: boss.y });
+    if (REINFORCE[boss.type]) bossReinforce(game, boss);
   }
   let rage = boss.enraged ? 1 : 0;
   boss.spin += dt;
@@ -589,6 +606,10 @@ function updateBoss(game, boss, dt) {
     return;
   }
   boss.t += dt;
+  if (boss.st === OVERDRIVE[boss.type]) {
+    updateOverdrive(game, boss, dt, aim, dist, shotDmg);
+    return;
+  }
   switch (boss.type) {
     case "warden": {
       if (boss.st === "charge") {
@@ -1056,6 +1077,189 @@ function updateBoss(game, boss, dt) {
     case "forge":
       if (updateCrucible(game, boss, dt, aim, dist, shotDmg, rage)) return;
       break;
+  }
+  endBossAttack(boss, 1);
+}
+/* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
+   telegraphed portals around the player: 2 at the first boss, up to 5 later */
+function bossReinforce(game, boss) {
+  if (game.enemies.length > 60) return;
+  const count = 2 + Math.min(3, Math.floor((boss.tier || 0) / 2)),
+    biome = game.arena.biome.id;
+  for (let k = 0; k < count; k++) {
+    const spot = game.arena.freePoint(game.rng, game.player.x, game.player.y, 7, 1.2);
+    if (!spot) continue;
+    const type = game.championType(biome, game.wave, game.rng);
+    game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1.3, type, elite: false, done: false });
+  }
+  game.emit("portal", { x: boss.x, y: boss.y, n: count });
+}
+/* the five Overdrive attacks (see OVERDRIVE) */
+function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
+  const player = game.player,
+    arena = game.arena,
+    W = arena.W,
+    H = arena.H;
+  switch (boss.st) {
+    case "lockdown": {
+      // a grid of lasers across the whole arena (cells 6 m wide), then a second grid shifted by half a cell: the
+      // player has to step into a new cell; a bullet ring closes it
+      boss.vx = 0;
+      boss.vy = 0;
+      const grid = (shift, warn) => {
+        for (let x = -W + 3 + shift; x < W - 1; x += 6)
+          game.beam({ x, y: -H, a: Math.PI / 2, len: H * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg });
+        for (let y = -H + 3 + shift; y < H - 1; y += 6)
+          game.beam({ x: -W, y, a: 0, len: W * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg });
+        game.emit("beamWarn", { x: boss.x, y: boss.y });
+      };
+      if (boss.n === 0) {
+        boss.n = 1;
+        grid(0, 1.3);
+        game.emit("charge", { x: boss.x, y: boss.y, type: "warden" });
+      }
+      if (boss.n === 1 && boss.t > 2.5) {
+        boss.n = 2;
+        grid(3, 1.1);
+      }
+      if (boss.n === 2 && boss.t > 4.2) {
+        boss.n = 3;
+        shootRing(game, boss, 20, 7.5, shotDmg, boss.spin);
+        game.emit("thud", { x: boss.x, y: boss.y, big: true });
+      }
+      if (boss.t > 4.8) endBossAttack(boss, 1.8);
+      return;
+    }
+    case "meltdown": {
+      // three rings of lava burst outwards from the Crucible, each with a gap of its own
+      boss.vx *= 0.8;
+      boss.vy *= 0.8;
+      if (boss.n === 0) {
+        boss.n = 1;
+        game.emit("charge", { x: boss.x, y: boss.y, type: "forge" });
+        for (let ring = 0; ring < 3; ring++) {
+          const radius = 3.5 * (ring + 1),
+            count = Math.ceil((TAU * radius) / 2.4),
+            gap = game.rng.next() * TAU;
+          for (let k = 0; k < count; k++) {
+            const angle = (k / count) * TAU,
+              off = Math.abs(((angle - gap + Math.PI * 3) % TAU) - Math.PI);
+            if (off < 0.55) continue;
+            const x = boss.x + Math.cos(angle) * radius,
+              y = boss.y + Math.sin(angle) * radius;
+            if (arena.outside(x, y, 0.5)) continue;
+            game.hazard({ x, y, r: 1.4, delay: 1 + ring * 0.45, dmg: boss.dmg * 0.8, kind: "slag" });
+          }
+        }
+      }
+      if (boss.t > 2.8) endBossAttack(boss, 1.6);
+      return;
+    }
+    case "whiteout": {
+      // three frost beams turn around the Prism, ice shards hunt the player in between
+      boss.vx *= 0.8;
+      boss.vy *= 0.8;
+      if (boss.n === 0) {
+        boss.n = 1;
+        const dir = game.rng.chance(0.5) ? 1 : -1;
+        for (let k = 0; k < 3; k++)
+          game.beam({
+            x: boss.x,
+            y: boss.y,
+            a: aim + 0.9 + (k / 3) * TAU,
+            rot: dir * 0.9,
+            warn: 1.1,
+            dur: 3.2,
+            w: 0.85,
+            dmg: boss.dmg,
+            follow: boss,
+            len: 34,
+            color: PRISM_ICE,
+          });
+        game.emit("beamWarn", { x: boss.x, y: boss.y });
+      }
+      if (boss.t >= 1.4 + (boss.n - 1) * 0.5 && boss.n <= 6) {
+        game.shoot(boss.x, boss.y, aim + (boss.n - 3.5) * 0.5, 5.5, shotDmg, {
+          kind: "shard",
+          homing: 1.2,
+          life: 4,
+          r: 0.24,
+        });
+        boss.n++;
+      }
+      if (boss.t > 4.6) endBossAttack(boss, 1.4);
+      return;
+    }
+    case "plague": {
+      // acid wells up in a loose ring around the player, two eggs hatch, then a dense spiral
+      moveBoss(game, boss, dt, aim, dist, 0.3);
+      if (boss.n === 0) {
+        boss.n = 1;
+        const start = game.rng.next() * TAU;
+        for (let k = 0; k < 6; k++) {
+          const angle = start + (k / 6) * TAU,
+            x = clamp(player.x + Math.cos(angle) * 4.6, -W + 1, W - 1),
+            y = clamp(player.y + Math.sin(angle) * 4.6, -H + 1, H - 1);
+          game.hazard({ x, y, r: 1.5, delay: 1, dmg: boss.dmg * 0.6, kind: "rain" });
+          if (arena.acid.filter((puddle) => puddle.life != null).length < 16)
+            arena.acid.push({ x, y, r: 1.4, life: 6 });
+        }
+        for (let k = 0; k < 2; k++) {
+          const angle = aim + (k ? 0.7 : -0.7),
+            egg = game.spawnEnemy("bomber", boss.x + Math.cos(angle) * 2, boss.y + Math.sin(angle) * 2, {});
+          egg.spawnT = 0.3;
+          egg.noDrop = true;
+          egg.kx = Math.cos(angle) * 9;
+          egg.ky = Math.sin(angle) * 9;
+        }
+        game.emit("hatch", { x: boss.x, y: boss.y, big: true });
+      }
+      if (boss.t > 1.2)
+        for (boss.t2 += dt; boss.t2 > 0.1; ) {
+          boss.t2 -= 0.1;
+          boss.ta = (boss.ta || 0) + 0.27;
+          for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, boss.ta + (k / 5) * TAU, 6.4, shotDmg, { r: 0.26 });
+        }
+      if (boss.t > 3.6) endBossAttack(boss, 1.4);
+      return;
+    }
+    case "collapse": {
+      // a grid of bombardments under and around the player while a cross of six beams turns
+      moveBoss(game, boss, dt, aim, dist, 0.2);
+      if (boss.n === 0) {
+        boss.n = 1;
+        for (let i = -1; i <= 1; i++)
+          for (let j = -1; j <= 1; j++) {
+            const x = clamp(player.x + i * 3.4, -W + 1.5, W - 1.5),
+              y = clamp(player.y + j * 3.4, -H + 1.5, H - 1.5);
+            game.hazard({
+              x,
+              y,
+              r: 1.9,
+              delay: 1.2 + (Math.abs(i) + Math.abs(j)) * 0.3,
+              dmg: boss.dmg * 0.8,
+              kind: "rain",
+            });
+          }
+        const rot = game.rng.chance(0.5) ? 0.5 : -0.5;
+        for (let k = 0; k < 6; k++)
+          game.beam({
+            x: boss.x,
+            y: boss.y,
+            a: aim + 0.5 + (k / 6) * TAU,
+            rot,
+            warn: 1.3,
+            dur: 2.8,
+            w: 0.85,
+            dmg: boss.dmg,
+            follow: boss,
+            len: 34,
+          });
+        game.emit("beamWarn", { x: boss.x, y: boss.y });
+      }
+      if (boss.t > 4.4) endBossAttack(boss, 1.4);
+      return;
+    }
   }
   endBossAttack(boss, 1);
 }
@@ -1782,4 +1986,4 @@ function updateCrucible(game, boss, dt, aim, dist, shotDmg, rage) {
   return false;
 }
 
-export { RL_KITERS, updateEnemy, updateBoss, findOpenSpot, initBoss };
+export { RL_KITERS, updateEnemy, updateBoss, findOpenSpot, initBoss, OVERDRIVE };

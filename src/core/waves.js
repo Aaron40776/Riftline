@@ -154,7 +154,9 @@ function planWave(rng, wave, tm, boss, plan = {}) {
   try {
     const start = rlBiomeStart(wave);
     for (const id of early) enemyDefs[id].from = start;
-    let budget = waveBudget(wave, tm) * (boss ? 0.22 : 1) * (plan.budget || 1),
+    // 3.3.0: a later boss brings a bigger escort (0.22 of a wave's budget at wave 5, up to 0.34)
+    let budget =
+        waveBudget(wave, tm) * (boss ? 0.22 + 0.02 * Math.min(6, Math.floor(wave / 5) - 1) : 1) * (plan.budget || 1),
       types = enemyOrder.filter((type) => enemyDefs[type].from <= wave && (!boss || !heavyEnemies[type])),
       caps = {
         hive: 1 + Math.floor(wave / 8),

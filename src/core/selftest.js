@@ -36,7 +36,8 @@ import {
 import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByWave, bossByBiome } from "../data/enemies.js";
 import { ui, renderer } from "../main.js";
 import { hashString, GAME_VERSION, makeRng } from "./util.js";
-import { updateEnemy, findOpenSpot } from "./ai.js";
+import { updateEnemy, findOpenSpot, updateBoss, OVERDRIVE } from "./ai.js";
+import { MUTATORS, MUTATOR_IDS, MUTATOR_MAX_LEVEL, rlMutatorsFor } from "./mutators.js";
 import { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, biomeList } from "../data/biomes.js";
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
 import { waveEvents, planWave, set_RL_BIOME_MIX_CUR, RL_BIOME_EVENT, rlEnemyFrom } from "./waves.js";
@@ -446,6 +447,7 @@ function rlSelfTest() {
   result = selfTestV280(result);
   result = selfTestV291(result);
   result = selfTestV300(result);
+  result = selfTestV330(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -2205,7 +2207,9 @@ function selfTestV300(result) {
       const traps = world.traps,
         biome = world.arena.biome.id,
         boss = !!world.bossFor(wave);
-      if ((wave < 6 || boss) && traps.length) fail.push(`traps-where-none-belong:${wave}`);
+      // 3.3.0: boss waves from wave 15 on have floor traps (only those)
+      if ((wave < 6 || (boss && wave < 15)) && traps.length) fail.push(`traps-where-none-belong:${wave}`);
+      if (boss && traps.some((trap) => trap.fam !== "floor")) fail.push(`boss-wave-trap-family:${wave}`);
       for (const trap of traps) {
         const skin = TRAP_SKINS[trap.skin];
         if (!skin || skin.fam !== trap.fam || BIOME_TRAPS[biome][trap.fam] !== trap.skin)
@@ -2312,3 +2316,91 @@ function selfTestV300(result) {
 setDeepSelfTest(rlSelfTest);
 
 export { rlSelfTest, rlPaletteIssues, rlBiomeDistinct };
+
+// 3.3.0: harder bosses and the Endless mutators. (1) Every boss uses its Overdrive right after the enrage and leaves it
+// again; the Warden, the Crucible and the Prism call reinforcements when enraged; a later boss rests less. (2) Boss
+// waves get floor traps from wave 15 on, none before. (3) The mutators: none before wave 21, one more every tenth
+// wave, all six by wave 71, levels never above the maximum, the same for the same seed; a gained mutator is announced
+// once (not again when the wave is resumed), and Volatile and Shielded reach the enemies.
+function selfTestV330(result) {
+  const fail = [];
+  try {
+    const world = new World({ seed: 0x330, weapon: "pulse", threat: 0, ws: {} });
+    const clear = (wave) => {
+      world.startWave(wave);
+      world.state = "fight";
+      world.god = true;
+      world.enemies.length = 0;
+      world.plan = [];
+      world.planIdx = 0;
+      world.bossPending = null;
+      world.championPending = null;
+      world.markers = [];
+      world.beams = [];
+      world.hazards = [];
+    };
+    for (const id of Object.keys(OVERDRIVE)) {
+      clear(10);
+      const boss = world.spawnBoss(id);
+      boss.spawnT = 0;
+      boss.hp = boss.maxHp * 0.3;
+      updateBoss(world, boss, 1 / 60);
+      if (!boss.enraged || !boss.odDue) fail.push("no-overdrive-due:" + id);
+      if (["warden", "forge", "prism"].includes(id) && world.markers.length < 2) fail.push("no-reinforcements:" + id);
+      boss.st = "walk";
+      boss.t = 0;
+      updateBoss(world, boss, 1 / 60);
+      if (boss.st !== OVERDRIVE[id]) fail.push(`overdrive-not-used:${id}:${boss.st}`);
+      let telegraphs = 0;
+      for (let i = 0; i < 60 * 6 && boss.st !== "walk"; i++) {
+        updateBoss(world, boss, 1 / 60);
+        telegraphs = Math.max(telegraphs, world.beams.length + world.hazards.length);
+      }
+      if (boss.st !== "walk") fail.push("overdrive-never-ends:" + id);
+      if (telegraphs < 3) fail.push(`overdrive-without-telegraphs:${id}:${telegraphs}`);
+      if (boss.odDue) fail.push("overdrive-repeats-at-once:" + id);
+    }
+    clear(20);
+    const late = world.spawnBoss("warden");
+    if (!(late.tier === 3 && Math.abs(late.pace - 0.76) < 1e-9)) fail.push(`boss-pace:${late.tier}:${late.pace}`);
+    // (2) traps on boss waves
+    world.startWave(10);
+    if (world.traps.length) fail.push("traps-on-an-early-boss-wave");
+    world.startWave(15);
+    if (!world.traps.length || world.traps.some((trap) => trap.fam !== "floor")) fail.push("boss-wave-traps");
+    // (3) mutators
+    if (Object.keys(rlMutatorsFor(1, 20).mods).length) fail.push("mutator-before-21");
+    const at21 = rlMutatorsFor(1, 21);
+    if (Object.keys(at21.mods).length !== 1 || !at21.gained) fail.push("mutator-21");
+    if (rlMutatorsFor(1, 30).gained || Object.keys(rlMutatorsFor(1, 30).mods).length !== 1) fail.push("mutator-30");
+    if (Object.keys(rlMutatorsFor(1, 71).mods).length !== MUTATOR_IDS.length) fail.push("mutators-71");
+    const far = rlMutatorsFor(1, 600).mods;
+    if (Object.values(far).some((level) => level > MUTATOR_MAX_LEVEL)) fail.push("mutator-level-over-max");
+    if (JSON.stringify(rlMutatorsFor(7, 91)) !== JSON.stringify(rlMutatorsFor(7, 91))) fail.push("mutators-not-stable");
+    if (JSON.stringify(rlMutatorsFor(7, 91).mods) === JSON.stringify(rlMutatorsFor(8, 91).mods))
+      if (JSON.stringify(rlMutatorsFor(7, 21).mods) === JSON.stringify(rlMutatorsFor(9, 21).mods))
+        fail.push("mutators-same-for-every-seed");
+    for (const id of MUTATOR_IDS) if (!MUTATORS[id].name || !MUTATORS[id].desc) fail.push("mutator-text:" + id);
+    world.fx.length = 0;
+    world.startWave(21);
+    if (!world.fx.some((ev) => ev.k === "mutator")) fail.push("mutator-not-announced");
+    world.fx.length = 0;
+    world.startWave(21, 0, true);
+    if (world.fx.some((ev) => ev.k === "mutator")) fail.push("mutator-announced-on-resume");
+    world.fx.length = 0;
+    world.startWave(22);
+    if (world.fx.some((ev) => ev.k === "mutator")) fail.push("mutator-announced-twice");
+    world.mods = { volatile: 3, shielded: 3 };
+    let volatile = 0,
+      shielded = 0;
+    for (let i = 0; i < 200; i++) {
+      const enemy = world.spawnEnemy("grunt", 0, -6);
+      if (enemy.affix === "volatile") volatile++;
+      if (enemy.affix === "shielded" && enemy.shield > 0) shielded++;
+    }
+    if (volatile < 40 || shielded < 15) fail.push(`mutator-affixes:${volatile}/${shielded}`);
+  } catch (err) {
+    fail.push("exception:" + (err && err.stack ? err.stack.split("\n").slice(0, 2).join(" ") : err));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v330: { ok: fail.length === 0, fail } };
+}

@@ -1,3 +1,44 @@
+RIFTLINE v3.3.0 – HÄRTERE BOSSKÄMPFE UND ENDLESS-MUTATOREN
+Basis: v3.2.0 · Build r330a1001a-r1 · 01.10.2026
+
+Gewünscht (aus dem Checkup): Bosse sollen der Höhepunkt sein (gemessen waren sie leichter als die Welle davor),
+Endless braucht ab etwa Welle 150 etwas Neues. Fokus: hohe Herausforderung, je weiter man kommt.
+
+1) Bosse (core/ai.js, core/world.js, core/waves.js, core/traps.js)
+   - Stufe eines Bosses = Zahl der Bosse vor ihm (Welle 5: 0, 10: 1 …). Pausen zwischen Angriffen −8 % je Stufe
+     (mindestens 60 %), Hülle +25 % je Stufe (höchstens das Doppelte); der erste Boss bleibt wie er war.
+   - Overdrive: nach dem Enrage sofort, danach einmal pro Musterdurchlauf, aus vorhandenen Bausteinen mit Vorwarnung:
+     Warden Laser-Lockdown (Gitter mit 6-m-Zellen, dann um eine halbe Zelle versetzt, dann Kugelring), Crucible
+     Meltdown (drei Lava-Ringe nach außen, jeder mit eigener Lücke), Prism Whiteout (drei drehende Frost-Strahlen,
+     zielsuchende Splitter), Queen Plague (Säurering um den Spieler, zwei Eier, dichte Spirale), Core Collapse
+     (Bombardement-Raster unter einem Kreuz aus sechs Strahlen). Eigener Alarm-Sound und Callout „OVERDRIVE · …“.
+   - Verstärkung beim Enrage (Warden, Crucible, Prism): 2 bis 5 Gegner aus dem Champion-Pool des Bioms über Portale.
+   - Begleiter: Boss-Budget 0,22 -> 0,22 + 0,02 je Stufe (höchstens 0,34).
+   - Bodenfallen in Boss-Wellen ab Welle 15 (halbe Zahl, nur Boden-Familie).
+   - Messung (grober Bot, mittlerer Build, 3 Seeds): Welle 10 vorher 20–31 s / 0–1 Tode, jetzt 26–41 s / 1;
+     Welle 15 vorher 36–38 s / 1–2, jetzt 46–61 s / 1–2; Welle 25 vorher 42–69 s / 1–2, jetzt 55–70 s / 4–9.
+     Welle 5 unverändert (Einstieg).
+
+2) Endless-Mutatoren (core/mutators.js)
+   - Ab Welle 21 alle 10 Wellen ein Mutator für den Rest des Runs, Reihenfolge pro Seed gemischt; sind alle sechs
+     aktiv, steigt alle 10 Wellen einer eine Stufe (höchstens III). Volatile (20 %/Stufe der Gegner platzen beim Tod,
+     mit Vorwarnung), Shielded (15 %/Stufe mit Schild), Hasted (+12 %/Stufe Tempo), Armored (+25 %/Stufe Hülle),
+     Barrage (+20 %/Stufe Schusstempo, +10 %/Stufe Schaden), Trap Storm (+1 Falle je Familie und −12 % Pause je Stufe).
+   - Ob ein Gegner Volatile/Shielded bekommt, entscheidet ein Hash (der Zufallsstrom der Welle bleibt gleich).
+   - Ansage nach der Biom-Titelkarte (Banner „MUTATOR · …“ und eigener Sound), Ring und Shake, HUD-Chips mit Stufe;
+     beim Fortsetzen eines gespeicherten Runs keine zweite Ansage.
+
+3) Prüfung
+   - Neuer Selbsttest V330 (Overdrive je Boss mit Telegraph und Ende, Verstärkung, Tempo, Boss-Fallen, Mutatoren:
+     Beginn, Abstand, Obergrenze, Stabilität, Ansage, Affixe). Fallen-Test von 3.0.0 an die neue Regel angepasst.
+   - Determinismus-Fixture bewusst aktualisiert (Ereignisliste und Boss-Verhalten geändert).
+   - Screenshots von Lockdown und Meltdown im Spiel angesehen: Gitter und Lücken klar erkennbar. Die Mutator-Ansage
+     kam zuerst unter der Biom-Titelkarte und wurde verdeckt; sie kommt jetzt danach.
+
+4) Offene Zweifel
+   - Der Bot ist grob; wie fair die Overdrives sich mit Handy-Steuerung anfühlen, muss gespielt werden.
+   - Welle 25 (erster Endless-Boss, doppelte Hülle) kann zu hart sein.
+
 RIFTLINE v3.2.0 – MUSIK NEU: HARTE BOSS-TRACKS, RUHIGE ATMOSPHÄRE, RAUM FÜR DIE EFFEKTE
 Basis: v3.1.0 · Build r320a1001a-r1 · 01.10.2026
 

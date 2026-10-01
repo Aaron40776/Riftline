@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.3.0",
+    title: "Harder bosses, Endless mutators",
+    items: [
+      "Enraged bosses unleash an Overdrive: laser lockdown, lava rings, whiteout, acid plague or collapse.",
+      "Later bosses are tougher, attack faster and call reinforcements; from wave 15 boss arenas have traps.",
+      "Endless: every tenth wave from 21 adds a mutator (Volatile, Shielded, Hasted, Armored, Barrage, Trap Storm).",
+    ],
+  },
+  {
     version: "3.2.0",
     title: "Heavier music, better sound",
     items: [
