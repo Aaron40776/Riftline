@@ -53,10 +53,10 @@ const sound = await page.evaluate(async (FLAME_CV_MAX) => {
     if (!(r.lastAudible > 1.2)) fail.push(`long noise (rate ${rate}) cut off at ${r.lastAudible.toFixed(2)} s`);
   }
   // 2.9.2: continuous fire must sound continuous. Ember Jet fires 15 times a second; rendered offline for
-  // 2 s, the loudness in 10 ms windows between 0.5 s and 1.5 s must not pulse (a ticking sound has a high
+  // 2 s, the loudness in 40 ms windows between 0.5 s and 1.5 s must not pulse (a ticking sound has a high
   // spread of the window levels relative to their mean; a steady roar a low one)
   const flame = await engine.renderOffline({ burst: { id: "flame", n: 26, interval: 1 / 15 }, wav: true });
-  const win = 441,
+  const win = 1764,
     levels = [];
   for (let t = Math.round(0.5 * 44100); t + win <= Math.round(1.5 * 44100); t += win) {
     let sum = 0;
@@ -69,7 +69,7 @@ const sound = await page.evaluate(async (FLAME_CV_MAX) => {
   if (!(flameCv < FLAME_CV_MAX))
     fail.push(`flame fire pulses: loudness spread ${flameCv.toFixed(2)} (max ${FLAME_CV_MAX})`);
   return { count: catalog.length, maxPeak, longest, flameCv, fail };
-}, 0.5);
+}, 0.3);
 res.soundRender = sound;
 // 2.9.0: the sounds must differ from each other. Every weapon shot (strict), every death family and every boss
 // intro (softer) is rendered and described by four numbers (spectral centroid, duration, zero-crossing rate,

@@ -560,6 +560,9 @@ const musicChords = {
       voice.amp = amp;
       amp.gain.setValueAtTime(1e-4, start);
       amp.gain.exponentialRampToValueAtTime(vol, start + (opts.attack || 0.003));
+      // 2.9.2: opts.hold keeps the level flat for that long after the attack (sustained sounds such as the
+      // flame roar; the plain exponential decay drops 50 dB in a third of a second and pumps when repeated)
+      if (opts.hold) amp.gain.setValueAtTime(vol, start + (opts.attack || 0.003) + opts.hold);
       amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
       src.connect(filter);
       filter.connect(amp);
@@ -661,9 +664,16 @@ const musicChords = {
           // About three bursts overlap (voice budget), the gate keeps the rate at 7 per second.
           if (this.gate(id, 0.14)) {
             this.flameN = (this.flameN || 0) + 1;
-            this.noise(0.45, 0.075, { f: 1600, to: 500, q: 0.4, rate: 0.6 * pitch, attack: 0.1 });
+            this.noise(0.5, 0.045, { f: 1500, to: 800, q: 0.4, rate: 0.6 * pitch, attack: 0.08, hold: 0.22 });
             if (this.flameN % 2 === 0)
-              this.noise(0.4, 0.02, { type: "bandpass", f: 2400 * pitch, to: 1500, q: 0.5, attack: 0.12 });
+              this.noise(0.45, 0.014, {
+                type: "bandpass",
+                f: 2400 * pitch,
+                to: 1800,
+                q: 0.5,
+                attack: 0.09,
+                hold: 0.2,
+              });
             if (Math.random() < 0.35)
               this.noise(0.06, 0.018, {
                 type: "bandpass",
@@ -2096,6 +2106,12 @@ const musicChords = {
         base = 0;
       engine.attach(ctx);
       engine.sfxVol = 1;
+      if (spec.burst)
+        for (let i = 1; i < spec.burst.n; i++)
+          ctx.suspend(0.25 + i * spec.burst.interval).then(() => {
+            engine.play(spec.burst.id, spec.burst.arg);
+            ctx.resume();
+          });
       ctx.suspend(0.25).then(() => {
         base = ctx.currentTime;
         if (spec.bed) {
@@ -2121,19 +2137,9 @@ const musicChords = {
           }
           engine.simT = null;
         } else if (spec.burst) {
-          // 2.9.2: continuous fire of one sound (n shots, `interval` apart): the first now, the rest at
-          // suspended times, so the rate gate and the voice limit behave as in the game
-          const { id, arg, n, interval } = spec.burst,
-            next = (i) => {
-              if (i >= n) return;
-              ctx.suspend(0.25 + i * interval).then(() => {
-                engine.play(id, arg);
-                ctx.resume();
-                next(i + 1);
-              });
-            };
-          engine.play(id, arg);
-          next(1);
+          // 2.9.2: continuous fire of one sound: the first shot now, the others at times registered
+          // before rendering starts (see below), so the rate gate and the voice limit behave as in the game
+          engine.play(spec.burst.id, spec.burst.arg);
         } else if (spec.noise) {
           // 2.9.1: a raw noise burst (tests that long bursts are not cut off)
           engine.noise(spec.noise.dur, spec.noise.vol, spec.noise.opts || {});
