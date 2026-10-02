@@ -133,154 +133,130 @@ function crack(into, color, x, z, rng, segs, step, w = 0.05) {
   }
 }
 
-/* ---- Neon Yard: a night-time industrial yard behind a fence. Backdrop of lit towers, containers,
-   server racks and floodlights outside; cables, grates, chevrons and manholes on the ground. ---- */
+/* ---- Blackout City (3.4.0, was the Neon Yard): a city street at night in a power cut. Outside: a skyline of dark
+   towers with only a few lit windows and red aircraft lights, water tanks and antennas on the roofs, street lamps
+   (most still burning), traffic lights at the corners, parked and burned-out cars, a bus shelter; on the street:
+   manhole covers, storm drains along the kerb, litter and cracks. ---- */
 function yardDetail(biome, W, H, obs, rng) {
   const out = list(),
-    cyan = biome.grid,
-    mag = biome.accent,
-    slate = [0x22384a, 0x2b4458, 0x1a2c3a, 0x33364f],
-    lamp = [cyan, cyan, mag, 0x9fd8ff, 0xffe0a0];
-  // skyline of lit towers
-  for (const p of outsideSpots(rng, W, H, 28, 3.2, 15, 3.4)) {
+    red = biome.accent,
+    pale = biome.grid,
+    tower = [0x16181d, 0x1c1f26, 0x22252d, 0x191b20, 0x262a33],
+    windows = [0xffd9a0, 0xffe7c0, 0x9fc2ff, 0xffc070];
+  // skyline: dark towers, few lit windows (the power is out), red aircraft lights, tanks and antennas
+  for (const p of outsideSpots(rng, W, H, 30, 3.4, 16, 3.3)) {
     const t = list(),
-      w = rng.range(1.6, 3.4),
-      dp = rng.range(1.6, 3.2),
-      h = rng.range(3, 11) * (p.d > 9 ? 1.25 : 1),
-      base = rng.pick(slate);
-    t.body.push(box(base, w, h, dp, { y: h / 2 }), box(dim(base, 0.6), w * 0.82, 0.3, dp * 0.82, { y: h + 0.15 }));
-    if (rng.chance(0.5)) t.body.push(spike(0x55606a, 0.03, 3, [0, h + 0.3, 0], [0, h + rng.range(1, 2.4), 0]));
-    if (rng.chance(0.6))
-      t.glow.push(box(rng.pick([cyan, mag]), w + 0.08, 0.1, dp + 0.08, { y: rng.range(h * 0.3, h * 0.9) }));
-    const rows = Math.min(5, Math.floor(h / 1.4));
+      w = rng.range(1.8, 3.6),
+      dp = rng.range(1.8, 3.4),
+      h = rng.range(4, 13) * (p.d > 9 ? 1.3 : 1),
+      base = rng.pick(tower);
+    t.body.push(box(base, w, h, dp, { y: h / 2 }), box(dim(base, 0.7), w * 0.9, 0.25, dp * 0.9, { y: h + 0.12 }));
+    // window frames: a faint grid of dark panes, a few of them lit
+    const rows = Math.min(8, Math.floor(h / 1.2));
     for (let r = 0; r < rows; r++)
-      for (let c = 0; c < 2; c++)
-        if (rng.chance(0.55)) {
-          const col = dim(rng.pick(lamp), rng.range(0.5, 0.9));
+      for (let c = -1; c <= 1; c++)
+        if (rng.chance(0.13))
           t.glow.push(
-            box(col, w * rng.range(0.25, 0.42), 0.22, 0.04, {
-              x: (c ? 1 : -1) * w * 0.24,
-              y: 1 + r * 1.3,
+            box(dim(rng.pick(windows), rng.range(0.35, 0.8)), w * 0.18, 0.32, 0.04, {
+              x: c * w * 0.28,
+              y: 0.9 + r * 1.2,
               z: dp / 2 + 0.02,
             }),
           );
-        }
-    put(out, t, p.x, 0, p.z, faceIn(p.nx, p.nz) + rng.range(-0.2, 0.2));
-  }
-  // shipping containers, sometimes stacked
-  for (const p of outsideSpots(rng, W, H, 14, 1.8, 4.6, 3.6)) {
-    const t = list(),
-      col = rng.pick([0x3a4a66, 0x5a3a4a, 0x2e5a5a, 0x5a4a2e]),
-      stack = rng.chance(0.4) ? 2 : 1;
-    for (let k = 0; k < stack; k++) {
-      t.body.push(box(k ? dim(col, 1.25) : col, 2.6, 1.2, 1.2, { y: 0.6 + k * 1.22, ry: k * 0.12 }));
-      for (let r = -4; r <= 4; r++)
-        t.body.push(box(dim(col, 0.7), 0.06, 1.24, 1.24, { x: r * 0.29, y: 0.6 + k * 1.22, ry: k * 0.12 }));
+    if (h > 8) t.glow.push(box(red, 0.18, 0.18, 0.18, { y: h + 0.4 }));
+    if (rng.chance(0.35)) {
+      t.body.push(cyl(0x2c2f36, 0.45, 0.45, 0.9, 10, w * 0.2, h + 0.25, 0));
+      for (const lx of [-0.3, 0.3])
+        t.body.push(spike(0x2c2f36, 0.04, 3, [w * 0.2 + lx, h + 0.25, 0], [w * 0.2 + lx, h, 0]));
     }
-    t.glow.push(box(rng.pick([cyan, mag]), 2.4, 0.05, 0.04, { y: 1.22 * stack, z: 0.62 }));
-    put(out, t, p.x, 0, p.z, faceIn(p.nx, p.nz) + (rng.chance(0.5) ? 0 : PI / 2));
+    if (rng.chance(0.4))
+      t.body.push(spike(0x4a4f5a, 0.03, 3, [-w * 0.25, h + 0.25, 0], [-w * 0.25, h + rng.range(1.2, 2.6), 0]));
+    put(out, t, p.x, 0, p.z, faceIn(p.nx, p.nz) + rng.range(-0.15, 0.15));
   }
-  // server racks with blinking LEDs
-  for (const p of outsideSpots(rng, W, H, 10, 1.3, 3.2, 2.4)) {
+  // parked and burned-out cars along the street outside
+  for (const p of outsideSpots(rng, W, H, 12, 1.6, 4.2, 3.6)) {
+    const t = list(),
+      burned = rng.chance(0.4),
+      col = burned ? 0x1a1a1c : rng.pick([0x2b3a4a, 0x4a2b2b, 0x3d3d44, 0x2e3b2e]);
+    t.body.push(box(col, 2.3, 0.5, 1.05, { y: 0.45 }), box(dim(col, 0.8), 1.1, 0.42, 0.95, { x: -0.1, y: 0.9 }));
+    for (const wx of [-0.75, 0.75])
+      for (const wz of [-0.5, 0.5])
+        t.body.push(cyl(0x111214, 0.26, 0.26, 0.2, 8, wx, 0.04, wz, { rx: PI / 2, y: 0.26 }));
+    if (!burned && rng.chance(0.5)) t.glow.push(box(red, 0.03, 0.08, 0.22, { x: -1.16, y: 0.55, z: 0.32 }));
+    put(out, t, p.x, 0, p.z, faceIn(p.nx, p.nz) + PI / 2 + rng.range(-0.2, 0.2));
+  }
+  // street lamps along the street (most still burn: their own circuit) and traffic lights at the corners
+  rlStreet(out, W, H, rng, pale, red);
+  // a bus shelter with a dead billboard
+  for (const p of outsideSpots(rng, W, H, 2, 1.4, 2.4, 10)) {
     const t = list();
-    t.body.push(box(0x161f2a, 0.9, 1.7, 0.6, { y: 0.85 }), box(0x0e151d, 0.94, 0.08, 0.64, { y: 1.72 }));
-    for (let r = 0; r < 6; r++)
-      for (let c = 0; c < 4; c++)
-        if (rng.chance(0.7))
-          t.glow.push(
-            box(dim(rng.pick([cyan, 0x40ff90, mag]), 0.8), 0.07, 0.05, 0.03, {
-              x: -0.3 + c * 0.2,
-              y: 0.25 + r * 0.26,
-              z: 0.31,
-            }),
-          );
+    t.body.push(box(0x2a2d33, 2.4, 0.08, 1, { y: 2.2 }), box(0x2a2d33, 0.08, 2.2, 1, { x: -1.15, y: 1.1 }));
+    t.body.push(box(0x15171b, 1.1, 1.6, 0.06, { x: 0.4, y: 1.3, z: -0.45 }));
+    t.glow.push(box(dim(pale, 0.35), 1.0, 0.03, 0.03, { x: 0.4, y: 2.12, z: -0.42 }));
     put(out, t, p.x, 0, p.z, faceIn(p.nx, p.nz));
   }
-  // fence posts with neon caps, floodlights on tall poles
-  const postWalls = [
-    [0, -H - 0.25, 1, 0],
-    [0, H + 0.25, 1, 0],
-    [-W - 0.25, 0, 0, 1],
-    [W + 0.25, 0, 0, 1],
+  // on the street: manhole covers, storm drains at the kerb, litter
+  for (const p of scatter(rng, W, H, obs, 6, { gap: 4 })) {
+    out.body.push(disc(0x1a1c20, 0.42, p.x, 0.015, p.z, 16));
+    out.body.push(ring(0x2c2f36, 0.42, 0.03, p.x, 0.03, p.z), ring(0x2c2f36, 0.24, 0.02, p.x, 0.03, p.z));
+  }
+  for (const p of scatter(rng, W, H, obs, 8, { gap: 3, near: 1.6 })) {
+    const t = list();
+    t.body.push(box(0x101114, 0.9, 0.03, 0.5, { y: 0.015 }));
+    for (let i = -3; i <= 3; i++) t.body.push(box(0x2a2c31, 0.04, 0.012, 0.44, { x: i * 0.12, y: 0.034 }));
+    put(out, t, p.x, 0, p.z, Math.abs(p.x) > W - 2 ? PI / 2 : 0);
+  }
+  for (const p of scatter(rng, W, H, obs, 22, { gap: 1 })) {
+    const s = rng.range(0.1, 0.22);
+    out.body.push(
+      box(rng.pick([0x3a3c42, 0x50463a, 0x2c3a46, 0x4a4a4a]), s, 0.02, s * rng.range(0.6, 1.4), {
+        x: p.x,
+        y: 0.012,
+        z: p.z,
+        ry: rng.range(0, PI),
+      }),
+    );
+  }
+  for (const p of scatter(rng, W, H, obs, 5, { gap: 5 })) crack(out, 0x050608, p.x, p.z, rng, 7, 0.55, 0.04);
+  return out;
+}
+// street lamps every few metres outside the barriers (a warm head, 80 % burning) and a traffic light at each corner
+function rlStreet(out, W, H, rng, pale, red) {
+  const sides = [
+    [0, -H - 1.6, 1, 0, 0, 1],
+    [0, H + 1.6, 1, 0, 0, -1],
+    [-W - 1.6, 0, 0, 1, 1, 0],
+    [W + 1.6, 0, 0, 1, -1, 0],
   ];
-  postWalls.forEach(([cx, cz, ax, az]) => {
+  for (const [cx, cz, ax, az, ix, iz] of sides) {
     const len = ax ? W : H,
-      n = Math.round((len * 2) / 2.2);
+      n = Math.round((len * 2) / 7);
     for (let i = 0; i <= n; i++) {
       const s = -len + (i / n) * len * 2,
         x = cx + ax * s,
         z = cz + az * s;
       out.body.push(
-        box(0x2b4458, 0.16, 0.6, 0.16, { x, y: 1.0, z }),
-        box(0x16232e, 0.22, 0.1, 0.22, { x, y: 0.72, z }),
+        pipe(0x30333a, 0.07, 0.05, 6, [x, 0, z], [x, 4, z]),
+        bar(0x30333a, 0.05, [x, 3.95, z], [x + ix * 0.9, 4.1, z + iz * 0.9]),
+        box(0x1c1e22, ix ? 0.5 : 0.3, 0.12, ix ? 0.3 : 0.5, { x: x + ix * 1.0, y: 4.1, z: z + iz * 1.0 }),
       );
-      out.glow.push(box(i % 3 ? cyan : mag, 0.2, 0.06, 0.2, { x, y: 1.33, z }));
+      if (rng.chance(0.8))
+        out.glow.push(
+          box(0xffd8a0, ix ? 0.4 : 0.22, 0.04, ix ? 0.22 : 0.4, { x: x + ix * 1.0, y: 4.03, z: z + iz * 1.0 }),
+        );
     }
-    for (let k = 0; k < 2; k++) {
-      const s = rng.range(-len * 0.8, len * 0.8),
-        x = cx + ax * s + (az ? (cx < 0 ? -0.6 : 0.6) : 0),
-        z = cz + az * s + (ax ? (cz < 0 ? -0.6 : 0.6) : 0),
-        ix = az ? (cx < 0 ? 1 : -1) : 0,
-        iz = ax ? (cz < 0 ? 1 : -1) : 0;
+  }
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) {
+      const x = sx * (W + 1.4),
+        z = sz * (H + 1.4);
       out.body.push(
-        pipe(0x33475a, 0.07, 0.05, 6, [x, 0, z], [x, 3.2, z]),
-        bar(0x33475a, 0.05, [x, 3.15, z], [x + ix * 0.6, 3.3, z + iz * 0.6]),
+        pipe(0x2a2c31, 0.06, 0.05, 6, [x, 0, z], [x, 2.8, z]),
+        box(0x15161a, 0.32, 0.9, 0.3, { x, y: 3.2, z }),
       );
-      out.body.push(box(0x1a2530, az ? 0.3 : 0.5, 0.1, az ? 0.5 : 0.3, { x: x + ix * 0.7, y: 3.32, z: z + iz * 0.7 }));
-      out.glow.push(
-        box(0xdff4ff, az ? 0.22 : 0.42, 0.04, az ? 0.42 : 0.22, { x: x + ix * 0.7, y: 3.26, z: z + iz * 0.7 }),
-      );
+      out.glow.push(box(0xffb347, 0.16, 0.16, 0.04, { x, y: 3.2, z: z - sz * 0.16 }));
+      out.glow.push(box(dim(red, 0.35), 0.16, 0.16, 0.04, { x, y: 3.48, z: z - sz * 0.16 }));
     }
-  });
-  // ground: chevrons pointing at the centre
-  for (const p of scatter(rng, W, H, obs, 12, { margin: 2, gap: 3 })) {
-    const d = Math.hypot(p.x, p.z) || 1,
-      ux = -p.x / d,
-      uz = -p.z / d,
-      vx = -uz,
-      vz = ux,
-      col = dim(cyan, 0.5),
-      tip = [p.x + ux * 0.45, 0.02, p.z + uz * 0.45];
-    out.glow.push(
-      bar(col, 0.12, tip, [tip[0] - ux * 0.45 + vx * 0.5, 0.02, tip[2] - uz * 0.45 + vz * 0.5], 0.012),
-      bar(col, 0.12, tip, [tip[0] - ux * 0.45 - vx * 0.5, 0.02, tip[2] - uz * 0.45 - vz * 0.5], 0.012),
-    );
-  }
-  // vent grates and manholes
-  for (const p of scatter(rng, W, H, obs, 9, { gap: 3 })) {
-    const t = list();
-    t.body.push(box(0x0d151c, 0.95, 0.03, 0.62, { y: 0.015 }));
-    for (let i = -2; i <= 2; i++) t.glow.push(box(dim(mag, 0.45), 0.72, 0.012, 0.03, { y: 0.034, z: i * 0.11 }));
-    put(out, t, p.x, 0, p.z, rng.pick([0, PI / 2]));
-  }
-  for (const p of scatter(rng, W, H, obs, 7, { gap: 3 })) {
-    out.body.push(disc(0x162330, 0.36, p.x, 0.015, p.z, 14));
-    out.glow.push(ring(dim(cyan, 0.6), 0.36, 0.014, p.x, 0.035, p.z), ring(dim(mag, 0.5), 0.2, 0.012, p.x, 0.035, p.z));
-  }
-  // cable runs along the walls, clamped every metre, a pulse of light on them
-  for (let k = 0; k < 7; k++) {
-    const [ax, az, bx, bz] = wallRun(rng, W, H, rng.range(0.7, 1.6), 4, 11),
-      len = Math.hypot(bx - ax, bz - az),
-      n = Math.max(2, Math.round(len)),
-      jitter = rng.range(-0.25, 0.25);
-    out.body.push(bar(0x0a1016, 0.07, [ax, 0.045, az + jitter], [bx, 0.045, bz + jitter], 0.07));
-    for (let i = 0; i <= n; i++) {
-      const f = i / n,
-        x = ax + (bx - ax) * f,
-        z = az + (bz - az) * f + jitter;
-      out.body.push(box(0x2b4458, 0.14, 0.1, 0.14, { x, y: 0.05, z }));
-      if (i % 2) out.glow.push(box(dim(i % 4 === 1 ? cyan : mag, 0.7), 0.16, 0.03, 0.05, { x, y: 0.1, z }));
-    }
-  }
-  // litter: small crates and plates
-  for (const p of scatter(rng, W, H, obs, 18, { gap: 1.2 })) {
-    const s = rng.range(0.14, 0.26);
-    out.body.push(
-      box(rng.pick(slate), s, s * rng.range(0.7, 1.2), s, { x: p.x, y: s / 2, z: p.z, ry: rng.range(0, PI) }),
-    );
-    if (rng.chance(0.3)) out.glow.push(box(dim(cyan, 0.6), s * 0.8, 0.02, 0.03, { x: p.x, y: s + 0.012, z: p.z }));
-  }
-  return out;
 }
 
 /* ---- Ember Works: a foundry. Smokestacks, furnaces, pipe racks, cranes, scrap and barrels outside;

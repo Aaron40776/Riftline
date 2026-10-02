@@ -934,7 +934,13 @@ function handleWorldEvents(world) {
             ev.boss ? 3e3 : 2e3,
           );
         if (!ev.boss && world.arena.vents.length) {
-          showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too.");
+          // 3.4.0: Blackout City's vents are live manholes
+          if (world.arena.biome.id === "yard")
+            showTipOnce(
+              "shock",
+              "Live manholes crackle before they arc. Lure enemies onto them \u2014 the current stuns them.",
+            );
+          else showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too.");
         }
         if (!ev.boss && world.arena.ice.length) {
           showTipOnce(

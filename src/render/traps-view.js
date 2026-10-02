@@ -25,12 +25,13 @@ const WHITE = new Color(16777215),
 
 // skin colours: main (glow, particles), second (accent), debris
 const LOOK = {
-  plate: { main: hex(0x4de8ff), alt: hex(0xff4de0), dust: hex(0x9fb4c8) },
+  // 3.4.0: Blackout City: an electrified plate (cold blue-white, amber) and a red security laser
+  plate: { main: hex(0x8fd0ff), alt: hex(0xffb347), dust: hex(0x9fb4c8) },
   crusher: { main: hex(0xff6a1f), alt: hex(0xffb347), dust: hex(0x9a8f80) },
   icespike: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff) },
   geyser: { main: hex(0xa8f03a), alt: hex(0xe6ff8a), dust: hex(0x4a7a1a) },
   riftburst: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
-  laser: { main: hex(0x2fe6ff), alt: hex(0xff4de0), dust: hex(0x9fb4c8) },
+  laser: { main: hex(0xff3346), alt: hex(0xffd0a0), dust: hex(0x9fb4c8) },
   flame: { main: hex(0xff7a1f), alt: hex(0xffd27a), dust: hex(0x9a8f80) },
   rift: { main: hex(0x9a5bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
   mine: { main: hex(0xff8a3a), alt: hex(0xffe0a0), dust: hex(0x6a6a72), led: hex(0xff3b2f) },
@@ -68,7 +69,7 @@ const cyl = (color, rt, rb, h, seg, p = {}) =>
  vertices, the hue comes from the instance); mover: Lambert, animated by the instance matrix (head, crystals, ...).
  ========================================================================== */
 const MODELS = {
-  // Neon Yard: a steel floor plate with glowing conduits
+  // Blackout City (was the Neon Yard): an electrified steel plate with live conduits
   plate: () => ({
     body: [
       cyl(0x1a2230, 0.98, 1, 0.07, 8),
@@ -78,17 +79,17 @@ const MODELS = {
       ...ring(4, (a) => rbar(0x2f394d, a + Math.PI / 4, 0.55, 0.9, 0.05, 0.03, 0.09)),
     ],
     glow: [
-      ...ring(4, (a) => rbar(0x4de8ff, a, 0.2, 0.76, 0.035, 0.012, 0.128)),
-      box(0x4de8ff, 0.2, 0.014, 0.2, { y: 0.13, ry: Math.PI / 4 }),
+      ...ring(4, (a) => rbar(0x8fd0ff, a, 0.2, 0.76, 0.035, 0.012, 0.128)),
+      box(0x8fd0ff, 0.2, 0.014, 0.2, { y: 0.13, ry: Math.PI / 4 }),
       ...ring(8, (a, i) =>
-        box(i % 2 ? 0xff4de0 : 0x4de8ff, 0.07, 0.02, 0.04, {
+        box(i % 2 ? 0xffb347 : 0x8fd0ff, 0.07, 0.02, 0.04, {
           x: Math.cos(a) * 0.93,
           y: 0.075,
           z: Math.sin(a) * 0.93,
           ry: -a,
         }),
       ),
-      ...ring(4, (a) => box(0xff4de0, 0.05, 0.016, 0.05, { x: Math.cos(a) * 0.78, y: 0.12, z: Math.sin(a) * 0.78 })),
+      ...ring(4, (a) => box(0xffb347, 0.05, 0.016, 0.05, { x: Math.cos(a) * 0.78, y: 0.12, z: Math.sin(a) * 0.78 })),
     ],
   }),
   // Ember Works: stamping press with hazard stripes and slag in the cracks
@@ -278,7 +279,7 @@ const MODELS = {
       ],
     };
   },
-  // Neon Yard: laser turret
+  // Blackout City (was the Neon Yard): a security laser turret
   laser: () => ({
     body: [
       cyl(0x20293a, 0.65, 0.7, 0.2, 6),
@@ -287,7 +288,7 @@ const MODELS = {
     ],
     glow: [
       ...ring(6, (a) =>
-        box(0x4de8ff, 0.06, 0.02, 0.04, { x: Math.cos(a) * 0.66, y: 0.14, z: Math.sin(a) * 0.66, ry: -a }),
+        box(0xff3346, 0.06, 0.02, 0.04, { x: Math.cos(a) * 0.66, y: 0.14, z: Math.sin(a) * 0.66, ry: -a }),
       ),
     ],
     mover: [
@@ -297,10 +298,10 @@ const MODELS = {
       box(0x4a566e, 0.08, 0.34, 0.5, { x: 0.3 }),
     ],
     moverGlow: [
-      ball(0x2fe6ff, 0.13, 8, 6, { x: 0.93 }),
-      box(0xff4de0, 0.6, 0.03, 0.05, { x: 0.1, y: 0.15 }),
-      box(0x2fe6ff, 0.12, 0.05, 0.05, { x: 0.3, y: 0, z: 0.2 }),
-      box(0x2fe6ff, 0.12, 0.05, 0.05, { x: 0.3, y: 0, z: -0.2 }),
+      ball(0xff3346, 0.13, 8, 6, { x: 0.93 }),
+      box(0xffd0a0, 0.6, 0.03, 0.05, { x: 0.1, y: 0.15 }),
+      box(0xff3346, 0.12, 0.05, 0.05, { x: 0.3, y: 0, z: 0.2 }),
+      box(0xff3346, 0.12, 0.05, 0.05, { x: 0.3, y: 0, z: -0.2 }),
     ],
   }),
   // Ember Works: flame thrower on a striped base
@@ -855,7 +856,7 @@ class TrapView {
         );
       }
     } else {
-      // laser: cyan body, white core and two thin magenta edges
+      // laser: a body in the main colour of the skin (red in Blackout City), a white core and two thin edges
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * flick, beam.w * 0.6), look.main, 0.7);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), WHITE, 1);
       for (const side of [-1, 1]) {

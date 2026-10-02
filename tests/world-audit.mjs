@@ -54,7 +54,8 @@ const r = await page.evaluate(() => {
       for (const k of ["vents", "ice", "acid"])
         for (const q of A[k])
           if (hitsObstacle(A.obs, q.x, q.y, q.r * 0.5)) add("feature-in-wall", `${k} ${b.id} w${wave}`);
-      const theme = { yard: "", works: "vents", vault: "ice", void: "portals", marsh: "acid" }[b.id];
+      // 3.4.0: Blackout City (yard) has live manholes, which are vents with an electric skin
+      const theme = { yard: "vents", works: "vents", vault: "ice", void: "portals", marsh: "acid" }[b.id];
       for (const k of ["vents", "ice", "acid", "portals"])
         if (A[k].length && k !== theme) add("hazard-off-theme", `${k} in ${b.id} w${wave}`);
       for (const p of A.portals)

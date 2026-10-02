@@ -66,6 +66,7 @@ void main() {
   col += uGrid * (minor * 0.07 + major * (0.22 + 0.12 * scan)) * (0.6 + 0.6 * pl) * inside;
   col += uAccent * edgeGlow * 0.28 * inside;
   col += uGrid * uPulse * 0.12 * inside;
+  col *= 1.0 - 0.72 * uDark;
   // floor markings that change with the layout: 1 rings, 2 hazard stripes along the edge, 3 cross lanes, 4 hex dots
   if (uDeco > 0.5) {
     float m = 0.0;
@@ -103,6 +104,8 @@ void main() {
           uTime: { value: 0 },
           uPulse: { value: 0 },
           uDeco: { value: 0 },
+          // 3.4.0: how dark the Blackout makes the floor (0..1); the lights of blasts and arcs still light it
+          uDark: { value: 0 },
           uL: { value: Array.from({ length: 6 }, () => new Vector4()) },
           uLC: { value: Array.from({ length: 6 }, () => new Color()) },
         },
@@ -200,20 +203,21 @@ void main() {
 /* ---- 2.4.0: every biome gets its own look, not just its own colours. Before, all 19 biomes
  shared one neon grid floor, the same boxes and pillars and the same wall; only the palette
  changed. Now each of the five has its own
-   floor    Neon Yard: neon grid · Ember Works: basalt plates split by glowing lava seams ·
+   floor    Blackout City (3.4.0): wet asphalt and road markings · Ember Works: basalt plates split by glowing lava seams ·
             Cryo Vault: frozen sheet with cracks, frost and glints · Toxin Marsh: mud, murky
             water with ripples and moss · Void Core: hex tiles floating over a starfield
    props    (same collision shapes) pylons and crates · chimneys and machines · crystal
             clusters and ice blocks · mushrooms, dead trees and logs · floating obelisks and
             hovering monoliths
-   border   fence · steel wall with hazard stripes · ice wall with crystals · reeds and rocks
+   border   jersey barriers (3.4.0, was a fence) · steel wall with hazard stripes · ice wall with crystals · reeds and rocks
             on a mud bank · energy barrier over the abyss
    air      neon dust · rising embers and chimney sparks · snowfall · spores and marsh haze ·
             rising void motes
    light    sun colour, sky and fog density (the marsh is foggy, the void dark)
  ---- */
 const RL_BIOME_LOOK = {
-  yard: { style: 0, hemi: 1.9, sun: 0xffffff, sunI: 1.5, fog: null },
+  // 3.4.0: Blackout City: a cold moon, little ambient light, some fog over the street
+  yard: { style: 5, hemi: 1.45, sun: 0xb4c4ff, sunI: 1.25, fog: [1.5, 3.8] },
   works: { style: 1, hemi: 1.6, sun: 0xffb27a, sunI: 1.75, fog: [1.35, 3.3] },
   vault: { style: 2, hemi: 2.2, sun: 0xd6ecff, sunI: 1.8, fog: [1.3, 3.2] },
   marsh: { style: 3, hemi: 1.6, sun: 0xdcffb8, sunI: 1.15, fog: [0.95, 2.5] },
@@ -224,7 +228,7 @@ const RL_FLOOR_FRAG = `
 #include <fog_pars_fragment>
 uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
 uniform vec2 uHalf; uniform vec2 uPlayer; uniform float uTime; uniform float uPulse; uniform float uDeco;
-uniform float uStyle;
+uniform float uStyle; uniform float uDark;
 uniform vec4 uL[6]; uniform vec3 uLC[6];
 varying vec2 vW;
 float gridLine(vec2 p, float w) {
@@ -326,8 +330,28 @@ void main() {
     col = mix(tile, starfield(p), max(gap, 1.0 - inside));
     lit = (0.3 + rim) * (1.0 - gap);
     outside = 1.0;
+  } else if (st == 5) {
+    // Blackout City (3.4.0): wet black asphalt with grain and glossy tar seams, puddles that mirror the lights with
+    // rain rings in them, worn lane markings (dashed lines every 9 m, a crosswalk near each side) and cracks
+    float grain = vnoise(p * 2.2) * 0.6 + h21(floor(p * 18.0)) * 0.4;
+    col = uBase * (0.8 + 0.7 * grain) * (0.85 + 0.5 * pl);
+    vec3 v = voro(p * 0.18 + 7.0);
+    col *= 1.0 - smoothstep(0.05, 0.0, v.y) * 0.4;
+    float puddle = smoothstep(0.56, 0.6, fbm(p * 0.16 + 2.0));
+    vec2 rc = floor(p * 1.3), rf = fract(p * 1.3) - 0.5;
+    float rt = fract(uTime * 0.9 + h21(rc) * 7.0);
+    float ripple = smoothstep(0.025, 0.0, abs(length(rf) - rt * 0.28)) * (1.0 - rt) * step(0.6, h21(rc + 4.0));
+    vec3 mirror = vec3(0.035, 0.045, 0.065) + uAccent * 0.012 * (0.5 + 0.5 * sin(uTime * 0.7 + p.x * 0.2));
+    col = mix(col, uBase * 0.35 + mirror, puddle * 0.85) + vec3(0.55, 0.65, 0.8) * ripple * puddle * 0.14;
+    float ly = abs(mod(p.y + 4.5, 9.0) - 4.5);
+    float lane = smoothstep(0.13, 0.07, ly) * step(0.45, fract(p.x / 3.0));
+    float cw = step(abs(abs(p.x) - (uHalf.x - 4.0)), 1.3) * step(0.5, fract(p.y / 1.1)) * step(abs(p.y), 4.2);
+    lane = max(lane, cw);
+    float wear = smoothstep(0.22, 0.6, vnoise(p * 1.7 + 9.0));
+    col = mix(col, uGrid * 0.4, lane * wear * inside * (1.0 - puddle * 0.6));
+    lit = 0.4 + 0.75 * puddle + lane * 0.3;
   } else {
-    // Neon Yard: the neon grid with a slow scan wave and layout markings (unchanged)
+    // Neon Yard (until 3.4.0, the style is kept): the neon grid with a slow scan wave and layout markings
     float scan = smoothstep(0.0, 1.0, 1.0 - abs(fract(length(p) * 0.05 - uTime * 0.08) - 0.5) * 2.0);
     col = uBase * (0.75 + 0.7 * pl);
     col += uGrid * (minor * 0.07 + major * (0.22 + 0.12 * scan)) * (0.6 + 0.6 * pl) * inside;
@@ -409,95 +433,113 @@ const rlFootRing = (group, x, z, radius, mat) => {
 const rlFootSlab = (group, box, mat, pad = 0.3) =>
   rlMesh(group, new BoxGeometry(box.w * 2 + pad, 0.05, box.h * 2 + pad), mat, box.x, 0.03, box.y);
 const RL_BIOME_BUILD = {
-  // Neon Yard: the original arena (fence with neon trim, pylons and crates)
-  yard(view, biome, W, H, obs) {
+  // Blackout City (3.4.0, was the Neon Yard): jersey barriers with red and white reflectors around the street,
+  // advertising columns (round obstacles) and wrecked cars or dumpsters (box obstacles), steam from some manholes
+  yard(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      wallMat = new MeshLambertMaterial({ color: biome.wall }),
-      gridMat = new MeshBasicMaterial({ color: biome.grid, toneMapped: false }),
-      accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false }),
-      wallW = 0.5,
-      wallH = 0.7;
-    for (const [bx, bz, sx, sz] of [
-      [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
-      [0, H + wallW / 2, W * 2 + wallW * 2, wallW],
-      [-W - wallW / 2, 0, wallW, H * 2],
-      [W + wallW / 2, 0, wallW, H * 2],
-    ]) {
-      rlMesh(group, new BoxGeometry(sx, wallH, sz), wallMat, bx, wallH / 2, bz);
-      rlMesh(
-        group,
-        new BoxGeometry(sx === wallW ? 0.08 : sx, 0.06, sz === wallW ? 0.08 : sz),
-        gridMat,
-        bx + (sx === wallW ? (bx < 0 ? wallW / 2 - 0.04 : -wallW / 2 + 0.04) : 0),
-        wallH + 0.03,
-        bz + (sz === wallW ? (bz < 0 ? wallW / 2 - 0.04 : -wallW / 2 + 0.04) : 0),
-      );
-    }
+      concrete = new MeshLambertMaterial({ color: 0x3a3c42, flatShading: true }),
+      darkConcrete = new MeshLambertMaterial({ color: 0x24262b, flatShading: true }),
+      red = rlGlow(biome.accent),
+      white = rlGlow(0xd8d4c8),
+      amber = rlGlow(0xffb347),
+      accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false });
+    // jersey barriers: a wide foot and a narrower top, a reflector on the inner face of every second one
+    rlAlongBorder(W, H, 0.45, 2.3, (x, z, nx, nz) => {
+      const along = nx === 0,
+        ry = along ? 0 : Math.PI / 2;
+      rlMesh(group, new BoxGeometry(2.15, 0.35, 0.7), concrete, x, 0.175, z, ry);
+      rlMesh(group, new BoxGeometry(2.15, 0.45, 0.32), concrete, x, 0.57, z, ry);
+      const k = Math.round((along ? x : z) / 2.3);
+      rlMesh(group, new BoxGeometry(0.5, 0.12, 0.02), k % 2 ? red : white, x - nx * 0.17, 0.6, z - nz * 0.17, ry);
+    });
+    // corner posts with a blinking-amber lamp (static glow) and a red reflector
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        rlMesh(group, new BoxGeometry(0.9, 1.4, 0.9), wallMat, sx * (W + 0.25), 0.7, sz * (H + 0.25));
-        rlMesh(group, new BoxGeometry(0.95, 0.08, 0.95), accentMat, sx * (W + 0.25), 1.42, sz * (H + 0.25));
+        rlMesh(group, new BoxGeometry(0.8, 1.1, 0.8), darkConcrete, sx * (W + 0.45), 0.55, sz * (H + 0.45));
+        rlMesh(group, new BoxGeometry(0.3, 0.18, 0.3), amber, sx * (W + 0.45), 1.2, sz * (H + 0.45));
       }
-    const propMat = new MeshLambertMaterial({ color: new Color(biome.wall).multiplyScalar(1.4) });
+    const paint = [0x2b3a4a, 0x4a2b2b, 0x2e3b2e, 0x3d3d44, 0x4a4030];
     for (const obstacle of obs)
       if (obstacle.t === "c") {
-        const height = 1.8;
+        // an advertising column: concrete drum, a band of torn posters, a cap
+        const r = obstacle.r,
+          height = 2.2;
+        rlMesh(props, new CylinderGeometry(r * 0.92, r, height, 18), darkConcrete, obstacle.x, height / 2, obstacle.y);
+        const posters = new MeshLambertMaterial({ color: rng.pick(paint), flatShading: true });
+        rlMesh(props, new CylinderGeometry(r * 0.97, r * 0.99, 1.2, 18), posters, obstacle.x, 1.15, obstacle.y);
         rlMesh(
           props,
-          new CylinderGeometry(obstacle.r, obstacle.r * 1.08, height, 20),
-          propMat,
+          new CylinderGeometry(r * 1.08, r * 1.0, 0.14, 18),
+          concrete,
           obstacle.x,
-          height / 2,
+          height + 0.07,
           obstacle.y,
         );
-        rlMesh(
-          props,
-          new CylinderGeometry(obstacle.r * 1.02, obstacle.r * 1.02, 0.08, 20, 1, true),
-          gridMat,
-          obstacle.x,
-          height * 0.75,
-          obstacle.y,
-        );
-        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.1, accentMat);
-        rlMesh(
-          props,
-          new CylinderGeometry(obstacle.r * 0.6, obstacle.r * 0.6, 0.06, 16),
-          gridMat,
-          obstacle.x,
-          height + 0.03,
-          obstacle.y,
-        );
-      } else {
-        const height = obstacle.w < 1.3 && obstacle.h < 1.3 ? 1.1 : 1.3;
+        rlMesh(props, new CylinderGeometry(r * 0.5, r * 0.7, 0.3, 12), concrete, obstacle.x, height + 0.29, obstacle.y);
+        rlMesh(props, new CylinderGeometry(r * 1.0, r * 1.0, 0.05, 18, 1, true), white, obstacle.x, 1.8, obstacle.y);
+        rlFootRing(props, obstacle.x, obstacle.y, r * 1.1, accentMat);
+      } else if (obstacle.w < 1.3 && obstacle.h < 1.3) {
+        // a dumpster with its lid half open
+        const height = 1.1,
+          body = new MeshLambertMaterial({ color: rng.pick([0x2f4a3a, 0x3a3f4a, 0x4a3a2a]), flatShading: true });
         rlMesh(
           props,
           new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2),
-          propMat,
+          body,
           obstacle.x,
           height / 2,
           obstacle.y,
         );
-        for (const off of [-obstacle.h, obstacle.h])
-          rlMesh(
-            props,
-            new BoxGeometry(obstacle.w * 2 + 0.04, 0.07, 0.07),
-            gridMat,
-            obstacle.x,
-            height,
-            obstacle.y + off,
-          );
-        for (const off of [-obstacle.w, obstacle.w])
-          rlMesh(
-            props,
-            new BoxGeometry(0.07, 0.07, obstacle.h * 2 + 0.04),
-            gridMat,
-            obstacle.x + off,
-            height,
-            obstacle.y,
-          );
+        const lid = rlMesh(
+          props,
+          new BoxGeometry(obstacle.w * 2 + 0.06, 0.06, obstacle.h * 2 + 0.06),
+          darkConcrete,
+          obstacle.x,
+          height + 0.12,
+          obstacle.y,
+        );
+        lid.rotation.z = 0.18;
+        rlFootSlab(props, obstacle, accentMat);
+      } else {
+        // a wrecked car: body, cabin, wheels, dead headlights and one red tail light still on
+        const long = obstacle.w >= obstacle.h,
+          L = (long ? obstacle.w : obstacle.h) * 2,
+          D = (long ? obstacle.h : obstacle.w) * 2,
+          ry = long ? 0 : Math.PI / 2,
+          car = new Group(),
+          body = new MeshLambertMaterial({ color: rng.pick(paint), flatShading: true });
+        car.position.set(obstacle.x, 0, obstacle.y);
+        car.rotation.y = ry;
+        props.add(car);
+        rlMesh(car, new BoxGeometry(L, 0.55, D), body, 0, 0.5, 0);
+        rlMesh(car, new BoxGeometry(L * 0.5, 0.45, D * 0.86), body, -L * 0.06, 0.99, 0);
+        rlMesh(car, new BoxGeometry(L * 0.48, 0.3, D * 0.88), darkConcrete, -L * 0.06, 1.0, 0);
+        for (const wx of [-1, 1])
+          for (const wz of [-1, 1]) {
+            const wheel = rlMesh(
+              car,
+              new CylinderGeometry(0.3, 0.3, 0.22, 10),
+              darkConcrete,
+              wx * L * 0.33,
+              0.3,
+              wz * D * 0.48,
+            );
+            wheel.rotation.x = Math.PI / 2;
+          }
+        rlMesh(car, new BoxGeometry(0.04, 0.12, 0.3), red, -L / 2 - 0.01, 0.62, D * 0.32);
+        rlMesh(car, new BoxGeometry(0.04, 0.1, 0.28), white, L / 2 + 0.01, 0.6, -D * 0.3).visible = rng.chance(0.3);
         rlFootSlab(props, obstacle, accentMat);
       }
+    // steam out of a few manholes (decor; the live ones are the vents)
+    if (!view.rlEmit) view.rlEmit = [];
+    for (let k = 0; k < 4; k++) {
+      const x = rng.range(-W + 2, W - 2),
+        z = rng.range(-H + 2, H - 2);
+      if (Math.hypot(x, z - 2) < 6 || obs.some((o) => Math.hypot(o.x - x, o.y - z) < 2.5)) continue;
+      rlMesh(group, new CylinderGeometry(0.42, 0.42, 0.03, 16), darkConcrete, x, 0.015, z);
+      view.rlEmit.push({ k: "steam", x, y: 0.1, z });
+    }
   },
   // Ember Works: steel wall with hazard stripes, furnaces in the corners, chimneys and machines
   works(view, biome, W, H, obs, rng) {
@@ -1063,6 +1105,8 @@ const RL_C = {
   ember2: new Color(0xffd070),
   snow: new Color(0xdceeff),
   white: new Color(0xffffff),
+  rain: new Color(0x9fb4cc),
+  steam: new Color(0x5a6270),
 };
 function rlAmbient(renderer, dt, world, opt) {
   const biome = renderer.biome,
@@ -1144,6 +1188,15 @@ function rlAmbient(renderer, dt, world, opt) {
           },
         );
       break;
+    case "yard":
+      // 3.4.0: Blackout City: rain streaks and a few splashes on the asphalt
+      for (let j = count(65); j--; )
+        renderer.emit(rx(16), 6 + Math.random() * 3, rz(13), -0.6, -15 - Math.random() * 4, 0.3, 0.5, 0.05, RL_C.rain, {
+          spark: true,
+          drag: 0,
+        });
+      for (let j = count(14); j--; ) renderer.emit(rx(14), 0.05, rz(11), 0, 0.9, 0, 0.18, 0.08, RL_C.rain, { drag: 2 });
+      break;
     case "void":
       for (let j = count(20); j--; )
         renderer.emit(
@@ -1179,6 +1232,22 @@ function rlAmbient(renderer, dt, world, opt) {
           0.22,
           RL_C.ember,
           { drag: 0.6, grow: 1.2 },
+        );
+      }
+    } else if (src.k === "steam") {
+      // 3.4.0: steam rising from the manholes of Blackout City
+      if (count(3)) {
+        renderer.emit(
+          src.x + (Math.random() - 0.5) * 0.5,
+          src.y,
+          src.z + (Math.random() - 0.5) * 0.5,
+          (Math.random() - 0.5) * 0.3,
+          0.7 + Math.random() * 0.5,
+          (Math.random() - 0.5) * 0.3,
+          2.2,
+          0.35,
+          RL_C.steam,
+          { drag: 0.3, grow: 2.2 },
         );
       }
     } else if (src.k === "glint") {
@@ -1233,7 +1302,7 @@ function rlAmbient(renderer, dt, world, opt) {
 
 /* ---- 2.4.1: enemies and bosses wear the biome. A skin is laid over every enemy model by the
  shader (same shapes, same type colours and glow, so types stay recognisable):
-   Neon Yard    none
+   Blackout City rain-wet with a cold sheen, drops running down, red and blue emergency light on the rims (3.4.0)
    Ember Works  charred shell with pulsing lava veins, embers rising off them
    Cryo Vault   frost on the upper surfaces with glints, a cold tint, frost flakes
    Toxin Marsh  slime running down with glowing toxic spots, green drops
@@ -1289,6 +1358,16 @@ if (rlS == 1) {
   outgoingLight = mix(outgoingLight * vec3(0.75, 1.0, 0.6), vec3(0.1, 0.24, 0.04) + vec3(0.2, 0.34, 0.07) * max(vRlN.y, 0.0), s * 0.75);
   float spot = smoothstep(0.82, 0.9, rlN3(vRlP * 9.0 + 3.0));
   outgoingLight += vec3(0.5, 1.0, 0.15) * spot * (0.55 + 0.3 * sin(uSkinT * 2.5 + vRlP.y * 9.0));
+} else if (rlS == 5) {
+  // 3.4.0: Blackout City: rain-wet, a cold sheen on the upper faces, drops running down, and the red and blue of
+  // emergency lights sweeping over the rims
+  float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
+  float wet = smoothstep(0.1, 0.9, vRlN.y);
+  outgoingLight = outgoingLight * vec3(0.72, 0.75, 0.85) + vec3(0.55, 0.62, 0.75) * wet * 0.18;
+  float drop = smoothstep(0.8, 0.95, rlN3(vec3(vRlP.x * 9.0, vRlP.y * 2.5 + uSkinT * 1.6, vRlP.z * 9.0)));
+  outgoingLight += vec3(0.7, 0.8, 0.95) * drop * 0.35;
+  float sweep = 0.5 + 0.5 * sin(uSkinT * 5.0 + vRlP.x * 1.5);
+  outgoingLight += mix(vec3(1.0, 0.12, 0.18), vec3(0.15, 0.35, 1.0), step(0.5, sweep)) * fres * 0.55;
 } else if (rlS == 4) {
   // void: violet rim and drifting star specks
   float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
@@ -1329,6 +1408,8 @@ const RL_SKIN_FX = {
   2: { c: new Color(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: true },
   3: { c: new Color(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: false },
   4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: false },
+  // 3.4.0: Blackout City: water dripping off
+  5: { c: new Color(0xa8c4e0), vy: -0.4, grav: 9, life: 0.5, size: 0.08, spark: true },
 };
 function rlSkinParticles(renderer, dt, world) {
   const fx = RL_SKIN_FX[RL_SKIN.uSkin.value];

@@ -242,7 +242,7 @@ const bossDefs = {
   warden: {
     id: "warden",
     name: "THE WARDEN",
-    title: "Gatekeeper of the Yard",
+    title: "Enforcer of the Blackout",
     hp: 1500,
     r: 2,
     speed: 2.4,

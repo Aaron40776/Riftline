@@ -756,6 +756,12 @@ const MAX_PARTICLES = 1400,
         this.hemi.intensity = look.hemi;
         this.sun.intensity = look.sunI;
       }
+      // 3.4.0: the Blackout of Blackout City takes most of the light away (blasts and arcs still light the street)
+      const dark = this.rlBlackK || 0;
+      if (dark > 0) {
+        this.hemi.intensity *= 1 - 0.68 * dark;
+        this.sun.intensity *= 1 - 0.75 * dark;
+      }
     }
     debrisBurst(x, z, y, count, color, size, speed) {
       let list = this.D;
@@ -1249,6 +1255,16 @@ const MAX_PARTICLES = 1400,
             this.flash(ev.x, ev.y, 6, 1.4, goldColor, 3);
             break;
           case "erupt": {
+            // 3.4.0: a live manhole of Blackout City arcs: a white-blue burst of sparks and a cold flash
+            if (world && world.arena && world.arena.biome.id === "yard") {
+              const arc = hexColor(0x8fd0ff);
+              this.burst(ev.x, ev.y, 0.3, 30, 7, whiteColor, 0.35, 0.3, { up: 8, spark: true, drag: 1 });
+              this.burst(ev.x, ev.y, 0.3, 16, 4, arc, 0.5, 0.35, { up: 4, spark: true });
+              this.ring(ev.x, ev.y, ev.r * 0.3, ev.r * 1.6, arc, 0.3);
+              this.flash(ev.x, ev.y, ev.r * 3.2, 1.6, arc, 3);
+              this.addShake(0.1 * shakeK);
+              break;
+            }
             let color = hexColor(16738858);
             this.burst(ev.x, ev.y, 0.3, 26, 5, color, 0.8, 0.6, { up: 7, grav: 9, drag: 1.5 });
             this.burst(ev.x, ev.y, 0.3, 10, 3, hexColor(16765562), 0.5, 0.4, { up: 9, spark: true });
@@ -1359,6 +1375,15 @@ const MAX_PARTICLES = 1400,
           ? 1
           : 0;
       this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 1 : -1) * (dt || 0) * 0.9, 0, 1);
+      // 3.4.0: the Blackout (Blackout City) fades the light out over about two seconds, and back after the wave
+      const black =
+        !opts.menu &&
+        world &&
+        world.event === "blackout" &&
+        world.state === "fight" &&
+        world.arena?.biome?.id === "yard";
+      this.rlBlackK = clamp((this.rlBlackK || 0) + (black ? 0.5 : -0.8) * (dt || 0), 0, 1);
+      if (this.arena?.uniforms?.uDark) this.arena.uniforms.uDark.value = this.rlBlackK * 0.85;
       // 2.8.1: the snow keeps fading after Home, when there may be no world any more
       if (this.rlWhiteK > 0.02 && world?.arena && dt > 0 && dt < 0.25) {
         const density = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
@@ -2065,8 +2090,10 @@ const MAX_PARTICLES = 1400,
       let arena = world.arena,
         time = this.time,
         basis = this.B,
-        ventCol = hexColor(16734746),
-        ventWarnCol = hexColor(16756816);
+        // 3.4.0: Blackout City's vents are live manholes: steel blue, crackling white before and while they arc
+        city = arena.biome.id === "yard",
+        ventCol = hexColor(city ? 0x5aa8ff : 16734746),
+        ventWarnCol = hexColor(city ? 0xdff2ff : 16756816);
       for (let vent of arena.vents) {
         let state = world.state === "fight" ? arena.ventState(vent, world.waveT) : "idle",
           cycle = (world.waveT + vent.phase) % vent.period,
@@ -2074,11 +2101,13 @@ const MAX_PARTICLES = 1400,
           disc = this.discs.y(vent.x, 0.03, vent.y, 0, vent.r),
           ring = this.ringPool.y(vent.x, 0.05, vent.y, 0, vent.r);
         if (state === "idle") {
-          this.discs.colC(disc, ventCol, 0.1 + Math.sin(time * 2 + vent.phase) * 0.03);
-          this.ringPool.colC(ring, ventCol, 0.35);
+          this.discs.colC(disc, ventCol, city ? 0.05 : 0.1 + Math.sin(time * 2 + vent.phase) * 0.03);
+          this.ringPool.colC(ring, ventCol, city ? 0.28 : 0.35);
         } else if (state === "warn") {
           let k = clamp((cycle - warnStart) / 1.2, 0, 1);
-          this.discs.colC(disc, ventWarnCol, 0.2 + k * 0.35 + Math.sin(time * 30) * 0.08 * k);
+          // a live manhole crackles: its glow flickers instead of rising steadily
+          if (city) this.discs.colC(disc, ventCol, 0.08 + k * 0.18 * (Math.random() < 0.5 ? 1 : 0.3));
+          else this.discs.colC(disc, ventWarnCol, 0.2 + k * 0.35 + Math.sin(time * 30) * 0.08 * k);
           this.ringPool.colC(ring, this.contrast ? warnColor : ventWarnCol, 0.6 + k * 0.5);
           if (Math.random() < dt * 18) {
             this.emit(
@@ -2086,19 +2115,37 @@ const MAX_PARTICLES = 1400,
               0.1,
               vent.y + (Math.random() - 0.5) * vent.r,
               0,
-              1.5 + k * 2,
+              city ? 2.5 + k * 3 : 1.5 + k * 2,
               0,
-              0.4,
-              0.25,
+              city ? 0.2 : 0.4,
+              city ? 0.14 : 0.25,
               ventWarnCol,
-              { drag: 1 },
+              city ? { drag: 1, spark: true } : { drag: 1 },
             );
           }
         } else {
-          this.discs.colC(disc, ventWarnCol, 0.75);
-          this.ringPool.colC(ring, whiteColor, 0.8);
-          let column = this.columns.y(vent.x, 0, vent.y, 0, vent.r * 0.8, 3.2, vent.r * 0.8);
-          this.columns.colC(column, ventCol, 0.9);
+          this.discs.colC(disc, city ? ventCol : ventWarnCol, city ? 0.3 + Math.random() * 0.2 : 0.75);
+          this.ringPool.colC(ring, city ? ventWarnCol : whiteColor, city ? 0.6 : 0.8);
+          if (city) {
+            // three thin arcs that flicker in place, height and brightness (lava stands as one column)
+            for (let a = 0; a < 3; a++) {
+              const ang = Math.random() * TAU,
+                off = Math.random() * vent.r * 0.55,
+                bolt = this.columns.y(
+                  vent.x + Math.cos(ang) * off,
+                  0,
+                  vent.y + Math.sin(ang) * off,
+                  0,
+                  0.06 + Math.random() * 0.05,
+                  1.6 + Math.random() * 2.6,
+                  0.06 + Math.random() * 0.05,
+                );
+              this.columns.colC(bolt, a ? ventWarnCol : whiteColor, 0.5 + Math.random() * 0.5);
+            }
+          } else {
+            let column = this.columns.y(vent.x, 0, vent.y, 0, vent.r * 0.8, 3.2, vent.r * 0.8);
+            this.columns.colC(column, ventCol, 0.9);
+          }
           if (Math.random() < dt * 40) {
             this.emit(
               vent.x + (Math.random() - 0.5) * vent.r * 1.4,
@@ -2107,10 +2154,10 @@ const MAX_PARTICLES = 1400,
               (Math.random() - 0.5) * 2,
               4 + Math.random() * 4,
               (Math.random() - 0.5) * 2,
-              0.6,
-              0.5,
+              city ? 0.25 : 0.6,
+              city ? 0.16 : 0.5,
               ventCol,
-              { drag: 1.5, grav: 6, grow: 0.6 },
+              city ? { drag: 1, spark: true } : { drag: 1.5, grav: 6, grow: 0.6 },
             );
           }
         }

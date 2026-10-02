@@ -1,5 +1,5 @@
 // 3.0.0: traps. From wave 6 the arena itself fights back: floor strikes, sweeping beams and mines, each
-// with a skin that belongs to the biome (a laser grid in Neon Yard, piston crushers in Ember Works, ice
+// with a skin that belongs to the biome (a security laser in Blackout City, piston crushers in Ember Works, ice
 // spikes in Cryo Vault, acid geysers and spore pods in Toxin Marsh, rift beams and rift mines in the
 // Void). The three families share their mechanics, so the skins only change numbers, colours and one side
 // effect (chill, acid puddle, knock-back). Everything is announced first (a warning ring or line), hurts

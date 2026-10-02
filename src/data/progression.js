@@ -496,7 +496,7 @@ const rlRetiredModule = (id) =>
       desc: "Start every run with 1 random common upgrade per level",
       costs: [700, 1600, 3200],
     },
-    // pays off only close to the biome's hazard (vents, ice, acid, portals); Neon Yard has none
+    // pays off only close to the biome's hazard (vents, ice, acid, portals; Blackout City's manholes are vents)
     {
       id: "hazardAttune",
       name: "Hazard Attunement",

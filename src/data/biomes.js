@@ -32,7 +32,8 @@ function rlApplyBiomeFixes() {
  rotating vent/ice/acid pool into EVERY biome, so lava vents appeared in the
  Cryo Vault and ice in Ember Works. Each biome now owns one hazard type. ---- */
 const RL_BIOME_HAZARD = {
-  yard: "",
+  // 3.4.0: Blackout City's live manholes are vents with an electric skin (they arc instead of erupting)
+  yard: "vents",
   works: "vents",
   vault: "ice",
   void: "portals",
@@ -40,17 +41,19 @@ const RL_BIOME_HAZARD = {
 };
 const biomeList = [
   {
+    // 3.4.0: Blackout City replaces the Neon Yard (the id stays "yard" for saves and records): a city street at
+    // night in a power cut. Wet black asphalt, worn yellow road markings, emergency red, a cold moonlit sky.
     id: "yard",
-    name: "Neon Yard",
+    name: "Blackout City",
     W: 18,
     H: 18,
-    floor: 659746,
-    grid: 2017535,
-    accent: 16727423,
-    fog: 395798,
-    sky: 2771594,
-    ground: 657944,
-    wall: 1385016,
+    floor: 0x0c0d10,
+    grid: 0xe6cf7a,
+    accent: 0xff3346,
+    fog: 0x07080b,
+    sky: 0x3a404e,
+    ground: 0x0a0b0e,
+    wall: 0x1d1f25,
     obstacles: [
       { t: "c", x: -7, y: -7, r: 1.3 },
       { t: "c", x: 7, y: -7, r: 1.3 },
@@ -152,10 +155,10 @@ function planBiomeRoute(rng) {
 }
 
 /* 2.4.0: 19 biomes → 5, and the biome changes after every boss again (it changed every wave
- since 2.1). Waves 1–5 are always Neon Yard; the other four follow in a seeded order, one per
+ since 2.1). Waves 1–5 are always Blackout City (the Neon Yard until 3.4.0); the other four follow in a seeded order, one per
  boss cycle, so a 20-wave run shows four biomes and Endless reaches the fifth at wave 21.
  Each biome plays differently, not only in colour:
-   Neon Yard    open ground, no hazard, the standard enemy mix
+   Blackout City live manholes that arc (3.4.0, was the Neon Yard: open ground); armed gangs (gunner)
    Ember Works  lava vents; heavy and explosive enemies (brute, bomber, charger, minebot …)
    Cryo Vault   the whole floor is slick (you drift), ice sheets are slicker; shielded and
                 ranged enemies (bulwark, sniper, turret, sentinel …)
@@ -164,7 +167,7 @@ function planBiomeRoute(rng) {
  The look of each biome (floor, props, border, particles, light) is in the renderer part of
  2.4.0 further down. */
 const RL_BIOME_INFO = {
-  yard: { tag: "Open ground" },
+  yard: { tag: "Live manholes", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
   works: {
     tag: "Lava vents",
     mix: { brute: 2.2, bomber: 2.2, charger: 2, mortar: 1.6, minebot: 1.8, driller: 1.6, swarmer: 0.6 },

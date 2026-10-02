@@ -50,15 +50,17 @@ function rlRenderHistory() {
   const killerName = (id) =>
     id === "lava"
       ? "a lava vent"
-      : id === "acid"
-        ? "acid"
-        : id === "trap"
-          ? "a trap"
-          : enemyDefs[id]
-            ? "a " + enemyDefs[id].name
-            : bossDefs[id]
-              ? bossDefs[id].name
-              : "";
+      : id === "shock"
+        ? "a live manhole"
+        : id === "acid"
+          ? "acid"
+          : id === "trap"
+            ? "a trap"
+            : enemyDefs[id]
+              ? "a " + enemyDefs[id].name
+              : bossDefs[id]
+                ? bossDefs[id].name
+                : "";
   el.innerHTML = history
     .map((run) => {
       const icon = run.outcome === "win" ? "trophy" : run.outcome === "quit" ? "close" : "skull",
@@ -1427,13 +1429,14 @@ const getById = (id) => document.getElementById(id),
       getById("overBest").hidden = !(result.best || result.fastest);
       getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST";
       let killer = result.killer ? enemyDefs[result.killer] || bossDefs[result.killer] : null;
-      getById("overCause").hidden =
-        !killer && result.killer !== "lava" && result.killer !== "acid" && result.killer !== "trap";
+      getById("overCause").hidden = !killer && !["lava", "shock", "acid", "trap"].includes(result.killer);
       if (killer) {
         getById("overCause").textContent = `Destroyed by ${bossDefs[result.killer] ? killer.name : "a " + killer.name}`;
       } else {
         if (result.killer === "lava") {
           getById("overCause").textContent = "Burned by a lava vent";
+        } else if (result.killer === "shock") {
+          getById("overCause").textContent = "Fried by a live manhole";
         } else {
           if (result.killer === "acid") {
             getById("overCause").textContent = "Dissolved in acid";
@@ -1703,7 +1706,7 @@ function closePauseSettings(ui) {
  ========================================================================== */
 // the hazard of each biome in a few words (the RL_BIOME_INFO tag is the fallback for new biomes)
 const RL_BIOME_CARD = {
-  yard: "Open ground — no hazards",
+  yard: "Live manholes arc — lure enemies onto them",
   works: "Lava vents erupt — lure enemies onto them",
   vault: "Slick floor and ice sheets — mind your drift",
   marsh: "Acid pools eat your hull — and weaken enemies",
@@ -1748,7 +1751,7 @@ function rlCodexEntries(save) {
       ...Object.keys(enemyDefs).filter((id) => !enemyOrder.includes(id)),
     ],
     bossBiome = Object.fromEntries(Object.entries(bossByBiome).map(([biomeId, id]) => [id, biomesById[biomeId]])),
-    // the usual route: Neon Yard first, Void Core last
+    // the usual route: Blackout City first, Void Core last
     rank = (id) => (id === "warden" ? 0 : id === "core" ? 9 : 1),
     bossIds = [
       ...new Set([

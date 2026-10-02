@@ -2709,7 +2709,12 @@ for (const profName of ["desktop", "phone", "land"])
     check(
       L,
       "biome card on wave 1: biome, hazard and boss, no wave banner",
-      c1 && v1 && /Neon Yard/i.test(v1.text) && /no hazards/i.test(v1.text) && /THE WARDEN/.test(v1.text) && !b1.banner,
+      c1 &&
+        v1 &&
+        /Blackout City/i.test(v1.text) &&
+        /Live manholes/i.test(v1.text) &&
+        /THE WARDEN/.test(v1.text) &&
+        !b1.banner,
       JSON.stringify({ c1, b1, text: v1 && v1.text }),
     );
     check(
@@ -2756,8 +2761,8 @@ for (const profName of ["desktop", "phone", "land"])
         i2 &&
         v2 &&
         /THE WARDEN/.test(v2.text) &&
-        /Gatekeeper of the Yard/i.test(v2.text) &&
-        /Neon Yard/i.test(v2.text),
+        /Enforcer of the Blackout/i.test(v2.text) &&
+        /Blackout City/i.test(v2.text),
       JSON.stringify({ c2, i2, text: v2 && v2.text }),
     );
     check(L, "boss card: on screen and takes no input", v2 && v2.ok && v2.noInput, JSON.stringify(v2));

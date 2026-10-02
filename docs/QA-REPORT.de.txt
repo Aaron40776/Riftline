@@ -1,3 +1,49 @@
+RIFTLINE v3.4.0 – BLACKOUT CITY ERSETZT DEN NEON YARD
+Basis: v3.3.0 · Build r340a1001a-r1 · 01.10.2026
+
+Gewünscht: Der Neon Yard (Biom und Soundtrack) war im Vergleich zu den anderen Biomen schwach. Gewählt wurde „Blackout
+City“: eine Stadt bei Nacht im Stromausfall. Die interne ID bleibt „yard“ (Spielstände, Rekorde, Codex).
+
+1) Optik
+   - Boden (neuer Shader-Stil 5): nasser schwarzer Asphalt mit Körnung und glänzenden Teerfugen, Pfützen mit
+     Regenringen, die Blitze und Lichtbögen spiegeln, abgenutzte gelbe Fahrbahnmarkierungen und Zebrastreifen, Risse.
+     Das helle Grau der Markierungen war zu nah am Cryo Vault (ΔE 17, Grenze 30): jetzt Straßengelb (ΔE ≥ 51).
+   - Rand: Betonbarrieren mit roten und weißen Reflektoren; Hindernisse: Litfaßsäulen, Autowracks, Müllcontainer.
+   - Kulisse: dunkle Hochhäuser mit wenigen erleuchteten Fenstern und roten Flugwarnlichtern, Wassertanks, Antennen,
+     Straßenlaternen (meist noch an), Ampeln, Autos, eine Bushaltestelle; Gullys, Abflussgitter, Müll, Risse; Regen
+     und Dampf aus Gullys.
+   - Gegner-Skin: regennass mit kaltem Glanz, abperlende Tropfen, rot-blaues Blaulicht an den Kanten.
+   - Warden: „Enforcer of the Blackout“ mit drehendem Blaulicht auf dem Kopf.
+   - Fallen: elektrische Platte (blau-weiß/bernstein), roter Sicherheitslaser.
+
+2) Spiel
+   - Gefahr: Strom-Gullys (die Schlot-Mechanik mit Elektro-Haut): sie knistern, dann schlagen dünne, flackernde Bögen;
+     der Strom verletzt und betäubt Gegner (verlangsamt 1,2 s). Eigener Tod-Text („Fried by a live manhole“) und Tipp.
+   - Event BLACKOUT (einmal pro Besuch, Welle 2–4): das Licht geht aus (Boden und Licht dunkeln in etwa 2 s ab,
+     Explosionen und Bögen leuchten weiter), drei Gullys mehr, die nacheinander im Kreis zünden, Splitter +25 %;
+     eigene Ansage und eigener Hintergrund (sterbender Trafo, Funken, Sirene, Donner).
+   - Gegner-Mix „bewaffnete Banden“ (Gunner, Bomber, Grunt). Beim ersten Besuch (Wellen 1–5) wird kein Gegner
+     vorgezogen: die Einsteiger-Reihenfolge bleibt (der Test dazu schlug zuerst an).
+
+3) Klang
+   - Ruhig: Noir-Trip-Hop im Regen (92 BPM, Am F Dm E): Boom-Bap mit Raum, Knistern, gezupfter Walking-Bass, E-Piano
+     mit Tremolo und Septimen, gedämpfte Trompete im Echo, Sirene, Donner, Polizeifunk.
+   - Boss: Darksynth/Industrial (128 BPM): Four-on-the-floor mit Pump, rollender verzerrter Sechzehntel-Bass,
+     doppelte Gitarren, Sirenen-Lead, Arpeggio, Hubschrauber (auch im Hintergrund des Bosskampfs), Funk.
+   - Gully-Bogen mit eigenem Sound (Knall, Knistern, Netzbrummen, fallender Zap).
+   - Fehler gefunden: Die Tempo-Angaben in Settings › Music zeigten noch die Werte von 3.1.0; korrigiert.
+
+4) Prüfung
+   - Selbsttests, Deep-Test (Musik-Budget, Unterscheidbarkeit), World-Audit (Schlote jetzt Thema der Stadt),
+     Determinismus-Fixture bewusst aktualisiert (Biom- und Akkord-Tabellen geändert), qa, e2e, audit, screens.
+   - Screenshots: Kampf, Blackout, Boss mit Blaulicht, Startbildschirm, Handy hochkant angesehen. Zuerst sahen die
+     Gully-Bögen wie dicke Scheinwerfer aus und die Pfützen bräunlich: jetzt drei dünne Bögen und kalte Pfützen.
+   - Stereo-MP3-Vorschauen der beiden neuen Tracks an den Eigentümer geschickt.
+
+5) Offene Zweifel
+   - Das Blackout-Event kann auf schwachen Bildschirmen zu dunkel sein (Gegner bleiben über ihre Leuchtteile sichtbar).
+   - Musik nur gemessen, nicht gehört.
+
 RIFTLINE v3.3.0 – HÄRTERE BOSSKÄMPFE UND ENDLESS-MUTATOREN
 Basis: v3.2.0 · Build r330a1001a-r1 · 01.10.2026
 

@@ -142,7 +142,11 @@ function planWave(rng, wave, tm, boss, plan = {}) {
   let early = [],
     saved = [];
   if (mix) {
-    early = Object.keys(mix).filter((id) => mix[id] >= 1 && enemyDefs[id] && enemyDefs[id].from > wave);
+    // 3.4.0: not in waves 1-5: the first biome keeps the global unlock order (the first waves teach the enemies)
+    early =
+      rlBiomeStart(wave) > 1
+        ? Object.keys(mix).filter((id) => mix[id] >= 1 && enemyDefs[id] && enemyDefs[id].from > wave)
+        : [];
     const weights = { ...(plan.weights || {}) };
     if (early.length) {
       saved = early.map((id) => enemyDefs[id].from);
@@ -263,6 +267,16 @@ Object.assign(waveEvents, {
     biome: "marsh",
     plan: {},
   },
+  // 3.4.0: Blackout City: the power fails; the arena goes dark (only blasts, muzzle flashes and the arcs light it)
+  // and the live manholes arc one after another around the arena
+  blackout: {
+    id: "blackout",
+    name: "BLACKOUT",
+    desc: "The lights die, the manholes arc in a chain · shards +25%",
+    shardMul: 1.25,
+    biome: "yard",
+    plan: {},
+  },
   riftstorm: {
     id: "riftstorm",
     name: "RIFT STORM",
@@ -272,11 +286,11 @@ Object.assign(waveEvents, {
     plan: {},
   },
 });
-const RL_BIOME_EVENT = { works: "meltdown", vault: "whiteout", marsh: "bloom", void: "riftstorm" };
+const RL_BIOME_EVENT = { yard: "blackout", works: "meltdown", vault: "whiteout", marsh: "bloom", void: "riftstorm" };
 // Signature enemies: the enemies a biome's mix favours (weight >= 1) can spawn in that biome from
 // its first wave (before, Void Core's phantom came from wave 20 and weaver from 28 although Void
 // Core is waves 16–20). Enemies pulled forward this way spawn at half their weight until their
-// own wave, so they show up without flooding the wave. Neon Yard has no mix and is unchanged.
+// own wave, so they show up without flooding the wave. The first biome visit (waves 1-5) pulls nothing forward (3.4.0).
 const RL_EARLY_WEIGHT_250 = 0.5;
 function rlBiomeStart(wave) {
   return Math.floor((Math.max(1, wave) - 1) / 5) * 5 + 1;
@@ -286,6 +300,6 @@ function rlEnemyFrom(type, biome, wave) {
   const def = enemyDefs[type];
   if (!def) return 99;
   const mix = RL_BIOME_INFO[biome]?.mix;
-  return mix && mix[type] >= 1 ? Math.min(def.from, rlBiomeStart(wave)) : def.from;
+  return mix && mix[type] >= 1 && rlBiomeStart(wave) > 1 ? Math.min(def.from, rlBiomeStart(wave)) : def.from;
 }
 export { RL_BIOME_EVENT, rlEnemyFrom, rlBiomeStart };
