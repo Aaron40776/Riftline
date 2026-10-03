@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-Stand: 03.10.2026, nach 3.6.0. Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
+Stand: 03.10.2026, nach 3.7.0. Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
 
 Leitgedanke des Eigentümers (steht auch in `CLAUDE.md`): alle Funktionen, Designs und Sounds passen organisch und
@@ -16,7 +16,8 @@ eigener PR mit Release.
    GADGET und Pause frei verschieben und skalieren, Deckkraft, Stickgröße, fester Bewegungs-Stick; Hoch- und
    Querformat getrennt; Linkshänder spiegelt), Dash-Untergrenze, Orbital Blades, Combo Surge, Säurepfützen,
    Upgrade-Bildschirm, Saver-Modus (siehe QA-Bericht 3.6.0).
-2. **3.7.0 Musik neu** (als Nächstes): Das laute Rauschen gefällt dem Eigentümer nicht. Messung (3.5.0): die
+2. **3.7.0 Musik neu** (erledigt, wartet auf das Ohr des Eigentümers; MP3-Vorschau aller zehn Tracks geschickt): Das
+   laute Rauschen gefällt dem Eigentümer nicht. Messung (3.5.0): die
    Atmosphären der ruhigen Themen sind eine 1 s lange Schleife aus weißem Rauschen; oberhalb von 200 Hz (das, was ein
    Handy-Lautsprecher spielt) ist das im Cryo Vault etwa 75 % des Klangs, in der Toxin Marsh etwa 50 %, in Blackout
    City etwa 35 %. Plan: kein Dauerrauschen mehr, sondern einzelne, gepannte Geräusche des Ortes (Tropfen,
@@ -83,16 +84,56 @@ Entscheidungen des Eigentümers (alles auf Cloudflare, GitHub Pages danach absch
   eigenem Effekt und Sound.
 - Offen: Crucible-Modell wirkte im Screenshot körnig (vielleicht nur Software-Rendering). Die Bildrate der Tests
   (Software-GL, 5–8 fps) sagt nichts über echte Geräte.
-- Offen (kommt mit 3.7.0): der Übergang ruhig → Boss hat einen kurzen Schnitt (bis 0,14 s).
+- 3.7.0: der Übergang ruhig → Boss beginnt mit tiefer Taiko, Blech und Chor, die den kurzen Schnitt (bis 0,14 s)
+  überdecken; ein echter Übergang (Ausblenden über einen Takt) bleibt eine Idee.
+
+## Vorschläge vom 03.10.2026 (nach 3.7.0, Eigentümer entscheidet)
+
+Gewünscht: sinnvolle Verbesserungen (Komfort usw.), die Spieler gern hätten, ohne dass das Spiel leichter wird. Jeder
+Punkt mit seiner Wirkung auf die Schwierigkeit.
+
+**A. Lernen und Überblick (neutral: erklärt, was passiert, nimmt nichts ab)**
+1. Tod-Rückblick am Run-Ende: die letzten Treffer (wer, welcher Angriff, wie viel), der tödliche Treffer hervorgehoben,
+   dazu Schaden je eigener Quelle (Waffe, Klingen, Granate, Surge, Fallen) und je Gegnertyp. Lernt man am meisten,
+   wenn das Spiel schwer ist.
+2. Werte-Übersicht im Pausenmenü: alle aktuellen Werte (Schaden, Feuerrate, Krit, Tempo, Dash, Hülle, Panzerung,
+   Regeneration, Aufsammelradius, Granaten) mit Grund- und Bonuswert.
+3. Vorschau auf die nächste Welle in der Upgrade-Wahl (Boss, Ereignis, Mutator, ab wann Fallen kommen): man wählt
+   passend, statt blind.
+4. Kurze Einführung für Granate und Fallen in den Wellen 1–6, Codex-Einträge für Mutatoren und Overdrive-Angriffe.
+
+**B. Bedienung (neutral)**
+5. Gamepad (Sticks, Schultertasten, Start für Pause; Menüs zuerst weiter mit Maus/Touch) und Tastenbelegung am PC.
+6. Vibration am Handy bei Treffern, Dash und Boss-Schlägen (nur Android, abschaltbar).
+7. Getrennte Regler für Musik, Effekte und Atmosphäre (die Atmosphären sind seit 3.7.0 ein eigener Teil).
+8. Kompakte Schadenszahlen (pro Gegner zusammengezählt) gegen das Gewimmel im Endless; Farbenblind-Paletten für
+   Gegnerschüsse und Warnungen (zusätzlich zu „Clear warnings").
+
+**C. Herausforderung (macht es freiwillig schwerer, belohnt Können)**
+9. Pakte vor dem Run: bis zu zwei Nachteile wählen (zum Beispiel halbe Hülle, schnellere Gegner, keine Nova, Nebel)
+   für mehr Shards und ein Abzeichen in der Run-Historie; Meilensteine für Siege mit Pakten.
+10. Tägliche Herausforderung: fester Seed, feste Waffe und feste Mutatoren für alle; eigener Bestwert (später die
+    Cloudflare-Bestenliste).
+11. Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex.
+12. Training gegen bereits besiegte Bosse (keine Belohnung): üben, ohne den Run leichter zu machen.
+
+**D. Mit Vorsicht (macht es etwas leichter, nur begrenzt)**
+13. „Verbannen" in der Upgrade-Wahl: eine Karte für den Run aus dem Pool nehmen, höchstens ein- bis zweimal pro Run
+    über ein Werkstatt-Modul freigeschaltet.
+
+Empfehlung zur Reihenfolge: 3.8.0 Boss-Belohnungen (wie geplant), dann ein Paket „Lernen und Überblick" (1–3, klein bis
+mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad und Vibration passen zu jedem Release.
 
 ## Offene Zweifel (nur der Eigentümer kann sie prüfen)
+- Musik 3.7.0: ob der neue Boss-Stil (Cinematic Synth) gefällt oder ein anderer probiert werden soll (Alternativen:
+  durchgehend Synthwave/Darksynth oder Drum & Bass); ob die Atmosphären jetzt angenehm leise sind und der Chor nach
+  Chor klingt (Formant-Filter, nur gemessen).
 - Button-Layout-Editor (3.6.0) auf echten Handys: Ziehen mit dem Daumen, Größe des Panels, fester Stick im Kampf.
-- Klang aller Tracks (zuletzt 3.5.0): ob Rohre, Kalimba und Glas so schön klingen wie die Eisglocken; Boss-Tracks wuchtig genug
-  (gemessene Spitzenabstände 12–19 dB, echter Metal etwa 8–12 dB).
+- Klang der ruhigen Tracks (3.5.0): ob Rohre, Kalimba und Glas so schön klingen wie die Eisglocken.
 - Blackout-Event (3.4.0) auf dunklen Handy-Displays zu finster?
 - Overdrive-Angriffe der Bosse (3.3.0) mit Handy-Steuerung fair? Erster Endless-Boss (Welle 25, doppelte Hülle) zu hart
   (Test-Bot starb 4–9 Mal)?
-- Rechenlast der zwei Faltungshalls auf schwachen Handys.
+- Rechenlast der zwei Faltungshalls auf schwachen Handys (3.7.0 hat dafür die Verzerrer- und Gitarrenketten entfernt).
 
 ## Weitere gute Ideen (ungeprüft, nach Gewinn für „skalierendes, schwerer werdendes Spiel mit schönem Look und Klang")
 

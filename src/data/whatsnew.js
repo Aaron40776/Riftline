@@ -2,6 +2,18 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.7.0",
+    title: "New boss music",
+    items: [
+      "No more loud hiss: the calm themes sound of their place with drops, crickets, embers and a singing wind.",
+      "Every boss has a new cinematic track with taikos, strings, brass and a choir.",
+      "The Warden chases, the Crucible forges, Frost Prism goes ice trance, the Hive Queen goes tribal.",
+      "The Rift Core ends it all with drum and bass and a choir that recalls every biome.",
+      "Button layout: left-handed play keeps pause in place, and a layout that does not fit falls back safely.",
+      "Cryo Skates on ice can no longer push the dash below its 0.8 s cooldown.",
+    ],
+  },
+  {
     version: "3.6.0",
     title: "Your controls",
     items: [

@@ -1841,7 +1841,7 @@ function selfTestV270Sound(result) {
         if (engine.voices.some((voice) => voice.loop)) fail.push("bed-never-ends:" + bed);
         if (engine.beds[bed]) fail.push("bed-kept:" + bed);
       }
-      // 3.1.0: the boss track starts on the spot with a crash (not with the wave), a phase change or the enrage sends
+      // 3.1.0: the boss track starts on the spot with an impact (not with the wave), a phase change or the enrage sends
       // it back to its drop, it resolves into the calm theme when the boss is dead, and a preview of the settings
       // screen plays a track until it is stopped or the game takes over the music
       {
@@ -1867,8 +1867,9 @@ function selfTestV270Sound(result) {
         const before = eng.musicLog.length;
         eng.setMusic("boss", "marsh");
         if (eng.playKind !== "boss" || eng.step !== 0 || eng.bossOver) fail.push("boss-track-not-started-on-the-spot");
-        if (!eng.musicLog.slice(before).some((voice) => voice.kind === "n" && voice.dur > 1.4))
-          fail.push("boss-start-without-crash");
+        // the start is a deep taiko, a brass swell and a short choir
+        if (!eng.musicLog.slice(before).some((voice) => voice.bus === "c" && voice.dur > 1.4))
+          fail.push("boss-start-without-impact");
         eng.bossPush(1);
         eng.bossPush(2);
         if (eng.heat !== 2 || !eng.jump) fail.push("boss-heat-not-raised");
@@ -1877,7 +1878,9 @@ function selfTestV270Sound(result) {
         const beforeEnd = eng.musicLog.length;
         eng.bossEnd();
         if (eng.playKind !== "fight" || eng.heat !== 0) fail.push("boss-track-not-resolved");
-        if (!eng.musicLog.slice(beforeEnd).some((voice) => voice.bus === "x")) fail.push("boss-end-without-last-hit");
+        // the last hit ends on the choir
+        if (!eng.musicLog.slice(beforeEnd).some((voice) => voice.bus === "c" && voice.dur > 1))
+          fail.push("boss-end-without-last-hit");
         eng.setMusic("menu");
         if (eng.playKind !== "menu") fail.push("menu-music-not-selected");
         eng.preview("boss", "void");
@@ -2415,6 +2418,23 @@ function selfTestV360(result) {
       plain = computeStats("pulse", {}, {}).dashCd;
     if (fast !== 0.8) fail.push("dash-floor:" + fast);
     if (Math.abs(plain - 1.9) > 1e-9) fail.push("dash-base:" + plain);
+    // ... and the Cryo Skates on ice do not undercut it
+    {
+      const skater = new World({ seed: 0x362, weapon: "pulse", threat: 0, ws: { dash: 4 } });
+      skater.startWave(3);
+      skater.up = { phantom: 1, speed: 6, skates: 2 };
+      skater.stats = computeStats(skater.weapon, skater.up, skater.ws);
+      const player = skater.player;
+      player.dashAt = skater.time;
+      player.dashCdT = skater.stats.dashCd;
+      let t = 0;
+      for (let i = 0; i < 40 && player.dashCdT > 0; i++) {
+        player.onIce = true;
+        skater.step(0.05, {});
+        t += 0.05;
+      }
+      if (t < 0.8 - 1e-6) fail.push("dash-floor-on-ice:" + t.toFixed(2));
+    }
     // (2) four blades on an enemy that touches all of them: four hits at once, then each blade waits its 0.38 s
     const world = new World({ seed: 0x360, weapon: "pulse", threat: 0, ws: {} });
     world.startWave(3);
@@ -2453,7 +2473,8 @@ function selfTestV360(result) {
     surging.fx.length = 0;
     surging.addCombo();
     const surge = surging.fx.find((ev) => ev.k === "surge");
-    if (!surge || surge.r !== 3.5 || surge.n !== 15) fail.push("surge-event:" + JSON.stringify(surge || null));
+    if (!surge || surge.r !== 3.5 || surge.n !== 15 || surge.i !== 1)
+      fail.push("surge-event:" + JSON.stringify(surge || null));
     if (!RL_EVENT_KINDS.has("surge") || !RL_SOUND_EVENTS.surge) fail.push("surge-unmapped");
     if (!rlSoundCatalog().some((entry) => entry.spec.id === "surge")) fail.push("surge-no-sound");
   } catch (err) {

@@ -1695,7 +1695,11 @@ for (const [name, vp, touch] of [
       };
     });
     check(L, "HUD: hull value and wave label do not touch", hud.waveStart - hud.hullEnd >= 6, JSON.stringify(hud));
-    // 3.0.0: the GADGET button: visible, inside the screen, clear of the other controls, named, with pips
+    // 3.0.0: the GADGET button: visible, inside the screen, clear of the other controls, named, with pips (once the
+    // HUD has drawn a frame: with software WebGL the first frame of a run can take longer than the waits above)
+    await P.page
+      .waitForFunction(() => document.querySelectorAll("#gadgetPips i").length > 0, null, { timeout: 15000 })
+      .catch(() => {});
     const gad = await P.ev(() => {
       const T = window.__riftTest,
         w = T.game.world,
@@ -2895,7 +2899,7 @@ await section("layout360", async (L) => {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
       await page.waitForTimeout(150);
     },
-    problems = () => P.ev(() => [...window.__riftTest.hudEditor.problems()]),
+    problems = () => P.ev(() => [...window.__riftTest.hudEditor.problems().all]),
     W = 390,
     H = 844;
   // the cleaning of a save: broken places fall back to the default layout, numbers keep the range of their sliders
@@ -2950,8 +2954,20 @@ await section("layout360", async (L) => {
     (await P.vis("hudEdit")) && (await P.vis("dashBtn")) && !(await P.vis("settings")),
   );
   check(L, "the default layout has no overlaps", !(await problems()).length, (await problems()).join(", "));
-  // DASH moves with a finger
+  // a tap only picks a button (the default layout stays the default layout); P does not close the editor
   const dash0 = await center("#dashBtn");
+  await page.touchscreen.tap(dash0.x, dash0.y);
+  await page.waitForTimeout(200);
+  await page.keyboard.press("p");
+  await page.waitForTimeout(200);
+  check(
+    L,
+    "a tap picks a button without making a layout of its own; P keeps the editor open",
+    (await P.ev(() => window.__riftTest.hudEditor.draft.layouts.portrait === null)) &&
+      (await page.textContent("#heWhat")) === "DASH" &&
+      (await P.vis("hudEdit")),
+  );
+  // DASH moves with a finger
   await drag(dash0, { x: W * 0.64, y: H * 0.56 });
   const dash1 = await center("#dashBtn");
   check(
@@ -3016,6 +3032,23 @@ await section("layout360", async (L) => {
       (await P.vis("settings")) &&
       eq((await P.stored()).settings.hudLayout, stored.settings.hudLayout),
   );
+  // Esc in the middle of a drag: the editor closes, and opens again with a panel that can be used
+  await P.tap("#hudEditBtn");
+  {
+    const at = await center("#novaBtn");
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: at.x, y: at.y, id: 5 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: at.x - 30, y: at.y, id: 5 }] });
+    await page.keyboard.press("Escape");
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(300);
+  }
+  await P.tap("#hudEditBtn");
+  check(
+    L,
+    "after Esc in the middle of a drag the panel works again",
+    (await P.vis("hudEdit")) && !(await P.ev(() => document.getElementById("hePanel").classList.contains("faded"))),
+  );
+  await P.tap("#heCancel");
   // a run uses the layout: DASH where it was put, the fixed stick steers from its centre
   await P.back("settings");
   await P.tap("#playBtn");
@@ -3041,13 +3074,42 @@ await section("layout360", async (L) => {
   check(L, "the moved DASH dashes", await P.ev(() => window.__riftTest.game.world.runStats.dashes > 0));
   const audit = await P.ev(() => window.__riftLayoutAudit());
   check(L, "layout audit in the run with the own layout", audit.ok, audit.findings.join("; "));
-  // left-handed play mirrors the layout; landscape has its own (the default one)
+  // left-handed play mirrors the action buttons (the pause button stays in the top bar); landscape has its own layout
+  const pauseRight = await center("#pauseBtn");
   await P.ev(() => {
     window.__riftTest.store.data.settings.swap = true;
     window.__riftTest.game.settingsChanged(true);
   });
-  const dashSwap = await center("#dashBtn");
-  check(L, "left-handed mirrors the layout", Math.abs(dashSwap.x - (W - dash1.x)) < 3, `${dashSwap.x.toFixed(0)}`);
+  const dashSwap = await center("#dashBtn"),
+    pauseSwap = await center("#pauseBtn");
+  check(
+    L,
+    "left-handed mirrors the action buttons, not the pause button",
+    Math.abs(dashSwap.x - (W - dash1.x)) < 3 && Math.abs(pauseSwap.x - pauseRight.x) < 2,
+    `dash ${dashSwap.x.toFixed(0)}, pause ${pauseRight.x.toFixed(0)} -> ${pauseSwap.x.toFixed(0)}`,
+  );
+  // a layout that does not fit this screen (here: DASH on NOVA, as from another phone) gives way to the default one
+  const kept = await P.ev(() => JSON.stringify(window.__riftTest.store.data.settings.hudLayout));
+  await P.ev(() => {
+    const set = window.__riftTest.store.data.settings,
+      broken = structuredClone(set.hudLayout);
+    broken.portrait.dash = { ...broken.portrait.nova };
+    set.hudLayout = broken;
+    window.__riftTest.game.settingsChanged(true);
+  });
+  await page.waitForTimeout(300);
+  check(
+    L,
+    "a layout that does not fit falls back to the default layout and says so",
+    !(await P.ev(() => document.getElementById("hud").classList.contains("custom"))) &&
+      (await P.ev(() =>
+        [...document.querySelectorAll("#toasts .toast")].some((t) => t.textContent.includes("does not fit")),
+      )),
+  );
+  await P.ev((json) => {
+    window.__riftTest.store.data.settings.hudLayout = JSON.parse(json);
+    window.__riftTest.game.settingsChanged(true);
+  }, kept);
   await page.setViewportSize({ width: 844, height: 390 });
   await page.waitForTimeout(700);
   check(

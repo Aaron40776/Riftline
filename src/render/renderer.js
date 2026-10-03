@@ -391,7 +391,7 @@ const MAX_PARTICLES = 1400,
   Renderer = class {
     constructor(canvas, opts = {}) {
       this.canvas = canvas;
-      // 3.6.0: opts.antialias false for the Saver setting
+      // opts.antialias false for the Saver setting
       this.antialias = opts.antialias !== false;
       this.renderer = new WebGLRenderer({
         canvas,
@@ -1011,7 +1011,7 @@ const MAX_PARTICLES = 1400,
           case "boom": {
             // 3.0.0: a trap strike is drawn per skin by its trapFire event, the grenade has a blast of its own
             if (ev.kind === "trap") break;
-            // 3.6.0: the Combo Surge shockwave is drawn by its own "surge" event
+            // the Combo Surge shockwave is drawn by its own "surge" event
             if (ev.kind === "surge") break;
             if (ev.kind === "grenade") {
               this.trapView.blast(ev, world, shakeK);
@@ -1065,7 +1065,7 @@ const MAX_PARTICLES = 1400,
             break;
           }
           case "surge": {
-            // 3.6.0: Combo Surge: an amber shockwave in the colour of the combo counter, a white ring inside it and
+            // Combo Surge: an amber shockwave in the colour of the combo counter, a white ring inside it and
             // sparks thrown outwards; bigger combos throw more sparks
             const amber = hexColor(0xffc84a),
               radius = ev.r || 3.5;

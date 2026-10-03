@@ -19,7 +19,7 @@ import {
 import { threatMods } from "../data/progression.js";
 import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
-import { computeStats } from "./stats.js";
+import { computeStats, DASH_CD_MIN } from "./stats.js";
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 import { rlPlanTraps, rlUpdateTraps } from "./traps.js";
 import { rlMutatorsFor } from "./mutators.js";
@@ -740,7 +740,13 @@ const rlStep = 1 / 60,
           if (tuned) {
             stats.speed = speed;
             stats.rateMul = rate;
-            if (skating && player.dashCdT > 0) player.dashCdT = Math.max(0, player.dashCdT - 0.35 * stats.skates * dt);
+            // the skates never bring the next dash closer than DASH_CD_MIN after the last one
+            if (skating && player.dashCdT > 0)
+              player.dashCdT = Math.max(
+                0,
+                DASH_CD_MIN - (this.time - (player.dashAt ?? -1e9)),
+                player.dashCdT - 0.35 * stats.skates * dt,
+              );
             if (player.heatT > 0) player.heatT = Math.max(0, player.heatT - dt);
             if (player.slipT > 0) player.slipT = Math.max(0, player.slipT - dt);
             // Slipstream: a new dash primes the shots for the dash itself plus RL_SLIP_TIME
@@ -1012,6 +1018,7 @@ const rlStep = 1 / 60,
         player.dashY = dy / norm;
         player.dashT = 0.17;
         player.dashCdT = stats.dashCd;
+        player.dashAt = this.time;
         player.dashId++;
         this.runStats.dashes++;
         player.iT = Math.max(player.iT, 0.24);
@@ -2049,8 +2056,8 @@ const rlStep = 1 / 60,
         } finally {
           this._rlSurging = false;
         }
-        // 3.6.0: the shockwave has a look and a sound of its own (renderer and sound engine, "surge")
-        this.emit("surge", { x: player.x, y: player.y, r: radius, n: this.combo });
+        // i: the surge of this combo (its sound climbs with it)
+        this.emit("surge", { x: player.x, y: player.y, r: radius, n: this.combo, i: this.combo / every });
       }
     }
     dropShards(x, y, amount) {

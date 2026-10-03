@@ -7,6 +7,7 @@ import { store } from "../main.js";
 import { weaponDefs } from "../data/weapons.js";
 import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rlRetired } from "../data/progression.js";
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
+import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
  save existed). Retry without the unfinished run, then fall back to a fresh
@@ -49,8 +50,8 @@ function rlBackupSave(text) {
 /* 2.3.2: numeric settings get the range of their control (volume 0–1, zoom
  snaps to Near/Normal/Far) instead of a blanket 0–2 clamp. */
 const RL_ZOOM_STEPS = [0.85, 1, 1.18],
-  // 3.6.0: the opacity of the buttons and the stick size have the range of their sliders (ui/hud-layout.js)
-  RL_SETTING_RANGE = { sfx: [0, 1], music: [0, 1], hudAlpha: [0.3, 1], stickSize: [0.7, 1.5] };
+  // the opacity of the buttons and the stick size have the range of their sliders (data/hud.js)
+  RL_SETTING_RANGE = { sfx: [0, 1], music: [0, 1], hudAlpha: HUD_LIMITS.alpha, stickSize: HUD_LIMITS.stick };
 function rlSettingNum(key, value, def) {
   const [lo, hi] = RL_SETTING_RANGE[key] || [0, 2],
     num = cleanNumber(value, def, lo, hi);
@@ -166,17 +167,16 @@ const SAVE_KEY = "riftline.save.v1",
     // 2.4.2: optional HUD readouts
     timer: false,
     fps: false,
-    // 3.6.0: the button layout (ui/hud-layout.js): opacity of the buttons, stick size, a fixed move stick, and the
-    // places and sizes of the buttons per orientation (null: the default layout)
+    // the button layout (ui/hud-layout.js): opacity of the buttons, stick size, a fixed move stick, and the places
+    // and sizes of the buttons per orientation (null: the default layout)
     hudAlpha: 1,
     stickSize: 1,
     stickFixed: false,
     hudLayout: null,
   };
-/* 3.6.0: a button layout from a save: { portrait, landscape }, each null or every control (dash, nova, gadget,
-   pause) with x and y (0..1 of the safe area) and s (its size, 0.6..1.6), and the fixed move stick (x, y); a layout
-   that misses a control falls back to the default layout */
-const RL_HUD_CONTROLS = ["dash", "nova", "gadget", "pause"];
+/* a button layout from a save: { portrait, landscape }, each null or every control (HUD_CONTROL_IDS) with x and y
+   (0..1 of the safe area) and s (its size, HUD_LIMITS.size), and the fixed move stick (x, y); a layout that misses a
+   control falls back to the default layout */
 function cleanHudLayout(raw) {
   raw = asObject(raw);
   const point = (value) => {
@@ -188,10 +188,10 @@ function cleanHudLayout(raw) {
     side = (value) => {
       value = asObject(value);
       const out = {};
-      for (const id of RL_HUD_CONTROLS) {
+      for (const id of HUD_CONTROL_IDS) {
         const at = point(value[id]);
         if (!at) return null;
-        out[id] = { ...at, s: cleanNumber(asObject(value[id]).s, 1, 0.6, 1.6) };
+        out[id] = { ...at, s: cleanNumber(asObject(value[id]).s, 1, ...HUD_LIMITS.size) };
       }
       const stick = point(value.stick);
       if (stick) out.stick = stick;

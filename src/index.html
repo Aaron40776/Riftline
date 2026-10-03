@@ -198,7 +198,7 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .act-btn:active { transform: scale(0.94); }
 #hud.swap .act { right: auto; left: calc(var(--sl) + 14px); align-items: flex-start; }
 #hud.swap .act-btn.nova { margin-right: 0; margin-left: 34px; }
-/* 3.6.0: the button layout of the player (ui/hud-layout.js). Every control sits at its own point of the safe area
+/* The button layout of the player (ui/hud-layout.js). Every control sits at its own point of the safe area
    (--hx, --hy from 0 to 1) and has its own size (--hk, times its default size); the boxes around them dissolve, and the
    pause button leaves its room in the top bar so that the shard counter stays where it is. */
 #hud .act-btn, #hud #pauseBtn { opacity: var(--hud-alpha, 1); }
@@ -1493,7 +1493,7 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
     </div>
   </div>
   <div id="banner" aria-live="polite"></div>
-  <!-- 3.6.0: the button layout editor (ui/hud-layout.js); the real HUD shows through -->
+  <!-- the button layout editor (ui/hud-layout.js); the real HUD shows through -->
   <section id="hudEdit" hidden aria-label="Button layout">
     <div id="heZone" class="he-zone"></div>
     <div class="he-halves" aria-hidden="true"><span id="heLeft">MOVE</span><span id="heRight">AIM + FIRE</span></div>
@@ -1631,11 +1631,11 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
       <h3 class="section-h">Music of the biomes</h3>
       <div class="set-group" id="musicPreview">
         <div class="set-row"><span><b>Listen</b><small>Every biome has a calm theme and a boss track. Tap to play it on loop, tap again to stop. The Music volume above applies.</small></span></div>
-        <div class="set-row"><span><b>Blackout City</b><small>Rain on empty streets, 78 BPM · boss darksynth, 128 BPM</small></span><div class="seg" data-biome="yard"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
-        <div class="set-row"><span><b>Ember Works</b><small>Sleeping foundry, 66 BPM · boss industrial metal, 160 BPM</small></span><div class="seg" data-biome="works"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
-        <div class="set-row"><span><b>Cryo Vault</b><small>Ice cavern, 72 BPM · boss black metal, 172 BPM</small></span><div class="seg" data-biome="vault"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
-        <div class="set-row"><span><b>Toxin Marsh</b><small>Bayou at night, 69 BPM · boss sludge, 140 BPM</small></span><div class="seg" data-biome="marsh"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
-        <div class="set-row"><span><b>Void Core</b><small>Dark and breathing, 60 BPM · boss glitch metal, 150 BPM</small></span><div class="seg" data-biome="void"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
+        <div class="set-row"><span><b>Blackout City</b><small>Rain on empty streets, 78&nbsp;BPM · boss cyberpunk chase, 128&nbsp;BPM</small></span><div class="seg" data-biome="yard"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
+        <div class="set-row"><span><b>Ember Works</b><small>Sleeping foundry, 66&nbsp;BPM · boss forge drums and brass, 104&nbsp;BPM</small></span><div class="seg" data-biome="works"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
+        <div class="set-row"><span><b>Cryo Vault</b><small>Ice cavern, 72&nbsp;BPM · boss ice trance, 138&nbsp;BPM</small></span><div class="seg" data-biome="vault"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
+        <div class="set-row"><span><b>Toxin Marsh</b><small>Bayou at night, 69&nbsp;BPM · boss tribal acid, 116&nbsp;BPM</small></span><div class="seg" data-biome="marsh"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
+        <div class="set-row"><span><b>Void Core</b><small>Dark and breathing, 60&nbsp;BPM · boss drum and bass with choir, 172&nbsp;BPM</small></span><div class="seg" data-biome="void"><button data-music="fight">Theme</button><button data-music="boss">Boss</button></div></div>
       </div>
       <div class="set-foot">
         <span class="note">Riftline <span id="verText" class="num"></span> · progress saves automatically<span id="storageWarn" hidden> — <b>storage is blocked in this browser</b></span></span>
