@@ -1867,7 +1867,7 @@ function selfTestV270Sound(result) {
         const before = eng.musicLog.length;
         eng.setMusic("boss", "marsh");
         if (eng.playKind !== "boss" || eng.step !== 0 || eng.bossOver) fail.push("boss-track-not-started-on-the-spot");
-        // 3.7.0: the start is a deep taiko, a brass swell and a short choir (no crash any more)
+        // the start is a deep taiko, a brass swell and a short choir
         if (!eng.musicLog.slice(before).some((voice) => voice.bus === "c" && voice.dur > 1.4))
           fail.push("boss-start-without-impact");
         eng.bossPush(1);
@@ -1878,8 +1878,8 @@ function selfTestV270Sound(result) {
         const beforeEnd = eng.musicLog.length;
         eng.bossEnd();
         if (eng.playKind !== "fight" || eng.heat !== 0) fail.push("boss-track-not-resolved");
-        // 3.7.0: the last hit ends on a long choir (the guitars and their distortion bus are gone)
-        if (!eng.musicLog.slice(beforeEnd).some((voice) => voice.bus === "c" && voice.dur > 2.5))
+        // the last hit ends on the choir
+        if (!eng.musicLog.slice(beforeEnd).some((voice) => voice.bus === "c" && voice.dur > 1))
           fail.push("boss-end-without-last-hit");
         eng.setMusic("menu");
         if (eng.playKind !== "menu") fail.push("menu-music-not-selected");

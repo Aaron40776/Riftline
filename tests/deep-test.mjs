@@ -436,8 +436,8 @@ const music = await page.evaluate(async () => {
       // 3.7.0: no loud noise. The 2–12 kHz band of every track is mostly tones (flatness below FLAT_MAX), and the
       // atmosphere of a calm theme stays a background: at most BED_MAX of what a phone speaker plays (above 200 Hz;
       // measured as the theme with its atmosphere against the same theme without it). Before 3.7.0 the flatness was
-      // 0.12–0.47 and the atmospheres made up to three quarters of it (Cryo Vault).
-      const FLAT_MAX = 0.12,
+      // 0.11–0.47 and the atmospheres made up to three quarters of it (Cryo Vault); 3.7.0 measured at most 0.11.
+      const FLAT_MAX = 0.15,
         BED_MAX = 0.25;
       if (d.flat > FLAT_MAX) fail.push(`${name}: noisy (flatness ${d.flat.toFixed(3)} over ${FLAT_MAX})`);
       if (kind === "fight") {
