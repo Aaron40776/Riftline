@@ -450,6 +450,7 @@ function rlSelfTest() {
   result = selfTestV330(result);
   result = selfTestV360(result);
   result = selfTestV371(result);
+  result = selfTestV380(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -2565,4 +2566,78 @@ function selfTestV371(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v371: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.8.0: the map hazards have models of their own (render/hazards-view.js) ---- */
+function selfTestV380(result) {
+  const fail = [];
+  try {
+    if (renderer && renderer.hazardView) {
+      const view = renderer.hazardView,
+        // the parts each biome's hazards must draw; erupt: the parts of an erupting vent
+        want = {
+          works: { idle: ["s:lava", "crater"], erupt: ["s:fire"] },
+          yard: { idle: ["collar", "cover"], erupt: ["bolt"] },
+          vault: { idle: ["s:ice", "shard"] },
+          marsh: { idle: ["s:acid", "bank", "bubble"] },
+          void: { idle: ["s:portal", "stone"] },
+        },
+        drawn = (name) => {
+          const set = view.pl[name];
+          if (!set) return 0;
+          if (set.mesh) return set.n;
+          return (set.body ? set.body.n : 0) + (set.glow ? set.glow.n : 0);
+        },
+        draw = (world) => {
+          for (const pool of view.list) pool.begin();
+          renderer.ringPool.begin();
+          view.update(1 / 60, world);
+        };
+      for (const biome of Object.keys(want)) {
+        const world = new World({ seed: 0x380, weapon: "pulse", threat: 0, ws: {} }),
+          index = world.route.indexOf(biome);
+        if (index < 0) continue;
+        world.startWave(2 + 5 * index);
+        world.state = "fight";
+        const arena = world.arena;
+        if (biome === "marsh" && !arena.acid.length) arena.acid.push({ x: 6, y: 6, r: 2, life: null });
+        if (biome === "vault" && !arena.ice.length) arena.ice.push({ x: 6, y: 6, r: 3 });
+        if ((biome === "works" || biome === "yard") && !arena.vents.length)
+          arena.vents.push({ x: 6, y: 6, r: 2, phase: 0, period: 4, st: "idle" });
+        if (biome === "void" && !arena.portals.length) arena.portals.push({ ax: 6, ay: 6, bx: -6, by: -6 });
+        draw(world);
+        for (const name of want[biome].idle) if (!(drawn(name) > 0)) fail.push(`${biome}-not-drawn:${name}`);
+        if (want[biome].erupt) {
+          const vent = arena.vents[0];
+          world.waveT = vent.period - 0.5 - vent.phase + vent.period * 4;
+          if (arena.ventState(vent, world.waveT) !== "erupt") fail.push(biome + "-no-erupt-state");
+          draw(world);
+          for (const name of want[biome].erupt) if (!(drawn(name) > 0)) fail.push(`${biome}-erupt-not-drawn:${name}`);
+        }
+        // Reduce flashes: a charging manhole leaks a steady light (no random flicker from frame to frame)
+        if (biome === "yard") {
+          const vent = arena.vents[0],
+            flashK = renderer.flashK;
+          world.waveT = vent.period - 1.9 - vent.phase + vent.period * 4;
+          renderer.flashK = 0.35;
+          try {
+            const light = () => {
+              draw(world);
+              return Array.from(view.pl.cover.glow.c.slice(0, 3)).join();
+            };
+            const a = light(),
+              b = light();
+            if (a !== b) fail.push("manhole-flickers-with-reduce-flashes");
+          } finally {
+            renderer.flashK = flashK;
+          }
+        }
+      }
+      // the warning ring takes the colour of Clear warnings
+      if (renderer.warnColor !== undefined && !renderer.warnColor.isColor) fail.push("warn-colour");
+    }
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v380: { ok: fail.length === 0, fail } };
 }

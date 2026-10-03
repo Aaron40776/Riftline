@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-As of 03.10.2026, after 3.7.1. New entries are written in English (the owner's wish since 03.10.2026).
+As of 03.10.2026, after 3.8.0. New entries are written in English (the owner's wish since 03.10.2026).
 
 Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
@@ -56,10 +56,11 @@ Order (one PR with a release each, to be merged one after another):
    flash, Heat Sink), now the fraction is kept; a dodged trap strike (dash, shield) still slowed; electric traps
    (plate, rift burst) showed the ice sparkle and played the frost ping, now they stun with their own effect and sound
    (see the QA report of 3.7.1).
-2. **3.8.0 Hazards with real models**: lava vents as basalt craters with moving lava and a pillar of fire instead of a
-   tube, manholes with an iron cover in a concrete collar (the cover rattles and lifts, jagged bolts; "Reduce flashes"
-   calms the flicker), ice sheets with frost, cracks and ice shards on the rim, acid with a bubbling surface and a mud
-   bank, portals with a swirl and floating rune stones. The warnings keep the language of the rings.
+2. **3.8.0 Hazards with real models** (done, `render/hazards-view.js`): lava vents as basalt craters with moving lava
+   and a pillar of fire instead of a tube, manholes with an iron cover in a concrete collar (the cover rattles and
+   lifts, jagged bolts; "Reduce flashes" calms the flicker), ice sheets with frost, cracks and ice shards on the rim,
+   acid with a bubbling surface and a mud bank, portals with a swirl and floating rune stones. The warnings keep the
+   language of the rings.
 3. **3.9.0 Sounds of the place**: the hazards sound by distance and direction (lava bubbles and rumbles before it
    erupts, manholes hum and crackle, ice cracks under the drone, acid bubbles, portals hum), rare far sounds of each
    biome (thunder and a car alarm, anvils and steam, ice cracking, frogs and birds, deep swells in the Void) and a
