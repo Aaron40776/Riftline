@@ -2874,6 +2874,217 @@ await section("tabs", async (L) => {
   await P.close();
 });
 
+/* ======================= 3.6.0: the button layout editor ======================= */
+await section("layout360", async (L) => {
+  const P = await open("phone", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  const { page } = P,
+    cdp = await P.ctx.newCDPSession(page),
+    center = async (sel) => {
+      const b = await (await page.$(sel)).boundingBox();
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2, w: b.width };
+    },
+    // a real finger: down, eight moves, up
+    drag = async (from, to) => {
+      const at = (i) => ({ x: from.x + ((to.x - from.x) * i) / 8, y: from.y + ((to.y - from.y) * i) / 8, id: 3 });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at(0)] });
+      for (let i = 1; i <= 8; i++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [at(i)] });
+        await page.waitForTimeout(30);
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForTimeout(150);
+    },
+    problems = () => P.ev(() => [...window.__riftTest.hudEditor.problems()]),
+    W = 390,
+    H = 844;
+  // the cleaning of a save: broken places fall back to the default layout, numbers keep the range of their sliders
+  const cleaned = await P.ev(() => {
+    const S = window.__riftTest.store,
+      base = JSON.parse(JSON.stringify(S.data)),
+      run = (settings) => {
+        const r = S.parse(JSON.stringify({ ...base, settings })).data.settings;
+        return { l: r.hudLayout, a: r.hudAlpha, k: r.stickSize, f: r.stickFixed };
+      },
+      spot = (x, y, s) => ({ x, y, s });
+    return [
+      run({
+        hudLayout: {
+          portrait: { dash: { x: "a" } },
+          landscape: {
+            dash: spot(2, -1, 9),
+            nova: { x: 0.5, y: 0.5 },
+            gadget: spot(0.4, 0.4, 0.1),
+            pause: spot(0.9, 0.1, 1),
+            stick: 5,
+          },
+        },
+        hudAlpha: 7,
+        stickSize: 0,
+        stickFixed: "yes",
+      }),
+      run({ hudLayout: [1, 2] }),
+    ];
+  });
+  check(
+    L,
+    "save: a broken layout is cleaned (missing control -> default, values clamped, junk dropped)",
+    cleaned[0].l &&
+      cleaned[0].l.portrait === null &&
+      eq(cleaned[0].l.landscape.dash, { x: 1, y: 0, s: 1.6 }) &&
+      cleaned[0].l.landscape.gadget.s === 0.6 &&
+      cleaned[0].l.landscape.nova.s === 1 &&
+      !("stick" in cleaned[0].l.landscape) &&
+      cleaned[0].a === 1 &&
+      cleaned[0].k === 0.7 &&
+      cleaned[0].f === false &&
+      cleaned[1].l === null,
+    JSON.stringify(cleaned),
+  );
+  // the editor opens over the real HUD; the default layout is valid
+  await P.nav("settings");
+  await P.tap("#hudEditBtn");
+  check(
+    L,
+    "the editor opens over the HUD",
+    (await P.vis("hudEdit")) && (await P.vis("dashBtn")) && !(await P.vis("settings")),
+  );
+  check(L, "the default layout has no overlaps", !(await problems()).length, (await problems()).join(", "));
+  // DASH moves with a finger
+  const dash0 = await center("#dashBtn");
+  await drag(dash0, { x: W * 0.64, y: H * 0.56 });
+  const dash1 = await center("#dashBtn");
+  check(
+    L,
+    "DASH follows the finger",
+    Math.abs(dash1.x - W * 0.64) < 3 && Math.abs(dash1.y - H * 0.56) < 3,
+    `${dash1.x.toFixed(0)},${dash1.y.toFixed(0)}`,
+  );
+  // NOVA dropped on DASH jumps back
+  const nova0 = await center("#novaBtn");
+  await drag(nova0, { x: dash1.x + 4, y: dash1.y + 4 });
+  const nova1 = await center("#novaBtn");
+  check(
+    L,
+    "a button dropped on another one jumps back",
+    Math.hypot(nova1.x - nova0.x, nova1.y - nova0.y) < 2 && /Not there/.test(await page.textContent("#heNote")),
+  );
+  // NOVA moved to free space and made bigger; growing into a neighbour is refused
+  await drag(nova0, { x: W * 0.8, y: H * 0.42 });
+  await P.ev(() => {
+    const el = document.getElementById("heSize");
+    el.value = "1.4";
+    el.dispatchEvent(new Event("input"));
+  });
+  const nova2 = await center("#novaBtn");
+  check(
+    L,
+    "the size slider resizes the picked button",
+    Math.abs(nova2.w / nova0.w - 1.4) < 0.02,
+    `${nova2.w.toFixed(1)} px`,
+  );
+  // the move stick pinned and moved; it stays on the move side
+  await P.tap("#heFixed");
+  const stick0 = await P.ev(() => window.__riftTest.hudEditor.stickCircle());
+  await drag(stick0, { x: W * 0.9, y: stick0.y - 30 });
+  const stick1 = await P.ev(() => window.__riftTest.hudEditor.stickCircle());
+  check(L, "the fixed stick stays on the move side", stick1.x + stick1.r <= W / 2 + 1, JSON.stringify(stick1));
+  check(L, "no overlaps before saving", !(await problems()).length, (await problems()).join(", "));
+  await P.tap("#heSave");
+  const stored = await P.stored();
+  check(
+    L,
+    "Save stores the layout (portrait only) and the fixed stick",
+    stored.settings.hudLayout &&
+      stored.settings.hudLayout.portrait &&
+      stored.settings.hudLayout.landscape === null &&
+      stored.settings.hudLayout.portrait.nova.s === 1.4 &&
+      stored.settings.stickFixed === true,
+    JSON.stringify(stored.settings.hudLayout),
+  );
+  check(L, "back in the settings after Save", (await P.vis("settings")) && !(await P.vis("hudEdit")));
+  check(L, "the settings say that an own layout is on", /own layout/.test(await page.textContent("#hudLayoutNote")));
+  // Esc leaves the editor without saving
+  await P.tap("#hudEditBtn");
+  await drag(await center("#dashBtn"), { x: W * 0.6, y: H * 0.4 });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  check(
+    L,
+    "Esc closes the editor and keeps the saved layout",
+    !(await P.vis("hudEdit")) &&
+      (await P.vis("settings")) &&
+      eq((await P.stored()).settings.hudLayout, stored.settings.hudLayout),
+  );
+  // a run uses the layout: DASH where it was put, the fixed stick steers from its centre
+  await P.back("settings");
+  await P.tap("#playBtn");
+  await page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 20000,
+    },
+  );
+  const dashRun = await center("#dashBtn");
+  check(L, "in the run DASH sits where it was saved", Math.hypot(dashRun.x - dash1.x, dashRun.y - dash1.y) < 2);
+  const at = await P.ev(() => window.__riftTest.game.input.fixedMove(window.__riftTest.game.input.radius()));
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: at.x + 50, y: at.y, id: 4 }] });
+  await page.waitForTimeout(120);
+  const mx = await P.ev(SAMPLE_MX);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  check(L, "a touch right of the fixed stick moves right at once", mx > 0.5, `mx ${mx.toFixed(2)}`);
+  await P.tap("#dashBtn");
+  await page
+    .waitForFunction(() => window.__riftTest.game.world.runStats.dashes > 0, null, { timeout: 4000 })
+    .catch(() => {});
+  check(L, "the moved DASH dashes", await P.ev(() => window.__riftTest.game.world.runStats.dashes > 0));
+  const audit = await P.ev(() => window.__riftLayoutAudit());
+  check(L, "layout audit in the run with the own layout", audit.ok, audit.findings.join("; "));
+  // left-handed play mirrors the layout; landscape has its own (the default one)
+  await P.ev(() => {
+    window.__riftTest.store.data.settings.swap = true;
+    window.__riftTest.game.settingsChanged(true);
+  });
+  const dashSwap = await center("#dashBtn");
+  check(L, "left-handed mirrors the layout", Math.abs(dashSwap.x - (W - dash1.x)) < 3, `${dashSwap.x.toFixed(0)}`);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForTimeout(700);
+  check(
+    L,
+    "landscape uses its own (default) layout",
+    !(await P.ev(() => document.getElementById("hud").classList.contains("custom"))),
+  );
+  await page.setViewportSize({ width: W, height: H });
+  await page.waitForTimeout(700);
+  check(
+    L,
+    "portrait gets its layout back",
+    await P.ev(() => document.getElementById("hud").classList.contains("custom")),
+  );
+  // the editor from the pause menu gives the HUD back to the pause menu
+  await P.ev(() => window.__riftTest.game.pause());
+  await P.tap("#pauseSetBtn");
+  await P.tap("#hudEditBtn");
+  check(L, "the editor opens from the pause menu", (await P.vis("hudEdit")) && (await P.vis("dashBtn")));
+  await P.tap("#heReset");
+  check(
+    L,
+    "Reset puts the default layout back",
+    !(await P.ev(() => document.getElementById("hud").classList.contains("custom"))),
+  );
+  await P.tap("#heCancel");
+  check(
+    L,
+    "Cancel goes back to the settings of the pause menu, the HUD stays covered",
+    (await P.vis("settings")) &&
+      (await P.ev(() => document.getElementById("hud").style.visibility === "hidden")) &&
+      eq((await P.stored()).settings.hudLayout, stored.settings.hudLayout),
+  );
+  check(L, "no page errors", !P.errors.length, P.errors.join(" | "));
+  await P.close();
+});
+
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));

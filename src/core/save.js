@@ -48,9 +48,12 @@ function rlBackupSave(text) {
 }
 /* 2.3.2: numeric settings get the range of their control (volume 0–1, zoom
  snaps to Near/Normal/Far) instead of a blanket 0–2 clamp. */
-const RL_ZOOM_STEPS = [0.85, 1, 1.18];
+const RL_ZOOM_STEPS = [0.85, 1, 1.18],
+  // 3.6.0: the opacity of the buttons and the stick size have the range of their sliders (ui/hud-layout.js)
+  RL_SETTING_RANGE = { sfx: [0, 1], music: [0, 1], hudAlpha: [0.3, 1], stickSize: [0.7, 1.5] };
 function rlSettingNum(key, value, def) {
-  const num = cleanNumber(value, def, 0, key === "sfx" || key === "music" ? 1 : 2);
+  const [lo, hi] = RL_SETTING_RANGE[key] || [0, 2],
+    num = cleanNumber(value, def, lo, hi);
   return key === "zoom"
     ? RL_ZOOM_STEPS.reduce((best, step) => (Math.abs(step - num) < Math.abs(best - num) ? step : best))
     : num;
@@ -163,7 +166,40 @@ const SAVE_KEY = "riftline.save.v1",
     // 2.4.2: optional HUD readouts
     timer: false,
     fps: false,
+    // 3.6.0: the button layout (ui/hud-layout.js): opacity of the buttons, stick size, a fixed move stick, and the
+    // places and sizes of the buttons per orientation (null: the default layout)
+    hudAlpha: 1,
+    stickSize: 1,
+    stickFixed: false,
+    hudLayout: null,
   };
+/* 3.6.0: a button layout from a save: { portrait, landscape }, each null or every control (dash, nova, gadget,
+   pause) with x and y (0..1 of the safe area) and s (its size, 0.6..1.6), and the fixed move stick (x, y); a layout
+   that misses a control falls back to the default layout */
+const RL_HUD_CONTROLS = ["dash", "nova", "gadget", "pause"];
+function cleanHudLayout(raw) {
+  raw = asObject(raw);
+  const point = (value) => {
+      value = asObject(value);
+      return Number.isFinite(value.x) && Number.isFinite(value.y)
+        ? { x: Math.min(1, Math.max(0, value.x)), y: Math.min(1, Math.max(0, value.y)) }
+        : null;
+    },
+    side = (value) => {
+      value = asObject(value);
+      const out = {};
+      for (const id of RL_HUD_CONTROLS) {
+        const at = point(value[id]);
+        if (!at) return null;
+        out[id] = { ...at, s: cleanNumber(asObject(value[id]).s, 1, 0.6, 1.6) };
+      }
+      const stick = point(value.stick);
+      if (stick) out.stick = stick;
+      return out;
+    },
+    out = { portrait: side(raw.portrait), landscape: side(raw.landscape) };
+  return out.portrait || out.landscape ? out : null;
+}
 function newSave() {
   return {
     v: 1,
@@ -337,7 +373,9 @@ function cleanSave(input) {
   let rawSettings = asObject(raw.settings);
   for (let key in defaultSettings) {
     let def = defaultSettings[key];
-    if (typeof def == "boolean") {
+    if (key === "hudLayout") {
+      save.settings.hudLayout = cleanHudLayout(rawSettings.hudLayout);
+    } else if (typeof def == "boolean") {
       save.settings[key] = cleanBool(rawSettings[key], def);
     } else {
       if (typeof def == "number") {

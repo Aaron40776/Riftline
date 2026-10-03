@@ -89,6 +89,16 @@ await p.waitForTimeout(2500);
 await shot("07-boss");
 await ev(() => window.__riftTest.game.pause());
 await shot("08-pause");
+// 3.6.0: the button layout editor, opened from the pause menu
+await ev(() => {
+  window.__riftTest.ui.openPauseSettings();
+  window.__riftTest.hudEditor.open();
+});
+await shot("08b-layout-editor");
+await ev(() => {
+  window.__riftTest.hudEditor.close(false);
+  window.__riftTest.ui.back();
+});
 await ev(() => {
   const g = window.__riftTest.game;
   g.paused = false;

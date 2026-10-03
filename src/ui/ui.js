@@ -765,6 +765,12 @@ const getById = (id) => document.getElementById(id),
       // 2.4.2: run timer and FPS counter
       getById("setTimer").checked = !!settings.timer;
       getById("setFps").checked = !!settings.fps;
+      // 3.6.0: the button layout
+      const ownLayout =
+        !!settings.hudLayout || settings.stickFixed || settings.stickSize !== 1 || settings.hudAlpha !== 1;
+      getById("hudLayoutNote").textContent = ownLayout
+        ? "Your own layout is on. Edit it, or reset it in the editor."
+        : "Move and resize DASH, NOVA, GADGET and pause, set the stick size or pin the move stick.";
     }
     /* a button of the music block toggles the loop of its track; only one plays at a time */
     togglePreview(biome, mode) {

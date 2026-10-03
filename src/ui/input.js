@@ -19,6 +19,10 @@ const Input = class {
     this.pending = { dash: false, nova: false, gadget: false };
     this.swap = false;
     this.R = 56;
+    // 3.6.0: the stick size of the player (times the default radius) and, with a fixed move stick, where it sits
+    // (a function that returns its centre in px, see ui/hud-layout.js; null: the stick starts where the thumb does)
+    this.stickScale = 1;
+    this.fixedMove = null;
     this.enabled = true;
     this.onPause = null;
     this.isPlaying = null;
@@ -94,6 +98,12 @@ const Input = class {
     stick.lastEv = now;
     stick.ox = stick.x = ev.clientX;
     stick.oy = stick.y = ev.clientY;
+    // 3.6.0: a fixed move stick keeps its place; a touch anywhere on the move side steers from its centre
+    if (isMove && this.fixedMove) {
+      const center = this.fixedMove(this.radius());
+      stick.ox = center.x;
+      stick.oy = center.y;
+    }
     stick.t = performance.now();
     try {
       this.layer.setPointerCapture(ev.pointerId);
@@ -262,8 +272,12 @@ const Input = class {
     this.pending.nova = false;
     this.pending.gadget = false;
   }
+  /* the radius of the sticks in px: a share of the screen, times the stick size of the player (scale: another size) */
+  radius(scale = this.stickScale) {
+    return clamp(Math.min(window.innerWidth, window.innerHeight) * 0.14, 44, 72) * (scale || 1);
+  }
   sample(world, settings) {
-    let radius = (this.R = clamp(Math.min(window.innerWidth, window.innerHeight) * 0.14, 44, 72)),
+    let radius = (this.R = this.radius()),
       mx = 0,
       my = 0;
     if (this.move.active) {
