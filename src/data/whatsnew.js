@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.7.1",
+    title: "Fixes",
+    items: [
+      "Endless: with Cryo Skates the dash could stay locked for minutes after the Rift Core; fixed.",
+      "Hazard resistance now works exactly: acid that does no damage no longer flashes, shakes or sounds like a hit.",
+      "A trap strike you dodge (dash, shield) no longer chills or stuns you.",
+      "Electric traps now stun with sparks and a zap of their own instead of the ice effect.",
+    ],
+  },
+  {
     version: "3.7.0",
     title: "New boss music",
     items: [

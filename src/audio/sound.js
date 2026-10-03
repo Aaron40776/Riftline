@@ -236,6 +236,7 @@ const RL_SOUND_EVENTS = {
   championDown: [{}],
   charge: [{ type: "brute" }],
   chill: [{}],
+  stun: [{ skin: "plate" }, { skin: "riftburst" }],
   cleared: [{}, { boss: true }],
   combo: [{ n: 20 }],
   comboEnd: [{ n: 20 }],
@@ -1305,6 +1306,19 @@ const musicChords = {
         case "chill":
           if (this.gate(id, 0.3)) {
             this.tone(2400, 0.2, "sine", 0.05, { to: 1200 });
+          }
+          break;
+        case "stun":
+          // 3.7.1: an electric trap stuns the drone: a dry snap, a short mains buzz that dies and a few crackles (the
+          // rift burst buzzes lower and bends down, the city's plate is a hard 100 Hz hum)
+          if (this.gate(id, 0.3)) {
+            const rift = arg === "riftburst",
+              f = rift ? 70 : 100;
+            this.noise(0.025, 0.1, { type: "highpass", f: 3200, attack: 0.001 });
+            this.tone(f, 0.3, "sawtooth", 0.045, { lp: 1200, to: rift ? f * 0.6 : f, attack: 0.004, hold: 0.12 });
+            this.tone(f * 1.01, 0.3, "square", 0.02, { lp: 800, attack: 0.004, hold: 0.12 });
+            for (let i = 0; i < 3; i++)
+              this.noise(0.015, 0.05, { type: "bandpass", f: 2600 + i * 1300, q: 6, at: 0.04 + i * 0.06 });
           }
           break;
         case "champion":
@@ -2388,6 +2402,9 @@ const musicChords = {
           case "chill":
           case "champion":
             this.play(ev.k);
+            break;
+          case "stun":
+            this.play("stun", ev.skin);
             break;
           case "championDown":
             this.play("bigkill");
@@ -4292,6 +4309,7 @@ function rlSoundCatalog() {
     "warp",
     "mend",
     "chill",
+    "stun",
     "champion",
     "rumble",
     "ready",
@@ -4309,6 +4327,7 @@ function rlSoundCatalog() {
     "bossCleared",
   ]);
   ids(["kill"], 1.8);
+  ids(["stun"], "riftburst");
   ids(["combo"], 6);
   ids(["surge"], 1);
   ids(["cleared"], true);

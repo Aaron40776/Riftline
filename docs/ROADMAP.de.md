@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-Stand: 03.10.2026, nach 3.7.0. Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
+Stand: 03.10.2026, nach 3.7.1. Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
 
 Leitgedanke des Eigentümers (steht auch in `CLAUDE.md`): alle Funktionen, Designs und Sounds passen organisch und
@@ -29,9 +29,38 @@ eigener PR mit Release.
    Crucible: Schmiede-Taikos und Blech, Frost Prism: Eis-Trance, Hive Queen: Tribal und Acid-Bass, Rift Core: Drum &
    Bass mit Chor als Finale. Boss-Phasen mit eigenem Abschnitt, weicher Übergang ruhig → Boss. WAV/MP3-Vorschau aller
    Tracks an den Eigentümer vor dem Merge.
-3. **3.8.0 Boss-Belohnungen** (Punkt 1 unten).
-4. **3.9.0 Läufer statt Drohne** mit Schritt-Sounds (Punkt 2 unten).
+3. **Boss-Belohnungen** (Punkt 1 unten; nach dem Checkup vom 03.10.2026 voraussichtlich 3.10.0).
+4. **Läufer statt Drohne** mit Schritt-Sounds (Punkt 2 unten).
 5. Cloudflare erst, wenn der Eigentümer Bescheid sagt.
+
+## Gewünscht am 03.10.2026 (nach 3.7.0): Checkup, Gefahren hübscher, Biome klingen verschieden
+
+Auftrag des Eigentümers: das ganze Projekt noch einmal sorgfältig durchsehen, Dinge finden, die ihm nicht so gefallen
+könnten, und Fehler suchen; dann ein Plan, erst Fixes, dann Funktionen, in logischen PRs nacheinander. Seine Beispiele:
+„die Musik ist gut, aber alle Biome klingen ziemlich gleich, vielleicht mehr Effekt-Sounds je Biom“ und „Feuersäulen,
+Eisflächen, Gullys usw. sind nur farbige Kreise, vielleicht hübscher machen“.
+
+Befund der Durchsicht: `npm test` und `npm run audit` grün (Bot-Lauf bis Welle 22 ohne Laufzeitfehler). Die
+Kartengefahren (Lava-Schlote, Gullys, Eisflächen, Säurepfützen, Portale) sind wirklich nur Scheiben und Ringe aus den
+Effekt-Pools (`drawFeatures` in `render/renderer.js`), die Lava-Eruption ein leuchtender Zylinder; die Fallen haben
+seit 3.0.0 echte Modelle. Die Biome unterscheiden sich im Klang fast nur durch die Musik: die Geräusche des Ortes sind
+seit 3.7.0 leise Noten der ruhigen Themen, die Gefahren selbst sind stumm bis auf den Ausbruch.
+
+Reihenfolge (je ein PR mit Release, nacheinander zu mergen):
+1. **3.7.1 Fixes** (erledigt): Endless mit Cryo Skates sperrte den Dash minutenlang (die Uhr wurde zurückgesetzt, der
+   Zeitpunkt des letzten Dashs nicht); Säure-Ticks unter einem Punkt zählten mit hoher Resistenz als Treffer (Sound,
+   Wackeln, Rotblitz, Heat Sink), jetzt wird der Rest aufgehoben; ein ausgewichener Fallen-Treffer (Dash, Schild)
+   verlangsamte trotzdem; Elektro-Fallen (Platte, Rift-Burst) zeigten Eis-Glitzer und den Frost-Ton, jetzt eigener
+   Betäubungs-Effekt und Sound (siehe QA-Bericht 3.7.1).
+2. **3.8.0 Gefahren mit echten Modellen**: Lava-Schlot als Basaltkrater mit bewegter Lava und Feuersäule statt
+   Zylinder, Gully mit Eisendeckel und Betonkragen (Deckel klappert und hebt sich, Blitze gezackt; „Reduce flashes“
+   beruhigt das Flackern), Eisfläche mit Frost, Rissen und Eiszapfen am Rand, Säure mit blubbernder Oberfläche und
+   Schlammufer, Portale mit Wirbel und schwebenden Runensteinen. Die Warnungen behalten die Sprache der Ringe.
+3. **3.9.0 Geräusche des Ortes**: die Gefahren klingen nach Abstand und Richtung (Lava blubbert und grollt vor dem
+   Ausbruch, Gully summt und knistert, Eis knackt unter der Drohne, Säure blubbert, Portale summen), dazu seltene
+   Einzelgeräusche je Biom (Donner und Autoalarm, Hämmern und Dampf, Eisbrechen, Frösche und Vögel, tiefe Schwellen
+   im Void) und ein eigener Regler „Ambience“ (Punkt B7 der Vorschläge unten).
+4. Danach wie geplant: Boss-Belohnungen (dann 3.10.0), Läufer.
 
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
@@ -121,8 +150,9 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
 13. „Verbannen" in der Upgrade-Wahl: eine Karte für den Run aus dem Pool nehmen, höchstens ein- bis zweimal pro Run
     über ein Werkstatt-Modul freigeschaltet.
 
-Empfehlung zur Reihenfolge: 3.8.0 Boss-Belohnungen (wie geplant), dann ein Paket „Lernen und Überblick" (1–3, klein bis
-mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad und Vibration passen zu jedem Release.
+Empfehlung zur Reihenfolge: nach dem Checkup (3.7.1–3.9.0, oben) die Boss-Belohnungen (wie geplant), dann ein Paket
+„Lernen und Überblick" (1–3, klein bis mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad und
+Vibration passen zu jedem Release.
 
 ## Offene Zweifel (nur der Eigentümer kann sie prüfen)
 - Musik 3.7.0: ob der neue Boss-Stil (Cinematic Synth) gefällt oder ein anderer probiert werden soll (Alternativen:

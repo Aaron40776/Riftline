@@ -1205,7 +1205,9 @@ const getById = (id) => document.getElementById(id),
         chips.push(["acid", "ACID", "#b4ff3d", -1]);
       }
       if (player.slowT > 0) {
-        chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]);
+        // 3.7.1: an electric trap stuns (0.8 s), ice chills (1.6 s)
+        if (player.slowKind === "shock") chips.push(["shock", "STUNNED", "#ffe98a", player.slowT / 0.8]);
+        else chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]);
       }
       let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
         buffRow = getById("buffs");

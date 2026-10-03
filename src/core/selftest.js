@@ -45,7 +45,7 @@ import { World } from "./world.js";
 import { threatMods, workshopModules, modulesById, RL_RETIRED_MODULES } from "../data/progression.js";
 import { upgradeList, upgradesById, RL_RETIRED_UPGRADES } from "../data/upgrades.js";
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
-import { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount } from "./traps.js";
+import { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount, rlUpdateTraps } from "./traps.js";
 import { hitsObstacle, buildLayout, isConnected, RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
 import { computeStats } from "./stats.js";
 import {
@@ -449,6 +449,7 @@ function rlSelfTest() {
   result = selfTestV300(result);
   result = selfTestV330(result);
   result = selfTestV360(result);
+  result = selfTestV371(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -2481,4 +2482,87 @@ function selfTestV360(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v360: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.7.1: the fixes of the checkup ---- */
+function selfTestV371(result) {
+  const fail = [];
+  const fresh = (seed) => {
+    const world = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(8);
+    world.state = "fight";
+    world.hold = true;
+    world.enemies.length = 0;
+    world.markers = [];
+    world.traps = [];
+    world.arena.acid = [];
+    world.arena.vents = [];
+    world.fx.length = 0;
+    return world;
+  };
+  try {
+    // (1) Endless restarts the clock: the time of the last dash moves with it, so Cryo Skates do not lock the dash
+    {
+      const world = fresh(0x371);
+      world.up = { skates: 2 };
+      world.stats = computeStats(world.weapon, world.up, world.ws);
+      const player = world.player;
+      world.time = 900;
+      player.dashAt = 899.9;
+      player.dashCdT = world.stats.dashCd;
+      world.restartClock();
+      if (world.time !== 0 || Math.abs(player.dashAt + 0.1) > 1e-9) fail.push("clock:" + player.dashAt);
+      let t = 0;
+      for (let i = 0; i < 200 && player.dashCdT > 0; i++) {
+        player.onIce = true;
+        world.step(0.05, {});
+        t += 0.05;
+      }
+      if (player.dashCdT > 0 || t > world.stats.dashCd + 0.1) fail.push("skates-after-endless:" + t.toFixed(2));
+    }
+    // (2) an acid tick below one point is no hit (no "hurt", no damage); the parts add up to whole points
+    {
+      const world = fresh(0x372);
+      const player = world.player;
+      player.hp = 50;
+      let hurts = 0,
+        hits = 0;
+      for (let i = 0; i < 20; i++) {
+        world.fx.length = 0;
+        if (world.hurtPlayer(0.24, null, null, "acid", true)) hits++;
+        hurts += world.fx.filter((ev) => ev.k === "hurt").length;
+      }
+      // 20 ticks of 0.24 are 4.8 points: four whole points, four hits, each with its "hurt"
+      if (player.hp !== 46 || hits !== 4 || hurts !== 4) fail.push(`acid-chip:${player.hp},${hits},${hurts}`);
+      if (world.fx.some((ev) => ev.k === "hurt" && !(ev.dmg >= 1))) fail.push("acid-zero-hurt");
+    }
+    // (3) a trap strike that the dash dodges neither chills nor stuns; a real hit does, an electric trap stuns
+    const strike = (skin, dodge) => {
+      const world = fresh(0x373),
+        player = world.player;
+      player.hp = world.stats.maxHp;
+      player.iT = 0;
+      player.slowT = 0;
+      player.dashT = dodge ? 0.17 : 0;
+      world.traps = [
+        { id: 1, fam: "floor", skin, st: "warn", t: 1, delay: 0.5, x: player.x, y: player.y, r: 2, hunt: false },
+      ];
+      rlUpdateTraps(world, 1 / 60);
+      return { slow: player.slowT, kind: player.slowKind, events: world.fx.map((ev) => ev.k), hp: player.hp };
+    };
+    let r = strike("icespike", true);
+    if (r.slow > 0 || r.events.includes("chill")) fail.push("dodged-trap-chills");
+    r = strike("plate", true);
+    if (r.slow > 0 || r.events.includes("stun")) fail.push("dodged-trap-stuns");
+    r = strike("icespike", false);
+    if (!(r.slow > 0) || !r.events.includes("chill") || r.kind !== "chill") fail.push("icespike-no-chill");
+    r = strike("plate", false);
+    if (!(r.slow > 0) || !r.events.includes("stun") || r.events.includes("chill") || r.kind !== "shock")
+      fail.push("plate-no-stun:" + r.events.join());
+    if (!RL_EVENT_KINDS.has("stun") || !RL_SOUND_EVENTS.stun) fail.push("stun-unmapped");
+    if (!rlSoundCatalog().some((entry) => entry.spec.id === "stun")) fail.push("stun-no-sound");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v371: { ok: fail.length === 0, fail } };
 }
