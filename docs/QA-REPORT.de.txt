@@ -1,3 +1,94 @@
+RIFTLINE v3.7.0 – MUSIK OHNE RAUSCHEN, NEUE BOSS-TRACKS (CINEMATIC SYNTH)
+Basis: v3.6.0 · Build r370a1003a-r1 · 03.10.2026
+
+Gewünscht: „Dieses laute Rauschen klingt nicht so gut“, etwas Besseres ausdenken; für die Boss-Tracks einen anderen
+Stil probieren. Vorschlag Cinematic Synth, vom Eigentümer angenommen („wir probieren es erst mal so“).
+Diese Version bringt auch die Review-Fixes zu 3.6.0 (dort Abschnitt 5), die erst nach dem Merge von PR #24 fertig
+waren.
+
+1) Befund (gemessen an 3.5.0, Offline-Render, Mono)
+   - Die Atmosphären der ruhigen Themen waren eine 1 s lange Schleife aus weißem Rauschen (Regen, Wind, Insekten,
+     Dampf). Oberhalb von 200 Hz (was ein Handy-Lautsprecher spielt) war das im Cryo Vault etwa 75 % des Klangs, in
+     der Toxin Marsh etwa 50 %, in Blackout City etwa 35 % (fast der ganze Bereich über 4 kHz).
+   - Spektrale Flachheit 2–12 kHz (1 = reines Rauschen, nahe 0 = Töne): ruhige Themen 0,12–0,47, Boss-Tracks 0,11–0,35
+     (Becken, Riser, verzerrte „Gitarren“).
+
+2) Atmosphären (audio/sound.js)
+   - Neue Rauschfarben: sechs Sekunden rosa bzw. braunes Rauschen (nahtlose Schleife, einmal je Abtastrate erzeugt).
+     Musik und Atmosphären nutzen nur noch diese; das weiße Rauschen bleibt den Effekten.
+   - Atmosphären leise und weich: Blackout City ein sanftes Regenband und tiefer Verkehr, Ember Works Ofengrollen,
+     Cryo Vault ein „singender“ Wind auf Grundton und Quinte (schmale Bandpässe) über leisem Luftzug, Toxin Marsh
+     Schlamm, Void Core wie bisher Drones.
+   - Die Geräusche des Ortes sind Noten der ruhigen Themen: Regentropfen und Tropfen aus der Dachrinne auf Akkordtönen,
+     Glut-Knistern und weicher Dampf, Grillen als kurze hohe Töne, Eis-Ticks rosa statt weiß. Die ruhigen Themen
+     behalten „kein Beat“ (ein erster Versuch mit Maschinen-Stößen auf jedem Viertel wurde wieder entfernt).
+   - Biom-Events (Meltdown, Whiteout, Spore Bloom, Blackout, Rift Storm): Betten und Akzente rosa/braun, Zischen leiser.
+
+3) Boss-Tracks: Cinematic Synth
+   - Neue Instrumente: Taiko (fallender Ton, Schlag aus braunem Rauschen, Raum), Tom, Handtrommel, Shaker (statt
+     Becken), große Snare, Staccato- und Tremolo-Streicher, Blech mit sich öffnendem Filter, Chor über einen eigenen
+     Bus mit den Formanten eines „ah“, Plucks im Echo. Verzerrer-Bus und beide Gitarren-Verstärker entfernt (sie
+     liefen auch in Stille mit).
+   - Warden (Blackout City, 128 BPM): Cyberpunk-Verfolgung, treibender Synthbass, Sirenen-Lead, Taikos, E-Piano-Motiv.
+   - Crucible (Ember Works, 104 BPM): Taiko-Ensemble, Amboss auf 2 und 4, Streicher-Ostinato, Blech, Rohr-Motiv.
+   - Frost Prism (Cryo Vault, 138 BPM): Eis-Trance, Bass auf den Offbeats, Glas-Arpeggio, Eisglocken-Melodie, Chor.
+   - Hive Queen (Toxin Marsh, 116 BPM): Tribal (drei gegen vier), Acid-Bass, Schwarm-Streicher, Kalimba-Motiv.
+   - Rift Core (Void Core, 172 BPM): Drum & Bass mit Reese-Bass und Chor; im Mittelteil kehren die Motive der anderen
+     Biome je einen Takt zurück (E-Piano, Rohre, Eisglocken, Kalimba).
+   - Abschnitte wie bisher (Drop, Variation, Breakdown, Build), jeder beginnt mit tiefer Taiko und Blech. Phasenwechsel
+     und Enrage legen Shaker, Taiko, schnelle Streicher, Blech-Stöße und eine steigende Linie darüber. Start: tiefe
+     Taiko, Sub-Abfall, Blech-Schwell und kurzer Chor (kein Crash); Ende: Siegesakkord mit großer Terz, langer Chor und
+     das Instrument des Bioms.
+   - Einstellungen: die Beschreibungen der Musik-Vorschau nennen die neuen Stile und Tempi.
+
+4) Tests und Messung
+   - Deep-Test neu: Flachheit 2–12 kHz jedes Tracks höchstens 0,12; die Atmosphäre eines ruhigen Themas höchstens 25 %
+     des Klangs oberhalb von 200 Hz (gemessen mit und ohne Atmosphäre). Selbsttests für Boss-Start und -Ende folgen dem
+     neuen Einstieg und Schluss.
+   - Gemessen (Intensität 0,9, nach den Review-Fixes): Flachheit ruhig 0,011–0,073 (vorher 0,12–0,47), Boss
+     0,019–0,112 (vorher 0,11–0,35); Anteil der Atmosphäre 3–18 % (vorher bis etwa 75 %).
+   - Stimmenbudget: Spitze höchstens 33 Stimmen (Grenze 36), nichts verweigert, auch nicht bei einer Flut von Sounds.
+     Der erste Entwurf lag im Rift Core bei 40 (lange Glas-Töne bei 172 BPM) und im Frost Prism bei 38; gekürzt
+     (kurze Glas-Form, Chor mit zwei Stimmen, Enrage-Streicher einstimmig, kein Enrage-Blech auf Abschnittsköpfen).
+   - Lautheit der Vorschauen (Stereo, 40 s, v2): Boss −15 bis −18 dB im Mittel, ruhig −26 bis −28 dB, Spitzen um
+     −2,5 dB.
+     Spektrogramme angesehen: über 4 kHz kein graues Rauschband mehr, die Töne stehen als Linien.
+   - MP3-Vorschau aller zehn Tracks an den Eigentümer geschickt (Boss-Tracks mit Phase 2 und Enrage).
+
+5) Nach einem Code-Review behoben (mit Messung gegen 3.6.0)
+   - Pegel: rosa und braunes Rauschen sind auf die Lautheit des weißen normiert und lassen durch tiefe Filter viel mehr
+     durch (gemessen +8 bis +18 dB). Ofen (−8 dB), ferner Verkehr, Hubschrauber über dem Warden-Kampf, Donner,
+     Kolben, Matsch-Geräusche, Blackout-Donner, Spore-Bloom- und Meltdown-Bett und Whiteout-Böe wurden auf ihren alten
+     Pegel zurückgesetzt. Danach: ruhige Atmosphären und Event-Betten innerhalb von 1–3 dB von 3.6.0, der Wind im Cryo
+     Vault bewusst etwa 8 dB leiser. Der Taiko-Anschlag liegt unter dem Ton.
+   - Der Chor schickte jede Stimme vor dem Vokalfilter in den Hall (roher Sägezahn im Raum): jetzt hallt der Chor-Bus
+     nach dem Filter.
+   - Schluss-Akkord kurz (1,2 s), damit seine große Terz nicht mit dem ruhigen Moll-Thema kollidiert, das einblendet.
+   - Phasenwechsel und Enrage: kein doppelter Einschlag mehr am Kopf des Drops; der Crucible-Blechschwell überspringt
+     die Abschnittsköpfe.
+   - Hüllkurven: ein „Halten" endet nie nach dem Ton (der Blechschwell im Build des Crucible starb vor dem Drop).
+   - Der tiefe Taiko-Boom bleibt über 44 Hz (Handys spielen nichts Tieferes, der Kompressor pumpte darauf).
+   - Musik-Rauschen standardmäßig rosa; Startpunkte nach Pufferlänge; Überblendung der Schleife mit gleicher Leistung;
+     tote Pfade und veraltete Kommentare der Metal-Tracks entfernt; Grenze FLAT_MAX 0,15 (gemessen höchstens 0,112).
+   - Zweite MP3-Vorschau (v2) an den Eigentümer geschickt.
+
+6) Ergebnisse 3.7.0 (headless Chromium, Software-WebGL)
+   - npm test: grün (Build, Deep-Test mit den neuen Musikprüfungen, full-qa files, data-audit, Determinismus 15/15
+     mit unveränderter Referenz: die Musik gehört nicht zur Simulation).
+   - Volle QA: alle 436 Prüfungen bestanden (Musik-Vorschau in den Einstellungen, What's new mit 3.7.0 oben).
+   - E2E: 170 Prüfungen, 0 Fehler auf allen fünf Geräten.
+   - Audit: Welt und Daten ohne Befund; Bot-Lauf: Sieg bei Welle 20, Endless bis Welle 22, keine Laufzeitfehler,
+     4219 Ereignisse in 40 Arten, alle verarbeitet. Die Warnung „no input events“ gehört zum Bot-Lauf.
+   - Screens und Biom-Bilder PC/Handy/Querformat: keine Seitenfehler. Angesehen: Einstellungen mit den neuen
+     Beschreibungen der Musik-Vorschau (auf dem Handy stand „BPM“ allein in der letzten Zeile; Zahl und Einheit sind
+     jetzt fest verbunden), Boss-Kampf auf dem Handy, Biom-Bilder (keine Änderung am Bild in dieser Version).
+   - Format-Prüfung: ok. Nach dem Text-Fix npm test erneut grün.
+
+7) Offene Zweifel (nur gemessen, nicht gehört)
+   - Ob der Stil gefällt (sonst Synthwave/Darksynth oder Drum & Bass durchgehend), ob der Chor nach Chor klingt und ob
+     die Atmosphären leise genug und doch noch zu hören sind.
+   - Der Übergang ruhig → Boss wird vom Einstieg überdeckt; ein Ausblenden über einen Takt ist nicht gebaut.
+
 RIFTLINE v3.6.0 – STEUERUNG ANPASSBAR (BUTTON-LAYOUT-EDITOR) UND CHECKUP-FIXES
 Basis: v3.5.0 · Build r360a1003a-r1 · 03.10.2026
 
@@ -68,7 +159,7 @@ Läufer 3.9.0; siehe ROADMAP.de.md).
      Toxin Marsh vorher/nachher.
    - Format-Prüfung: ok. Nach der Textkürzung npm test, „layout360“ und „buttons“ erneut grün.
 
-5) Nach einem Code-Review (vor dem Merge) behoben
+5) Nach einem Code-Review behoben (fertig erst nach dem Merge von PR #24, ausgeliefert mit 3.7.0)
    - Linkshänder spiegelt nur DASH, NOVA, GADGET und den festen Stick, nicht den Pause-Knopf (gespiegelt lag er auf der
      Hüllen-Leiste); der Editor prüft das Layout für beide Hände und sagt, in welchem Modus ein roter Knopf stören würde.
    - Antippen wählt nur aus: das Standard-Layout wird erst ein eigenes, wenn sich etwas bewegt (vorher machte Save nach

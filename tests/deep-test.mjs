@@ -470,8 +470,9 @@ const music = await page.evaluate(async () => {
     };
   pairs("fight", out.calmPairs);
   pairs("boss", out.bossPairs);
-  // the tempos of the calm themes differ by at least 5 % (the boss tracks are free: Yard 175 and Vault 172 BPM are
-  // two different genres); and either the rhythm pattern, the tone colour or the busyness differs clearly as well (the pattern distance is between 0 and 1: 0.1 is one tenth of the hits on other steps)
+  // the tempos of the calm themes differ by at least 5 % (the boss tracks are free: each is a genre of its own); and
+  // either the rhythm pattern, the tone colour or the busyness differs clearly as well (the pattern distance is between
+  // 0 and 1: 0.1 is one tenth of the hits on other steps)
   for (const [label, list] of [
     ["calm", out.calmPairs],
     ["boss", out.bossPairs],
