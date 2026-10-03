@@ -1695,7 +1695,11 @@ for (const [name, vp, touch] of [
       };
     });
     check(L, "HUD: hull value and wave label do not touch", hud.waveStart - hud.hullEnd >= 6, JSON.stringify(hud));
-    // 3.0.0: the GADGET button: visible, inside the screen, clear of the other controls, named, with pips
+    // 3.0.0: the GADGET button: visible, inside the screen, clear of the other controls, named, with pips (once the
+    // HUD has drawn a frame: with software WebGL the first frame of a run can take longer than the waits above)
+    await P.page
+      .waitForFunction(() => document.querySelectorAll("#gadgetPips i").length > 0, null, { timeout: 15000 })
+      .catch(() => {});
     const gad = await P.ev(() => {
       const T = window.__riftTest,
         w = T.game.world,

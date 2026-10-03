@@ -68,7 +68,31 @@ Läufer 3.9.0; siehe ROADMAP.de.md).
      Toxin Marsh vorher/nachher.
    - Format-Prüfung: ok. Nach der Textkürzung npm test, „layout360“ und „buttons“ erneut grün.
 
-5) Offene Zweifel
+5) Nach einem Code-Review (vor dem Merge) behoben
+   - Linkshänder spiegelt nur DASH, NOVA, GADGET und den festen Stick, nicht den Pause-Knopf (gespiegelt lag er auf der
+     Hüllen-Leiste); der Editor prüft das Layout für beide Hände und sagt, in welchem Modus ein roter Knopf stören würde.
+   - Antippen wählt nur aus: das Standard-Layout wird erst ein eigenes, wenn sich etwas bewegt (vorher machte Save nach
+     einem Antippen das Standard-Layout zu einem festen).
+   - Ein Ziehen, das Esc oder eine Drehung abbricht, springt zurück; das Panel blieb vorher blass und unbedienbar.
+   - P (die zweite Pausentaste) schließt den Editor nicht mehr und verwirft nichts; nur Esc.
+   - Die Anzeigen behalten Platz für das, was im Lauf dazukommt (Buff-Chips, Combo, Wellenfortschritt, Timer/FPS).
+   - Passt ein Layout im Lauf nicht auf den Bildschirm (anderes Format, importierter Spielstand), springt das
+     Standard-Layout ein, mit einem einmaligen Hinweis.
+   - Ein gespeichertes Layout ohne Stick-Platz bricht das Ziehen des Sticks nicht mehr; Zeichnen beim Ziehen einmal
+     pro Bild; Ausrichtung wie das Geräteprofil (visualViewport); Grenzen gemeinsam in data/hud.js.
+   - Cryo Skates auf Eis unterliefen die Dash-Untergrenze (bis etwa 0,47 s): jetzt nie unter 0,8 s nach dem letzten
+     Dash (DASH_CD_MIN).
+   - Combo Surge: die Tonhöhe steigt pro Surge einer Combo (auch auf Stufe 2, alle 12 Kills); der Sound duckt die Musik,
+     hat Raum und wird nie verdrängt.
+   - Tests: „layout360“ jetzt 26 Prüfungen (Antippen, P, Esc beim Ziehen, Spiegeln ohne Pause, Ersatz-Layout);
+     Selbsttest v360 prüft die Dash-Untergrenze auf Eis und den Surge-Zähler.
+   - Ergebnisse danach: npm test grün; e2e 170/0; audit ok; screens ohne Seitenfehler. Volle QA: Der erste Lauf
+     scheiterte ab „visual“ an Seitenaufruf-Zeitüberschreitungen, weil gleichzeitig ein Review-Werkzeug eigene Builds und
+     Renderings startete; allein wiederholt: 434 bestanden, 1 Fehler (GADGET-Pips: das HUD hatte nach 1,2 s noch kein
+     Bild gezeichnet, pips 0 und Grundtext; einzeln dreimal grün). Der Test wartet jetzt auf das gezeichnete HUD statt
+     einer festen Zeit; alle Layout-Abschnitte danach grün.
+
+6) Offene Zweifel
    - Der Editor ist nur emuliert getestet (Playwright-Touch): Ziehen mit dem Daumen, Panelgröße und fester Stick im
      Kampf auf echten Handys prüft der Eigentümer.
    - Saver ohne Kantenglättung: Wirkung auf die Bildrate echter Geräte nicht gemessen.
