@@ -2415,6 +2415,23 @@ function selfTestV360(result) {
       plain = computeStats("pulse", {}, {}).dashCd;
     if (fast !== 0.8) fail.push("dash-floor:" + fast);
     if (Math.abs(plain - 1.9) > 1e-9) fail.push("dash-base:" + plain);
+    // ... and the Cryo Skates on ice do not undercut it
+    {
+      const skater = new World({ seed: 0x362, weapon: "pulse", threat: 0, ws: { dash: 4 } });
+      skater.startWave(3);
+      skater.up = { phantom: 1, speed: 6, skates: 2 };
+      skater.stats = computeStats(skater.weapon, skater.up, skater.ws);
+      const player = skater.player;
+      player.dashAt = skater.time;
+      player.dashCdT = skater.stats.dashCd;
+      let t = 0;
+      for (let i = 0; i < 40 && player.dashCdT > 0; i++) {
+        player.onIce = true;
+        skater.step(0.05, {});
+        t += 0.05;
+      }
+      if (t < 0.8 - 1e-6) fail.push("dash-floor-on-ice:" + t.toFixed(2));
+    }
     // (2) four blades on an enemy that touches all of them: four hits at once, then each blade waits its 0.38 s
     const world = new World({ seed: 0x360, weapon: "pulse", threat: 0, ws: {} });
     world.startWave(3);
@@ -2453,7 +2470,8 @@ function selfTestV360(result) {
     surging.fx.length = 0;
     surging.addCombo();
     const surge = surging.fx.find((ev) => ev.k === "surge");
-    if (!surge || surge.r !== 3.5 || surge.n !== 15) fail.push("surge-event:" + JSON.stringify(surge || null));
+    if (!surge || surge.r !== 3.5 || surge.n !== 15 || surge.i !== 1)
+      fail.push("surge-event:" + JSON.stringify(surge || null));
     if (!RL_EVENT_KINDS.has("surge") || !RL_SOUND_EVENTS.surge) fail.push("surge-unmapped");
     if (!rlSoundCatalog().some((entry) => entry.spec.id === "surge")) fail.push("surge-no-sound");
   } catch (err) {

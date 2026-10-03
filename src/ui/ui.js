@@ -765,7 +765,6 @@ const getById = (id) => document.getElementById(id),
       // 2.4.2: run timer and FPS counter
       getById("setTimer").checked = !!settings.timer;
       getById("setFps").checked = !!settings.fps;
-      // 3.6.0: the button layout
       const ownLayout =
         !!settings.hudLayout || settings.stickFixed || settings.stickSize !== 1 || settings.hudAlpha !== 1;
       getById("hudLayoutNote").textContent = ownLayout

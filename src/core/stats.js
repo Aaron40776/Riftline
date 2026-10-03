@@ -2,6 +2,8 @@
 
 import { weaponDefs } from "../data/weapons.js";
 
+/* the shortest dash cooldown, whatever lowers it (upgrades, modules, the Cryo Skates on ice) */
+const DASH_CD_MIN = 0.8;
 function computeStats(weaponId, run, workshop) {
   let weapon = weaponDefs[weaponId] || weaponDefs.pulse,
     level = (id) => run[id] || 0,
@@ -29,10 +31,10 @@ function computeStats(weaponId, run, workshop) {
     crit: 0.05 + 0.1 * level("crit"),
     critMul: 2 + 0.06 * level("crit"),
     magnet: 2.4 * (1 + 0.2 * moduleLevel("magnet")),
-    // 3.6.0: never below 0.8 s (with Phantom Dash, the full Dash Capacitor and Servo Thrusters it fell to 0.34 s,
-    // an almost endless dash)
+    // 3.6.0: never below DASH_CD_MIN (with Phantom Dash, the full Dash Capacitor and Servo Thrusters it fell to
+    // 0.34 s, an almost endless dash)
     dashCd: Math.max(
-      0.8,
+      DASH_CD_MIN,
       1.9 * (1 - 0.08 * moduleLevel("dash")) * (1 - 0.08 * level("speed")) * (has("phantom") ? 0.5 : 1),
     ),
     laststand: 0.22 * level("laststand"),
@@ -143,4 +145,4 @@ function weaponRange(weapon) {
 /* v2.2 stat integration: its upgrades and modules were copies and are retired since 2.5.0 (Salvager
  Core moved into computeStats above). */
 
-export { computeStats, weaponRange };
+export { computeStats, weaponRange, DASH_CD_MIN };

@@ -112,6 +112,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     nova: 0.15,
     die: 0.15,
     boom: 0.1,
+    surge: 0.1,
     bigkill: 0.12,
     hurt: 0.1,
     bossDown: 0.15,
@@ -136,6 +137,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
      The trap strikes stay dry: they have to be told apart from the blasts at once. */
   SFX_ROOM = {
     boom: 0.3,
+    surge: 0.3,
     grenadeBlast: 0.35,
     nova: 0.3,
     bigkill: 0.35,
@@ -165,6 +167,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   /* sounds that are never dropped in favour of others when the voice limit is reached */
   KEY_SOUNDS = new Set([
     "mutator",
+    "surge",
     "bOverdrive",
     "hurt",
     "die",
@@ -229,7 +232,10 @@ const RL_SOUND_EVENTS = {
   cleared: [{}, { boss: true }],
   combo: [{ n: 20 }],
   comboEnd: [{ n: 20 }],
-  surge: [{ n: 15 }, { n: 60 }],
+  surge: [
+    { n: 15, i: 1 },
+    { n: 60, i: 5 },
+  ],
   dash: [{}],
   dmg: [{}],
   edash: [{ type: "charger" }],
@@ -1073,9 +1079,9 @@ const musicChords = {
           );
           break;
         case "surge": {
-          // 3.6.0: Combo Surge: a deep thump, a swell of air that opens up, and a bright fifth that climbs a step with
-          // every surge of the same combo (arg: the combo count)
-          const lift = Math.min(10, Math.max(0, Math.floor((arg || 15) / 15) - 1) * 2);
+          // Combo Surge: a deep thump, a swell of air that opens up, and a bright fifth that climbs a step with every
+          // surge of the same combo (arg: the surge of the combo, 1 for the first)
+          const lift = Math.min(10, Math.max(0, Math.round(arg || 1) - 1) * 2);
           this.tone(95, 0.42, "sine", 0.34, { to: 36 });
           this.noise(0.32, 0.1, { type: "bandpass", f: 420, to: 2800, q: 1.3, attack: 0.02 });
           [0, 0.045, 0.09].forEach((at, i) =>
@@ -2381,7 +2387,7 @@ const musicChords = {
             this.play("combo", Math.round(Math.log2(ev.n / 10) * 3));
             break;
           case "surge":
-            this.play("surge", ev.n);
+            this.play("surge", ev.i);
             break;
           case "comboEnd":
             this.play("comboEnd");
@@ -4338,7 +4344,7 @@ function rlSoundCatalog() {
   ]);
   ids(["kill"], 1.8);
   ids(["combo"], 6);
-  ids(["surge"], 15);
+  ids(["surge"], 1);
   ids(["cleared"], true);
   for (const id of new Set(Object.values(RL_DEATH_FAMILY))) ids([id], 1.6);
   ids([

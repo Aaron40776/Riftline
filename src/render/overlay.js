@@ -46,7 +46,7 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
       this.tmp2 = { x: 0, y: 0, vis: false, nx: 0, ny: 0 };
       this.w = 0;
       this.h = 0;
-      // 3.6.0: the highest pixel ratio of the canvas (1 in the Saver setting)
+      // the highest pixel ratio of the canvas (1 in the Saver setting)
       this.dprCap = 2;
       this.hurts = [];
       this.callouts = [];
@@ -301,7 +301,7 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
     }
     drawSticks(input, opts) {
       let ctx = this.g;
-      // 3.6.0: a fixed move stick shows where it waits while no thumb is on it (only for touch play)
+      // a fixed move stick shows where it waits while no thumb is on it (only for touch play)
       if (input.fixedMove && !input.move.active && RL_INPUT.touch) {
         let radius = input.radius(),
           center = input.fixedMove(radius);
