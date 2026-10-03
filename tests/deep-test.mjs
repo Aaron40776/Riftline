@@ -364,14 +364,19 @@ const music = await page.evaluate(async () => {
     let cs = 0,
       cn = 0,
       lowSum = 0,
-      allSum = 0;
+      allSum = 0,
+      flatSum = 0,
+      flatN = 0;
     for (let at = 0; at + N <= x.length; at += N * 2) {
       const re = new Float64Array(N),
         im = new Float64Array(N);
       for (let i = 0; i < N; i++) re[i] = x[at + i] * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N));
       fft(re, im);
       let p = 0,
-        pw = 0;
+        pw = 0,
+        logSum = 0,
+        bandSum = 0,
+        bandN = 0;
       for (let k = 1; k < N / 2; k++) {
         const e = re[k] * re[k] + im[k] * im[k],
           f = (k * SR) / N;
@@ -379,10 +384,21 @@ const music = await page.evaluate(async () => {
         pw += e * f;
         if (f < 200) lowSum += e;
         allSum += e;
+        // 3.7.0: how much the band a phone speaker plays best (2–12 kHz) sounds like noise: the spectral flatness
+        // (1 for pure noise, near 0 for tones)
+        if (f >= 2000 && f <= 12000) {
+          logSum += Math.log(e + 1e-20);
+          bandSum += e;
+          bandN++;
+        }
       }
       if (p > 1e-9) {
         cs += pw / p;
         cn++;
+      }
+      if (bandSum > 1e-12) {
+        flatSum += Math.exp(logSum / bandN) / (bandSum / bandN);
+        flatN++;
       }
     }
     return {
@@ -391,6 +407,9 @@ const music = await page.evaluate(async () => {
       onsetsPerSec: onsets.length / (x.length / SR),
       centroid: cs / Math.max(1, cn),
       low: lowSum / (allSum || 1),
+      flat: flatSum / Math.max(1, flatN),
+      // the power above 200 Hz (what a phone speaker plays)
+      high: ((allSum - lowSum) / (allSum || 1)) * (sum / x.length),
       grid: grid.map((v) => v / total),
       voicesPerSec: voices / (x.length / SR),
       bpm,
@@ -414,6 +433,23 @@ const music = await page.evaluate(async () => {
       if (!(d.rms > 0.004)) fail.push(`${name}: silent (rms ${d.rms})`);
       if (r.musicSkipped || r.musicShed) fail.push(`${name}: notes refused while rendering`);
       if (r.failed) fail.push(`${name}: engine error`);
+      // 3.7.0: no loud noise. The 2–12 kHz band of every track is mostly tones (flatness below FLAT_MAX), and the
+      // atmosphere of a calm theme stays a background: at most BED_MAX of what a phone speaker plays (above 200 Hz;
+      // measured as the theme with its atmosphere against the same theme without it). Before 3.7.0 the flatness was
+      // 0.12–0.47 and the atmospheres made up to three quarters of it (Cryo Vault).
+      const FLAT_MAX = 0.12,
+        BED_MAX = 0.25;
+      if (d.flat > FLAT_MAX) fail.push(`${name}: noisy (flatness ${d.flat.toFixed(3)} over ${FLAT_MAX})`);
+      if (kind === "fight") {
+        const bare = await E.renderOffline(
+            { music: kind, biome, fromBar: 4, intensity: 0.9, wav: true, noBed: true },
+            seconds,
+          ),
+          db = describe(bare.samples, info.bpm, 0),
+          share = Math.max(0, 1 - db.high / d.high);
+        out.tracks[name].bed = +share.toFixed(2);
+        if (share > BED_MAX) fail.push(`${name}: the atmosphere is ${Math.round(share * 100)} % of the sound`);
+      }
     }
   const T = (name) => out.tracks[name].raw,
     gridDist = (a, b) => a.grid.reduce((p, v, i) => p + Math.abs(v - b.grid[i]), 0) / 2,

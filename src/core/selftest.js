@@ -1841,7 +1841,7 @@ function selfTestV270Sound(result) {
         if (engine.voices.some((voice) => voice.loop)) fail.push("bed-never-ends:" + bed);
         if (engine.beds[bed]) fail.push("bed-kept:" + bed);
       }
-      // 3.1.0: the boss track starts on the spot with a crash (not with the wave), a phase change or the enrage sends
+      // 3.1.0: the boss track starts on the spot with an impact (not with the wave), a phase change or the enrage sends
       // it back to its drop, it resolves into the calm theme when the boss is dead, and a preview of the settings
       // screen plays a track until it is stopped or the game takes over the music
       {
@@ -1867,8 +1867,9 @@ function selfTestV270Sound(result) {
         const before = eng.musicLog.length;
         eng.setMusic("boss", "marsh");
         if (eng.playKind !== "boss" || eng.step !== 0 || eng.bossOver) fail.push("boss-track-not-started-on-the-spot");
-        if (!eng.musicLog.slice(before).some((voice) => voice.kind === "n" && voice.dur > 1.4))
-          fail.push("boss-start-without-crash");
+        // 3.7.0: the start is a deep taiko, a brass swell and a short choir (no crash any more)
+        if (!eng.musicLog.slice(before).some((voice) => voice.bus === "c" && voice.dur > 1.4))
+          fail.push("boss-start-without-impact");
         eng.bossPush(1);
         eng.bossPush(2);
         if (eng.heat !== 2 || !eng.jump) fail.push("boss-heat-not-raised");
@@ -1877,7 +1878,9 @@ function selfTestV270Sound(result) {
         const beforeEnd = eng.musicLog.length;
         eng.bossEnd();
         if (eng.playKind !== "fight" || eng.heat !== 0) fail.push("boss-track-not-resolved");
-        if (!eng.musicLog.slice(beforeEnd).some((voice) => voice.bus === "x")) fail.push("boss-end-without-last-hit");
+        // 3.7.0: the last hit ends on a long choir (the guitars and their distortion bus are gone)
+        if (!eng.musicLog.slice(beforeEnd).some((voice) => voice.bus === "c" && voice.dur > 2.5))
+          fail.push("boss-end-without-last-hit");
         eng.setMusic("menu");
         if (eng.playKind !== "menu") fail.push("menu-music-not-selected");
         eng.preview("boss", "void");
