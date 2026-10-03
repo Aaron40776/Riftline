@@ -277,7 +277,7 @@ const music = await page.evaluate(async () => {
       if (!a.scheduled) fail.push(`${name}: no notes`);
       if (a.skipped || a.shed || (b && (b.skipped || b.shed)))
         fail.push(`${name}: the budget refused notes (${a.skipped}/${a.shed})`);
-      if (a.peak > 30) fail.push(`${name}: ${a.peak} voices alive at once (budget 36, essentials keep 6 spare)`);
+      if (a.peak > 36) fail.push(`${name}: ${a.peak} voices alive at once (budget 44, essentials keep 8 spare)`);
       if (b) {
         if (a1.scheduled !== b.scheduled || JSON.stringify(a1.log) !== JSON.stringify(b.log))
           fail.push(`${name}: notes differ with a flood of sounds (${a1.scheduled} vs ${b.scheduled})`);

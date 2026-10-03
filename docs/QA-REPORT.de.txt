@@ -1,3 +1,31 @@
+RIFTLINE v3.5.0 – RUHIGE MUSIK IM CRYO-VAULT-STIL, VERWANDTE BOSS-TRACKS
+Basis: v3.4.0 · Build r350a1001a-r1 · 03.10.2026
+
+Gewünscht: Der Cryo Vault klingt am schönsten (ganz ruhig, entspannend). Alle Biome sollen so klingen; die Boss-Tracks
+bleiben hart, klingen aber wie die ruhigen Stücke, nur dramatischer.
+
+1) Ruhige Themen (audio/sound.js)
+   - Gemeinsamer Aufbau nach dem Vault: kein Beat, ein Motiv aus angeschlagenen Tönen im Echo und im Raum (Muster je
+     Abschnitt anders), weiche Fläche, tiefer Sub, Texturen des Ortes; ein leiser Herzschlag erst bei hoher Intensität.
+   - Instrument je Biom: Blackout City E-Piano, Ember Works angeschlagene Rohre, Cryo Vault Eisglocken, Toxin Marsh
+     Kalimba, Void Core Glas. Tempi 78 / 66 / 72 / 69 / 60 BPM (vorher 78–92 mit Beats; Unterschied mindestens 4,5 %).
+   - Die Texte der Stadt-, Werks- und Sumpfstücke (Sirene, Donner, Funk, Ambosse, Dampf, Blasen, Frösche) blieben.
+
+2) Boss-Tracks
+   - Motiv und Fläche des ruhigen Themas liegen über Drums und Gitarren (Motiv ausgedünnt, kurze Ausklänge, Fläche mit
+     zwei Tönen alle zwei Takte), damit der Boss wie derselbe Ort bei Nacht klingt.
+   - Das Stimmenbudget der Musik reichte nicht (Works, Vault, Void: Notizen verweigert): Ausklänge gekürzt und das
+     Budget von 36 auf 44 Stimmen angehoben (Spitze gemessen höchstens 35, Testgrenze 36).
+
+3) Prüfung
+   - Deep-Test (Budget, Flut, Unterscheidbarkeit der Themen), Selbsttests, Determinismus, qa, e2e, audit, screens.
+   - Gemessen (Mono, 24 s): ruhig −31 bis −33 dB RMS (alle ähnlich laut), Boss −20 bis −22 dB.
+   - Stereo-MP3-Vorschauen aller zehn Tracks an den Eigentümer geschickt.
+
+4) Offene Zweifel (nur gemessen, nicht gehört)
+   - Ob Rohre, Kalimba und Glas so schön klingen wie die Eisglocken und die Lautstärkeverhältnisse stimmen.
+   - Die ruhigen Themen haben viel Sub (60 Hz); auf Handy-Lautsprechern hört man sie kaum, das Motiv trägt.
+
 RIFTLINE v3.4.0 – BLACKOUT CITY ERSETZT DEN NEON YARD
 Basis: v3.3.0 · Build r340a1001a-r1 · 01.10.2026
 
