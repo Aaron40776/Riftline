@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.9.0",
+    title: "Sounds of the place",
+    items: [
+      "Hazards sound where they are: lava bubbles and roars before it erupts, live manholes hum and crackle.",
+      "Ice cracks under you, acid bubbles and sizzles, portals hum and whisper.",
+      "Every biome has far-off sounds of its own: thunder and car alarms, anvils and steam, frogs and owls and more.",
+      "Settings > Ambience sets the volume of all of it, apart from music and effects.",
+    ],
+  },
+  {
     version: "3.8.0",
     title: "Hazards you can see",
     items: [

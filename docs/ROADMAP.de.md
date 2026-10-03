@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-As of 03.10.2026, after 3.8.0. New entries are written in English (the owner's wish since 03.10.2026).
+As of 03.10.2026, after 3.9.0. New entries are written in English (the owner's wish since 03.10.2026).
 
 Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
@@ -61,10 +61,10 @@ Order (one PR with a release each, to be merged one after another):
    lifts, jagged bolts), ice sheets with frost, cracks and ice shards on the rim, acid with a bubbling surface and a mud
    bank, portals with a swirl and floating rune stones. The warnings keep the language of the rings. The owner also
    asked to remove the "Left-handed" and "Reduce flashes" settings completely; done in the same release.
-3. **3.9.0 Sounds of the place**: the hazards sound by distance and direction (lava bubbles and rumbles before it
-   erupts, manholes hum and crackle, ice cracks under the drone, acid bubbles, portals hum), rare far sounds of each
-   biome (thunder and a car alarm, anvils and steam, ice cracking, frogs and birds, deep swells in the Void) and a
-   volume of their own, "Ambience" (item B7 of the proposals below).
+3. **3.9.0 Sounds of the place** (done, `audio/place.js`): the hazards sound by distance and direction (lava bubbles and
+   rumbles before it erupts, manholes hum and crackle, ice cracks under the drone, acid bubbles, portals hum), rare far
+   sounds of each biome (thunder and a car alarm, anvils and steam, ice cracking, frogs and birds, deep swells in the
+   Void) and a volume of their own, "Ambience" (item B7 of the proposals below).
 4. Then as planned: boss rewards (then 3.10.0), the walker.
 
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
@@ -140,6 +140,7 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
 5. Gamepad (Sticks, Schultertasten, Start für Pause; Menüs zuerst weiter mit Maus/Touch) und Tastenbelegung am PC.
 6. Vibration am Handy bei Treffern, Dash und Boss-Schlägen (nur Android, abschaltbar).
 7. Getrennte Regler für Musik, Effekte und Atmosphäre (die Atmosphären sind seit 3.7.0 ein eigener Teil).
+   Done in 3.9.0: the "Ambience" volume (atmospheres, event beds and the sounds of the place).
 8. Kompakte Schadenszahlen (pro Gegner zusammengezählt) gegen das Gewimmel im Endless; Farbenblind-Paletten für
    Gegnerschüsse und Warnungen (zusätzlich zu „Clear warnings").
 
@@ -189,6 +190,7 @@ mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad 
 **Klang**
 - Musik reagiert auf Zustand: tiefer Hüllen-Herzschlag und Dämpfung bei wenig Hülle, Aufhellen nach einer Welle ohne Treffer.
 - Getrennte Regler für Musik, Effekte und Ambient in den Einstellungen; Vorschau-Knopf für Ambient je Biom.
+  (The Ambience volume came in 3.9.0.)
 - Boss-Phasen mit eigenem Musik-Abschnitt (statt nur Enrage-Schicht), Sprach-Schnipsel im Hubschrauber/Funk.
 
 **Qualität und Zugang**

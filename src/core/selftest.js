@@ -22,6 +22,7 @@ import {
   MUSIC_DUCK,
   BOSS_SOUND,
 } from "../audio/sound.js";
+import { PLACE_IDS, BIOME_PLACE, placeTick } from "../audio/place.js";
 import {
   RL_RETIRE_NOTE,
   rlMigrateRetired,
@@ -454,6 +455,7 @@ function rlSelfTest() {
   result = selfTestV360(result);
   result = selfTestV371(result);
   result = selfTestV380(result);
+  result = selfTestV390(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -2632,4 +2634,107 @@ function selfTestV380(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v380: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.9.0: the sounds of the place (audio/place.js) and the Ambience volume ---- */
+function selfTestV390(result) {
+  const fail = [];
+  try {
+    // the setting: default 0.8, the range of its slider
+    if (defaultSettings.ambience !== 0.8) fail.push("default:" + defaultSettings.ambience);
+    const raw = JSON.parse(JSON.stringify(newSave()));
+    raw.settings.ambience = 7;
+    if (cleanSave(raw).settings.ambience !== 1) fail.push("range");
+    // every far sound of a biome exists, and every sound is in the catalog of the offline test
+    for (const [biome, list] of Object.entries(BIOME_PLACE))
+      for (const id of list) if (!PLACE_IDS.includes(id)) fail.push(`far-unknown:${biome}:${id}`);
+    for (const biome of ["yard", "works", "vault", "marsh", "void"])
+      if (!BIOME_PLACE[biome] || BIOME_PLACE[biome].length < 4) fail.push("far-missing:" + biome);
+    const catalog = rlSoundCatalog();
+    for (const id of PLACE_IDS)
+      if (!catalog.some((entry) => entry.spec.id === "place" && entry.spec.arg.id === id))
+        fail.push("uncatalogued:" + id);
+    if (typeof OfflineAudioContext !== "undefined") {
+      // each biome with its hazards: 30 s of a fight near them make the sounds of that place, on the ambience bus
+      const want = {
+        works: ["lavaBlub", "lavaWarn"],
+        yard: ["hum", "charge"],
+        vault: ["iceCrack|iceCreak", "iceTink"],
+        marsh: ["acidBubble", "acidSizzle"],
+        void: ["portalHum"],
+      };
+      for (const biome of Object.keys(want)) {
+        const world = new World({ seed: 0x390, weapon: "pulse", threat: 0, ws: {} }),
+          index = world.route.indexOf(biome);
+        if (index < 0) continue;
+        world.startWave(2 + 5 * index);
+        world.state = "fight";
+        const arena = world.arena,
+          player = world.player;
+        if ((biome === "works" || biome === "yard") && !arena.vents.length)
+          arena.vents.push({ x: 4, y: 4, r: 2, phase: 0, period: 4, st: "idle" });
+        if (biome === "vault" && !arena.ice.length) arena.ice.push({ x: 4, y: 4, r: 3 });
+        if (biome === "marsh" && !arena.acid.length) arena.acid.push({ x: 4, y: 4, r: 2, life: null });
+        if (biome === "void" && !arena.portals.length) arena.portals.push({ ax: 4, ay: 4, bx: -4, by: -4 });
+        const spot = arena.vents[0] ||
+          arena.ice[0] ||
+          arena.acid[0] || { x: arena.portals[0].ax, y: arena.portals[0].ay };
+        player.x = spot.x;
+        player.y = spot.y;
+        player.vx = 6;
+        player.onIce = biome === "vault";
+        player.inAcid = biome === "marsh";
+        const engine = new SoundEngine();
+        engine.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
+        const heard = [],
+          buses = new Set();
+        engine.placePlay = (id, a) => {
+          heard.push(id);
+          if (!(a.g > 0 && a.g <= 1 && Math.abs(a.pan) <= 1)) fail.push(`${biome}-level:${id}:${a.g}:${a.pan}`);
+        };
+        for (let i = 0; i < 300; i++) {
+          world.waveT += 0.1;
+          placeTick(engine, world, 0.1);
+        }
+        for (const ids of want[biome])
+          if (!ids.split("|").some((id) => heard.includes(id))) fail.push(`${biome}-silent:${ids}`);
+        if (!heard.some((id) => BIOME_PLACE[biome].includes(id))) fail.push(biome + "-no-far-sound");
+        // a real sound goes to the ambience bus as a voice of low priority (any effect may take its place)
+        const real = new SoundEngine();
+        real.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
+        const route = real.route.bind(real);
+        real.route = (amp, opts) => {
+          buses.add(opts.dest === real.ambBus);
+          route(amp, opts);
+        };
+        real.placePlay(want[biome][0].split("|")[0], { g: 1, pan: 0.3 });
+        if (!buses.has(true) || buses.has(false)) fail.push(biome + "-not-on-ambience-bus");
+        if (!real.voices.length || real.voices.some((voice) => voice.pri !== 0.5)) fail.push(biome + "-priority");
+      }
+      // Ambience at 0 is silent; the event beds follow the Ambience volume, not the Effects volume
+      const engine = new SoundEngine();
+      engine.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
+      engine.setVolumes(0.8, 0.45, 0);
+      let played = 0;
+      const place = engine.placePlay.bind(engine);
+      engine.placePlay = (id, a) => {
+        played++;
+        place(id, a);
+      };
+      const quiet = new World({ seed: 0x391, weapon: "pulse", threat: 0, ws: {} });
+      quiet.startWave(2);
+      engine.place(quiet, 30);
+      if (played) fail.push("ambience-off-not-silent");
+      engine.setVolumes(0, 0.45, 0.8);
+      engine.mode = "fight";
+      engine.liveT = engine.ctx.currentTime;
+      engine.amb = "meltdown";
+      engine.syncAudio();
+      if (!engine.beds.meltdown) fail.push("event-bed-needs-effects-volume");
+      if (engine.beds.hum) fail.push("hum-without-effects-volume");
+    }
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v390: { ok: fail.length === 0, fail } };
 }

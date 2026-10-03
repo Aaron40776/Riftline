@@ -3,6 +3,7 @@
 import { logError } from "../core/diagnostics.js";
 import { weaponDefs } from "../data/weapons.js";
 import { upgradesById } from "../data/upgrades.js";
+import { PLACE, PLACE_IDS, placeTick } from "./place.js";
 
 /* The sound engine has seven weapon voices; newer weapons borrow the closest one. */
 const RL_SFX_VOICES = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
@@ -165,6 +166,8 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     [0, 0.7, 0.12],
   ],
   AMBIENCE_LEVEL = { blackout: 0.07, meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
+  // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
+  AMB_REF = 0.8,
   MAX_VOICES = 24,
   // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
   // 3.2.0: 36 (was 20): the boss tracks double-track their guitars (two amps) and play blast beats; 3.5.0: 44, they
@@ -472,6 +475,14 @@ const musicChords = {
       this.ok = typeof window < "u" && !!(window.AudioContext || window.webkitAudioContext);
       this.sfxVol = 0.8;
       this.musVol = 0.45;
+      // 3.9.0: the sounds of the place have their own volume and bus (Settings > Ambience): the event beds, the hazards
+      // and the far sounds of the biome (audio/place.js); the atmospheres of the music follow it too (atmos)
+      this.ambVol = AMB_REF;
+      this.ambBus = null;
+      this.atmos = null;
+      this.atmosPump = null;
+      this.curBus = null;
+      this.placeSt = null;
       this.last = Object.create(null);
       this.mode = "off";
       this.biome = "yard";
@@ -592,6 +603,9 @@ const musicChords = {
       this.sfx = ctx.createGain();
       this.sfx.gain.value = this.sfxVol;
       this.sfx.connect(this.comp);
+      this.ambBus = ctx.createGain();
+      this.ambBus.gain.value = this.ambVol;
+      this.ambBus.connect(this.comp);
       // 3.2.0: mus is the input of the music at unity; its volume is musLevel at the end of the music chain, so that
       // the glue compressor works the same at every volume setting
       this.mus = ctx.createGain();
@@ -614,6 +628,12 @@ const musicChords = {
       // the pump: pads, bass, strings, brass and the choir pass it; accented kicks dip it (a sidechain feel)
       this.pump = ctx.createGain();
       this.pump.connect(this.mus);
+      // 3.9.0: the atmospheres of the music pass these on their way into the music (calm) or the pump (boss)
+      this.atmos = ctx.createGain();
+      this.atmosPump = ctx.createGain();
+      this.atmos.gain.value = this.atmosPump.gain.value = this.ambVol / AMB_REF;
+      this.atmos.connect(this.mus);
+      this.atmosPump.connect(this.pump);
       if (opts.room !== false) {
         // 3.2.0: the room of the music: a generated 2 s impulse; voices send to it with opts.rev
         this.verbIn = ctx.createGain();
@@ -702,13 +722,35 @@ const musicChords = {
       }
       this.failed = true;
     }
-    setVolumes(sfx, music) {
+    setVolumes(sfx, music, ambience = this.ambVol) {
       this.sfxVol = sfx;
       this.musVol = music;
+      this.ambVol = ambience;
       if (!this.ctx) return;
       let now = this.ctx.currentTime;
       this.sfx.gain.setTargetAtTime(sfx, now, 0.05);
       this.musLevel.gain.setTargetAtTime(music * 0.6, now, 0.1);
+      this.ambBus.gain.setTargetAtTime(ambience, now, 0.05);
+      this.atmos.gain.setTargetAtTime(ambience / AMB_REF, now, 0.1);
+      this.atmosPump.gain.setTargetAtTime(ambience / AMB_REF, now, 0.1);
+    }
+    /* 3.9.0: one sound of the place (audio/place.js) at level a.g and pan a.pan, on the ambience bus */
+    placePlay(id, a) {
+      if (!this.live() || this.ambVol <= 0 || !PLACE[id]) return;
+      try {
+        PLACE[id](this, a);
+      } catch (err) {
+        this.fail(err);
+      }
+    }
+    /* 3.9.0: the sounds of the place of a running fight (main.js calls it every frame; see audio/place.js) */
+    place(world, dt) {
+      if (!this.live() || this.ambVol <= 0 || !world || !world.arena) return;
+      try {
+        placeTick(this, world, dt);
+      } catch (err) {
+        this.fail(err);
+      }
     }
     suspend() {
       try {
@@ -897,10 +939,12 @@ const musicChords = {
        the music reverb with opts.rev (send level) */
     route(amp, opts) {
       // a sound (no bus of its own) takes the pan and the room of the event that is being played
-      let dest = opts.dest || this.sfx,
+      // 3.9.0: the sounds of the place go to the ambience bus (opts.dest, or curBus while the accents of a biome event
+      // play) and ring out in the room of the sounds, not in that of the music
+      let dest = opts.dest || this.curBus || this.sfx,
         pan = opts.pan != null ? opts.pan : opts.dest ? 0 : this.curPan,
         rev = opts.rev != null ? opts.rev : opts.dest ? 0 : this.curRev,
-        room = opts.dest ? this.verbIn : this.sfxVerbIn;
+        room = opts.dest && opts.dest !== this.ambBus ? this.verbIn : this.sfxVerbIn;
       if (pan && this.ctx.createStereoPanner) {
         let panner = this.ctx.createStereoPanner();
         panner.pan.value = Math.max(-1, Math.min(1, pan));
@@ -1310,6 +1354,10 @@ const musicChords = {
           if (this.gate(id, 0.3)) {
             this.tone(880, 0.3, "sine", 0.04, { to: 1320 });
           }
+          break;
+        case "place":
+          // 3.9.0: a sound of the place (the offline test plays them this way; the game through placePlay)
+          if (arg && PLACE[arg.id]) PLACE[arg.id](this, { g: arg.g ?? 1, pan: arg.pan ?? 0 });
           break;
         case "chill":
           if (this.gate(id, 0.3)) {
@@ -2629,7 +2677,8 @@ const musicChords = {
         level = name === "hum" ? 0.02 : AMBIENCE_LEVEL[name] || 0.03;
       gain.gain.setValueAtTime(1e-4, now);
       gain.gain.setTargetAtTime(level, now, 0.35);
-      gain.connect(this.sfx);
+      // the drone's hum is an effect; the beds of the biome events are the place (3.9.0: ambience bus)
+      gain.connect(name === "hum" ? this.sfx : this.ambBus);
       let osc = (type, freq) => {
           let node = ctx.createOscillator();
           node.type = type;
@@ -2854,7 +2903,7 @@ const musicChords = {
         BED_LEVEL[kind] * recipe.gain * (kind === "boss" ? recipe.boss : 1),
         now + fadeIn,
       );
-      out.connect(kind === "boss" ? this.pump : this.mus);
+      out.connect(kind === "boss" ? this.atmosPump : this.atmos);
       recipe.build({ osc, loop, filt, lfo, level, root, bpm, boss: kind === "boss" });
       if (kind === "boss" && recipe.bossExtra) recipe.bossExtra({ osc, loop, filt, lfo, level, root, bpm });
       this.mbed = { out, nodes };
@@ -2875,9 +2924,9 @@ const musicChords = {
     syncAudio() {
       let ctx = this.ctx,
         now = ctx.currentTime,
-        live = now - this.liveT < 0.8 && (this.mode === "fight" || this.mode === "boss") && this.sfxVol > 0,
-        hum = live && this.speed != null,
-        amb = live ? this.amb : null;
+        live = now - this.liveT < 0.8 && (this.mode === "fight" || this.mode === "boss"),
+        hum = live && this.sfxVol > 0 && this.speed != null,
+        amb = live && this.ambVol > 0 ? this.amb : null;
       if (hum !== !!this.beds.hum) {
         if (hum) this.startBed("hum");
         else this.stopBed("hum");
@@ -2897,6 +2946,14 @@ const musicChords = {
     }
     accent(name, now) {
       this.curPri = 1;
+      this.curBus = this.ambBus;
+      try {
+        this.accentOf(name, now);
+      } finally {
+        this.curBus = null;
+      }
+    }
+    accentOf(name, now) {
       switch (name) {
         case "meltdown":
           // a low groan of the furnace with a couple of crackles
@@ -4350,6 +4407,8 @@ function rlSoundCatalog() {
     "bossCleared",
   ]);
   ids(["kill"], 1.8);
+  // 3.9.0: the sounds of the place
+  for (const placeId of PLACE_IDS) add("place:" + placeId, { id: "place", arg: { id: placeId } });
   ids(["stun"], "riftburst");
   ids(["combo"], 6);
   ids(["surge"], 1);

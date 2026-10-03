@@ -745,7 +745,7 @@ let qualityPreset = qualityPresets.auto,
   autoDpr = 1.5;
 function applySettings() {
   let settings = store.data.settings;
-  sound.setVolumes(settings.sfx, settings.music);
+  sound.setVolumes(settings.sfx, settings.music, settings.ambience);
   input.stickScale = settings.stickSize;
   input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   placeHud();
@@ -829,6 +829,8 @@ function runFrame(dt) {
         game.acc = 0;
       }
       handleWorldEvents(world);
+      // 3.9.0: the sounds of the place (hazards and the far sounds of the biome), not while the boss card shows
+      if (!game.intro && (world.state === "fight" || world.state === "cleared")) sound.place(world, dt);
       rlIntroEvents(world);
       updateTutorial(dt, world);
       updateHeartbeat(dt, world);
