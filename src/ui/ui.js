@@ -769,8 +769,8 @@ const getById = (id) => document.getElementById(id),
       const ownLayout =
         !!settings.hudLayout || settings.stickFixed || settings.stickSize !== 1 || settings.hudAlpha !== 1;
       getById("hudLayoutNote").textContent = ownLayout
-        ? "Your own layout is on. Edit it, or reset it in the editor."
-        : "Move and resize DASH, NOVA, GADGET and pause, set the stick size or pin the move stick.";
+        ? "Your own layout is on."
+        : "Move and resize the buttons and the sticks.";
     }
     /* a button of the music block toggles the loop of its track; only one plays at a time */
     togglePreview(biome, mode) {
