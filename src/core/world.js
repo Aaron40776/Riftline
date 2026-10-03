@@ -61,6 +61,15 @@ function rlStarterKit(world, count) {
   for (let i = 0; i < count && pool.length; i++) out.push(pool.splice(Math.floor(rng.next() * pool.length), 1)[0].id);
   return out;
 }
+/* 3.7.1: the whole points of a hazard tick (acid). The rest is kept for the next tick, so a resistance works exactly:
+ with Hazmat and Hazard Seal (88%) a tick of 0.24 used to round to 0 and still sound, shake and flash as a hit, and a
+ tick of 0.5 rounded up to a full point. */
+function rlChipDamage(player, dmg) {
+  const sum = (player.chipAcc || 0) + Math.max(0, dmg),
+    whole = Math.floor(sum + 1e-9);
+  player.chipAcc = Math.max(0, sum - whole);
+  return whole;
+}
 /* Hazard Attunement: close = within 2 m of the edge of a vent, ice sheet or acid pool, or of a
  portal mouth. Boss-attack zones (this.hazards) do not count. */
 const RL_ATTUNE_RANGE = 2;
@@ -200,8 +209,12 @@ const rlStep = 1 / 60,
         gadgetN: this.stats.gadgetMax,
         gadgetT: 0,
         slowT: 0,
+        // 3.7.1: what slows the drone: "chill" (ice, frost) or "shock" (an electric trap)
+        slowKind: "chill",
         acidT: 0,
         inAcid: false,
+        // 3.7.1: the part of a hazard tick that has not added up to a whole point yet (rlChipDamage)
+        chipAcc: 0,
       };
       if (snap) {
         this.player.hp = clamp(snap.hp, 1, this.stats.maxHp);
@@ -601,6 +614,14 @@ const rlStep = 1 / 60,
         this.endless = true;
         this.beginChoice();
       }
+    }
+    // 3.7.1: the Endless part of a run starts its clock at 0 (game.endless: its summary counts only the Endless part).
+    // A time stamp of the old clock moves with it: the last dash would otherwise lie in the future, and with Cryo Skates
+    // the dash stayed locked for as long as the run had lasted
+    restartClock() {
+      const shift = this.time;
+      this.time = 0;
+      if (this.player.dashAt != null) this.player.dashAt -= shift;
     }
     step(dt, input) {
       // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
@@ -1391,6 +1412,9 @@ const rlStep = 1 / 60,
         player.shieldT = 0;
         player.iT = 0.6;
         this.emit("shieldBreak", { x: player.x, y: player.y });
+        hit = false;
+      } else if (chip && !(dmg = rlChipDamage(player, dmg))) {
+        // 3.7.1: a hazard tick that does not add up to a whole point yet is no hit (no sound, shake or flash)
         hit = false;
       } else {
         dmg = Math.round(dmg);
@@ -2504,6 +2528,7 @@ const rlStep = 1 / 60,
                 bullet.frost
               ) {
                 player.slowT = 1.6;
+                player.slowKind = "chill";
                 this.emit("chill", { x: player.x, y: player.y });
               }
             }
@@ -2746,6 +2771,7 @@ const rlStep = 1 / 60,
           Math.hypot(player.x - hazard.x, player.y - hazard.y) < hazard.r + player.r
         ) {
           player.slowT = Math.max(player.slowT, 1.6);
+          player.slowKind = "chill";
           this.emit("chill", { x: player.x, y: player.y });
         }
       }

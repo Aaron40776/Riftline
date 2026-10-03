@@ -112,11 +112,15 @@ const base0 = (fam, wave) => wave >= TRAP_FROM[fam];
 // damage of a trap on the player: its base times the wave's enemy damage multiplier
 const trapDamage = (world, skin) => skin.dmg * world.dmgMul;
 
+// 3.7.1: an ice trap chills, an electric one (plate, rift burst) stuns: both slow the drone, but a stun has its own
+// look and sound (it used to send the frost sparkle and ping of "chill")
 function trapEffectsOnPlayer(world, skin, trap) {
   const player = world.player;
   if (skin.special === "chill" || skin.special === "shock") {
-    player.slowT = Math.max(player.slowT, skin.special === "chill" ? 1.6 : 0.8);
-    world.emit("chill", { x: player.x, y: player.y });
+    const time = skin.special === "chill" ? 1.6 : 0.8;
+    if (time >= player.slowT) player.slowKind = skin.special;
+    player.slowT = Math.max(player.slowT, time);
+    world.emit(skin.special === "chill" ? "chill" : "stun", { x: player.x, y: player.y, skin: trap.skin });
   }
 }
 
@@ -124,10 +128,13 @@ function trapEffectsOnPlayer(world, skin, trap) {
 function trapStrike(world, trap, skin, radius) {
   const player = world.player;
   world._src = "trap";
-  if (player.alive && Math.hypot(player.x - trap.x, player.y - trap.y) < radius + player.r) {
-    world.hurtPlayer(trapDamage(world, skin), trap.x, trap.y, "trap");
+  // 3.7.1: a strike that misses (a dash, the shield, the moment of safety after a hit) neither chills nor stuns
+  if (
+    player.alive &&
+    Math.hypot(player.x - trap.x, player.y - trap.y) < radius + player.r &&
+    world.hurtPlayer(trapDamage(world, skin), trap.x, trap.y, "trap")
+  )
     trapEffectsOnPlayer(world, skin, trap);
-  }
   world.hash.query(trap.x, trap.y, radius, (enemy) => {
     if (enemy.dead || enemy.boss || Math.hypot(enemy.x - trap.x, enemy.y - trap.y) > radius + enemy.r) return;
     world.hurtEnemy(

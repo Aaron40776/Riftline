@@ -474,7 +474,7 @@ const overlay = new Overlay(elementById("ov")),
         world.bossKills = [];
         world.legendaries = 0;
         world.flawless = 0;
-        world.time = 0;
+        world.restartClock();
         world.evolved = 0;
         world.dmgSrc = {};
         // 2.8.1: the Endless summary counts only the Endless part, like shards and kills above

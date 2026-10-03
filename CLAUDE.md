@@ -26,7 +26,7 @@ README.md explains build, commands, project structure and hosting. Read it first
   bump run `npm install` so `package-lock.json` follows.
 - A release also adds a short player-facing entry at the top of `src/data/whatsnew.js` (the What's new tab; the
   first entry must match the version, the QA checks it), its changes at the top of `changes` in `src/build-info.json` and a new
-  section at the top of `docs/QA-REPORT.de.txt` (German, same layout as the earlier ones).
+  section at the top of `docs/QA-REPORT.de.txt` (same layout as the earlier ones).
 - Run `npm test` before every commit. Before a release also run `npm run qa`, `npm run e2e`,
   `npm run audit` and `npm run screens`, and look at the screenshots.
 - All changes go through pull requests: work on a branch, open a PR against `main`, and let the
@@ -35,5 +35,7 @@ README.md explains build, commands, project structure and hosting. Read it first
   the tests (`.github/workflows/test.yml`).
 - Saves use the `localStorage` keys `riftline.*`. Riftdeck shares the GitHub Pages origin and uses
   `riftdeck.*`; never read or write those.
-- The player-facing texts in the game are English. Commit messages and README are English, the QA
-  reports German.
+- Everything is written in English (the owner's wish since 03.10.2026): player-facing texts, commit messages, README,
+  the QA reports and the roadmap. The earlier German sections of `docs/QA-REPORT.de.txt` and `docs/ROADMAP.de.md` stay
+  as they are; new sections are English. Replies to the owner are English too. The owner lives in Germany: give dates
+  and times in German time (CET/CEST).

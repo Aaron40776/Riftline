@@ -1263,6 +1263,14 @@ const MAX_PARTICLES = 1400,
           case "chill":
             this.burst(ev.x, ev.y, 0.6, 12, 3, hexColor(11462911), 0.5, 0.3, { spark: true });
             break;
+          case "stun": {
+            // 3.7.1: an electric trap stuns the drone: sparks in the colour of the trap jump off it, a short cold flash
+            const arc = hexColor(ev.skin === "riftburst" ? 0xc49bff : 0x8fd0ff);
+            this.burst(ev.x, ev.y, 0.6, 14, 6, whiteColor, 0.25, 0.22, { spark: true, drag: 2 });
+            this.burst(ev.x, ev.y, 0.6, 8, 3, arc, 0.4, 0.3, { spark: true, up: 2 });
+            this.flash(ev.x, ev.y, 2.4, 0.9, arc, 6);
+            break;
+          }
           case "champion":
             this.ring(ev.x, ev.y, 0.5, 5, goldColor, 0.6);
             this.burst(ev.x, ev.y, 0.5, 30, 7, goldColor, 0.6, 0.45, { up: 4 });

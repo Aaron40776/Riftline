@@ -87,7 +87,7 @@ src/
 public/            icons, fonts, web manifest, third-party licenses (copied to dist/ unchanged)
 tests/             browser test scripts (Playwright) and real old saves for migration tests
 tools/             build helpers: static server, test runner, sim summary
-docs/              QA reports of every release (German)
+docs/              QA reports of every release (German until 3.7.0, English since 3.7.1) and the roadmap
 build.js           src/ -> dist/
 CLAUDE.md          short working rules for Claude Code sessions in this repository
 ```

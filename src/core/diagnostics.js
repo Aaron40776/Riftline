@@ -453,6 +453,8 @@ const RL_EVENT_KINDS = new Set([
   "championDown",
   "charge",
   "chill",
+  // 3.7.1: an electric trap (plate, rift burst) stuns the drone
+  "stun",
   "cleared",
   "combo",
   "comboEnd",
@@ -510,6 +512,7 @@ const RL_EVENT_FIELDS = {
   boom: ["x", "y", "r"],
   surge: ["x", "y", "r", "n"],
   erupt: ["x", "y", "r"],
+  stun: ["x", "y"],
   edash: ["x", "y"],
   blink: ["x", "y"],
   heal: ["x", "y"],
