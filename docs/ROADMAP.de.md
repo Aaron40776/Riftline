@@ -29,6 +29,12 @@ eigener PR mit Release.
    Crucible: Schmiede-Taikos und Blech, Frost Prism: Eis-Trance, Hive Queen: Tribal und Acid-Bass, Rift Core: Drum &
    Bass mit Chor als Finale. Boss-Phasen mit eigenem Abschnitt, weicher Übergang ruhig → Boss. WAV/MP3-Vorschau aller
    Tracks an den Eigentümer vor dem Merge.
+   **Music Lab** (gewünscht: „live mit dir an der Musik arbeiten“): eine Seite als claude.ai-Artifact
+   (`npm run lab`, `tools/music-lab.js`), die jeden Track der Engine spielt, mit Regler, Mute und Solo je
+   Instrumentengruppe, Tempo, Schleife über einen Abschnitt oder Takt, Boss-Zustand (Phase 2, Enrage), Übergängen und
+   einem Spektrogramm. Der Eigentümer markiert Stellen mit Stichworten und Text; Claude liest die Notizen, ändert die
+   Musik, veröffentlicht die Seite neu und antwortet unter jeder Notiz. Im Spiel ändern die Haken nichts (ohne Mix
+   klingt alles gleich, ein Test prüft das).
 3. **3.8.0 Boss-Belohnungen** (Punkt 1 unten).
 4. **3.9.0 Läufer statt Drohne** mit Schritt-Sounds (Punkt 2 unten).
 5. Cloudflare erst, wenn der Eigentümer Bescheid sagt.

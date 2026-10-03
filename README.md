@@ -64,6 +64,8 @@ npm run audit        # world audit (routes, walls, spawns), data audit, bot run 
 npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
 npm run format       # Prettier over src/, tests/, tools/ (CI runs npm run format:check)
 npm run screens      # screenshot of every screen and every biome on PC, phone and landscape phone -> tests/shots/
+npm run lab          # Music Lab -> dist/music-lab.html: every track with a mixer per instrument group, tempo,
+                     # loops and a spectrogram; notes go to the owner's claude.ai artifact (see tools/music-lab.js)
 ```
 
 Single test scripts run with `node tools/qa.js <script> [args]`. It serves `dist/` on a free port and
@@ -86,7 +88,7 @@ src/
   build-info.json  version, build id, feature and change list (fetched by the game)
 public/            icons, fonts, web manifest, third-party licenses (copied to dist/ unchanged)
 tests/             browser test scripts (Playwright) and real old saves for migration tests
-tools/             build helpers: static server, test runner, sim summary
+tools/             build helpers: static server, test runner, sim summary, Music Lab
 docs/              QA reports of every release (German)
 build.js           src/ -> dist/
 CLAUDE.md          short working rules for Claude Code sessions in this repository

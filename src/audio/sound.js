@@ -523,9 +523,31 @@ const musicChords = {
       this.curRev = 0;
       this.sfxVerbIn = null;
       this.sfxVerbOut = null;
+      // the Music Lab (tools/music-lab.js): the level of each instrument group of the music (MIX_GROUPS; null: all
+      // at 1), the group of the helper that plays now (grouped), the tempo as a factor of the track's own and the
+      // bars it loops
+      this.mix = null;
+      this.mixInst = null;
+      this.tempo = 1;
+      this.loop = null;
     }
     setIntensity(level) {
       this.want = Math.max(0, Math.min(1, level || 0));
+    }
+    /* the Music Lab: the levels of the instrument groups ({drums: 0.5, ...}, a missing group stays at 1) and the
+       tempo factor (0.5..1.5); the game never calls them */
+    setMix(mix) {
+      this.mix = mix ? { ...mix } : null;
+      const bed = this.mbed;
+      if (bed && this.ctx)
+        bed.out.gain.setTargetAtTime(bed.level * mixGain(this, "atmosphere"), this.ctx.currentTime, 0.05);
+    }
+    setTempo(factor) {
+      this.tempo = Math.max(0.5, Math.min(1.5, factor || 1));
+    }
+    /* the Music Lab: loop the bars from..to-1 of the track that plays (null: the whole track) */
+    setLoop(from, to) {
+      this.loop = to > from ? [from, to] : null;
     }
     unlock() {
       if (this.ok)
@@ -2823,16 +2845,14 @@ const musicChords = {
           return gain;
         },
         root = midiToFreq((musicChords[biome] || musicChords.yard)[0][0]),
-        bpm = musicTrack(kind, biome).bpm;
+        bpm = musicTrack(kind, biome).bpm * this.tempo,
+        bedLevel = BED_LEVEL[kind] * recipe.gain * (kind === "boss" ? recipe.boss : 1);
       out.gain.setValueAtTime(1e-4, now);
-      out.gain.linearRampToValueAtTime(
-        BED_LEVEL[kind] * recipe.gain * (kind === "boss" ? recipe.boss : 1),
-        now + fadeIn,
-      );
+      out.gain.linearRampToValueAtTime(bedLevel * mixGain(this, "atmosphere"), now + fadeIn);
       out.connect(kind === "boss" ? this.pump : this.mus);
       recipe.build({ osc, loop, filt, lfo, level, root, bpm, boss: kind === "boss" });
       if (kind === "boss" && recipe.bossExtra) recipe.bossExtra({ osc, loop, filt, lfo, level, root, bpm });
-      this.mbed = { out, nodes };
+      this.mbed = { out, nodes, level: bedLevel };
     }
     stopMusicBed(fade = 0.8) {
       let bed = this.mbed;
@@ -2955,8 +2975,10 @@ const musicChords = {
         if (this.playKind !== "off" && this.musVol > 0) {
           this.note(this.step, this.nextT);
         }
-        this.nextT += 60 / info.bpm / 4;
+        this.nextT += 60 / (info.bpm * this.tempo) / 4;
         this.step = (this.step + 1) % info.steps;
+        if (this.loop && (this.step >= this.loop[1] * 16 || this.step < this.loop[0] * 16))
+          this.step = this.loop[0] * 16;
         if (this.jump && this.step % 16 === 0) {
           // phase change or enrage: back to the drop (its head brings the hit, see sectionHit)
           this.jump = false;
@@ -2977,6 +2999,7 @@ const musicChords = {
         at = time - this.ctx.currentTime;
       if (kind === "fight" || kind === "boss") {
         let track = musicTrack(kind, biome),
+          bpm = track.bpm * this.tempo,
           bar = Math.floor(step / 16),
           [root, quality] = chords[bar % 4],
           level = kind === "boss" ? 1 : this.pv ? previewLevel(bar) : this.intensity,
@@ -2985,7 +3008,7 @@ const musicChords = {
             s,
             bar,
             b: step % 16,
-            at: track.swing && step % 2 === 1 ? at + track.swing * (60 / track.bpm / 4) : at,
+            at: track.swing && step % 2 === 1 ? at + track.swing * (60 / bpm / 4) : at,
             L: level,
             cycle: this.cycle,
             heat: this.heat,
@@ -2995,8 +3018,8 @@ const musicChords = {
             sec: kind === "boss" ? bossSection(bar) : bar >> 2,
             chord: [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
             salt: biome.charCodeAt(0) * 7 + biome.charCodeAt(1),
-            barSec: 240 / track.bpm,
-            half: 30 / track.bpm / 4,
+            barSec: 240 / bpm,
+            half: 30 / bpm / 4,
           };
         track.play(this, c);
         if (kind === "boss" && this.heat > 0) bossHeatLayer(this, c);
@@ -3032,6 +3055,9 @@ const musicChords = {
     }
     static catalog() {
       return rlSoundCatalog();
+    }
+    static mixGroups() {
+      return [...MIX_GROUPS];
     }
     static trackInfo(kind, biome) {
       return trackInfo(kind, biome);
@@ -3102,7 +3128,8 @@ const musicChords = {
           engine.stopBed(spec.bed, spec.stopAt || 1.2);
         } else if (spec.music) {
           // 3.1.0: `seconds` of a calm theme or boss track from bar `fromBar`, at intensity `intensity` (calm) and
-          // heat `heat` (boss); musicLog (spec.log) records every music voice, `impact` plays the start of a boss track
+          // heat `heat` (boss); musicLog (spec.log) records every music voice, `impact` plays the start of a boss track;
+          // `mix` and `tempo` as set by the Music Lab
           engine.mode = spec.music;
           engine.biome = spec.biome;
           engine.playKind = spec.music;
@@ -3111,8 +3138,10 @@ const musicChords = {
           engine.heat = spec.heat || 0;
           if (spec.log) engine.musicLog = [];
           if (spec.preview) engine.pv = { kind: spec.music, biome: spec.biome };
+          if (spec.mix) engine.setMix(spec.mix);
+          if (spec.tempo) engine.setTempo(spec.tempo);
           let info = trackInfo(spec.music, spec.biome),
-            len = 60 / info.bpm / 4,
+            len = 60 / (info.bpm * engine.tempo) / 4,
             first = (spec.fromBar || 0) * 16;
           engine.fade.gain.value = musicTrack(spec.music, spec.biome).gain;
           engine.mixFor(spec.music);
@@ -3234,21 +3263,49 @@ function tremoloEnv(rate, depth, dur, fade) {
    and last span + fade seconds cross-fade without a dip (pads and drones) */
 const padEnv = (dur, fade) => tremoloEnv(0, 0, dur, fade),
   FLICKER = new Float32Array([0.9, 0.2, 1, 0.1, 0.8, 0.3, 1, 0.4, 0.2, 0]);
+/* the instrument groups of the Music Lab (SoundEngine.setMix). A voice belongs to its own group (opts.inst), else to
+   the group of the helper that plays it (grouped), else an optional voice (opts.opt) to the sounds of the place, else
+   to the group of its bus */
+const MIX_GROUPS = ["drums", "bass", "lead", "arp", "strings", "brass", "choir", "pad", "place", "fx", "atmosphere"],
+  BUS_GROUP = { m: "drums", p: "bass", d: "lead", c: "choir" },
+  mixGain = (e, group) => (e.mix ? (e.mix[group] ?? 1) : 1),
+  /* a helper whose voices belong to `group` (its first argument is a kit or a bus) */
+  grouped =
+    (group, play) =>
+    (k, ...args) => {
+      const e = k.e,
+        prev = e.mixInst;
+      e.mixInst = group;
+      try {
+        return play(k, ...args);
+      } finally {
+        e.mixInst = prev;
+      }
+    };
 /* one scheduling kit per step: the buses (see above), each with t(one) for an oscillator and n(oise) */
 function kit(e, c) {
   const base = c.at,
-    bus = (dest) => ({
-      t: (f, d, w, v, o) => e.tone(f, d, w, v, { ...o, dest, at: base + ((o && o.at) || 0) }),
+    // the factor of the Music Lab's mix (a muted group plays nothing: its envelopes cannot ramp to a level of 0)
+    gain = (o, group) => (e.mix ? mixGain(e, (o && o.inst) || e.mixInst || (o && o.opt ? "place" : group)) : 1),
+    bus = (dest, group) => ({
+      e,
+      t: (f, d, w, v, o) => {
+        const g = gain(o, group);
+        if (g > 0) e.tone(f, d, w, v * g, { ...o, dest, at: base + ((o && o.at) || 0) });
+      },
       // the noises of the music are pink unless they ask for brown (never the white noise of the sounds)
-      n: (d, v, o) => e.noise(d, v, { color: "pink", ...o, dest, at: base + ((o && o.at) || 0) }),
+      n: (d, v, o) => {
+        const g = gain(o, group);
+        if (g > 0) e.noise(d, v * g, { color: "pink", ...o, dest, at: base + ((o && o.at) || 0) });
+      },
     });
   return {
     e,
     at: base,
-    m: bus(e.mus),
-    p: bus(e.pump),
-    d: bus(e.delay),
-    c: bus(e.choir),
+    m: bus(e.mus, BUS_GROUP.m),
+    p: bus(e.pump, BUS_GROUP.p),
+    d: bus(e.delay, BUS_GROUP.d),
+    c: bus(e.choir, BUS_GROUP.c),
   };
 }
 /* the pump: the pads, bass, strings, brass and choir dip to `depth` on an accented kick and come back with `rel` */
@@ -3302,7 +3359,7 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
     bus.n(dur, v * 0.85, { type: "bandpass", f: f2, q: 9, color: "pink", ...o });
   },
   /* a pad: one oscillator per note with a sin^2 swell (padEnv), alternately detuned */
-  pad = (bus, notes, dur, v, o = {}) =>
+  pad = grouped("pad", (bus, notes, dur, v, o = {}) =>
     notes.forEach((n, i) =>
       bus.t(midiToFreq(n), dur, o.wave || "sawtooth", v, {
         lp: o.lp || 1200,
@@ -3312,6 +3369,7 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
         at: o.at,
       }),
     ),
+  ),
   /* the instruments of the boss tracks (cinematic synth, see the boss tracks below) */
   /* a taiko: a skin that drops in pitch, the knock of the stick (a short band of brown noise, never a hiss) and the
      room; deep adds the boom of a big drum an octave down */
@@ -3334,8 +3392,9 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
     k.m.t(330, 0.09, "triangle", v * 0.7, { to: 210, at: o.at, pan: o.pan, rev: 0.2 });
   },
   /* a soft shaker that keeps the time (the boss tracks have no cymbals) */
-  shaker = (k, v, pan = 0, at) =>
+  shaker = grouped("drums", (k, v, pan = 0, at) =>
     k.m.n(0.045, v, { type: "bandpass", f: 5200, q: 1.3, color: "pink", attack: 0.012, pan, at, opt: true }),
+  ),
   /* a big snare: a body that drops and a band of pink noise in the room */
   bigSnare = (k, v, o = {}) => {
     const bf = o.bf || 200;
@@ -3352,7 +3411,7 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
   },
   /* staccato strings: two saws a few cents apart through a soft low-pass, short; oct adds the octave above, single
      plays one saw (the fast lines of the enrage) */
-  strings = (k, midi, v, o = {}) => {
+  strings = grouped("strings", (k, midi, v, o = {}) => {
     const f = midiToFreq(midi),
       dur = o.dur || 0.14,
       lp = o.lp || 2200;
@@ -3360,9 +3419,9 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
     k.p.t(f, dur, "sawtooth", v, { lp, detune: -7, attack: 0.008, at: o.at, pan: -0.3 });
     k.p.t(f, dur, "sawtooth", v, { lp, detune: 7, attack: 0.008, at: o.at, pan: 0.3 });
     if (o.oct) k.p.t(f * 2, dur, "sawtooth", v * 0.45, { lp, attack: 0.008, at: o.at });
-  },
+  }),
   /* strings in tremolo (a swarm): the notes tremble 13 times a second and swell; lpTo lets them rise */
-  swarm = (k, notes, dur, v, o = {}) =>
+  swarm = grouped("strings", (k, notes, dur, v, o = {}) =>
     notes.forEach((n, i) =>
       k.p.t(midiToFreq(n), dur, "sawtooth", v, {
         lp: o.lp || 1400,
@@ -3373,8 +3432,9 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
         rev: 0.3,
       }),
     ),
+  ),
   /* brass: root, fifth and octave as saws whose low-pass opens like a horn over the note (from lp to lpTo) */
-  brass = (k, midi, dur, v, o = {}) => {
+  brass = grouped("brass", (k, midi, dur, v, o = {}) => {
     const f = midiToFreq(midi);
     for (const [mul, vol, det] of [
       [1, 1, -6],
@@ -3391,7 +3451,7 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
         at: o.at,
         rev: o.rev ?? 0.3,
       });
-  },
+  }),
   /* the choir: one voice per note through the "ah" of the choir bus (CHOIR_VOWEL), swelling in and out; the bus sends
      to the room after the vowel (a send of each voice would put a raw saw into the room) */
   choir = (k, notes, dur, v, o = {}) =>
@@ -3403,7 +3463,7 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
       }),
     ),
   /* a plucked note in the echo (arpeggios) */
-  pluck = (k, midi, v, o = {}) =>
+  pluck = grouped("arp", (k, midi, v, o = {}) =>
     k.d.t(midiToFreq(midi), o.dur || 0.1, o.wave || "sawtooth", v, {
       lp: o.lp || 2600,
       attack: 0.003,
@@ -3411,6 +3471,7 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
       pan: o.pan,
       rev: o.rev,
     }),
+  ),
   /* a sub-bass note for chord root `root`: never below 29 (about 44 Hz), so that phones play it */
   subNote = (root) => {
     let base = root - 24;
@@ -3679,10 +3740,10 @@ function worksCalm(e, c) {
   calmPad(k, c, "works");
   // the heartbeat of the works is a piston: a chuff and a low thump
   calmFloor(k, c, { f0: 90, f1: 38, dur: 0.3 });
-  if (L > 0.5 && b === 0) k.m.n(0.2, 0.014, { f: 300, to: 80, q: 1.2, color: "brown" });
-  if (b === 4 && (bar & 3) === 1) clang(k.m, midiToFreq(chord[0] + 24), 0.04, { rev: 0.8, pan: -0.4 });
+  if (L > 0.5 && b === 0) k.m.n(0.2, 0.014, { f: 300, to: 80, q: 1.2, color: "brown", inst: "place" });
+  if (b === 4 && (bar & 3) === 1) clang(k.m, midiToFreq(chord[0] + 24), 0.04, { rev: 0.8, pan: -0.4, inst: "place" });
   if (L > 0.45 && c.sec >= 2 && b === 12 && (bar & 1) === 0)
-    clang(k.m, midiToFreq(chord[2] + 24), 0.028, { rev: 0.8, pan: 0.5 });
+    clang(k.m, midiToFreq(chord[2] + 24), 0.028, { rev: 0.8, pan: 0.5, inst: "place" });
   if (L > 0.3 && b === 6 && R(c, 1) < 0.18)
     for (let i = 0; i < 5; i++)
       k.m.n(0.012, 0.035, {
@@ -3844,8 +3905,18 @@ function buildRiser(k, c) {
       lpTo: 4200,
       attack: d * 0.92,
       opt: true,
+      inst: "fx",
     });
-  k.m.n(d, 0.035, { type: "bandpass", f: 300, to: 2400, q: 0.8, color: "pink", attack: d * 0.95, opt: true });
+  k.m.n(d, 0.035, {
+    type: "bandpass",
+    f: 300,
+    to: 2400,
+    q: 0.8,
+    color: "pink",
+    attack: d * 0.95,
+    opt: true,
+    inst: "fx",
+  });
 }
 
 /* Blackout City boss (The Warden), 128 BPM, A minor (Am F Dm E): a cyberpunk chase. Drop: four on the floor that pumps a
@@ -4163,6 +4234,7 @@ function bossHeatLayer(e, c) {
         lp: 2500,
         attack: c.barSec * 0.8,
         opt: true,
+        inst: "fx",
       });
   }
 }
@@ -4176,7 +4248,7 @@ function musicImpact(e, biome, at) {
   const root = (musicChords[biome] || musicChords.yard)[0][0],
     k = kit(e, { at });
   taiko(k, 0.7, { f: 58, deep: true, dur: 1.2, rev: 0.8 });
-  k.m.t(95, 1.4, "sine", 0.45, { to: 28 });
+  k.m.t(95, 1.4, "sine", 0.45, { to: 28, inst: "fx" });
   brass(k, root - 12, 1.6, 0.05, { lp: 180, lpTo: 2200, attack: 0.05, hold: 0.5, rev: 0.5 });
   choir(k, [root, root + 7, root + 12], 1.6, 0.03, { fade: 0.15 });
 }
@@ -4186,7 +4258,14 @@ function musicResolve(e, biome, at) {
   // short: the music fades out over 0.9 s and the calm theme (minor) comes back; a long major third would clash
   taiko(k, 0.6, { f: 60, deep: true, dur: 1.1, rev: 0.9 });
   brass(k, root - 12, 1.2, 0.04, { lp: 300, lpTo: 2000, attack: 0.04, hold: 0.5, rev: 0.6 });
-  k.p.t(midiToFreq(root + 4), 1.2, "sawtooth", 0.026, { lp: 300, lpTo: 2000, attack: 0.04, hold: 0.5, rev: 0.6 });
+  k.p.t(midiToFreq(root + 4), 1.2, "sawtooth", 0.026, {
+    lp: 300,
+    lpTo: 2000,
+    attack: 0.04,
+    hold: 0.5,
+    rev: 0.6,
+    inst: "brass",
+  });
   choir(k, [root + 12, root + 16, root + 19], 1.2, 0.03, { fade: 0.3 });
   VOICE[BIOME_VOICE[biome] || "piano"](k.d, midiToFreq(root + 24), 0.06, { rev: 0.8, at: 0.3, lite: true });
 }
@@ -4374,6 +4453,7 @@ function rlSoundCatalog() {
 }
 
 export {
+  MIX_GROUPS,
   rlSoundCatalog,
   musicChords,
   RL_SFX_VOICES,

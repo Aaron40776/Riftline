@@ -502,6 +502,40 @@ const music = await page.evaluate(async () => {
   return { ...out, fail };
 });
 res.music = { fail: music.fail, tracks: Object.keys(music.tracks).length, budgets: music.budget.length };
+// the Music Lab (tools/music-lab.js): every voice of the music belongs to an instrument group (with all groups at 0
+// a track plays no note and is silent, its atmosphere, the boss start and the enrage included), all groups at 1 play
+// exactly the notes of no mix (the logs are compared: the noises start at random places, so the samples differ), drums
+// and bass alone are a part of the notes, and the tempo factor stretches the steps
+const lab = await page.evaluate(async () => {
+  const E = window.__riftTest.game.sound.constructor,
+    groups = E.mixGroups(),
+    all = (v) => Object.fromEntries(groups.map((g) => [g, v])),
+    notes = (r) => r.musicLog.map((n) => `${n.kind}${n.bus}${n.t.toFixed(4)}:${n.pitch}:${n.vol}`).join(" "),
+    fail = [];
+  for (const biome of ["yard", "works", "vault", "marsh", "void"])
+    for (const kind of ["fight", "boss"]) {
+      const name = `${biome}:${kind}`,
+        spec = { music: kind, biome, fromBar: 6, intensity: 0.9, heat: 2, impact: kind === "boss", log: true },
+        plain = await E.renderOffline(spec, 4),
+        ones = await E.renderOffline({ ...spec, mix: all(1) }, 4),
+        none = await E.renderOffline({ ...spec, mix: all(0) }, 4),
+        solo = await E.renderOffline({ ...spec, mix: { ...all(0), drums: 1, bass: 1 } }, 4),
+        part = solo.musicLog.length / plain.musicLog.length;
+      if (notes(ones) !== notes(plain)) fail.push(`${name}: all groups at 1 play other notes than no mix`);
+      if (none.musicLog.length || !(none.rms < 1e-5))
+        fail.push(`${name}: a voice escapes the mixer (${none.musicLog.length} notes, rms ${none.rms} at 0)`);
+      if (!(part > 0 && part < 1)) fail.push(`${name}: drums and bass alone are not a part of the notes (${part})`);
+      if (plain.failed || ones.failed || none.failed || solo.failed) fail.push(`${name}: engine error with a mix`);
+    }
+  const count = async (tempo) =>
+      (await E.renderOffline({ music: "boss", biome: "yard", fromBar: 0, log: true, tempo }, 4)).musicLog.length,
+    slow = await count(0.5),
+    full = await count(1);
+  if (!(slow < full * 0.7)) fail.push(`tempo 0.5 does not slow the track (${slow} vs ${full} notes)`);
+  return { fail, groups: groups.length };
+});
+res.musicLab = lab;
+if (lab.fail.length) res.ok = false;
 if (process.env.SOUND_DETAIL) console.error(JSON.stringify(music, null, 1));
 if (music.fail.length) res.ok = false;
 res.soundDistinct = {
