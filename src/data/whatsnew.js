@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.5.0",
+    title: "Calm music",
+    items: [
+      "Every biome's wave music now follows the Cryo Vault: no beat, soft bells, a deep pad and the sounds of the place.",
+      "Each biome has its own instrument: electric piano, struck pipes, ice bells, kalimba, glass.",
+      "Boss tracks stay hard but carry the same melody, so each boss sounds like its biome at its darkest.",
+    ],
+  },
+  {
     version: "3.4.0",
     title: "Blackout City",
     items: [

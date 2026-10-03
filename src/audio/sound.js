@@ -158,9 +158,10 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   AMBIENCE_LEVEL = { blackout: 0.07, meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
   MAX_VOICES = 24,
   // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
-  // 3.2.0: 36 (was 20): the boss tracks double-track their guitars (two amps) and play blast beats
-  MAX_MUSIC_VOICES = 36,
-  MUSIC_RESERVE = 6,
+  // 3.2.0: 36 (was 20): the boss tracks double-track their guitars (two amps) and play blast beats; 3.5.0: 44, they
+  // also carry the motif and the pad of the calm theme
+  MAX_MUSIC_VOICES = 44,
+  MUSIC_RESERVE = 8,
   /* sounds that are never dropped in favour of others when the voice limit is reached */
   KEY_SOUNDS = new Set([
     "mutator",
@@ -1925,11 +1926,12 @@ const musicChords = {
           if (this.gate(id, 0.05)) {
             // 3.4.0: the metal is louder and clangs inharmonically (it was easy to mistake for a plain blast)
             this.tone(62, 0.55, "sine", 0.45, { to: 26 });
-            this.noise(0.2, 0.2, { f: 900, to: 100, attack: 0.002 });
+            this.noise(0.12, 0.1, { f: 900, to: 100, attack: 0.002 });
             this.noise(0.04, 0.2, { type: "bandpass", f: 2600, q: 3, attack: 0.001 });
             this.tone(170, 0.12, "square", 0.1, { to: 80, lp: 900 });
-            [520, 1435, 2390].forEach((f, i) =>
-              this.tone(f, 0.8 - i * 0.15, "sine", 0.07 - i * 0.015, { at: 0.01, attack: 0.001 }),
+            // a ringing, inharmonic metal tail (the piston hits steel): partials at 1 : 2.76 : 5.4 : 8.9
+            [420, 1160, 2270, 3740].forEach((f, i) =>
+              this.tone(f, 1 - i * 0.18, "sine", 0.1 - i * 0.02, { at: 0.01, attack: 0.001 }),
             );
           }
           break;
@@ -3295,7 +3297,7 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
     notes.forEach((n, i) =>
       bus.t(midiToFreq(n), dur, o.wave || "sawtooth", v, {
         lp: o.lp || 1200,
-        env: padEnv(dur, o.fade || 0.3),
+        env: o.trem ? tremoloEnv(o.trem, 0.5, dur, o.fade || 0.3) : padEnv(dur, o.fade || 0.3),
         detune: (i & 1 ? 1 : -1) * (o.det || 0),
         rev: o.rev,
       }),
@@ -3413,85 +3415,157 @@ const BED_LEVEL = { fight: 1, boss: 1 },
 
 /* ---------- calm themes ---------- */
 
-/* Blackout City, 92 BPM, A minor (Am F Dm E), a light swing: noir trip-hop in the rain. A dusty boom-bap (kick on 1
-   and the "and" of 2, a snare with room on 2 and 4, swung hats that come with the intensity, vinyl crackle), a
-   plucked upright bass walking the chord tones (its walk changes per section), an electric piano with a tremolo
-   playing the chords with their seventh, a muted trumpet in the echo in the second and fourth section; the city:
-   a far siren, thunder, police radio chatter (rain and the hum of dead transformers are the atmosphere) */
-const CITY_WALK = [
-    [0, 1, 2, 1],
-    [0, 2, 3, 2],
-    [0, 1, 2, 3],
-    [0, 2, 1, -1],
-  ],
-  CITY_KICK = ["x.....x.........", "x.....x...x.....", "x.....x.x.......", "x.....x...x...x."];
-function yardCalm(e, c) {
-  const { b, bar, L, chord, root, sec, q } = c,
-    k = kit(e, c),
-    seventh = root + 10;
-  if (pat(CITY_KICK[sec])[b])
-    kick(k, b === 0 ? 0.42 : 0.3, { f0: 110, f1: 42, dur: 0.22, pump: b === 0 ? 0.75 : 0, rel: 0.14 });
-  if (b === 4 || b === 12) snare(k, 0.1 + 0.04 * L, { f: 1500, bf: 170, dur: 0.18, q: 0.7, rev: 0.45 });
-  if (L > 0.25 && b % 2 === 0) hat(k, b % 4 === 2 ? 0.024 : 0.014, 0.03, 7000, b % 4 === 2 ? 0.3 : -0.3);
-  if (R(c, 1) < 0.22) k.m.n(0.004, 0.025, { type: "highpass", f: 2500, opt: true, pan: P(c, 2) });
-  // the walking bass: one pluck per beat, the last beat of the bar leads to the next chord
-  if (b % 4 === 0) {
-    const step = CITY_WALK[sec][b >> 2],
-      n = step < 0 ? root - 13 : chord[step] - 24 + (step === 3 ? -12 : 0),
-      f = midiToFreq(n);
-    k.p.t(f, 0.38, "triangle", 0.15, { lp: 700 });
-    k.p.t(f, 0.3, "sine", 0.1);
-  }
-  // the electric piano: the chord with its seventh, a long chord on the one, a short push before the three
-  const keys = (dur, v) => {
-    const env = tremoloEnv(4.5, 0.25, dur, 0.04);
-    for (const n of [chord[1], chord[2], chord[0] + 12, seventh]) {
-      k.p.t(midiToFreq(n), dur, "sine", v, { env, rev: 0.35 });
-      k.p.t(midiToFreq(n) * 2, dur * 0.5, "sine", v * 0.18, { env: tremoloEnv(4.5, 0.25, dur * 0.5, 0.02) });
-    }
+/* 3.5.0: the calm themes all follow the Cryo Vault: no beat at all until the intensity is high (then a slow heartbeat),
+   a motif of struck notes in the echo and the room whose pattern changes per section, a soft pad, a deep sub on every
+   chord, flakes of texture and the sounds of the place; each biome has an instrument of its own for the motif and its
+   own pad. The boss tracks lay the same motif and pad over their drums and guitars, so that they sound like the same
+   place at its darkest. */
+const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", "x.x..x.x..x.x..x"],
+  /* the instruments of the motif: (bus, frequency, level, options); options.lite leaves out the upper partials */
+  VOICE = {
+    // Blackout City: an electric piano, a sine with a bright tine that dies quickly
+    piano: (bus, f, v, o) => {
+      bus.t(f, o.lite ? 0.8 : 1.5, "sine", v, { attack: 0.003, rev: 0.7, ...o });
+      if (o.lite) return;
+      bus.t(f * 2, 0.6, "sine", v * 0.28, { attack: 0.002, ...o });
+      bus.t(f * 7.1, 0.07, "sine", v * 0.12, { attack: 0.001, ...o });
+    },
+    // Ember Works: a struck pipe, warm and deep, a fifth and a minor tenth above it, a soft knock
+    pipes: (bus, f, v, o) => {
+      bus.t(f, o.lite ? 0.9 : 2, "sine", v, { attack: 0.002, rev: 0.8, ...o });
+      bus.t(f * 1.505, o.lite ? 0.5 : 1.2, "sine", v * 0.45, { attack: 0.002, ...o });
+      if (o.lite) return;
+      bus.t(f * 2.41, 0.6, "sine", v * 0.2, { attack: 0.002, ...o });
+      bus.n(0.03, v * 1.5, { type: "bandpass", f: 900, q: 3, attack: 0.001, ...o });
+    },
+    // Cryo Vault: ice bells
+    ice: (bus, f, v, o) => bell(bus, f, v, o.lite ? 0.7 : 1.4, { rev: 0.7, ...o }),
+    // Toxin Marsh: a kalimba, a short triangle with a ping on top and a wooden tick
+    kalimba: (bus, f, v, o) => {
+      bus.t(f, o.lite ? 0.6 : 1.1, "triangle", v, { attack: 0.002, rev: 0.5, ...o });
+      if (o.lite) return;
+      bus.t(f * 3.01, 0.18, "sine", v * 0.4, { attack: 0.001, ...o });
+      bus.n(0.015, v * 1.2, { type: "bandpass", f: 1800, q: 4, attack: 0.001, ...o });
+    },
+    // Void Core: glass, two sines that beat slowly and a high inharmonic partial, a lot of room
+    glass: (bus, f, v, o) => {
+      bus.t(f, o.lite ? 1.2 : 2.6, "sine", v, { attack: 0.004, rev: 0.9, ...o });
+      if (o.lite) return;
+      bus.t(f * 1.004, 2.6, "sine", v * 0.8, { attack: 0.004, ...o });
+      bus.t(f * 2.76, 0.9, "sine", v * 0.25, { attack: 0.002, ...o });
+    },
+  },
+  /* the level of each instrument against the ice bells (the pipes, the kalimba and the glass are softer by nature) */
+  VOICE_GAIN = { piano: 1.4, pipes: 1.6, ice: 1, kalimba: 1.5, glass: 1.5 },
+  /* the pad of each biome: notes (from the step data), wave, low-pass, fade, detune, room, level, tremolo rate */
+  CALM_PAD = {
+    yard: {
+      notes: (c) => [c.chord[0] + 12, c.chord[1] + 12, c.root + 22],
+      wave: "triangle",
+      lp: 1500,
+      fade: 0.8,
+      det: 6,
+      rev: 0.7,
+      vol: 0.017,
+    },
+    works: {
+      notes: (c) => [c.root - 12, c.root - 5, c.chord[0]],
+      wave: "sawtooth",
+      lp: 480,
+      fade: 0.9,
+      det: 5,
+      rev: 0.6,
+      vol: 0.022,
+    },
+    vault: {
+      notes: (c) => [c.chord[0] + 12, c.chord[2] + 12, c.chord[1] + 24],
+      wave: "triangle",
+      lp: 2200,
+      fade: 0.8,
+      det: 6,
+      rev: 0.7,
+      vol: 0.018,
+    },
+    marsh: {
+      notes: (c) => [c.chord[1], c.chord[2], c.chord[0] + 12],
+      wave: "sawtooth",
+      lp: 620,
+      fade: 0.5,
+      det: 9,
+      rev: 0.5,
+      vol: 0.016,
+      trem: 1.1,
+    },
+    void: {
+      notes: (c) => [c.root - 24, c.root - 24, c.root - 17, c.root - 12],
+      wave: "sawtooth",
+      lp: 360,
+      fade: 1.2,
+      det: 10,
+      rev: 0.6,
+      vol: 0.022,
+    },
   };
-  if (b === 0) keys(c.barSec * 0.55, 0.016 + 0.006 * L);
-  if (L > 0.35 && sec >= 1 && b === 7) keys(0.3, 0.012);
-  // the muted trumpet in the echo
-  if (L > 0.55 && (sec & 1) === 1) {
-    const note = leadPatterns[bar & 3][b];
-    if (note != null)
-      k.d.t(midiToFreq(chord[note % 4] + 12 + (note >= 4 ? 12 : 0)), 0.42, "sawtooth", 0.022, {
-        attack: 0.05,
-        lp: 1100,
-        rev: 0.45,
-        detune: q === "M" ? 4 : -4,
-      });
-  }
-  // the city: a far siren, thunder rolling in, radio chatter
+/* the motif of a biome on the chord tones (a fixed walk through them, an octave higher now and then) */
+function calmMotif(k, c, voice, v = 1, lite = false) {
+  const { b, bar, sec } = c;
+  if (!pat(CALM_MOTIF[sec & 3])[b]) return;
+  if (lite && R(c, 3) < 0.4) return;
+  const n = c.chord[[0, 2, 1, 3, 2, 1, 3][(bar * 7 + b) % 7]] + (R(c, 1) < 0.25 ? 36 : 24);
+  VOICE[voice](k.d, midiToFreq(n), 0.045 * v * VOICE_GAIN[voice], { pan: P(c, 2, 0.6), bright: sec >= 2, lite });
+}
+/* the pad of a biome, one swell per bar on the first step; v scales its level (the boss tracks play it louder) */
+function calmPad(k, c, biome, v = 1) {
+  if (c.b !== 0) return;
+  const cfg = CALM_PAD[biome];
+  // louder means the boss track: two notes only (the voices of the music are limited)
+  pad(k.p, v > 1 ? cfg.notes(c).slice(0, 2) : cfg.notes(c), c.barSec + cfg.fade, cfg.vol * v, cfg);
+}
+/* the sub of a chord and, when it swells, a heartbeat: two soft thumps */
+function calmFloor(k, c, beat) {
+  const { b, L, root } = c;
+  if (b === 0) k.p.t(subNote(root), c.barSec * 0.95, "sine", 0.08, { attack: 0.3, hold: c.barSec * 0.5 });
+  if (L > 0.5 && b === 0) kick(k, 0.3, beat);
+  if (L > 0.5 && b === 3) kick(k, 0.18, { ...beat, dur: 0.2 });
+  if (L > 0.2 && b % 2 === 1 && R(c, 3) < 0.25 + 0.3 * L)
+    k.m.n(0.008, 0.035, { type: "highpass", f: 7500, pan: P(c, 4, 0.8), rev: 0.6 });
+}
+
+/* Blackout City, 78 BPM, A minor (Am F Dm E): rain on empty streets. An electric piano motif, a soft pad, the sub; a
+   far siren, thunder rolling in and radio chatter (the rain and the hum of dead transformers are the atmosphere) */
+function yardCalm(e, c) {
+  const { b, bar, L, chord, root } = c,
+    k = kit(e, c);
+  calmMotif(k, c, "piano");
+  calmPad(k, c, "yard");
+  calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
+  // a soft plucked bass on beat 3 when it swells
+  if (L > 0.45 && b === 8) k.p.t(midiToFreq(root - 24 + [0, 7, 3, 7][c.sec]), 0.5, "triangle", 0.07, { lp: 600 });
   if (bar % 8 === 5 && b === 0) {
     k.d.t(640, 0.9, "triangle", 0.012, { to: 960, attack: 0.3, opt: true, rev: 0.7, pan: -0.6 });
     k.d.t(960, 0.9, "triangle", 0.01, { to: 640, at: 0.9, attack: 0.1, opt: true, rev: 0.7, pan: -0.6 });
   }
   if (bar % 8 === 2 && b === 0) k.m.n(2.6, 0.07, { f: 200, to: 50, attack: 0.25, q: 0.7, opt: true, rev: 0.3 });
-  if (L > 0.3 && b % 2 === 0 && R(c, 3) < 0.05)
+  if (L > 0.3 && b % 2 === 0 && R(c, 5) < 0.05)
     for (let i = 0; i < 4; i++)
-      k.d.n(0.05, 0.02, { type: "bandpass", f: 1400 + R(c, 4 + i) * 1600, q: 7, at: i * 0.07, opt: true, pan: 0.6 });
+      k.d.n(0.05, 0.02, { type: "bandpass", f: 1400 + R(c, 6 + i) * 1600, q: 7, at: i * 0.07, opt: true, pan: 0.6 });
+  if (b % 4 === 2 && R(c, 10) < 0.04) k.m.t(3400, 0.05, "sine", 0.02, { to: 800, opt: true, pan: P(c, 11) });
 }
 
-/* Ember Works, 84 BPM, D minor (Dm Bb C Am): the factory sleeps. Pistons (a dull chuff and a low thump) on 1 and 3,
-   the ticking of machines in eighths (its pattern changes per section), an anvil far away in the room, a chain
-   ratchet and a burst of steam; a low drone of root and fifth, a square bass, a dark brass swell and a saw lead in
-   the echo when it gets busy (the furnace and the far machines are the atmosphere) */
-const WORKS_CALM_BASS = ["x.......x.......", "x.....x.x.......", "x.......x..x....", "x.....x.x..x..x."],
-  WORKS_TICKS = ["x.x.x.x.x.x.x.x.", "x.xxx.x.x.xxx.x.", "x.x.x.xxx.x.x.xx", "xxx.x.x.xxx.x.x."];
+/* Ember Works, 66 BPM, D minor (Dm Bb C Am): a sleeping foundry. A motif of struck pipes, a warm dark pad, the sub;
+   in the dark a far anvil, a chain, a hiss of steam (the furnace and the far machines are the atmosphere) */
 function worksCalm(e, c) {
-  const { b, bar, L, chord, root, sec } = c,
+  const { b, bar, L, chord } = c,
     k = kit(e, c);
-  if (b === 0 || b === 8) {
-    k.m.n(0.2, 0.14, { f: 300, to: 80, q: 1.2 });
-    kick(k, 0.34, { f0: 90, f1: 38, dur: 0.22, pump: 0.8, rel: 0.15 });
-  }
-  if (pat(WORKS_TICKS[sec])[b])
-    k.m.n(0.014, b % 4 === 0 ? 0.04 : 0.022, { type: "bandpass", f: 5600, q: 7, pan: b % 4 === 0 ? -0.3 : 0.4 });
-  if (b === 4 && (bar & 1) === 1) clang(k.m, midiToFreq(chord[0] + 24), 0.045, { rev: 0.8, pan: -0.4 });
-  if (L > 0.45 && sec >= 2 && b === 12) clang(k.m, midiToFreq(chord[2] + 24), 0.03, { rev: 0.8, pan: 0.5 });
-  if (L > 0.3 && sec >= 1 && b === 6 && R(c, 1) < 0.5)
+  calmMotif(k, c, "pipes");
+  calmPad(k, c, "works");
+  // the heartbeat of the works is a piston: a chuff and a low thump
+  calmFloor(k, c, { f0: 90, f1: 38, dur: 0.3 });
+  if (L > 0.5 && b === 0) k.m.n(0.2, 0.1, { f: 300, to: 80, q: 1.2 });
+  if (b === 4 && (bar & 3) === 1) clang(k.m, midiToFreq(chord[0] + 24), 0.04, { rev: 0.8, pan: -0.4 });
+  if (L > 0.45 && c.sec >= 2 && b === 12 && (bar & 1) === 0)
+    clang(k.m, midiToFreq(chord[2] + 24), 0.028, { rev: 0.8, pan: 0.5 });
+  if (L > 0.3 && b === 6 && R(c, 1) < 0.18)
     for (let i = 0; i < 5; i++)
       k.m.n(0.012, 0.035, {
         type: "bandpass",
@@ -3503,56 +3577,19 @@ function worksCalm(e, c) {
       });
   if ((bar & 3) === 2 && b === 14)
     k.m.n(0.9, 0.035, { type: "highpass", f: 5500, to: 3500, attack: 0.05, opt: true, pan: 0.5, rev: 0.3 });
-  if (b === 0 && (bar & 1) === 0)
-    pad(k.p, [root - 24, root - 17], c.barSec * 2 + 0.6, 0.03, { lp: 320, fade: 0.6, det: 5 });
-  if (pat(WORKS_CALM_BASS[sec])[b]) k.p.t(midiToFreq(root - 24), 0.4, "square", 0.07, { lp: 360 + 250 * L });
-  if (L > 0.4 && b === 0)
-    for (const i of [0, 1, 2])
-      k.p.t(midiToFreq(chord[i]), c.barSec * 0.9, "sawtooth", 0.014, {
-        lp: 300,
-        lpTo: 1300 + 600 * L,
-        attack: 0.5,
-        hold: 0.6,
-        detune: (i - 1) * 6,
-        rev: 0.4,
-      });
-  if (L > 0.55 && (sec & 1) === 1) {
-    const note = leadPatterns[bar & 3][b];
-    if (note != null)
-      k.d.t(midiToFreq(chord[note % 4] + 24 + (note >= 4 ? 12 : 0)), 0.3, "sawtooth", 0.022, {
-        attack: 0.02,
-        lp: 1500,
-        rev: 0.3,
-      });
-  }
 }
 
 /* Cryo Vault, 72 BPM, E minor (Em C G D): an ice cavern. No beat at all until the intensity is high (then a slow
    heartbeat), bells of ice in the echo and the room whose pattern changes per section, a glass pad, a deep sub on
    every chord, ticks of ice, cracks, wind chimes and a creak (the wind, its gusts and its whistle are the
-   atmosphere) */
-const VAULT_BELLS = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", "x.x..x.x..x.x..x"],
-  VAULT_CHIME = [76, 79, 81, 83, 86, 88];
+   atmosphere). The model of the other themes. */
+const VAULT_CHIME = [76, 79, 81, 83, 86, 88];
 function vaultCalm(e, c) {
-  const { b, bar, L, chord, root, sec } = c,
+  const { b, bar, L } = c,
     k = kit(e, c);
-  if (pat(VAULT_BELLS[sec])[b]) {
-    const n = chord[[0, 2, 1, 3, 2, 1, 3][(bar * 7 + b) % 7]] + (R(c, 1) < 0.25 ? 36 : 24);
-    bell(k.d, midiToFreq(n), 0.045, 1.4, { rev: 0.7, pan: P(c, 2, 0.6), bright: sec >= 2 });
-  }
-  if (b === 0)
-    pad(k.p, [chord[0] + 12, chord[2] + 12, chord[1] + 24], c.barSec + 0.8, 0.018, {
-      wave: "triangle",
-      lp: 2200,
-      fade: 0.8,
-      det: 6,
-      rev: 0.7,
-    });
-  if (b === 0) k.p.t(subNote(root), c.barSec * 0.95, "sine", 0.08, { attack: 0.3, hold: c.barSec * 0.5 });
-  if (L > 0.5 && b === 0) kick(k, 0.3, { f0: 100, f1: 40, dur: 0.25 });
-  if (L > 0.5 && b === 3) kick(k, 0.18, { f0: 100, f1: 40, dur: 0.2 });
-  if (L > 0.2 && b % 2 === 1 && R(c, 3) < 0.25 + 0.3 * L)
-    k.m.n(0.008, 0.035, { type: "highpass", f: 7500, pan: P(c, 4, 0.8), rev: 0.6 });
+  calmMotif(k, c, "ice");
+  calmPad(k, c, "vault");
+  calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
   if (b % 4 === 2 && R(c, 5) < 0.08) {
     k.m.n(0.02, 0.06, { type: "highpass", f: 5200, opt: true, pan: P(c, 6), rev: 0.4 });
     k.m.t(3800, 0.08, "sine", 0.025, { to: 900, opt: true, pan: P(c, 6) });
@@ -3565,40 +3602,14 @@ function vaultCalm(e, c) {
   }
 }
 
-/* Toxin Marsh, 78 BPM, F minor (Fm Ab Eb Cm), swing: a foggy bayou dub. A soft kick on 1, a rim on 3 with an echo
-   throw, a lazy shaker, a bubbling sine bass on the off-beats that bends up (a bloop), a wobbling pad, dub chord
-   skanks and a kalimba melody of the F minor pentatonic in the echo; the swamp: rising bubbles, frog croaks, mud
-   squelches (insects and the murk are the atmosphere) */
-const MARSH_CALM_BASS = ["...x..x....x....", "...x..x...x...x.", "...x...x...x....", "...x..x....x..x."],
-  MARSH_PENTA = [65, 68, 70, 72, 75, 77, 80];
+/* Toxin Marsh, 69 BPM, F minor (Fm Ab Eb Cm): a foggy bayou at night. A kalimba motif, a soft wobbling pad, the sub;
+   rising bubbles, frog croaks, mud squelches (insects and the murk are the atmosphere) */
 function marshCalm(e, c) {
-  const { b, bar, L, chord, root, sec } = c,
+  const { b, bar, L } = c,
     k = kit(e, c);
-  if (b === 0) kick(k, 0.42, { f0: 115, f1: 40, dur: 0.24, pump: 0.75, rel: 0.14 });
-  if (L > 0.4 && b === 10) kick(k, 0.25, { f0: 115, f1: 40, dur: 0.2 });
-  if (b === 8) {
-    rim(k, 0.08, { rev: 0.4 });
-    k.d.n(0.05, 0.04, { type: "bandpass", f: 2200, q: 3 });
-  }
-  if (L > 0.2 && b % 2 === 0) hat(k, b % 4 === 0 ? 0.02 : 0.012, 0.03, 7500, b % 4 ? 0.3 : -0.3);
-  if (pat(MARSH_CALM_BASS[sec])[b]) {
-    const f = midiToFreq(root - 24 + [0, 0, 7, 0][(bar + b) & 3]);
-    k.p.t(f, 0.3, "sine", 0.15, { to: f * 1.06 });
-    k.p.t(f * 2, 0.22, "triangle", 0.04, { lp: 500 });
-  }
-  if (b === 0) {
-    const dur = c.barSec + 0.4,
-      env = tremoloEnv(1.4, 0.5, dur, 0.4);
-    k.p.t(midiToFreq(chord[1]), dur, "sawtooth", 0.017, { lp: 620, detune: 9, env, rev: 0.35 });
-    k.p.t(midiToFreq(chord[2]), dur, "sawtooth", 0.017, { lp: 620, detune: -9, env, rev: 0.35 });
-  }
-  if (L > 0.3 && sec >= 1 && (b === 4 || b === 12))
-    for (const i of [0, 1, 2]) k.d.t(midiToFreq(chord[i] + 12), 0.07, "triangle", 0.016, { lp: 1800 });
-  if (L > 0.5 && b % 2 === 0 && R(c, 1) < 0.3) {
-    const f = midiToFreq(MARSH_PENTA[(R(c, 2) * 7) | 0]);
-    k.d.t(f, 0.3, "sine", 0.035, { attack: 0.002, rev: 0.3, pan: P(c, 3, 0.4) });
-    k.d.t(f * 3, 0.08, "sine", 0.01, { attack: 0.002, pan: P(c, 3, 0.4) });
-  }
+  calmMotif(k, c, "kalimba");
+  calmPad(k, c, "marsh");
+  calmFloor(k, c, { f0: 115, f1: 40, dur: 0.24 });
   if (R(c, 4) < 0.08 + 0.05 * L) {
     const f = 170 + R(c, 5) * 500,
       pan = P(c, 6, 0.8);
@@ -3617,27 +3628,20 @@ function marshCalm(e, c) {
   }
 }
 
-/* Void Core, 66 BPM, F# minor (F#m D A E): dark and breathing. A slow heartbeat (two thumps) in every bar, drops of
-   water in the echo on the broken groups of the bar (3+3+2+3+3+2 sixteenths, higher in every section), detuned saw
-   drones, a reversed swell before every fourth bar, whispers, long pings far away, a square arpeggio and lead on the
-   group starts when it gets busy (the beating drones, the space wind and the eerie tone are the atmosphere) */
-const VOID_GROUPS = [0, 3, 6, 8, 11, 14],
-  VOID_FORMANTS = [
-    [700, 1200],
-    [300, 2300],
-    [500, 1800],
-  ];
+/* Void Core, 60 BPM, F# minor (F#m D A E): dark and breathing. A glass motif, low detuned drones as the pad, the sub;
+   a reversed swell before every fourth bar, whispers, long pings far away (the beating drones, the space wind and the
+   eerie tone are the atmosphere) */
+const VOID_FORMANTS = [
+  [700, 1200],
+  [300, 2300],
+  [500, 1800],
+];
 function voidCalm(e, c) {
-  const { b, bar, L, chord, root, sec } = c,
-    k = kit(e, c),
-    group = VOID_GROUPS.indexOf(b);
-  if (b === 0) kick(k, 0.36, { f0: 90, f1: 32, dur: 0.35, pump: 0.7, rel: 0.2 });
-  if (b === 3) kick(k, 0.28, { f0: 90, f1: 32, dur: 0.3 });
-  if (L > 0.6 && sec >= 2 && b === 8) kick(k, 0.22, { f0: 90, f1: 32, dur: 0.3 });
-  if (group > 0)
-    k.d.n(0.015, 0.03, { type: "bandpass", f: 1800 + 400 * sec + 250 * group, q: 6, pan: P(c, 1, 0.6), rev: 0.5 });
-  if (b === 0 && (bar & 1) === 0)
-    pad(k.p, [root - 24, root - 24, root - 17], c.barSec * 2 + 1.2, 0.028, { lp: 300 + 200 * L, fade: 1.2, det: 10 });
+  const { b, bar, L, chord } = c,
+    k = kit(e, c);
+  calmMotif(k, c, "glass");
+  calmPad(k, c, "void");
+  calmFloor(k, c, { f0: 90, f1: 32, dur: 0.35 });
   if ((bar & 3) === 3 && b === 6) {
     k.m.n(1.6, 0.05, { type: "highpass", f: 800, to: 7000, attack: 1.45, opt: true });
     k.m.t(200, 1.6, "sawtooth", 0.016, { to: 1200, attack: 1.5, lp: 2000, opt: true });
@@ -3652,14 +3656,7 @@ function voidCalm(e, c) {
       rev: 0.7,
       pan: P(c, 8),
     });
-  if (L > 0.3 && group >= 0) {
-    const p = arpPatterns[(sec + bar) % 4];
-    k.d.t(midiToFreq(chord[p[group % p.length]] + 12), 0.1, "square", 0.018, { lp: 2200, rev: 0.3 });
-  }
-  if (L > 0.6 && (sec & 1) === 1 && group >= 0)
-    k.d.t(midiToFreq(chord[(b + bar) % 4] + 24), 0.3, "square", 0.02, { attack: 0.01, lp: 2600, rev: 0.5 });
-  if (b === 0) k.p.t(midiToFreq(root - 24), 0.6, "sawtooth", 0.09, { lp: 380 });
-  if (b === 11 && L > 0.4) k.p.t(midiToFreq(root - 17), 0.3, "sawtooth", 0.07, { lp: 380 });
+  if (b === 11 && L > 0.4) k.p.t(midiToFreq(c.root - 17), 0.3, "sawtooth", 0.07, { lp: 380 });
 }
 
 /* ---------- boss tracks ---------- */
@@ -3704,6 +3701,12 @@ function yardBoss(e, c) {
     g = root - 12,
     chop = (dur, v, pan) =>
       k.m.n(dur, v, { f: 380, q: 0.9, env: tremoloEnv(11, 0.85, dur, 0.3), opt: true, pan, rev: 0.2 });
+  // 3.5.0: the motif and the pad of the calm theme of this biome over everything, so the boss sounds like the same
+  // place at its darkest (the pad rings louder, every second bar; the motif is sparser than in the calm theme)
+  if (sec <= 2) {
+    calmMotif(k, c, "piano", 1.6, true);
+    if ((bar & 1) === 0) calmPad(k, c, "yard", 2.4);
+  }
   if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) {
     crash(k, 0.12);
     china(k, 0.06, -0.5);
@@ -3793,6 +3796,12 @@ function worksBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
     g = root - 12;
+  // 3.5.0: the motif and the pad of the calm theme of this biome over everything, so the boss sounds like the same
+  // place at its darkest (the pad rings louder, every second bar; the motif is sparser than in the calm theme)
+  if (sec <= 2) {
+    calmMotif(k, c, "pipes", 1.7, true);
+    if ((bar & 1) === 0) calmPad(k, c, "works", 2.4);
+  }
   if (c.cycle + bar > 0 && b === 0 && (bar & 3) === 0) {
     crash(k, 0.11);
     china(k, 0.06, -0.5);
@@ -3862,6 +3871,11 @@ function vaultBoss(e, c) {
       k.m.n(0.35, 0.09, { type: "highpass", f: 6000, attack: 0.001, rev: 0.5, opt: true, pan: -0.3 });
       bell(k.d, midiToFreq(chord[0] + 48), 0.02, 0.6, { bright: true, opt: true, pan: 0.4 });
     };
+  // 3.5.0: the motif and the pad of the calm theme of this biome over everything, so the boss sounds like the same
+  // place at its darkest (the pad rings louder, every second bar; the motif is sparser than in the calm theme)
+  if (sec <= 2) {
+    calmMotif(k, c, "ice", 1.3, true);
+  }
   if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) {
     crash(k, 0.11);
     shatter();
@@ -3964,6 +3978,12 @@ function marshBoss(e, c) {
       k.m.n(0.16, 0.08, { f: 900, to: 150, q: 7, opt: true, pan });
       k.m.t(180, 0.14, "sine", 0.07, { to: 55, opt: true, pan });
     };
+  // 3.5.0: the motif and the pad of the calm theme of this biome over everything, so the boss sounds like the same
+  // place at its darkest (the pad rings louder, every second bar; the motif is sparser than in the calm theme)
+  if (sec <= 2) {
+    calmMotif(k, c, "kalimba", 1.7, true);
+    if ((bar & 1) === 0) calmPad(k, c, "marsh", 2.4);
+  }
   if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) {
     crash(k, 0.11);
     china(k, 0.06, 0.4);
@@ -4061,6 +4081,12 @@ function voidBoss(e, c) {
           detune: det,
         });
     };
+  // 3.5.0: the motif and the pad of the calm theme of this biome over everything, so the boss sounds like the same
+  // place at its darkest (the pad rings louder, every second bar; the motif is sparser than in the calm theme)
+  if (sec <= 2) {
+    calmMotif(k, c, "glass", 1.6, true);
+    if ((bar & 1) === 0) calmPad(k, c, "void", 2.4);
+  }
   if (c.cycle + bar > 0 && b === 0 && (bar === 0 || bar === 8 || bar === 16)) {
     crash(k, 0.11);
     china(k, 0.07, -0.4);
@@ -4183,11 +4209,11 @@ function previewLevel(bar) {
 
 const MUSIC_TRACKS = {
   yard: {
-    fight: { bpm: 92, bars: 16, swing: 0.12, gain: 1, play: yardCalm },
+    fight: { bpm: 78, bars: 16, swing: 0, gain: 1, play: yardCalm },
     boss: { bpm: 128, bars: 22, swing: 0, gain: 1.25, play: yardBoss },
   },
   works: {
-    fight: { bpm: 84, bars: 16, swing: 0, gain: 1, play: worksCalm },
+    fight: { bpm: 66, bars: 16, swing: 0, gain: 1, play: worksCalm },
     boss: { bpm: 160, bars: 22, swing: 0, gain: 1, play: worksBoss },
   },
   vault: {
@@ -4195,11 +4221,11 @@ const MUSIC_TRACKS = {
     boss: { bpm: 172, bars: 22, swing: 0, gain: 1, play: vaultBoss },
   },
   marsh: {
-    fight: { bpm: 78, bars: 16, swing: 0.18, gain: 1, play: marshCalm },
+    fight: { bpm: 69, bars: 16, swing: 0, gain: 1, play: marshCalm },
     boss: { bpm: 140, bars: 22, swing: 0, gain: 1, play: marshBoss },
   },
   void: {
-    fight: { bpm: 66, bars: 16, swing: 0, gain: 1, play: voidCalm },
+    fight: { bpm: 60, bars: 16, swing: 0, gain: 1, play: voidCalm },
     boss: { bpm: 150, bars: 22, swing: 0, gain: 1, play: voidBoss },
   },
 };

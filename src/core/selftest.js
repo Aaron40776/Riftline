@@ -629,7 +629,7 @@ function selfTestExpansion23(result) {
           sound.note(step % info.steps, sound.simT);
         }
         if (sound.failed) bad("music-error", `${biome.id}:${kind}`);
-        if (sound.musicSkipped || sound.musicShed || sound.musicPeak > 30)
+        if (sound.musicSkipped || sound.musicShed || sound.musicPeak > 36)
           bad(
             "music-budget",
             `${biome.id}:${kind} heat ${heat} skipped ${sound.musicSkipped} shed ${sound.musicShed} peak ${sound.musicPeak}`,
