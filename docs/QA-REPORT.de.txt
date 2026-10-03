@@ -1,3 +1,59 @@
+RIFTLINE v3.7.1 – CHECKUP: BUG HUNT AND FIXES
+Base: v3.7.0 · Build r371a1003a-r1 · 03.10.2026
+
+Requested: look through the whole project again carefully, find things the owner may not like that much and look for
+bugs; then a plan (fixes first, then features) and the work in logical PRs one after another. This version is the
+first PR (fixes); 3.8.0 (hazards with models) and 3.9.0 (sounds of the place) follow, see ROADMAP.de.md. From this
+version on the QA reports are written in English (the owner's wish).
+
+1) Review
+   - Read: simulation (world, traps, arena, parts of ai), renderer (hazards, traps, biomes), sound engine, input, saves,
+     main.js. Measured before: npm test green, npm run audit green (world and data without findings, bot run to wave 22
+     without runtime errors).
+   - Close-ups of the map hazards of every biome (own script, camera close): lava vents, manholes, ice sheets, acid
+     pools and portals are discs and rings; the eruption is a glowing tube (-> 3.8.0).
+   - Sound: the biomes differ almost only by their music; the hazards are silent until a vent erupts (-> 3.9.0).
+
+2) Fixed
+   - Endless with Cryo Skates: starting Endless set the run clock to 0, but not the time of the last dash. With the
+     skates (on ice, or anywhere in the Cryo Vault) the dash floor then counted with a dash in the future: whoever had
+     dashed just before the Rift Core died could not dash again for as long as the run had lasted (often 15-25
+     minutes). Now World.restartClock moves the clock and the time of the dash together.
+   - Acid ticks with a high hazard resistance (Hazmat and Hazard Seal, up to 88 %): a tick of 0.24 points was rounded
+     to 0 and still counted as a hit (hurt sound, camera shake, red flash, Heat Sink charge); a tick of 0.5 on the
+     other hand was rounded up to a whole point. Now the rest of a tick is kept until it adds up to a whole point: the
+     resistance works exactly, and a tick without damage is no hit.
+   - Traps: a strike that was dodged (dash, shield, the moment of safety after a hit) still slowed the drone (ice
+     spike, frost mine, electric plate, rift burst). Now only on a real hit.
+   - Electric traps (the plate of Blackout City, the rift burst of the Void Core) sent the event "chill": the ice
+     sparkle and the frost ping on an electric shock, "CHILLED" in the HUD. Now an event of their own, "stun": sparks in
+     the colour of the trap, a short cold flash, a dry snap with a short mains buzz (the rift burst lower and falling),
+     "STUNNED" in the HUD (0.8 s).
+
+3) Tests
+   - New deep-test part (v371): the Endless clock with skates (the dash is free again after at most its cooldown), 20
+     acid ticks of 0.24 make four points in four hits and no "hurt" without damage, a dodged trap strike does not slow,
+     the ice spike chills, the plate stuns (and sends no "chill"), "stun" is registered, has a sound and is in the
+     catalog of the offline test.
+   - Determinism: reference rewritten on purpose. The table of event kinds contains "stun"; four simulations
+     (sim-scatter-t2, sim-tesla-t5, sim-flame-t2, sim-pulse-t2-endless) take acid or trap damage, which is now
+     distributed differently. The other ten cases are unchanged.
+
+4) Results 3.7.1 (headless Chromium, software WebGL)
+   - npm test: green (build, deep test with v371, full-qa files, data audit, determinism 15/15 with the new reference).
+   - Full QA: all 434 checks passed. A first run had 16 failures (page loads that timed out after 30 s and one boss
+     kill that took longer than 20 s): other browser tests were running on the same machine at the same time. Run
+     again on its own: green.
+   - E2E: 170 checks, 0 failures on all five devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     2651 events in 37 kinds, all consumed. The warning "no input events" belongs to the bot run.
+   - Screens and biome pictures PC/phone/landscape: no page errors. Looked at: upgrade choice, Ember Works on the
+     phone (nothing in the picture changes in this version).
+   - Format check: ok.
+
+5) Open doubts
+   - None new. The stun sound is only measured (offline render: not silent, no clipping).
+
 RIFTLINE v3.7.0 – MUSIK OHNE RAUSCHEN, NEUE BOSS-TRACKS (CINEMATIC SYNTH)
 Basis: v3.6.0 · Build r370a1003a-r1 · 03.10.2026
 
