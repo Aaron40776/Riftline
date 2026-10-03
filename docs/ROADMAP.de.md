@@ -1,12 +1,36 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-Stand: 03.10.2026, nach 3.5.0. Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
+Stand: 03.10.2026, nach 3.6.0. Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
 
 Leitgedanke des Eigentümers (steht auch in `CLAUDE.md`): alle Funktionen, Designs und Sounds passen organisch und
 dynamisch zusammen; das Spiel skaliert und wird schwerer, und sieht und klingt dabei schön. Neue Funktionen kommen
 mit Modell, Sound, Vorwarnung und Tests, nicht als nackte Mechanik. Der Eigentümer prüft Klang und Spielgefühl selbst:
 Musik und Balance sind von uns nur gemessen, nicht gehört oder gespielt.
+
+## Entschieden am 03.10.2026 (nach 3.5.0)
+
+Reihenfolge vom Eigentümer bestätigt: erst die schnellen Sachen und Fixes, dann die größeren Dinge. Jeder Punkt ein
+eigener PR mit Release.
+1. **3.6.0 Steuerung anpassbar + Checkup-Fixes** (erledigt): Editor „Button layout“ in den Einstellungen (DASH, NOVA,
+   GADGET und Pause frei verschieben und skalieren, Deckkraft, Stickgröße, fester Bewegungs-Stick; Hoch- und
+   Querformat getrennt; Linkshänder spiegelt), Dash-Untergrenze, Orbital Blades, Combo Surge, Säurepfützen,
+   Upgrade-Bildschirm, Saver-Modus (siehe QA-Bericht 3.6.0).
+2. **3.7.0 Musik neu** (als Nächstes): Das laute Rauschen gefällt dem Eigentümer nicht. Messung (3.5.0): die
+   Atmosphären der ruhigen Themen sind eine 1 s lange Schleife aus weißem Rauschen; oberhalb von 200 Hz (das, was ein
+   Handy-Lautsprecher spielt) ist das im Cryo Vault etwa 75 % des Klangs, in der Toxin Marsh etwa 50 %, in Blackout
+   City etwa 35 %. Plan: kein Dauerrauschen mehr, sondern einzelne, gepannte Geräusche des Ortes (Tropfen,
+   Eisknacken, Grillen als Töne, Glut-Knistern; das ist zugleich das „Ambient je Biom“ aus Punkt 2 unten), wo Rauschen
+   bleibt rosa/braun, länger und leiser; die Biom-Events ebenso; ein Test für den Rauschanteil.
+   **Boss-Tracks in neuem Stil, entschieden: Cinematic Synth** („wir probieren es erst mal so“): Taikos und große
+   Trommeln, kurze Streicher-Figuren, Blechbläser-Stöße, Chor, Arpeggios, Sub-Bass mit Pumpen, keine verzerrten
+   Gitarren und keine Rausch-Becken; das Motiv jedes Bioms bleibt die Leitmelodie. Warden: Cyberpunk-Verfolgung,
+   Crucible: Schmiede-Taikos und Blech, Frost Prism: Eis-Trance, Hive Queen: Tribal und Acid-Bass, Rift Core: Drum &
+   Bass mit Chor als Finale. Boss-Phasen mit eigenem Abschnitt, weicher Übergang ruhig → Boss. WAV/MP3-Vorschau aller
+   Tracks an den Eigentümer vor dem Merge.
+3. **3.8.0 Boss-Belohnungen** (Punkt 1 unten).
+4. **3.9.0 Läufer statt Drohne** mit Schritt-Sounds (Punkt 2 unten).
+5. Cloudflare erst, wenn der Eigentümer Bescheid sagt.
 
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
@@ -52,17 +76,17 @@ Entscheidungen des Eigentümers (alles auf Cloudflare, GitHub Pages danach absch
   („wir lassen es bei meinem manuellen Merge").
 - Der Eigentümer sagt Bescheid, wenn es losgehen soll. Voraussichtlich Release 3.7.0 oder höher.
 
-### 4. Aus dem Checkup (offen)
-- Handy-Leistung (2.9.2): Untergrenze für den Dash-Cooldown (etwa 0,8 s), eigener Cooldown je Klinge bei Orbital Blades,
-  Kantenglättung und Overlay-Auflösung im Saver-Modus. Die Bildrate der Tests (Software-GL, 5–8 fps) sagt nichts über echte
-  Geräte.
-- Toxin Marsh: sehr große, grelle Säurepfützen verdecken Gegner und Warnungen.
-- Crucible-Modell wirkte im Screenshot körnig (vielleicht nur Software-Rendering).
-- Upgrade-Bildschirm auf dem Handy: viel Leerraum unter den Karten, „0/1" allein in einer Zeile.
-- `surge`-Upgrade ohne eigenen Sound oder Effekt (Audit-Warnung „surge has no consumer").
-- Pause und Fortsetzen: Musik jetzt fortgesetzt (3.2.0); der Übergang ruhig → Boss hat einen kurzen Schnitt (bis 0,14 s).
+### 4. Aus dem Checkup
+- Erledigt in 3.6.0: Dash-Untergrenze 0,8 s, eigener Cooldown je Klinge bei Orbital Blades, Saver-Modus ohne
+  Kantenglättung (ab dem nächsten Start) und Overlay in einfacher Auflösung, kleinere und gedämpftere Säurepfützen,
+  Upgrade-Bildschirm auf dem Handy (kein Loch über REROLL, Werte und Einheiten brechen nicht mehr um), Combo Surge mit
+  eigenem Effekt und Sound.
+- Offen: Crucible-Modell wirkte im Screenshot körnig (vielleicht nur Software-Rendering). Die Bildrate der Tests
+  (Software-GL, 5–8 fps) sagt nichts über echte Geräte.
+- Offen (kommt mit 3.7.0): der Übergang ruhig → Boss hat einen kurzen Schnitt (bis 0,14 s).
 
 ## Offene Zweifel (nur der Eigentümer kann sie prüfen)
+- Button-Layout-Editor (3.6.0) auf echten Handys: Ziehen mit dem Daumen, Größe des Panels, fester Stick im Kampf.
 - Klang aller Tracks (zuletzt 3.5.0): ob Rohre, Kalimba und Glas so schön klingen wie die Eisglocken; Boss-Tracks wuchtig genug
   (gemessene Spitzenabstände 12–19 dB, echter Metal etwa 8–12 dB).
 - Blackout-Event (3.4.0) auf dunklen Handy-Displays zu finster?

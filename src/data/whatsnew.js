@@ -2,6 +2,17 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.6.0",
+    title: "Your controls",
+    items: [
+      "Settings > Button layout: drag DASH, NOVA, GADGET and pause wherever you like and make each bigger or smaller.",
+      "Set the button opacity and the stick size, or pin the move stick to one spot.",
+      "Portrait and landscape keep their own layouts; left-handed mode mirrors yours.",
+      "Dash cooldown never drops below 0.8 s; every Orbital Blade now hits on its own.",
+      "Combo Surge has its own shockwave and sound; acid pools are calmer and a little smaller.",
+    ],
+  },
+  {
     version: "3.5.0",
     title: "Calm music",
     items: [
