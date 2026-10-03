@@ -23,8 +23,13 @@ built with three.js and plain JavaScript. There is no framework.
 | Pick an upgrade | `1`–`4`, `R` rerolls | tap a card |
 | Back in menus | `Esc` | back button |
 
-*Left-handed* in Settings swaps the two touch halves. Keys are read by their position, so on
-AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY) move the drone.
+*Button layout* in Settings opens an editor over the HUD: drag DASH, NOVA, GADGET and the pause
+button to any free spot, resize each one, set the button opacity and the stick size, or pin the
+move stick to one spot. Portrait and landscape keep their own layouts.
+
+*Left-handed* in Settings swaps the two touch halves and mirrors your own layout. Keys are read by
+their position, so on AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY)
+move the drone.
 
 ## Content
 
@@ -75,7 +80,7 @@ src/
   data/            tables: weapons, enemies, upgrades, progression (workshop, milestones, threat), biomes, whatsnew (the News tab)
   render/          three.js renderer, models, biome visuals and skins, 2D overlay
   audio/           sound effects and music
-  ui/              DOM UI (screens, HUD, dialogs) and input
+  ui/              DOM UI (screens, HUD, dialogs), input and the button layout editor
   index.html       page shell, all CSS, device detection, layout audit
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)

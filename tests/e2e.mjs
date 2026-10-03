@@ -80,6 +80,41 @@ for (const prof of PROFILES) {
     await tap('[data-go="settings"]');
     ok("menu responsive (settings opens)", await vis("settings"), `${Date.now() - t0} ms`);
     await audit("settings");
+    // 3.6.0: the button layout editor: DASH is moved with a real finger or mouse and saved (on touch devices with a
+    // fixed move stick); the run below moves with that stick and taps DASH at its new place
+    await tap("#hudEditBtn");
+    ok("button layout editor opens", await vis("hudEdit"));
+    await audit("editor");
+    {
+      const W = prof.viewport.width,
+        H = prof.viewport.height,
+        b0 = await (await page.$("#dashBtn")).boundingBox(),
+        x0 = b0.x + b0.width / 2,
+        y0 = b0.y + b0.height / 2;
+      if (prof.touch) await touchDrag(x0, y0, W * 0.66 - x0, H * 0.55 - y0, 400);
+      else {
+        await page.mouse.move(x0, y0);
+        await page.mouse.down();
+        for (let i = 1; i <= 8; i++)
+          await page.mouse.move(x0 + ((W * 0.66 - x0) * i) / 8, y0 + ((H * 0.55 - y0) * i) / 8);
+        await page.mouse.up();
+      }
+      await page.waitForTimeout(200);
+      const b1 = await (await page.$("#dashBtn")).boundingBox();
+      ok(
+        "DASH moved in the editor",
+        Math.hypot(b1.x + b1.width / 2 - W * 0.66, b1.y + b1.height / 2 - H * 0.55) < 3,
+        `${(b1.x + b1.width / 2).toFixed(0)},${(b1.y + b1.height / 2).toFixed(0)}`,
+      );
+      if (prof.touch) await tap("#heFixed");
+      await tap("#heSave");
+      const set = await page.evaluate(() => window.__riftTest.store.data.settings);
+      ok(
+        "button layout saved",
+        !(await vis("hudEdit")) && !!set.hudLayout && set.stickFixed === !!prof.touch,
+        JSON.stringify(set.hudLayout),
+      );
+    }
     await tap("#settings [data-back]");
     ok("home after back", await vis("home"));
     await audit("home");

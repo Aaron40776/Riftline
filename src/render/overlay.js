@@ -2,6 +2,7 @@
 
 import { enemyDefs, bossDefs } from "../data/enemies.js";
 import { clamp } from "../core/util.js";
+import { RL_INPUT } from "../ui/input.js";
 
 const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mortar: 1, striker: 1 },
   bossAttackNames = {
@@ -45,6 +46,8 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
       this.tmp2 = { x: 0, y: 0, vis: false, nx: 0, ny: 0 };
       this.w = 0;
       this.h = 0;
+      // 3.6.0: the highest pixel ratio of the canvas (1 in the Saver setting)
+      this.dprCap = 2;
       this.hurts = [];
       this.callouts = [];
       this.time = 0;
@@ -66,7 +69,7 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
     resize() {
       let w = this.c.clientWidth || window.innerWidth,
         h = this.c.clientHeight || window.innerHeight,
-        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        dpr = Math.min(window.devicePixelRatio || 1, this.dprCap || 2);
       if (!(w === this.w && h === this.h && dpr === this.dpr)) {
         this.w = w;
         this.h = h;
@@ -298,6 +301,23 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
     }
     drawSticks(input, opts) {
       let ctx = this.g;
+      // 3.6.0: a fixed move stick shows where it waits while no thumb is on it (only for touch play)
+      if (input.fixedMove && !input.move.active && RL_INPUT.touch) {
+        let radius = input.radius(),
+          center = input.fixedMove(radius);
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(120,240,255,0.45)";
+        ctx.fillStyle = "rgba(80,220,255,0.05)";
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "rgba(120,240,255,0.4)";
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, radius * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+      }
       for (let stick of [input.move, input.aim]) {
         if (!stick.active || stick.mouse) continue;
         let radius = input.R,

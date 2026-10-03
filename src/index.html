@@ -198,6 +198,58 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .act-btn:active { transform: scale(0.94); }
 #hud.swap .act { right: auto; left: calc(var(--sl) + 14px); align-items: flex-start; }
 #hud.swap .act-btn.nova { margin-right: 0; margin-left: 34px; }
+/* 3.6.0: the button layout of the player (ui/hud-layout.js). Every control sits at its own point of the safe area
+   (--hx, --hy from 0 to 1) and has its own size (--hk, times its default size); the boxes around them dissolve, and the
+   pause button leaves its room in the top bar so that the shard counter stays where it is. */
+#hud .act-btn, #hud #pauseBtn { opacity: var(--hud-alpha, 1); }
+#hud.custom .act, #hud.custom .act-row { display: contents; }
+#hud.custom .act-btn, #hud.custom #pauseBtn {
+  position: fixed; margin: 0 !important;
+  left: calc(var(--sl) + (100% - var(--sl) - var(--sr)) * var(--hx, 0.5));
+  top: calc(var(--st) + (100% - var(--st) - var(--sb)) * var(--hy, 0.5));
+  translate: -50% -50%; scale: var(--hk, 1);
+}
+#hud.custom .right-block::after { content: ''; flex: none; width: 44px; height: 44px; }
+/* the editor: a layer over the real HUD takes the touches, the panel holds the sliders */
+#hudEdit { position: absolute; inset: 0; z-index: 45; background: rgba(3, 5, 10, 0.3); touch-action: none; }
+.he-zone { position: absolute; inset: 0; touch-action: none; }
+.he-halves { position: absolute; inset: 0; pointer-events: none; display: grid; grid-template-columns: 1fr 1fr; align-items: end; padding-bottom: calc(var(--sb) + 14px); }
+.he-halves::before { content: ''; position: absolute; left: 50%; top: calc(var(--st) + 96px); bottom: calc(var(--sb) + 8px); border-left: 1px dashed rgba(200, 230, 255, 0.22); }
+.he-halves span { text-align: center; font: 600 11px/1 var(--display); letter-spacing: 0.22em; color: rgba(200, 230, 255, 0.5); }
+.he-ring { position: absolute; translate: -50% -50%; border-radius: 50%; pointer-events: none; }
+.he-ring.sel { border: 2px dashed var(--cyan); }
+.he-ring.bad { border: 2px solid #ff5a7a; box-shadow: 0 0 14px rgba(255, 90, 122, 0.6); }
+.he-stick { position: absolute; translate: -50% -50%; border-radius: 50%; border: 2px dashed rgba(120, 240, 255, 0.45); background: rgba(80, 220, 255, 0.06); pointer-events: none; display: grid; place-items: center; }
+.he-stick.fixed { border-style: solid; border-color: rgba(120, 240, 255, 0.6); }
+.he-stick.sel { box-shadow: 0 0 0 3px rgba(73, 242, 255, 0.35); }
+.he-stick.bad { border-color: #ff5a7a; box-shadow: 0 0 14px rgba(255, 90, 122, 0.6); }
+.he-stick i { width: 42%; height: 42%; border-radius: 50%; background: rgba(120, 240, 255, 0.35); }
+.he-stick b { position: absolute; top: calc(100% + 6px); white-space: nowrap; font: 600 10px/1 var(--display); letter-spacing: 0.18em; color: rgba(200, 230, 255, 0.7); }
+.he-panel { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: min(340px, calc(100% - 24px)); padding: 8px 14px 12px; display: flex; flex-direction: column; background: rgba(9, 14, 26, 0.93); border-color: var(--line2); transition: opacity 0.15s; }
+.he-panel.faded { opacity: 0.12; pointer-events: none; }
+.he-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; cursor: move; touch-action: none; font: 700 14px/1 var(--display); letter-spacing: 0.12em; text-transform: uppercase; }
+.he-head::before { content: ''; order: 2; flex: 1; height: 4px; margin: 0 6px; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.18) 0 3px, transparent 3px 6px); }
+.he-head .chip { order: 3; }
+.he-fold { order: 4; width: 36px; height: 30px; margin-right: -6px; font: 700 18px/1 var(--display); color: var(--cyan); }
+.he-panel.folded .he-row, .he-panel.folded #heNote { display: none; }
+.he-panel.folded .btn-row { margin-top: 6px; }
+.he-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 42px; align-items: center; gap: 8px; min-height: 34px; font: 600 15px/1.2 var(--body); }
+.he-row b { font-family: var(--display); letter-spacing: 0.1em; color: var(--cyan); }
+.he-row input[type=range] { width: min(150px, 40vw); }
+.he-row output { text-align: right; font: 700 13px/1 var(--display); color: var(--text); }
+.he-row.he-toggle { grid-template-columns: minmax(0, 1fr) auto; }
+body.is-portrait .he-panel { top: calc(var(--st) + 104px); translate: -50% 0; }
+#heNote { margin: 4px 0 8px; min-height: 2.6em; font-size: 13px; line-height: 1.3; color: var(--dim); }
+#heNote.bad { color: #ff9ab0; }
+.he-panel .btn-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.he-panel .btn-row .btn { min-height: 40px; }
+#hud.editing .boss-bar { opacity: 0.45; }
+@media (orientation: landscape) and (max-height: 430px) {
+  .he-panel { padding: 4px 12px 8px; width: min(330px, calc(100% - 24px)); }
+  .he-row { min-height: 30px; font-size: 14px; }
+  #heNote { margin: 2px 0 6px; min-height: 0; font-size: 12px; }
+  .he-panel .btn-row .btn { min-height: 36px; }
+}
 
 #banner { position: absolute; left: 0; right: 0; top: 30%; text-align: center; pointer-events: none; }
 .bn { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; animation: bannerIn 2.2s ease-out forwards; }
@@ -968,6 +1020,11 @@ html, body { min-width: 0; min-height: 100%; }
 @media (orientation: landscape) and (max-height: 560px) {
   #choose .cards { flex: 0 1 auto; max-height: min(58dvh, 360px); }
 }
+/* 3.6.0: on portrait phones the card list grew to 64 % of the screen whatever it held, so REROLL sat far below the
+   last card. The list is as tall as its cards now (it still scrolls when they do not fit) and the whole choice sits
+   in the middle of the screen. */
+body.device-phone.is-portrait #choose { justify-content: flex-start; justify-content: safe center; }
+body.device-phone.is-portrait #choose .cards { flex: 0 1 auto; }
 
 /* Run summaries: readable without wasting width, and always scrollable when
    a short landscape device cannot fit every metric at once. */
@@ -1297,7 +1354,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     window.__riftLayoutAuditResult = null;
     window.__riftLayoutAudit = () => {
       try {
-        const all=[...document.querySelectorAll('.screen:not([hidden]) button:not([disabled]), #hud button:not([hidden]):not([disabled])')];
+        const all=[...document.querySelectorAll('.screen:not([hidden]) button:not([disabled]), #hud:not(.editing) button:not([hidden]):not([disabled]), #hudEdit:not([hidden]) button:not([disabled])')];
         const findings=[];let scrolled=0;
         const scrollParent=el=>{for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement){const s=getComputedStyle(p);if(/(auto|scroll)/.test(s.overflowY+' '+s.overflowX)&&(p.scrollHeight>p.clientHeight+1||p.scrollWidth>p.clientWidth+1))return p}return null};
         for(const b of all){
@@ -1436,6 +1493,22 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
     </div>
   </div>
   <div id="banner" aria-live="polite"></div>
+  <!-- 3.6.0: the button layout editor (ui/hud-layout.js); the real HUD shows through -->
+  <section id="hudEdit" hidden aria-label="Button layout">
+    <div id="heZone" class="he-zone"></div>
+    <div class="he-halves" aria-hidden="true"><span id="heLeft">MOVE</span><span id="heRight">AIM + FIRE</span></div>
+    <div id="heRings" aria-hidden="true"></div>
+    <div id="heStick" class="he-stick" aria-hidden="true"><i></i><b id="heStickLabel">MOVE STICK</b></div>
+    <div id="hePanel" class="he-panel panel">
+      <div id="heGrab" class="he-head"><span>Button layout</span><span id="heOrient" class="chip">Portrait</span><button id="heFold" class="he-fold" aria-label="Fold the panel">&ndash;</button></div>
+      <label class="he-row"><span><b id="heWhat">DASH</b> size</span><input type="range" id="heSize" min="0.6" max="1.6" step="0.05" aria-label="Size of the picked button"><output id="heSizeV" class="num">100%</output></label>
+      <label class="he-row"><span>Opacity</span><input type="range" id="heAlpha" min="0.3" max="1" step="0.05" aria-label="Opacity of the buttons"><output id="heAlphaV" class="num">100%</output></label>
+      <label class="he-row"><span>Stick size</span><input type="range" id="heStickSize" min="0.7" max="1.5" step="0.05" aria-label="Size of the sticks"><output id="heStickV" class="num">100%</output></label>
+      <label class="he-row he-toggle"><span>Fixed move stick</span><input type="checkbox" id="heFixed" class="toggle"></label>
+      <p id="heNote" class="note"></p>
+      <div class="btn-row"><button id="heReset" class="btn ghost small">Reset</button><button id="heCancel" class="btn ghost small">Cancel</button><button id="heSave" class="btn primary small">Save</button></div>
+    </div>
+  </section>
 
   <!-- ====================================================== HOME -->
   <section id="home" class="screen">
@@ -1527,6 +1600,7 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
         <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest enemy while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
         <label class="set-row"><span><b>Aim assist</b><small>Nudges your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
         <label class="set-row"><span><b>Left-handed</b><small>Move on the right, aim and dash on the left.</small></span><input type="checkbox" id="setSwap" class="toggle"></label>
+        <div class="set-row"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the buttons and the sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
       </div>
       <h3 class="section-h">Display</h3>
       <div class="set-group">

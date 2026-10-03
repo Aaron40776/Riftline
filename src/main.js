@@ -25,6 +25,7 @@ import {
 import { rlSelfTest, rlPaletteIssues, rlBiomeDistinct } from "./core/selftest.js";
 import { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml } from "./ui/ui.js";
 import { Input, RL_INPUT } from "./ui/input.js";
+import { HudEditor, applyHudLayout, fixedStickCenter } from "./ui/hud-layout.js";
 import { musicChords, rlShotSfx, musicVoices, SoundEngine } from "./audio/sound.js";
 import {
   defaultSettings,
@@ -217,7 +218,9 @@ let qualityPresets = {
   elementById = (id) => document.getElementById(id),
   renderer = null;
 try {
-  renderer = new Renderer(elementById("gl"), { dpr: 1.5 });
+  // 3.6.0: Saver draws without edge smoothing (multisampling is fixed when the WebGL context is made, so a change of
+  // the setting takes effect at the next start)
+  renderer = new Renderer(elementById("gl"), { dpr: 1.5, antialias: store.data.settings.quality !== "battery" });
   let gl = renderer.renderer.getContext(),
     debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
   setLogContext({ gpu: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "n/a" });
@@ -668,11 +671,16 @@ const overlay = new Overlay(elementById("ov")),
 game.qualityNote = () => {
   let settings = store.data.settings,
     dpr = renderer ? renderer.dpr.toFixed(2).replace(/0$/, "") : "-";
-  return settings.quality === "auto"
-    ? `Adapts to your device (now ${dpr}\xD7)`
-    : settings.quality === "battery"
-      ? "Lower resolution, 30 fps"
-      : `Sharpest (${dpr}\xD7)`;
+  // 3.6.0: edge smoothing follows the setting at the next start
+  const smooth = !renderer || renderer.antialias,
+    restart = (settings.quality === "battery") === smooth ? " (edge smoothing changes at the next start)" : "";
+  return (
+    (settings.quality === "auto"
+      ? `Adapts to your device (now ${dpr}\xD7)`
+      : settings.quality === "battery"
+        ? "Lower resolution, 30 fps, no edge smoothing"
+        : `Sharpest (${dpr}\xD7)`) + restart
+  );
 };
 function afterProgressReset(message) {
   ui.homeInit = false;
@@ -684,6 +692,8 @@ function afterProgressReset(message) {
 }
 const ui = new GameUI(game);
 game.ui = ui;
+// 3.6.0: the button layout editor (Settings > Button layout)
+const hudEditor = new HudEditor({ store, ui, input, onSave: () => game.settingsChanged() });
 input.onBlur = () => {
   if (game.mode === "game") {
     game.pause();
@@ -695,6 +705,8 @@ input.onPause = () => {
     ui.closeDialog(null);
     return;
   }
+  // 3.6.0: Esc leaves the button layout editor without saving
+  if (hudEditor.isOpen) return hudEditor.close(false);
   // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
   if (ui.rlFromPause) return ui.back();
   if (game.mode === "menu") {
@@ -718,8 +730,14 @@ function applySettings() {
   sound.setVolumes(settings.sfx, settings.music);
   input.swap = settings.swap;
   ui.setSwap(settings.swap);
+  // 3.6.0: the button layout, the stick size and the fixed move stick
+  applyHudLayout(settings);
+  input.stickScale = settings.stickSize;
+  input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   qualityPreset = qualityPresets[settings.quality] || qualityPresets.auto;
   overlay.contrast = settings.contrast;
+  // 3.6.0: Saver draws the 2D overlay (health bars, numbers, sticks) at one pixel per CSS pixel
+  overlay.dprCap = settings.quality === "battery" ? 1 : 2;
   ui.calm = settings.calm;
   if (renderer) {
     renderer.setAccess(settings.contrast, settings.calm);
@@ -1544,6 +1562,19 @@ function rlRetireToast() {
   // ---- settings from the pause menu
   ui.click(getById("pauseSetBtn"), () => ui.openPauseSettings());
 
+  // ---- 3.6.0: the button layout editor; a turn of the phone switches to the layout of the other orientation
+  ui.click(getById("hudEditBtn"), () => hudEditor.open());
+  let layoutRaf = 0;
+  const relayout = () => {
+    if (layoutRaf) return;
+    layoutRaf = requestAnimationFrame(() => {
+      layoutRaf = 0;
+      if (!hudEditor.isOpen) applyHudLayout(store.data.settings);
+    });
+  };
+  window.addEventListener("resize", relayout, { passive: true });
+  window.visualViewport?.addEventListener("resize", relayout, { passive: true });
+
   // ---- what each upgrade of the build does (pause menu)
   const info = getById("pauseUpInfo"),
     upInfo = (id, lv) => {
@@ -1667,6 +1698,9 @@ window.__riftTest = {
   },
   get renderer() {
     return renderer;
+  },
+  get hudEditor() {
+    return hudEditor;
   },
   get lastRunAudit() {
     return RL_LAST_RUN_AUDIT;

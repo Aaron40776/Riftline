@@ -1,3 +1,80 @@
+RIFTLINE v3.6.0 – STEUERUNG ANPASSBAR (BUTTON-LAYOUT-EDITOR) UND CHECKUP-FIXES
+Basis: v3.5.0 · Build r360a1003a-r1 · 03.10.2026
+
+Gewünscht: Größe und Position der Knöpfe anpassen „usw.“ (Stickgröße und fester Stick vom Eigentümer bestätigt);
+erst die schnellen Sachen und Fixes aus dem Checkup, dann die größeren Dinge (Musik 3.7.0, Boss-Belohnungen 3.8.0,
+Läufer 3.9.0; siehe ROADMAP.de.md).
+
+1) Button-Layout-Editor (ui/hud-layout.js, neu)
+   - Einstellungen › Controls › „Button layout“ (auch aus dem Pausenmenü) öffnet einen Editor über dem echten HUD: was
+     man sieht, spielt man. DASH, NOVA, GADGET und Pause per Finger oder Maus ziehen; Antippen wählt den Knopf für den
+     Größenregler (60–160 %, nie kleiner als 40 px, Pause 36 px). Dazu Deckkraft der Knöpfe (30–100 %), Stickgröße
+     (70–150 %, beide Sticks) und ein fester Bewegungs-Stick: im Editor auf der Bewegungsseite platzierbar, im Spiel
+     steuert jede Berührung der Bewegungsseite von seiner Mitte aus, im Ruhezustand ist er blass zu sehen.
+   - Regeln: alles bleibt im sicheren Bildbereich; ein Platz, an dem ein Knopf einen anderen oder Hülle, Welle, Shards
+     oder Boss-Leiste verdeckt, wird abgelehnt (der Knopf springt zurück, Hinweistext); zu viel Größe ebenso; Speichern
+     ist gesperrt, solange etwas rot markiert ist.
+   - Hoch- und Querformat haben je ein eigenes Layout (Anteile des sicheren Bereichs, passt auf jedes Gerät); Drehen
+     schaltet um. Linkshänder spiegelt das Layout. Reset (Standard dieses Formats), Cancel und Esc (nichts gespeichert),
+     Save. Das Panel lässt sich am Titel verschieben und einklappen.
+   - Spielstand: neue Einstellungen hudLayout, hudAlpha, stickSize, stickFixed; kaputte Werte werden beim Laden bereinigt
+     (fehlender Knopf → Standard, Zahlen begrenzt). Alte Spielstände bleiben gültig, ohne eigenes Layout bleibt alles
+     wie bisher.
+   - Technik: eigene Plätze über CSS-Variablen (position: fixed, translate/scale); der Pause-Knopf lässt seinen Platz in
+     der Kopfzeile frei, damit der Shard-Zähler stehen bleibt. Der Layout-Audit prüft das HUD unter dem Editor nicht,
+     dafür die Knöpfe des Editors.
+
+2) Checkup-Fixes
+   - Dash-Cooldown nie unter 0,8 s (vorher bis 0,34 s mit Phantom Dash, Dash Capacitor 4 und Servo Thrusters 6); die
+     Phantom-Karte sagt es.
+   - Orbital Blades: jede Klinge hat ihren eigenen Cooldown (0,38 s) pro Gegner. Vorher sperrte der Treffer einer Klinge
+     alle anderen, mehr Klingen brachten an großen Gegnern und Bossen keinen Schaden.
+   - Combo Surge: eigene Schockwelle (Bernstein-Ring, weißer Innenring, Funken) und eigener Sound (Schlag, sich öffnendes
+     Rauschen, Quinte, die mit jedem Surge derselben Combo steigt); die allgemeine Explosion zeichnet und klingt dafür
+     nicht mehr. Die Monitor-Warnung „surge has no consumer“ ist weg.
+   - Toxin Marsh: Säurepfützen etwas kleiner (1,9–2,6 statt 2,2–3,0) und ein dunkleres, weniger leuchtendes Grün
+     (Füllung 0,10 statt 0,16, Rand 0,22 statt 0,35); die eigenen Acid-Coating-Pfützen bleiben hellcyan. Vorher/Nachher
+     im Handy-Bild verglichen: Gegner und Warnungen in den Pfützen bleiben lesbar.
+   - Upgrade-Wahl auf Handys im Hochformat: die Kartenliste ist so hoch wie ihre Karten (vorher immer 64 % des
+     Bildschirms, REROLL stand weit unter der letzten Karte), die Wahl sitzt in der Mitte; Wert, Einheit, Pfeil und
+     „0/1“ brechen nicht mehr einzeln um.
+   - Saver: keine Kantenglättung (ab dem nächsten Start, die Einstellung sagt es) und das 2D-Overlay mit einem Pixel pro
+     CSS-Pixel.
+
+3) Tests
+   - Neuer full-qa-Abschnitt „layout360“ (22 Prüfungen): Bereinigung kaputter Werte, Ziehen mit echtem Finger (CDP),
+     Abweisen auf einem anderen Knopf, Größenregler, fester Stick bleibt auf der Bewegungsseite, Speichern, Esc, Lauf
+     mit eigenem Layout (DASH am gespeicherten Platz, Bewegung vom festen Stick aus, Dash per Tippen, Layout-Audit),
+     Linkshänder spiegelt, Drehen, Editor aus der Pause, Reset, Cancel.
+   - E2E: auf allen fünf Geräten wird DASH im Editor verschoben und gespeichert (Touch zusätzlich mit festem Stick); der
+     Lauf bewegt sich damit und tippt DASH an der neuen Stelle.
+   - Selbsttest v360: Dash-Untergrenze, vier Klingen treffen einen großen Gegner gleichzeitig und dann je 0,38 s nicht,
+     Surge-Ereignis mit Radius und Combo, Zuordnung zu Sound und Monitor.
+   - Screens: neues Bild 08b-layout-editor (aus dem Pausenmenü).
+   - Determinismus-Referenz neu aufgenommen (Verhalten ändert sich absichtlich: Standard-Einstellungen, Dash-Untergrenze,
+     Säuregröße; rail-t0, scatter-t1-resume und rocket-t5-mortal blieben gleich).
+
+4) Ergebnisse 3.6.0 (headless Chromium, Software-WebGL)
+   - npm test: grün (Build, Deep-Test inkl. v360, full-qa files, data-audit, Determinismus 15/15 mit neuer Referenz).
+   - Volle QA: alle 432 Prüfungen bestanden (inkl. neuem Abschnitt „layout360“ mit 22 Prüfungen).
+   - E2E: 170 Prüfungen, 0 Fehler auf allen fünf Geräten (Editor mit echtem Finger bzw. Maus, DASH an der neuen
+     Stelle, Bewegung mit festem Stick auf Touch-Geräten).
+   - Audit: Welt und Daten ohne Befund; Bot-Lauf: Sieg bei Welle 20, Endless bis Welle 22, keine Laufzeitfehler,
+     7491 Ereignisse in 40 Arten, alle verarbeitet (die alte Warnung „surge has no consumer“ ist weg). Die Warnung „no
+     input events“ gehört zum Bot-Lauf (er steuert ohne Eingabegeräte).
+   - Screens und Biom-Bilder PC/Handy/Querformat: keine Seitenfehler. Angesehen: Editor (Hoch- und Querformat),
+     Einstellungen (der Text der Zeile „Button layout“ wurde danach gekürzt, damit EDIT rechts daneben steht),
+     Upgrade-Wahl auf dem Handy (mittig, REROLL direkt unter den Karten, „Seeker Rounds 0/1“ bricht als Ganzes um),
+     Toxin Marsh vorher/nachher.
+   - Format-Prüfung: ok. Nach der Textkürzung npm test, „layout360“ und „buttons“ erneut grün.
+
+5) Offene Zweifel
+   - Der Editor ist nur emuliert getestet (Playwright-Touch): Ziehen mit dem Daumen, Panelgröße und fester Stick im
+     Kampf auf echten Handys prüft der Eigentümer.
+   - Saver ohne Kantenglättung: Wirkung auf die Bildrate echter Geräte nicht gemessen.
+   - Crucible-Modell körnig: nicht geprüft (vermutlich Software-Rendering).
+   - Combo-Surge-Sound nicht gehört, nur gerendert (Deep-Test: nicht stumm, endet, nicht übersteuert).
+
 RIFTLINE v3.5.0 – RUHIGE MUSIK IM CRYO-VAULT-STIL, VERWANDTE BOSS-TRACKS
 Basis: v3.4.0 · Build r350a1001a-r1 · 03.10.2026
 

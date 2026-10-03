@@ -29,7 +29,12 @@ function computeStats(weaponId, run, workshop) {
     crit: 0.05 + 0.1 * level("crit"),
     critMul: 2 + 0.06 * level("crit"),
     magnet: 2.4 * (1 + 0.2 * moduleLevel("magnet")),
-    dashCd: 1.9 * (1 - 0.08 * moduleLevel("dash")) * (1 - 0.08 * level("speed")) * (has("phantom") ? 0.5 : 1),
+    // 3.6.0: never below 0.8 s (with Phantom Dash, the full Dash Capacitor and Servo Thrusters it fell to 0.34 s,
+    // an almost endless dash)
+    dashCd: Math.max(
+      0.8,
+      1.9 * (1 - 0.08 * moduleLevel("dash")) * (1 - 0.08 * level("speed")) * (has("phantom") ? 0.5 : 1),
+    ),
     laststand: 0.22 * level("laststand"),
     regen: 0.8 * level("regen"),
     shieldCd: shieldCd,

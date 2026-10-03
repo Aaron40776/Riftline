@@ -229,6 +229,7 @@ const RL_SOUND_EVENTS = {
   cleared: [{}, { boss: true }],
   combo: [{ n: 20 }],
   comboEnd: [{ n: 20 }],
+  surge: [{ n: 15 }, { n: 60 }],
   dash: [{}],
   dmg: [{}],
   edash: [{ type: "charger" }],
@@ -1071,6 +1072,18 @@ const musicChords = {
             }),
           );
           break;
+        case "surge": {
+          // 3.6.0: Combo Surge: a deep thump, a swell of air that opens up, and a bright fifth that climbs a step with
+          // every surge of the same combo (arg: the combo count)
+          const lift = Math.min(10, Math.max(0, Math.floor((arg || 15) / 15) - 1) * 2);
+          this.tone(95, 0.42, "sine", 0.34, { to: 36 });
+          this.noise(0.32, 0.1, { type: "bandpass", f: 420, to: 2800, q: 1.3, attack: 0.02 });
+          [0, 0.045, 0.09].forEach((at, i) =>
+            this.tone(midiToFreq(69 + lift + [0, 7, 12][i]), 0.34, "triangle", 0.055, { at, lp: 5200 }),
+          );
+          this.tone(midiToFreq(93 + lift), 0.5, "sine", 0.025, { at: 0.12 });
+          break;
+        }
         case "heart":
           this.tone(62, 0.12, "sine", 0.35, { to: 45 });
           this.tone(58, 0.12, "sine", 0.25, { to: 42, at: 0.17 });
@@ -2210,8 +2223,9 @@ const musicChords = {
             }
             break;
           case "boom":
-            // 3.0.0: the grenade and the traps have blasts of their own (grenadeBlast, trapFire)
-            if (ev.kind === "trap") break;
+            // 3.0.0: the grenade and the traps have blasts of their own (grenadeBlast, trapFire); 3.6.0: so has the
+            // Combo Surge ("surge")
+            if (ev.kind === "trap" || ev.kind === "surge") break;
             this.play(
               ev.kind === "grenade"
                 ? "grenadeBlast"
@@ -2365,6 +2379,9 @@ const musicChords = {
             break;
           case "combo":
             this.play("combo", Math.round(Math.log2(ev.n / 10) * 3));
+            break;
+          case "surge":
+            this.play("surge", ev.n);
             break;
           case "comboEnd":
             this.play("comboEnd");
@@ -4321,6 +4338,7 @@ function rlSoundCatalog() {
   ]);
   ids(["kill"], 1.8);
   ids(["combo"], 6);
+  ids(["surge"], 15);
   ids(["cleared"], true);
   for (const id of new Set(Object.values(RL_DEATH_FAMILY))) ids([id], 1.6);
   ids([
