@@ -391,9 +391,11 @@ const MAX_PARTICLES = 1400,
   Renderer = class {
     constructor(canvas, opts = {}) {
       this.canvas = canvas;
+      // 3.6.0: opts.antialias false for the Saver setting
+      this.antialias = opts.antialias !== false;
       this.renderer = new WebGLRenderer({
         canvas,
-        antialias: true,
+        antialias: this.antialias,
         powerPreference: "high-performance",
         stencil: false,
       });
@@ -1009,6 +1011,8 @@ const MAX_PARTICLES = 1400,
           case "boom": {
             // 3.0.0: a trap strike is drawn per skin by its trapFire event, the grenade has a blast of its own
             if (ev.kind === "trap") break;
+            // 3.6.0: the Combo Surge shockwave is drawn by its own "surge" event
+            if (ev.kind === "surge") break;
             if (ev.kind === "grenade") {
               this.trapView.blast(ev, world, shakeK);
               break;
@@ -1058,6 +1062,20 @@ const MAX_PARTICLES = 1400,
             if (ev.kind === "rocket" || ev.kind === "bomber" || ev.kind === "mortar" || ev.kind === "volatile") {
               this.debrisBurst(ev.x, ev.y, 0.3, 5, hexColor(3811874), 0.12, 5);
             }
+            break;
+          }
+          case "surge": {
+            // 3.6.0: Combo Surge: an amber shockwave in the colour of the combo counter, a white ring inside it and
+            // sparks thrown outwards; bigger combos throw more sparks
+            const amber = hexColor(0xffc84a),
+              radius = ev.r || 3.5;
+            this.ring(ev.x, ev.y, 0.4, radius, amber, 0.42);
+            this.ring(ev.x, ev.y, 0.2, radius * 0.72, whiteColor, 0.28);
+            this.burst(ev.x, ev.y, 0.6, Math.min(48, 20 + (ev.n || 15)), radius * 4.5, amber, 0.4, 0.32, {
+              spark: true,
+            });
+            this.flash(ev.x, ev.y, radius * 1.5, 1.3, amber, 4);
+            this.addShake(0.16 * shakeK);
             break;
           }
           case "nova":
@@ -2188,16 +2206,18 @@ const MAX_PARTICLES = 1400,
           );
         }
       }
-      let acidCol = hexColor(11861821),
+      // 3.6.0: the acid is a darker, murkier green and glows less (the bright lime pools drowned the enemies and the
+      // warnings standing in them); the pools stay easy to see, and the Acid Coating pools keep their brighter cyan
+      let acidCol = hexColor(0x8fd43a),
         // 2.5.0: the player's own Acid Coating puddles are cyan, so they never read as a threat
         mineCol = hexColor(0x4de8ff);
       for (let puddle of arena.acid) {
         let color = puddle.mine ? mineCol : acidCol,
           fade = puddle.life != null ? Math.min(1, puddle.life / 1.2) : 1,
           disc = this.discs.y(puddle.x, 0.025, puddle.y, 0, puddle.r);
-        this.discs.colC(disc, color, (0.16 + Math.sin(time * 2 + puddle.x) * 0.03) * fade);
+        this.discs.colC(disc, color, ((puddle.mine ? 0.16 : 0.1) + Math.sin(time * 2 + puddle.x) * 0.025) * fade);
         let ring = this.ringPool.y(puddle.x, 0.03, puddle.y, 0, puddle.r);
-        this.ringPool.colC(ring, color, 0.35 * fade);
+        this.ringPool.colC(ring, color, (puddle.mine ? 0.35 : 0.22) * fade);
         if (Math.random() < dt * 2.5 * puddle.r) {
           let angle = Math.random() * TAU,
             dist = Math.random() * puddle.r;

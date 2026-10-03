@@ -1020,6 +1020,11 @@ html, body { min-width: 0; min-height: 100%; }
 @media (orientation: landscape) and (max-height: 560px) {
   #choose .cards { flex: 0 1 auto; max-height: min(58dvh, 360px); }
 }
+/* 3.6.0: on portrait phones the card list grew to 64 % of the screen whatever it held, so REROLL sat far below the
+   last card. The list is as tall as its cards now (it still scrolls when they do not fit) and the whole choice sits
+   in the middle of the screen. */
+body.device-phone.is-portrait #choose { justify-content: flex-start; justify-content: safe center; }
+body.device-phone.is-portrait #choose .cards { flex: 0 1 auto; }
 
 /* Run summaries: readable without wasting width, and always scrollable when
    a short landscape device cannot fit every metric at once. */

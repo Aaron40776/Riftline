@@ -253,7 +253,7 @@ const upgradeList = [
     max: 1,
     icon: "wing",
     evo: { shockdash: 1, speed: 2 },
-    desc: () => "Dash cooldown -50%. Your dash leaves a searing trail.",
+    desc: () => "Dash cooldown -50% (never below 0.8 s). Your dash leaves a searing trail.",
   },
   {
     id: "gunship",

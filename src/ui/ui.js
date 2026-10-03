@@ -1341,7 +1341,9 @@ const getById = (id) => document.getElementById(id),
         let before = get(stats),
           after = get(next);
         if (Math.abs(before - after) < 1e-6) continue;
-        lines.push(`${label} ${format(before)} \u2192 ${format(after)}`);
+        // 3.6.0: a value, its unit and the arrow never break apart (a lone "s" or "0/1" on a line of its own)
+        const keep = (value) => String(format(value)).replace(/ /g, "\u00a0");
+        lines.push(`${label} ${keep(before)}\u00a0\u2192\u00a0${keep(after)}`);
         if (lines.length >= 2) break;
       }
       return lines.length ? `<small class="delta">${escapeHtml(lines.join(" \xB7 "))}</small>` : "";
@@ -1358,9 +1360,9 @@ const getById = (id) => document.getElementById(id),
       if (!evo) return "";
       let others = Object.keys(evo.evo)
           .filter((id) => id !== up.id)
-          .map((id) => `${upgradesById[id].name} ${Math.min(world.up[id] || 0, evo.evo[id])}/${evo.evo[id]}`),
+          .map((id) => `${upgradesById[id].name}\u00a0${Math.min(world.up[id] || 0, evo.evo[id])}/${evo.evo[id]}`),
         mine = `${Math.min((world.up[up.id] || 0) + 1, evo.evo[up.id])}/${evo.evo[up.id]}`;
-      return `<small class="evo-hint">\u2192 ${escapeHtml(evo.name)}: this ${mine} \xB7 ${escapeHtml(others.join(", "))}</small>`;
+      return `<small class="evo-hint">\u2192 ${escapeHtml(evo.name)}: this\u00a0${mine} \xB7 ${escapeHtml(others.join(", "))}</small>`;
     }
     hideChoose() {
       getById("choose").hidden = true;

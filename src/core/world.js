@@ -1504,7 +1504,7 @@ const rlStep = 1 / 60,
           burnDps: 0,
           burnAcc: 0,
           burnShow: 0,
-          orbT: 0,
+          orbAt: null,
           dashHit: 0,
           dead: false,
           los: true,
@@ -1608,7 +1608,7 @@ const rlStep = 1 / 60,
           burnDps: 0,
           burnAcc: 0,
           burnShow: 0,
-          orbT: 0,
+          orbAt: null,
           dashHit: 0,
           dead: false,
           los: true,
@@ -1655,9 +1655,6 @@ const rlStep = 1 / 60,
       }
       if (enemy.slowT > 0) {
         enemy.slowT -= dt;
-      }
-      if (enemy.orbT > 0) {
-        enemy.orbT -= dt;
       }
       const burning = enemy.burnT > 0;
       if (burning) enemy.burnT -= dt;
@@ -2041,9 +2038,10 @@ const rlStep = 1 / 60,
       const every = level > 1 ? 12 : 15,
         player = this.player;
       if (this.combo % every === 0 && player.alive && this.state === "fight" && !this._rlSurging) {
+        const radius = level > 1 ? 4 : 3.5;
         this._rlSurging = true;
         try {
-          this.explode(player.x, player.y, level > 1 ? 4 : 3.5, (level > 1 ? 90 : 60) * this.stats.dmgMul, {
+          this.explode(player.x, player.y, radius, (level > 1 ? 90 : 60) * this.stats.dmgMul, {
             enemies: true,
             knock: 8,
             kind: "surge",
@@ -2051,7 +2049,8 @@ const rlStep = 1 / 60,
         } finally {
           this._rlSurging = false;
         }
-        this.emit("surge", { x: player.x, y: player.y, n: this.combo });
+        // 3.6.0: the shockwave has a look and a sound of its own (renderer and sound engine, "surge")
+        this.emit("surge", { x: player.x, y: player.y, r: radius, n: this.combo });
       }
     }
     dropShards(x, y, amount) {
@@ -2536,16 +2535,19 @@ const rlStep = 1 / 60,
         let angle = this.time * 3.3 + (i * TAU) / count,
           bx = player.x + Math.cos(angle) * radius,
           by = player.y + Math.sin(angle) * radius;
+        // 3.6.0: every blade has its own cooldown on each enemy (orbAt: the time each blade may hit it again). One
+        // shared cooldown let the first blade block the others for 0.38 s, so more blades added no damage on big
+        // enemies and bosses that touch several blades at once.
         this.hash.query(bx, by, size, (enemy) => {
           if (
             !(
               enemy.dead ||
-              enemy.orbT > 0 ||
+              (enemy.orbAt && enemy.orbAt[i] > this.time) ||
               enemy.spawnT > 0.1 ||
               Math.hypot(enemy.x - bx, enemy.y - by) > enemy.r + size
             )
           ) {
-            enemy.orbT = 0.38;
+            (enemy.orbAt || (enemy.orbAt = []))[i] = this.time + 0.38;
             this.hurtEnemy(enemy, dmg, enemy.x - player.x, enemy.y - player.y, 2.5, false, "orbit");
           }
         });

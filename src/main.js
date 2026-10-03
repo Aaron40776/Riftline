@@ -218,7 +218,9 @@ let qualityPresets = {
   elementById = (id) => document.getElementById(id),
   renderer = null;
 try {
-  renderer = new Renderer(elementById("gl"), { dpr: 1.5 });
+  // 3.6.0: Saver draws without edge smoothing (multisampling is fixed when the WebGL context is made, so a change of
+  // the setting takes effect at the next start)
+  renderer = new Renderer(elementById("gl"), { dpr: 1.5, antialias: store.data.settings.quality !== "battery" });
   let gl = renderer.renderer.getContext(),
     debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
   setLogContext({ gpu: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "n/a" });
@@ -669,11 +671,16 @@ const overlay = new Overlay(elementById("ov")),
 game.qualityNote = () => {
   let settings = store.data.settings,
     dpr = renderer ? renderer.dpr.toFixed(2).replace(/0$/, "") : "-";
-  return settings.quality === "auto"
-    ? `Adapts to your device (now ${dpr}\xD7)`
-    : settings.quality === "battery"
-      ? "Lower resolution, 30 fps"
-      : `Sharpest (${dpr}\xD7)`;
+  // 3.6.0: edge smoothing follows the setting at the next start
+  const smooth = !renderer || renderer.antialias,
+    restart = (settings.quality === "battery") === smooth ? " (edge smoothing changes at the next start)" : "";
+  return (
+    (settings.quality === "auto"
+      ? `Adapts to your device (now ${dpr}\xD7)`
+      : settings.quality === "battery"
+        ? "Lower resolution, 30 fps, no edge smoothing"
+        : `Sharpest (${dpr}\xD7)`) + restart
+  );
 };
 function afterProgressReset(message) {
   ui.homeInit = false;
@@ -729,6 +736,8 @@ function applySettings() {
   input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   qualityPreset = qualityPresets[settings.quality] || qualityPresets.auto;
   overlay.contrast = settings.contrast;
+  // 3.6.0: Saver draws the 2D overlay (health bars, numbers, sticks) at one pixel per CSS pixel
+  overlay.dprCap = settings.quality === "battery" ? 1 : 2;
   ui.calm = settings.calm;
   if (renderer) {
     renderer.setAccess(settings.contrast, settings.calm);

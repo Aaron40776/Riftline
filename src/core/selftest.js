@@ -448,6 +448,7 @@ function rlSelfTest() {
   result = selfTestV291(result);
   result = selfTestV300(result);
   result = selfTestV330(result);
+  result = selfTestV360(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -2403,4 +2404,60 @@ function selfTestV330(result) {
     fail.push("exception:" + (err && err.stack ? err.stack.split("\n").slice(0, 2).join(" ") : err));
   }
   return { ...result, ok: result.ok && fail.length === 0, v330: { ok: fail.length === 0, fail } };
+}
+
+// 3.6.0: the dash cooldown has a floor, every orbital blade hits on its own, Combo Surge has its own look and sound
+function selfTestV360(result) {
+  const fail = [];
+  try {
+    // (1) Phantom Dash, the full Dash Capacitor and Servo Thrusters: 0.34 s before, 0.8 s now; without them unchanged
+    const fast = computeStats("pulse", { phantom: 1, speed: 6 }, { dash: 4 }).dashCd,
+      plain = computeStats("pulse", {}, {}).dashCd;
+    if (fast !== 0.8) fail.push("dash-floor:" + fast);
+    if (Math.abs(plain - 1.9) > 1e-9) fail.push("dash-base:" + plain);
+    // (2) four blades on an enemy that touches all of them: four hits at once, then each blade waits its 0.38 s
+    const world = new World({ seed: 0x360, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(3);
+    world.state = "fight";
+    world.god = true;
+    world.enemies.length = 0;
+    world.plan = [];
+    world.markers = [];
+    world.up = { orbit: 4 };
+    world.stats = computeStats(world.weapon, world.up, world.ws);
+    const big = world.spawnEnemy("brute", world.player.x, world.player.y, {});
+    big.spawnT = 0;
+    big.r = world.stats.orbitR + 1;
+    big.hp = big.maxHp = 1e9;
+    world.hash.build(world.enemies);
+    const hits = () => world.fx.filter((ev) => ev.k === "dmg").length;
+    world.fx.length = 0;
+    world.updateOrbitals(1 / 60);
+    const first = hits();
+    world.fx.length = 0;
+    world.time += 0.1;
+    world.updateOrbitals(1 / 60);
+    const soon = hits();
+    world.fx.length = 0;
+    world.time += 0.4;
+    world.updateOrbitals(1 / 60);
+    const later = hits();
+    if (first !== 4 || soon !== 0 || later !== 4) fail.push(`orbit-blades:${first},${soon},${later}`);
+    // (3) Combo Surge: the shockwave sends "surge" with its radius and the combo; the blast does not sound twice
+    const surging = new World({ seed: 0x361, weapon: "pulse", threat: 0, ws: {} });
+    surging.startWave(3);
+    surging.state = "fight";
+    surging.up = { surge: 1 };
+    surging.stats = computeStats(surging.weapon, surging.up, surging.ws);
+    surging.combo = 14;
+    surging.fx.length = 0;
+    surging.addCombo();
+    const surge = surging.fx.find((ev) => ev.k === "surge");
+    if (!surge || surge.r !== 3.5 || surge.n !== 15) fail.push("surge-event:" + JSON.stringify(surge || null));
+    if (!RL_EVENT_KINDS.has("surge") || !RL_SOUND_EVENTS.surge) fail.push("surge-unmapped");
+    if (!rlSoundCatalog().some((entry) => entry.spec.id === "surge")) fail.push("surge-no-sound");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v360: { ok: fail.length === 0, fail } };
 }
