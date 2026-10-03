@@ -1,6 +1,8 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-Stand: 03.10.2026, nach 3.7.1. Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
+As of 03.10.2026, after 3.7.1. New entries are written in English (the owner's wish since 03.10.2026).
+
+Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
 
 Leitgedanke des Eigentümers (steht auch in `CLAUDE.md`): alle Funktionen, Designs und Sounds passen organisch und
@@ -29,38 +31,40 @@ eigener PR mit Release.
    Crucible: Schmiede-Taikos und Blech, Frost Prism: Eis-Trance, Hive Queen: Tribal und Acid-Bass, Rift Core: Drum &
    Bass mit Chor als Finale. Boss-Phasen mit eigenem Abschnitt, weicher Übergang ruhig → Boss. WAV/MP3-Vorschau aller
    Tracks an den Eigentümer vor dem Merge.
-3. **Boss-Belohnungen** (Punkt 1 unten; nach dem Checkup vom 03.10.2026 voraussichtlich 3.10.0).
+3. **Boss-Belohnungen** (Punkt 1 unten; after the checkup of 03.10.2026 probably 3.10.0).
 4. **Läufer statt Drohne** mit Schritt-Sounds (Punkt 2 unten).
 5. Cloudflare erst, wenn der Eigentümer Bescheid sagt.
 
-## Gewünscht am 03.10.2026 (nach 3.7.0): Checkup, Gefahren hübscher, Biome klingen verschieden
+## Requested on 03.10.2026 (after 3.7.0): checkup, prettier hazards, biomes that sound different
 
-Auftrag des Eigentümers: das ganze Projekt noch einmal sorgfältig durchsehen, Dinge finden, die ihm nicht so gefallen
-könnten, und Fehler suchen; dann ein Plan, erst Fixes, dann Funktionen, in logischen PRs nacheinander. Seine Beispiele:
-„die Musik ist gut, aber alle Biome klingen ziemlich gleich, vielleicht mehr Effekt-Sounds je Biom“ und „Feuersäulen,
-Eisflächen, Gullys usw. sind nur farbige Kreise, vielleicht hübscher machen“.
+From this request on, everything is written in English (the owner's wish; earlier entries stay as they are).
 
-Befund der Durchsicht: `npm test` und `npm run audit` grün (Bot-Lauf bis Welle 22 ohne Laufzeitfehler). Die
-Kartengefahren (Lava-Schlote, Gullys, Eisflächen, Säurepfützen, Portale) sind wirklich nur Scheiben und Ringe aus den
-Effekt-Pools (`drawFeatures` in `render/renderer.js`), die Lava-Eruption ein leuchtender Zylinder; die Fallen haben
-seit 3.0.0 echte Modelle. Die Biome unterscheiden sich im Klang fast nur durch die Musik: die Geräusche des Ortes sind
-seit 3.7.0 leise Noten der ruhigen Themen, die Gefahren selbst sind stumm bis auf den Ausbruch.
+The owner's request: look through the whole project again carefully, find things he may not like that much and look
+for bugs; then a plan, fixes first, then features, in logical PRs one after another. His examples: "the music is good
+but all biomes sound pretty much the same, maybe add more effect sounds to each one" and "the fire pillars, ice areas,
+manholes etc. are all just colored circles, maybe make them prettier".
 
-Reihenfolge (je ein PR mit Release, nacheinander zu mergen):
-1. **3.7.1 Fixes** (erledigt): Endless mit Cryo Skates sperrte den Dash minutenlang (die Uhr wurde zurückgesetzt, der
-   Zeitpunkt des letzten Dashs nicht); Säure-Ticks unter einem Punkt zählten mit hoher Resistenz als Treffer (Sound,
-   Wackeln, Rotblitz, Heat Sink), jetzt wird der Rest aufgehoben; ein ausgewichener Fallen-Treffer (Dash, Schild)
-   verlangsamte trotzdem; Elektro-Fallen (Platte, Rift-Burst) zeigten Eis-Glitzer und den Frost-Ton, jetzt eigener
-   Betäubungs-Effekt und Sound (siehe QA-Bericht 3.7.1).
-2. **3.8.0 Gefahren mit echten Modellen**: Lava-Schlot als Basaltkrater mit bewegter Lava und Feuersäule statt
-   Zylinder, Gully mit Eisendeckel und Betonkragen (Deckel klappert und hebt sich, Blitze gezackt; „Reduce flashes“
-   beruhigt das Flackern), Eisfläche mit Frost, Rissen und Eiszapfen am Rand, Säure mit blubbernder Oberfläche und
-   Schlammufer, Portale mit Wirbel und schwebenden Runensteinen. Die Warnungen behalten die Sprache der Ringe.
-3. **3.9.0 Geräusche des Ortes**: die Gefahren klingen nach Abstand und Richtung (Lava blubbert und grollt vor dem
-   Ausbruch, Gully summt und knistert, Eis knackt unter der Drohne, Säure blubbert, Portale summen), dazu seltene
-   Einzelgeräusche je Biom (Donner und Autoalarm, Hämmern und Dampf, Eisbrechen, Frösche und Vögel, tiefe Schwellen
-   im Void) und ein eigener Regler „Ambience“ (Punkt B7 der Vorschläge unten).
-4. Danach wie geplant: Boss-Belohnungen (dann 3.10.0), Läufer.
+What the review found: `npm test` and `npm run audit` green (bot run to wave 22 without runtime errors). The map hazards
+(lava vents, manholes, ice sheets, acid pools, portals) really are only discs and rings of the effect pools
+(`drawFeatures` in `render/renderer.js`), the lava eruption a glowing tube; the traps have had real models since 3.0.0.
+The biomes differ in sound almost only by their music: since 3.7.0 the sounds of a place are soft notes of the calm
+themes, and the hazards are silent until a vent erupts.
+
+Order (one PR with a release each, to be merged one after another):
+1. **3.7.1 Fixes** (done): Endless with Cryo Skates locked the dash for minutes (the clock was reset, the time of the
+   last dash was not); with a high hazard resistance acid ticks below one point counted as hits (sound, shake, red
+   flash, Heat Sink), now the fraction is kept; a dodged trap strike (dash, shield) still slowed; electric traps
+   (plate, rift burst) showed the ice sparkle and played the frost ping, now they stun with their own effect and sound
+   (see the QA report of 3.7.1).
+2. **3.8.0 Hazards with real models**: lava vents as basalt craters with moving lava and a pillar of fire instead of a
+   tube, manholes with an iron cover in a concrete collar (the cover rattles and lifts, jagged bolts; "Reduce flashes"
+   calms the flicker), ice sheets with frost, cracks and ice shards on the rim, acid with a bubbling surface and a mud
+   bank, portals with a swirl and floating rune stones. The warnings keep the language of the rings.
+3. **3.9.0 Sounds of the place**: the hazards sound by distance and direction (lava bubbles and rumbles before it
+   erupts, manholes hum and crackle, ice cracks under the drone, acid bubbles, portals hum), rare far sounds of each
+   biome (thunder and a car alarm, anvils and steam, ice cracking, frogs and birds, deep swells in the Void) and a
+   volume of their own, "Ambience" (item B7 of the proposals below).
+4. Then as planned: boss rewards (then 3.10.0), the walker.
 
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
@@ -150,9 +154,9 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
 13. „Verbannen" in der Upgrade-Wahl: eine Karte für den Run aus dem Pool nehmen, höchstens ein- bis zweimal pro Run
     über ein Werkstatt-Modul freigeschaltet.
 
-Empfehlung zur Reihenfolge: nach dem Checkup (3.7.1–3.9.0, oben) die Boss-Belohnungen (wie geplant), dann ein Paket
-„Lernen und Überblick" (1–3, klein bis mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad und
-Vibration passen zu jedem Release.
+Empfehlung zur Reihenfolge: 3.8.0 Boss-Belohnungen (wie geplant), dann ein Paket „Lernen und Überblick" (1–3, klein bis
+mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad und Vibration passen zu jedem Release.
+(03.10.2026: the checkup releases 3.7.1–3.9.0 above come first, so the boss rewards move to 3.10.0.)
 
 ## Offene Zweifel (nur der Eigentümer kann sie prüfen)
 - Musik 3.7.0: ob der neue Boss-Stil (Cinematic Synth) gefällt oder ein anderer probiert werden soll (Alternativen:
