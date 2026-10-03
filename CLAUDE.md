@@ -17,6 +17,8 @@ README.md explains build, commands, project structure and hosting. Read it first
   and ambience belong to the place), the game keeps getting harder as it scales (waves, Endless), and it
   still looks and sounds good and detailed. New features come with their model, sound, telegraph and
   tests, not as a bare mechanic.
+- `docs/ROADMAP.de.md` holds the owner's wishes, decisions (for example the Cloudflare plan), open doubts and ideas. Read
+  it at the start of a session and update it in the same PR when a plan changes or an item is done.
 - Format with Prettier (`npm run format`, width 120, `.prettierrc`); CI runs `npm run format:check`.
 - `npm test` includes `tests/determinism.mjs`. A refactor must pass it unchanged; update
   `tests/fixtures/determinism.json` (`--update`) only for changes meant to alter game behaviour.
