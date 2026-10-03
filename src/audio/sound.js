@@ -322,6 +322,14 @@ const RL_SILENT_EVENTS = new Set([
   "zap", // effect of the arc weapons, covered by their shot voice
 ]);
 
+/* a small seeded random generator (0..1) for the offline test renders */
+function makeSeeded(seed) {
+  let state = seed >>> 0 || 1;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
 /* 3.2.0: the impulse of the music reverb: stereo noise that decays exponentially and gets darker as it decays */
 const impulseCache = Object.create(null);
 function roomImpulse(ctx, seconds) {
@@ -3104,7 +3112,20 @@ const musicChords = {
         ctx = new Offline(1, Math.ceil(44100 * (seconds + 0.35)), 44100),
         engine = new SoundEngine(),
         base = 0;
-      engine.attach(ctx);
+      // with spec.seed the noise of the engine and the sound's own random choices are seeded (see below); spec.room
+      // false leaves out the reverbs (the convolver of Chrome renders its tail on another thread, not quite the same
+      // every time)
+      const seeded = (fn) => {
+        if (spec.seed == null) return fn();
+        const random = Math.random;
+        Math.random = makeSeeded(spec.seed);
+        try {
+          return fn();
+        } finally {
+          Math.random = random;
+        }
+      };
+      seeded(() => engine.attach(ctx, { room: spec.room !== false }));
       engine.sfxVol = 1;
       if (spec.burst)
         for (let i = 1; i < spec.burst.n; i++)
@@ -3156,7 +3177,9 @@ const musicChords = {
           // 2.9.1: a raw noise burst (tests that long bursts are not cut off)
           engine.noise(spec.noise.dur, spec.noise.vol, spec.noise.opts || {});
         } else {
-          engine.play(spec.id, spec.arg);
+          // seeded: a comparison of sounds (tests/deep-test.mjs) gives the same result every time (the sounds vary
+          // their pitch and noise at random); the whole sound is scheduled right here
+          seeded(() => engine.play(spec.id, spec.arg));
         }
         ctx.resume();
       });

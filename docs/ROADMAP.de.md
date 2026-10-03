@@ -58,9 +58,9 @@ Order (one PR with a release each, to be merged one after another):
    (see the QA report of 3.7.1).
 2. **3.8.0 Hazards with real models** (done, `render/hazards-view.js`): lava vents as basalt craters with moving lava
    and a pillar of fire instead of a tube, manholes with an iron cover in a concrete collar (the cover rattles and
-   lifts, jagged bolts; "Reduce flashes" calms the flicker), ice sheets with frost, cracks and ice shards on the rim,
-   acid with a bubbling surface and a mud bank, portals with a swirl and floating rune stones. The warnings keep the
-   language of the rings.
+   lifts, jagged bolts), ice sheets with frost, cracks and ice shards on the rim, acid with a bubbling surface and a mud
+   bank, portals with a swirl and floating rune stones. The warnings keep the language of the rings. The owner also
+   asked to remove the "Left-handed" and "Reduce flashes" settings completely; done in the same release.
 3. **3.9.0 Sounds of the place**: the hazards sound by distance and direction (lava bubbles and rumbles before it
    erupts, manholes hum and crackle, ice cracks under the drone, acid bubbles, portals hum), rare far sounds of each
    biome (thunder and a car alarm, anvils and steam, ice cracking, frogs and birds, deep swells in the Void) and a
@@ -192,7 +192,8 @@ mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad 
 - Boss-Phasen mit eigenem Musik-Abschnitt (statt nur Enrage-Schicht), Sprach-Schnipsel im Hubschrauber/Funk.
 
 **Qualität und Zugang**
-- Farbenblind-Modus für Warnungen, Option „Blitze reduzieren" (Blackout, Lichtbögen), Haptik am Handy bei Treffer und Dash.
+- Farbenblind-Modus für Warnungen, Haptik am Handy bei Treffer und Dash. (03.10.2026: no option to reduce flashes and
+  no left-handed mode; the owner had both removed in 3.8.0.)
 - Gamepad-Unterstützung, Tastenbelegung.
 - Frühe Welle 1–5 als bessere Einführung (kurzes Tutorial für Granate und Fallen), Codex-Einträge für Mutatoren und
   Overdrive-Angriffe.

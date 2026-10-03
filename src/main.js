@@ -746,8 +746,6 @@ let qualityPreset = qualityPresets.auto,
 function applySettings() {
   let settings = store.data.settings;
   sound.setVolumes(settings.sfx, settings.music);
-  input.swap = settings.swap;
-  ui.setSwap(settings.swap);
   input.stickScale = settings.stickSize;
   input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   placeHud();
@@ -755,9 +753,8 @@ function applySettings() {
   overlay.contrast = settings.contrast;
   // Saver draws the 2D overlay (health bars, numbers, sticks) at one pixel per CSS pixel
   overlay.dprCap = settings.quality === "battery" ? 1 : 2;
-  ui.calm = settings.calm;
   if (renderer) {
-    renderer.setAccess(settings.contrast, settings.calm);
+    renderer.setAccess(settings.contrast);
     renderer.zoom = settings.zoom || 1;
     let dpr = settings.quality === "auto" ? autoDpr : qualityPreset.dpr;
     renderer.setQuality(dpr, qualityPreset.particles);
@@ -1012,7 +1009,7 @@ function handleWorldEvents(world) {
             "aim",
             rlKeys()
               ? "Tip: hold the left mouse button to aim and fire at the cursor."
-              : `Tip: drag the ${touchSides().aim} side to aim yourself. Holding it fires at the nearest enemy.`,
+              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.",
           );
         }
         break;
@@ -1233,18 +1230,16 @@ function updateHeartbeat(dt, world) {
     sound.play("heart");
   }
 }
-const touchSides = () => (store.data.settings.swap ? { move: "right", aim: "left" } : { move: "left", aim: "right" }),
-  // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"), which do nothing
+const // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"), which do nothing
   // with a mouse, and the keys were explained nowhere. Every step now has both wordings and
   // follows the input in use (the coach re-reads the text every frame).
   rlKeys = () => !RL_INPUT.touch,
   tutorialTexts = [
-    () =>
-      rlKeys() ? "Move with W A S D or the arrow keys." : `Drag anywhere on the ${touchSides().move} side to move.`,
+    () => (rlKeys() ? "Move with W A S D or the arrow keys." : "Drag anywhere on the left side to move."),
     () =>
       rlKeys()
         ? "Enemies! Your drone fires on its own \u2014 hold the left mouse button to aim yourself."
-        : `Enemies! Your drone fires on its own \u2014 drag the ${touchSides().aim} side to aim yourself.`,
+        : "Enemies! Your drone fires on its own \u2014 drag the right side to aim yourself.",
     () => (rlKeys() ? "Press SPACE to dash through danger." : "Tap DASH to dodge through danger."),
     () => "Grab the shards \u2014 they buy permanent upgrades in the Workshop.",
   ];
@@ -1451,7 +1446,7 @@ document.addEventListener(
       return;
     store.data = parsed.data;
     store.save("import");
-    // 2.4.2: apply the imported settings (volume, left-handed, graphics, camera) right away;
+    // 2.4.2: apply the imported settings (volume, controls, graphics, camera) right away;
     // they used to wait for the next reload or settings change.
     applySettings();
     game.previewW = store.data.weapon;

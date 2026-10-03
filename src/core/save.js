@@ -160,10 +160,9 @@ const SAVE_KEY = "riftline.save.v1",
     shake: true,
     numbers: true,
     quality: "auto",
-    swap: false,
     zoom: 1,
     contrast: false,
-    calm: false,
+    // 3.8.0: the left-handed (swap) and reduce-flashes (calm) settings are gone; a save that has them drops them on load
     // 2.4.2: optional HUD readouts
     timer: false,
     fps: false,
@@ -567,6 +566,7 @@ export {
   rlSanitizeHistory,
   set_RL_RETIRE_NOTE,
   cleanRun,
+  cleanSave,
   newSave,
 };
 

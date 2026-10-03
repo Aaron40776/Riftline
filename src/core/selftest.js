@@ -32,6 +32,9 @@ import {
   set_RL_MODULE_NOTE,
   rlMigrateUpgrades,
   rlSanitizeHistory,
+  defaultSettings,
+  newSave,
+  cleanSave,
 } from "./save.js";
 import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByWave, bossByBiome } from "../data/enemies.js";
 import { ui, renderer } from "../main.js";
@@ -2614,28 +2617,17 @@ function selfTestV380(result) {
           draw(world);
           for (const name of want[biome].erupt) if (!(drawn(name) > 0)) fail.push(`${biome}-erupt-not-drawn:${name}`);
         }
-        // Reduce flashes: a charging manhole leaks a steady light (no random flicker from frame to frame)
-        if (biome === "yard") {
-          const vent = arena.vents[0],
-            flashK = renderer.flashK;
-          world.waveT = vent.period - 1.9 - vent.phase + vent.period * 4;
-          renderer.flashK = 0.35;
-          try {
-            const light = () => {
-              draw(world);
-              return Array.from(view.pl.cover.glow.c.slice(0, 3)).join();
-            };
-            const a = light(),
-              b = light();
-            if (a !== b) fail.push("manhole-flickers-with-reduce-flashes");
-          } finally {
-            renderer.flashK = flashK;
-          }
-        }
       }
       // the warning ring takes the colour of Clear warnings
       if (renderer.warnColor !== undefined && !renderer.warnColor.isColor) fail.push("warn-colour");
     }
+    // the left-handed (swap) and reduce-flashes (calm) settings are gone: an old save drops them on load
+    const old = JSON.parse(JSON.stringify(newSave()));
+    old.settings.swap = true;
+    old.settings.calm = true;
+    const loaded = cleanSave(old).settings;
+    if ("swap" in loaded || "calm" in loaded || "swap" in defaultSettings || "calm" in defaultSettings)
+      fail.push("old-settings-kept");
   } catch (err) {
     fail.push("exception:" + (err && err.message));
   }

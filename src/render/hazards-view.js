@@ -545,15 +545,13 @@ class HazardView {
       }
     }
   }
-  // Blackout City: live manholes. "Reduce flashes" (flashK < 1) keeps the light steady and the arcs calm
+  // Blackout City: live manholes
   manholes(dt, world, quality) {
     const r = this.r,
       time = r.time,
-      calm = r.flashK < 1,
       collar = this.get("collar"),
       cover = this.get("cover"),
-      bolt = this.get("bolt", MAX.bolt).glow,
-      flick = () => (calm ? 0.7 : Math.random());
+      bolt = this.get("bolt", MAX.bolt).glow;
     for (const vent of world.arena.vents) {
       const { state, k } = this.ventState(world, vent),
         x = vent.x,
@@ -568,15 +566,15 @@ class HazardView {
         roll = 0,
         light = 0.12 + 0.05 * Math.sin(time * 2 + seed * 9);
       if (state === "warn") {
-        const shake = k > 0.3 && !calm ? (Math.random() - 0.5) * 0.05 * k : 0;
+        const shake = k > 0.3 ? (Math.random() - 0.5) * 0.05 * k : 0;
         lift = Math.max(0, shake);
         tilt = shake * 0.5;
-        light = 0.2 + k * 0.8 * (0.4 + 0.6 * flick());
+        light = 0.2 + k * 0.8 * (0.4 + 0.6 * Math.random());
       } else if (state === "erupt") {
-        lift = 0.1 + (calm ? 0.04 : Math.random() * 0.12);
-        tilt = calm ? 0.04 : (Math.random() - 0.5) * 0.16;
-        roll = calm ? 0 : (Math.random() - 0.5) * 0.16;
-        light = 1.1 + 0.5 * flick();
+        lift = 0.1 + Math.random() * 0.12;
+        tilt = (Math.random() - 0.5) * 0.16;
+        roll = (Math.random() - 0.5) * 0.16;
+        light = 1.1 + 0.5 * Math.random();
       }
       collar.body.y(x, 0, z, rot, sc, 1, sc);
       collar.glow.colC(collar.glow.y(x, 0, z, rot, sc, 1, sc), WHITE, light * (state === "idle" ? 0.4 : 1));
@@ -584,7 +582,7 @@ class HazardView {
       cover.glow.colC(cover.glow.yr(x, lift, z, rot, sc, 1, sc, tilt, roll), WHITE, light);
       if (state === "erupt") {
         // three jagged bolts out of the hole, each a chain of short segments that jumps every few frames
-        const step = calm ? Math.floor(time * 8) : Math.floor(time * 30);
+        const step = Math.floor(time * 30);
         for (let b = 0; b < 3; b++) {
           let px = x + Math.cos(b * 2.1 + seed * 6) * rr * 0.3,
             pz = z + Math.sin(b * 2.1 + seed * 6) * rr * 0.3,
@@ -595,7 +593,7 @@ class HazardView {
             const nx = px + (jitter(step, b, i + 1, seed) - 0.5) * 0.7,
               nz = pz + (jitter(step, b, i + 11, seed) - 0.5) * 0.7,
               ny = py + h / n;
-            seg(bolt, px, py, pz, nx, ny, nz, 0.05, i === 0 && b === 0 ? WHITE : ARC_WHITE, 0.8 + 0.4 * flick());
+            seg(bolt, px, py, pz, nx, ny, nz, 0.05, i === 0 && b === 0 ? WHITE : ARC_WHITE, 0.8 + 0.4 * Math.random());
             px = nx;
             py = ny;
             pz = nz;

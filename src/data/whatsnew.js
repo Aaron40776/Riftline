@@ -9,7 +9,7 @@ export const WHATS_NEW = [
       "Live manholes have iron covers that rattle and leak light before they arc in jagged bolts.",
       "Ice sheets show frost, cracks and shards of ice; acid pools bubble behind banks of mud.",
       "Portals are swirls with rune stones floating around them.",
-      "Reduce flashes now also calms the light of the live manholes.",
+      "The Left-handed and Reduce flashes settings are gone.",
     ],
   },
   {

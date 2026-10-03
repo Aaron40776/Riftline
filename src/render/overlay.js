@@ -344,11 +344,9 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
         ctx.font = '600 14px "Barlow Semi Condensed", system-ui, sans-serif';
         ctx.textAlign = "center";
         ctx.fillStyle = "rgba(200,230,255,0.75)";
-        let y = this.h - (opts.safe ? opts.safe.b : 0) - 58,
-          leftLabel = input.swap ? "AIM + FIRE" : "MOVE",
-          rightLabel = input.swap ? "MOVE" : "AIM + FIRE";
-        ctx.fillText("DRAG HERE TO " + leftLabel, this.w * 0.25, y);
-        ctx.fillText("DRAG HERE TO " + rightLabel, this.w * 0.75, y);
+        let y = this.h - (opts.safe ? opts.safe.b : 0) - 58;
+        ctx.fillText("DRAG HERE TO MOVE", this.w * 0.25, y);
+        ctx.fillText("DRAG HERE TO AIM + FIRE", this.w * 0.75, y);
       }
     }
   },

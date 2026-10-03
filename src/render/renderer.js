@@ -429,7 +429,6 @@ const MAX_PARTICLES = 1400,
       this.bossView = null;
       this.flashT = 0;
       this.menuA = 0;
-      this.flashK = 1;
       this.contrast = false;
       this.resize();
     }
@@ -722,7 +721,7 @@ const MAX_PARTICLES = 1400,
       if (this.flashes.length > 24) {
         this.flashes.shift();
       }
-      this.flashes.push({ x, z, r: radius, i: intensity * this.flashK, col: color, decay });
+      this.flashes.push({ x, z, r: radius, i: intensity, col: color, decay });
     }
     updateLights(dt, world) {
       let flashes = this.flashes;
@@ -874,7 +873,7 @@ const MAX_PARTICLES = 1400,
                 x: ev.x + dirX * 0.6,
                 z: ev.y + dirZ * 0.6,
                 r: def.id === "rail" ? 3.2 : 2.2,
-                i: (def.id === "flame" ? 0.35 : 0.55) * this.flashK,
+                i: def.id === "flame" ? 0.35 : 0.55,
                 col: color,
                 decay: 16,
                 muzzle: true,
@@ -2379,11 +2378,10 @@ const MAX_PARTICLES = 1400,
       let dist = (0.75 - origin.y) / dir.y;
       return { x: origin.x + dir.x * dist, y: origin.z + dir.z * dist };
     }
-    setAccess(contrast, reduceFlash) {
+    setAccess(contrast) {
       this.contrast = !!contrast;
       warnColor.setHex(contrast ? 16773226 : 16728160);
       beamColor.setHex(contrast ? 16765498 : 16732064);
-      this.flashK = reduceFlash ? 0.35 : 1;
     }
     resetCamera() {
       this.camInit = false;

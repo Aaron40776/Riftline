@@ -27,8 +27,7 @@ built with three.js and plain JavaScript. There is no framework.
 button to any free spot, resize each one, set the button opacity and the stick size, or pin the
 move stick to one spot. Portrait and landscape keep their own layouts.
 
-*Left-handed* in Settings swaps the two touch halves and mirrors your own layout. Keys are read by
-their position, so on AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY)
+Keys are read by their position, so on AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY)
 move the drone.
 
 ## Content

@@ -352,8 +352,10 @@ await section("saves", async (L) => {
     );
     check(
       L,
-      `${label}: settings kept and applied`,
-      eq(d.set, { ...d.set, ...src.settings }) &&
+      `${label}: settings kept and applied (3.8.0: the retired left-handed and reduce-flashes settings dropped)`,
+      eq(d.set, { ...d.set, ...src.settings, swap: undefined, calm: undefined }) &&
+        !("swap" in d.set) &&
+        !("calm" in d.set) &&
         Math.abs(d.vol - src.settings.sfx) < 1e-6 &&
         Math.abs(d.zoom - src.settings.zoom) < 1e-6 &&
         d.contrast === src.settings.contrast,
@@ -832,11 +834,9 @@ for (const profName of ["desktop", "phone"])
     const toggles = {
       setAuto: "autoFire",
       setAssist: "assist",
-      setSwap: "swap",
       setShake: "shake",
       setNumbers: "numbers",
       setContrast: "contrast",
-      setCalm: "calm",
     };
     for (const [id, key] of Object.entries(toggles)) {
       const before = await P.ev((k) => window.__riftTest.store.data.settings[k], key);
@@ -865,18 +865,14 @@ for (const profName of ["desktop", "phone"])
     const fx = await P.ev(() => {
       const T = window.__riftTest;
       return {
-        swap: document.getElementById("hud").classList.contains("swap"),
         contrast: T.renderer.contrast,
-        calm: T.ui.calm,
-        inputSwap: T.game.input.swap,
+        // 3.8.0: the left-handed and reduce-flashes settings are gone
+        gone: !("swap" in T.store.data.settings) && !("calm" in T.store.data.settings),
+        rows: !document.getElementById("setSwap") && !document.getElementById("setCalm"),
       };
     });
-    check(
-      L,
-      "settings swap/contrast/calm take effect immediately",
-      fx.swap && fx.contrast && fx.calm && fx.inputSwap,
-      JSON.stringify(fx),
-    );
+    check(L, "setting contrast takes effect immediately", fx.contrast, JSON.stringify(fx));
+    check(L, "no left-handed or reduce-flashes setting any more", fx.gone && fx.rows, JSON.stringify(fx));
     // 3.1.0: the music block of the settings: a theme and a boss button for each biome; each toggles a looping
     // preview, only one plays at a time, and it ends when the settings screen closes
     const mpState = () =>
@@ -979,10 +975,9 @@ for (const profName of ["desktop", "phone"])
       const s = T.store.data.settings;
       return {
         s: JSON.stringify(s),
-        ui: ["setAuto", "setAssist", "setSwap", "setShake", "setNumbers", "setContrast", "setCalm"].every(
+        ui: ["setAuto", "setAssist", "setShake", "setNumbers", "setContrast"].every(
           (id, i) =>
-            document.getElementById(id).checked ===
-            s[["autoFire", "assist", "swap", "shake", "numbers", "contrast", "calm"][i]],
+            document.getElementById(id).checked === s[["autoFire", "assist", "shake", "numbers", "contrast"][i]],
         ),
         vol: T.game.sound.sfxVol,
         zoom: T.renderer.zoom,
@@ -2129,7 +2124,7 @@ await section("qol", async (L) => {
   await P.nav("settings");
   const exp = await P.ev(() => {
     const d = JSON.parse(JSON.stringify(window.__riftTest.store.data));
-    d.settings.swap = true;
+    d.settings.contrast = !d.settings.contrast;
     d.settings.music = 0.1;
     return JSON.stringify(d);
   });
@@ -2139,10 +2134,10 @@ await section("qol", async (L) => {
   await P.dlg("Restore");
   await P.page.waitForTimeout(300);
   const imp = await P.ev(() => ({
-    swap: window.__riftTest.game.input.swap,
-    hud: document.getElementById("hud").classList.contains("swap"),
+    contrast: window.__riftTest.renderer.contrast === window.__riftTest.store.data.settings.contrast,
+    music: window.__riftTest.game.sound.musVol === 0.1,
   }));
-  check(L, "import applies the imported settings without a reload", imp.swap && imp.hud, JSON.stringify(imp));
+  check(L, "import applies the imported settings without a reload", imp.contrast && imp.music, JSON.stringify(imp));
   // 2.4.6: no update bar; a downloaded update is applied only when no run is going on
   const upd = await P.ev(() => {
     const g = window.__riftTest.game,
@@ -2899,7 +2894,7 @@ await section("layout360", async (L) => {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
       await page.waitForTimeout(150);
     },
-    problems = () => P.ev(() => [...window.__riftTest.hudEditor.problems().all]),
+    problems = () => P.ev(() => [...window.__riftTest.hudEditor.problems()]),
     W = 390,
     H = 844;
   // the cleaning of a save: broken places fall back to the default layout, numbers keep the range of their sliders
@@ -3074,20 +3069,6 @@ await section("layout360", async (L) => {
   check(L, "the moved DASH dashes", await P.ev(() => window.__riftTest.game.world.runStats.dashes > 0));
   const audit = await P.ev(() => window.__riftLayoutAudit());
   check(L, "layout audit in the run with the own layout", audit.ok, audit.findings.join("; "));
-  // left-handed play mirrors the action buttons (the pause button stays in the top bar); landscape has its own layout
-  const pauseRight = await center("#pauseBtn");
-  await P.ev(() => {
-    window.__riftTest.store.data.settings.swap = true;
-    window.__riftTest.game.settingsChanged(true);
-  });
-  const dashSwap = await center("#dashBtn"),
-    pauseSwap = await center("#pauseBtn");
-  check(
-    L,
-    "left-handed mirrors the action buttons, not the pause button",
-    Math.abs(dashSwap.x - (W - dash1.x)) < 3 && Math.abs(pauseSwap.x - pauseRight.x) < 2,
-    `dash ${dashSwap.x.toFixed(0)}, pause ${pauseRight.x.toFixed(0)} -> ${pauseSwap.x.toFixed(0)}`,
-  );
   // a layout that does not fit this screen (here: DASH on NOVA, as from another phone) gives way to the default one
   const kept = await P.ev(() => JSON.stringify(window.__riftTest.store.data.settings.hudLayout));
   await P.ev(() => {

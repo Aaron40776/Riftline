@@ -2,21 +2,20 @@
 // buttons, the size of the sticks and an optional fixed move stick, and the editor that sets them (Settings > Button
 // layout). The settings are hudLayout, hudAlpha, stickSize and stickFixed; core/save.js cleans them with the limits of
 // data/hud.js. A layout keeps every control as a point of the safe area (x and y from 0 to 1) and a size (times its
-// size in the default layout), one layout per orientation; null is the default layout of index.html. Positions are
-// kept for the right hand: left-handed play mirrors the action buttons and the stick (not the pause button, which
-// belongs to the top bar).
+// size in the default layout), one layout per orientation; null is the default layout of index.html. (3.8.0: the
+// left-handed setting is gone, so nothing is mirrored any more.)
 
 import { clamp } from "../core/util.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 import { safeAreaInsets } from "../main.js";
 import { getById } from "./ui.js";
 
-/* the movable controls: element, name in the editor, smallest size on screen (px), mirrored for the left hand */
+/* the movable controls: element, name in the editor, smallest size on screen (px) */
 const CONTROL_INFO = {
-    dash: { el: "dashBtn", name: "DASH", min: 40, mirror: true },
-    nova: { el: "novaBtn", name: "NOVA", min: 40, mirror: true },
-    gadget: { el: "gadgetBtn", name: "GADGET", min: 40, mirror: true },
-    pause: { el: "pauseBtn", name: "PAUSE", min: 36, mirror: false },
+    dash: { el: "dashBtn", name: "DASH", min: 40 },
+    nova: { el: "novaBtn", name: "NOVA", min: 40 },
+    gadget: { el: "gadgetBtn", name: "GADGET", min: 40 },
+    pause: { el: "pauseBtn", name: "PAUSE", min: 36 },
   },
   HUD_CONTROLS = HUD_CONTROL_IDS.map((id) => ({ id, ...CONTROL_INFO[id] })),
   /* the space a control keeps to the others (px) and to the readouts of the HUD; the readouts grow in a run (a row of
@@ -51,25 +50,23 @@ function hudBox() {
 /* layouts that did not fit this screen in a run (see fitHudLayout): the default layout stands in for them */
 const unfit = new Set();
 const fitKey = (settings, orient) =>
-  [orient, !!settings.swap, settings.stickFixed, settings.stickSize, JSON.stringify(settings.hudLayout)].join("|");
+  [orient, settings.stickFixed, settings.stickSize, JSON.stringify(settings.hudLayout)].join("|");
 function layoutOf(settings, orient = hudOrientation()) {
   const layout = (settings.hudLayout && settings.hudLayout[orient]) || null;
   return layout && !unfit.has(fitKey(settings, orient)) ? layout : null;
 }
-const mirrored = (x, swap, mirror = true) => (swap && mirror ? 1 - x : x);
 /* the spot of the fixed stick in a layout (a saved layout may have none) */
 const stickOf = (layout, orient = hudOrientation()) => layout.stick || (layout.stick = { ...DEFAULT_STICK[orient] });
 
 /* puts the controls where the layout says (layout: null for the default layout); applySettings and every resize call it */
 function applyHudLayout(settings, layout = layoutOf(settings)) {
-  const hud = getById("hud"),
-    swap = !!settings.swap;
+  const hud = getById("hud");
   hud.classList.toggle("custom", !!layout);
   for (const control of HUD_CONTROLS) {
     const el = getById(control.el),
       spot = layout && layout[control.id];
     if (spot) {
-      el.style.setProperty("--hx", mirrored(spot.x, swap, control.mirror).toFixed(4));
+      el.style.setProperty("--hx", spot.x.toFixed(4));
       el.style.setProperty("--hy", spot.y.toFixed(4));
       el.style.setProperty("--hk", spot.s.toFixed(3));
     } else for (const name of ["--hx", "--hy", "--hk"]) el.style.removeProperty(name);
@@ -81,10 +78,9 @@ function applyHudLayout(settings, layout = layoutOf(settings)) {
 function fixedStickCenter(settings, radius, layout = layoutOf(settings)) {
   const orient = hudOrientation(),
     spot = (layout && layout.stick) || DEFAULT_STICK[orient],
-    box = hudBox(),
-    fx = mirrored(spot.x, settings.swap);
+    box = hudBox();
   return {
-    x: clamp(box.l + box.w * fx, box.l + radius, Math.max(box.l + radius, box.l + box.w - radius)),
+    x: clamp(box.l + box.w * spot.x, box.l + radius, Math.max(box.l + radius, box.l + box.w - radius)),
     y: clamp(box.t + box.h * spot.y, box.t + radius, Math.max(box.t + radius, box.t + box.h - radius)),
   };
 }
@@ -99,13 +95,11 @@ function hitsRect(circle, rect, gap) {
     ny = clamp(circle.y, rect.top - gap, rect.bottom + gap);
   return Math.hypot(circle.x - nx, circle.y - ny) < circle.r;
 }
-/* The controls that sit where they may not, for the hand in use (now) and for the other hand (other: the layout
-   mirrored, as left-handed play would show it), as sets of ids ("stick" for the fixed move stick). A control must stay
-   in the safe area, off the readouts of the HUD and off the other controls; the fixed stick lies wholly on the move
-   side. stick: the circle of the fixed stick, or null. */
-function layoutProblems(swap, stick) {
+/* The controls that sit where they may not, as a set of ids ("stick" for the fixed move stick). A control must stay in
+   the safe area, off the readouts of the HUD and off the other controls; the fixed stick lies wholly on the move side
+   (the left half). stick: the circle of the fixed stick, or null. */
+function layoutProblems(stick) {
   const box = hudBox(),
-    mid = box.l + box.w / 2,
     keep = [];
   for (const [selector, below] of KEEP_CLEAR) {
     const el = document.querySelector(selector),
@@ -113,43 +107,30 @@ function layoutProblems(swap, stick) {
     if (rect && rect.width > 0 && rect.height > 0)
       keep.push({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom + below });
   }
-  const now = HUD_CONTROLS.map((control) => ({
-    id: control.id,
-    mirror: control.mirror,
-    ...circleOf(getById(control.el)),
-  }));
-  if (stick) now.push({ id: "stick", mirror: true, ...stick });
-  const check = (circles, left) => {
-    const bad = new Set();
-    for (const c of circles) {
-      if (
-        c.x - c.r < box.l - 1 ||
-        c.x + c.r > box.l + box.w + 1 ||
-        c.y - c.r < box.t - 1 ||
-        c.y + c.r > box.t + box.h + 1 ||
-        keep.some((rect) => hitsRect(c, rect, KEEP_GAP))
-      )
-        bad.add(c.id);
-      if (c.id === "stick" && (left ? c.x - c.r < box.W / 2 : c.x + c.r > box.W / 2)) bad.add(c.id);
-    }
-    for (let i = 0; i < circles.length; i++)
-      for (let j = i + 1; j < circles.length; j++) {
-        const a = circles[i],
-          b = circles[j];
-        if (Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r + GAP) {
-          bad.add(a.id);
-          bad.add(b.id);
-        }
+  const circles = HUD_CONTROLS.map((control) => ({ id: control.id, ...circleOf(getById(control.el)) }));
+  if (stick) circles.push({ id: "stick", ...stick });
+  const bad = new Set();
+  for (const c of circles) {
+    if (
+      c.x - c.r < box.l - 1 ||
+      c.x + c.r > box.l + box.w + 1 ||
+      c.y - c.r < box.t - 1 ||
+      c.y + c.r > box.t + box.h + 1 ||
+      keep.some((rect) => hitsRect(c, rect, KEEP_GAP))
+    )
+      bad.add(c.id);
+    if (c.id === "stick" && c.x + c.r > box.W / 2) bad.add(c.id);
+  }
+  for (let i = 0; i < circles.length; i++)
+    for (let j = i + 1; j < circles.length; j++) {
+      const a = circles[i],
+        b = circles[j];
+      if (Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r + GAP) {
+        bad.add(a.id);
+        bad.add(b.id);
       }
-    return bad;
-  };
-  return {
-    now: check(now, !!swap),
-    other: check(
-      now.map((c) => (c.mirror ? { ...c, x: 2 * mid - c.x } : c)),
-      !swap,
-    ),
-  };
+    }
+  return bad;
 }
 
 /* A safety net for the run: a layout made on another screen (an imported save, the other orientation with a stick
@@ -162,7 +143,7 @@ function fitHudLayout(settings, radius) {
   if (!layout || hud.hidden || hud.classList.contains("editing")) return false;
   applyHudLayout(settings, layout);
   const stick = settings.stickFixed ? { ...fixedStickCenter(settings, radius, layout), r: radius } : null;
-  if (!layoutProblems(settings.swap, stick).now.size) return false;
+  if (!layoutProblems(stick).size) return false;
   unfit.add(fitKey(settings, orient));
   applyHudLayout(settings);
   return true;
@@ -171,7 +152,7 @@ function fitHudLayout(settings, radius) {
 /* The editor: the real HUD is shown with the layout being edited (what you see is what you play), a layer above it
    takes the touches. Drag a control to move it, tap it to pick it for the size slider; the panel holds the sliders and
    can be dragged out of the way by its title or folded. A control can not leave the safe area, and a place where it
-   covers another control or the hull, wave, shard or boss readouts (with either hand) is refused (it jumps back). The
+   covers another control or the hull, wave, shard or boss readouts is refused (it jumps back). The
    fixed move stick stays on the move side. Rotating the phone switches to the layout of the other orientation. */
 class HudEditor {
   constructor({ store, ui, input, onSave }) {
@@ -322,9 +303,7 @@ class HudEditor {
   }
   /* the settings as they would be with the draft */
   view() {
-    const settings = this.store.data.settings;
     return {
-      swap: settings.swap,
       hudAlpha: this.draft.alpha,
       stickSize: this.draft.stickSize,
       stickFixed: this.draft.stickFixed,
@@ -337,12 +316,11 @@ class HudEditor {
     if (!this.draft.layouts[orient]) {
       applyHudLayout(this.view(), null);
       const box = hudBox(),
-        swap = !!this.store.data.settings.swap,
         layout = {};
       for (const control of HUD_CONTROLS) {
         const circle = circleOf(getById(control.el));
         layout[control.id] = {
-          x: round4(mirrored((circle.x - box.l) / box.w, swap, control.mirror)),
+          x: round4((circle.x - box.l) / box.w),
           y: round4((circle.y - box.t) / box.h),
           s: 1,
         };
@@ -360,15 +338,14 @@ class HudEditor {
       center = fixedStickCenter(this.view(), radius, this.draft.layouts[hudOrientation()]);
     return { ...center, r: radius };
   }
-  /* the controls that sit where they may not, with either hand (see layoutProblems) */
+  /* the controls that sit where they may not (see layoutProblems) */
   problems() {
-    const found = layoutProblems(this.store.data.settings.swap, this.draft.stickFixed ? this.stickCircle() : null);
-    return { ...found, all: new Set([...found.now, ...found.other]) };
+    return layoutProblems(this.draft.stickFixed ? this.stickCircle() : null);
   }
   /* applies the draft and tells whether control `id` now sits where it may not */
   refused(id) {
     applyHudLayout(this.view(), this.draft.layouts[hudOrientation()]);
-    return this.problems().all.has(id);
+    return this.problems().has(id);
   }
   /* the control under a touch: the nearest one whose circle (plus a margin for the finger) holds the point */
   pick(x, y) {
@@ -420,21 +397,16 @@ class HudEditor {
     const drag = this.drag;
     if (!drag || ev.pointerId !== drag.pointer) return;
     const box = hudBox(),
-      swap = !!this.store.data.settings.swap,
       layout = this.ensure(),
-      mirror = drag.id !== "pause",
       r = drag.r;
     let lo = box.l + r,
       hi = box.l + box.w - r;
     // the fixed move stick stays on the move side
-    if (drag.id === "stick") {
-      if (swap) lo = Math.max(lo, box.W / 2 + r);
-      else hi = Math.min(hi, box.W / 2 - r);
-    }
+    if (drag.id === "stick") hi = Math.min(hi, box.W / 2 - r);
     const x = clamp(ev.clientX + drag.dx, lo, Math.max(lo, hi)),
       y = clamp(ev.clientY + drag.dy, box.t + r, Math.max(box.t + r, box.t + box.h - r)),
       spot = this.spotOf(layout, drag.id);
-    spot.x = round4(mirrored((x - box.l) / box.w, swap, mirror));
+    spot.x = round4((x - box.l) / box.w);
     spot.y = round4((y - box.t) / box.h);
     drag.moved = true;
     // the drawing follows at most once a frame (every move would measure the whole HUD several times)
@@ -507,7 +479,6 @@ class HudEditor {
     if (!this.isOpen) return;
     const orient = hudOrientation(),
       layout = this.draft.layouts[orient],
-      settings = this.store.data.settings,
       view = this.view();
     applyHudLayout(view, layout);
     if (this.sel === "stick" && !this.draft.stickFixed) this.sel = "dash";
@@ -516,7 +487,7 @@ class HudEditor {
       const c = circleOf(getById(control.el)),
         ring = this.rings[i],
         size = (c.r * 2 + 14).toFixed(1) + "px";
-      ring.className = "he-ring" + (control.id === this.sel ? " sel" : "") + (bad.all.has(control.id) ? " bad" : "");
+      ring.className = "he-ring" + (control.id === this.sel ? " sel" : "") + (bad.has(control.id) ? " bad" : "");
       ring.style.left = c.x.toFixed(1) + "px";
       ring.style.top = c.y.toFixed(1) + "px";
       ring.style.width = ring.style.height = size;
@@ -528,7 +499,7 @@ class HudEditor {
       at = this.draft.stickFixed
         ? fixedStickCenter(view, radius, layout)
         : {
-            x: box.l + box.w * (settings.swap ? 0.78 : 0.22),
+            x: box.l + box.w * 0.22,
             y: box.t + box.h * (orient === "landscape" ? 0.62 : 0.72),
           };
     stick.style.left = at.x.toFixed(1) + "px";
@@ -536,9 +507,7 @@ class HudEditor {
     stick.style.width = stick.style.height = (radius * 2).toFixed(1) + "px";
     stick.classList.toggle("fixed", this.draft.stickFixed);
     stick.classList.toggle("sel", this.sel === "stick");
-    stick.classList.toggle("bad", bad.all.has("stick"));
-    getById("heLeft").textContent = settings.swap ? "AIM + FIRE" : "MOVE";
-    getById("heRight").textContent = settings.swap ? "MOVE" : "AIM + FIRE";
+    stick.classList.toggle("bad", bad.has("stick"));
     // the panel
     const picked = HUD_CONTROLS.find((c) => c.id === this.sel),
       onStick = this.sel === "stick",
@@ -556,19 +525,16 @@ class HudEditor {
     getById("heStickV").textContent = Math.round(this.draft.stickSize * 100) + "%";
     getById("heFixed").checked = this.draft.stickFixed;
     getById("heOrient").textContent = orient === "landscape" ? "Landscape" : "Portrait";
-    const note = getById("heNote"),
-      hand = settings.swap ? "right-handed" : "left-handed";
+    const note = getById("heNote");
     note.textContent =
       this.note ||
-      (bad.now.size
+      (bad.size
         ? "Red buttons cover another button or the hull and wave display: move them."
-        : bad.other.size
-          ? `Red buttons would cover the HUD in ${hand} mode (the layout is mirrored there): move them.`
-          : this.draft.stickFixed
-            ? "Drag a button or the stick to move it, tap a button to resize it. Each orientation keeps its own layout."
-            : "Drag a button to move it, tap it to resize it. The move stick starts where your thumb lands.");
-    note.classList.toggle("bad", !!this.note || bad.all.size > 0);
-    getById("heSave").disabled = bad.all.size > 0;
+        : this.draft.stickFixed
+          ? "Drag a button or the stick to move it, tap a button to resize it. Each orientation keeps its own layout."
+          : "Drag a button to move it, tap it to resize it. The move stick starts where your thumb lands.");
+    note.classList.toggle("bad", !!this.note || bad.size > 0);
+    getById("heSave").disabled = bad.size > 0;
     this.placePanel();
   }
 }
