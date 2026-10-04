@@ -51,7 +51,13 @@ function rlBackupSave(text) {
  snaps to Near/Normal/Far) instead of a blanket 0–2 clamp. */
 const RL_ZOOM_STEPS = [0.85, 1, 1.18],
   // the opacity of the buttons and the stick size have the range of their sliders (data/hud.js)
-  RL_SETTING_RANGE = { sfx: [0, 1], music: [0, 1], hudAlpha: HUD_LIMITS.alpha, stickSize: HUD_LIMITS.stick };
+  RL_SETTING_RANGE = {
+    sfx: [0, 1],
+    music: [0, 1],
+    ambience: [0, 1],
+    hudAlpha: HUD_LIMITS.alpha,
+    stickSize: HUD_LIMITS.stick,
+  };
 function rlSettingNum(key, value, def) {
   const [lo, hi] = RL_SETTING_RANGE[key] || [0, 2],
     num = cleanNumber(value, def, lo, hi);
@@ -155,6 +161,8 @@ const SAVE_KEY = "riftline.save.v1",
   defaultSettings = {
     sfx: 0.8,
     music: 0.45,
+    // 3.9.0: the sounds of the place (atmospheres, hazards, far sounds of the biome)
+    ambience: 0.8,
     autoFire: true,
     assist: true,
     shake: true,

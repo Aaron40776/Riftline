@@ -370,6 +370,7 @@ const getById = (id) => document.getElementById(id),
       for (let [id, key] of [
         ["setSfx", "sfx"],
         ["setMusic", "music"],
+        ["setAmb", "ambience"],
       ]) {
         let input = getById(id);
         input.addEventListener("input", () => {
@@ -749,6 +750,7 @@ const getById = (id) => document.getElementById(id),
       getById("setContrast").checked = settings.contrast;
       getById("setSfx").value = settings.sfx;
       getById("setMusic").value = settings.music;
+      getById("setAmb").value = settings.ambience;
       this.renderPreview();
       for (let btn of getById("setQuality").querySelectorAll("button"))
         btn.classList.toggle("on", btn.dataset.v === settings.quality);

@@ -1,3 +1,71 @@
+RIFTLINE v3.9.0 – SOUNDS OF THE PLACE AND AN AMBIENCE VOLUME
+Base: v3.8.0 · Build r390a1003a-r1 · 03.10.2026
+
+Requested: "the music is good but all biomes sound pretty much the same... maybe add more effect sounds to each one".
+Third of the three PRs of the checkup (see ROADMAP.de.md).
+
+1) Finding
+   - Since 3.7.0 the sounds of a place are soft notes of the calm themes (drops, crickets, embers, ice); the hazards
+     were silent apart from the burst of a vent, so a biome sounded like its music and little else.
+
+2) New: audio/place.js
+   - The hazards sound where they are: panned by where they lie left or right of the drone, softer with the distance
+     (heard up to 16 m):
+     - lava vent: lava bubbles every 0.7-2.2 s; when a vent starts to warn it draws breath (a rumble and a roar that
+       rise together for 1.2 s, the lava boiling faster under it), then the eruption as before
+     - live manhole: a mains hum (50 and 100 Hz behind a low-pass) when the drone is within 6 m; when it starts to
+       charge, crackles that come faster and faster over the 1.2 s of the warning and a thin rising whine
+     - ice: cracks and creaks under the drone while it moves on a sheet, a sheet tinkles now and then
+     - acid: bubbles pop in the pools near the drone; a sizzle while it stands in acid
+     - portals: both ends hum (two low tones that beat, swelling grains), now and then one whispers
+   - Far sounds of every biome, one every 5-11 s (10-16 s in a boss fight) on one side: Blackout City thunder, a car
+     alarm, a passing car, police radio, sparks of a broken lamp; Ember Works an anvil, chains, a steam valve, a
+     conveyor; Cryo Vault an ice crack with a boom, icicles, a gust, the groan of the glacier; Toxin Marsh frogs, a
+     bird, an owl, mud; Void Core a deep swell, a glass shimmer, a breath, a glitch.
+   - Only pink or brown noise (no white hiss), most of it tones; at most three new sounds per frame; the timers use
+     Math.random, the simulation is not touched.
+
+3) Ambience volume (Settings > Sound)
+   - A new bus of the engine (ambBus, its own gain) carries the sounds of the place, the beds and accents of the biome
+     events (they followed the Effects volume before) and scales the atmospheres of the music (atmos and atmosPump
+     in front of the music chain and the pump). Default 0.8: at it the atmospheres and event beds play exactly as
+     loud as before.
+   - The sounds of the place are voices of priority 0.5: any effect of the fight takes their place when the 24 voices
+     run out; the music keeps its own budget.
+   - Effects at 0 no longer silences the event beds (they follow Ambience); the hum of the drone stays an effect.
+   - Save: setting ambience (0 to 1, default 0.8); an old save gets the default.
+
+4) Levels (offline render, mono, at the drone and at the default volumes)
+   - Peaks of the place sounds 0.015-0.2 (the vent's breath before an eruption and the thunder the loudest, about
+     like a blast; most 0.02-0.08), against 0.26 for a blast and 0.23 for an eruption. A first draft had the manhole
+     charge and the whisper of the portals too quiet to hear (peaks 0.01) and the hums of manholes and portals too
+     present; adjusted.
+   - A WAV preview of every biome was sent to the owner (the sounds one after another, at full level).
+
+5) Tests
+   - New deep-test part (v390): the setting (default, range), every far sound of a biome exists and every sound is in
+     the catalog of the offline test; in every biome 30 s of a fight near its hazard make the sounds of that place and
+     a far sound; a real sound goes to the ambience bus with priority 0.5; Ambience at 0 is silent; the event beds
+     follow Ambience, not Effects.
+   - The offline test renders all 32 new sounds (not silent, no clipping, every voice ends).
+   - Determinism: every simulation unchanged (the sounds are not part of it); the reference was rewritten only for
+     the data table of the default settings, which gained ambience.
+
+6) Results 3.9.0 (headless Chromium, software WebGL)
+   - npm test: green (build, deep test with v390, full-qa files, data audit, determinism 15/15 after the update of
+     the data table).
+   - Full QA: all 432 checks passed (the settings layout check counts the new slider).
+   - E2E: 170 checks, 0 failures on all five devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     4712 events in 36 kinds, all consumed.
+   - Screens and biome pictures PC/phone/landscape: no page errors. Looked at: the settings on the phone (Ambience
+     with its line under Effects and Music; Left-handed and Reduce flashes gone since 3.8.0).
+   - Format check: ok.
+
+7) Open doubts
+   - Only measured, not heard: whether the sounds are pleasant and often enough (or too often), and whether the far
+     sounds suit the biomes. The WAV preview is for that.
+
 RIFTLINE v3.8.0 – THE MAP HAZARDS HAVE MODELS OF THEIR OWN
 Base: v3.7.1 · Build r380a1003a-r1 · 03.10.2026
 
