@@ -55,7 +55,19 @@ design was proposed to the owner on 04.10.2026 and taken into the plan; third of
    - Screenshots: tests/shots/attacks-pc/singularity-1-pull.png and singularity-2-collapse.png.
 
 5) Results 3.12.0 (headless Chromium, software WebGL; npm run release-check)
-RESULTS_3120
+   - npm test steps: green (build, deep test with the rewritten gadget part and the three new voices, data audit,
+     determinism 15/15 after the golden file update); the closest strikes stay tsMine / boom at 0.51 (limit 0.4).
+   - Full QA: all 403 checks passed.
+   - E2E: 136 checks, 0 failures on the four devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     4527 events in 39 kinds, all consumed.
+   - Screens, biome pictures PC/landscape phone and the attack pictures with the Singularity: no page errors. Looked
+     at: the pull (the cyan rim, the violet arms, a ring of six enemies drawn into one clump) and the collapse (the
+     violet shock ring, 90 damage on each gathered enemy), the violet gadget button.
+   - Found in the code review and fixed: a Singularity still pulling when the wave ended hung over the upgrade choice
+     (the choice does not step it); it now ends with the wave (self-test sing-left-over).
+   - Time of the whole chain: 34 min 19 s (the sound results reused: unchanged since their last render).
+   - Format check: ok.
 
 6) Open doubts
    - Only measured and seen in pictures, not played or heard: whether the pull feels strong enough, whether 1.5 s is
