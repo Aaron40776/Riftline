@@ -4,6 +4,7 @@ const URL = process.argv[2] || "http://localhost:8124/index.html";
 const only = process.argv[3] || "";
 const SHOTS = "tests/shots";
 import fs from "fs";
+import { waitScreenGame } from "./lib/wait.mjs";
 fs.mkdirSync(SHOTS, { recursive: true });
 const PROFILES = [
   { name: "desktop-1440", viewport: { width: 1440, height: 900 }, touch: false },
@@ -206,9 +207,7 @@ for (const prof of PROFILES) {
       w.markers = [];
       for (const e of [...w.enemies]) w.killEnemy(e);
     });
-    await page
-      .waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 15000 })
-      .catch(() => {});
+    await waitScreenGame(page, "choose", 8);
     ok("choose screen after wave clear", await vis("choose"));
     await page.waitForTimeout(800);
     await audit("choose");
@@ -247,7 +246,7 @@ for (const prof of PROFILES) {
       w.player.shield = false;
       w.hurtPlayer(99999, null, null, "grunt", true);
     });
-    await page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 15000 }).catch(() => {});
+    await waitScreenGame(page, "over", 6);
     ok("game over screen", await vis("over"));
     await page.waitForTimeout(1200);
     await audit("over");

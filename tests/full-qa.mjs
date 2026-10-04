@@ -4,6 +4,7 @@
 // Every check states its criterion; the run fails if any check fails.
 import { chromium } from "playwright";
 import fs from "fs";
+import { waitScreenGame } from "./lib/wait.mjs";
 const BASE = (process.argv[2] || "http://localhost:8124/").replace(/index\.html$/, "");
 const ONLY = process.argv[3] || "";
 const FIX = new URL("./fixtures/", import.meta.url).pathname;
@@ -26,6 +27,9 @@ const log = (sec, st, name, detail = "") => {
 /* ---------- helpers ---------- */
 // Fresh browser context; `save` is written to localStorage once, before the game boots
 // (string = raw text, null = no save). `block` makes localStorage throw.
+// 3.10.0: every context a section opens; the section closes what is left when it ends or throws. A section that
+// threw used to leave its page running (software GL at ~300 % CPU) and every later section timed out on page.goto.
+const liveContexts = new Set();
 async function open(profName, { save = null, block = false } = {}) {
   const prof = PROFILES[profName];
   const ctx = await browser.newContext({
@@ -52,6 +56,8 @@ async function open(profName, { save = null, block = false } = {}) {
     },
     [KEY, save, block],
   );
+  liveContexts.add(ctx);
+  ctx.on("close", () => liveContexts.delete(ctx));
   const page = await ctx.newPage();
   const errors = [],
     bad = [];
@@ -140,6 +146,7 @@ async function section(name, fn) {
   } catch (e) {
     log(name, "FAIL", "section exception", String(e.message).split("\n")[0]);
   }
+  for (const ctx of [...liveContexts]) await ctx.close().catch(() => {});
   out.push(`        (${name}: ${((Date.now() - t0) / 1000).toFixed(0)} s)`);
 }
 const check = (L, name, cond, detail = "") => L(cond ? "PASS" : "FAIL", name, detail);
@@ -1213,7 +1220,7 @@ for (const profName of ["desktop", "phone"])
     );
     // wave clear -> choose -> reroll
     await P.ev(CLEAR);
-    check(L, "wave clear opens the upgrade choice", await waitScreen("choose", 30000));
+    check(L, "wave clear opens the upgrade choice", await waitScreenGame(P.page, "choose", 8));
     await P.page.waitForTimeout(700);
     const rr0 = await P.ev(() => {
       const w = window.__riftTest.game.world;
@@ -1331,7 +1338,7 @@ for (const profName of ["desktop", "phone"])
     });
     check(L, "no wave cache during the boss wave", cachesInBoss === "0", cachesInBoss);
     await P.ev(CLEAR);
-    check(L, "boss kill → upgrade choice", await waitScreen("choose", 20000));
+    check(L, "boss kill → upgrade choice", await waitScreenGame(P.page, "choose", 8));
     const be = await P.ev(() => {
       const sound = window.__riftTest.game.sound;
       return { kind: sound.playKind, over: sound.bossOver, heat: sound.heat };
@@ -1355,7 +1362,7 @@ for (const profName of ["desktop", "phone"])
     });
     await P.page.waitForFunction(() => window.__riftTest.game.world.boss, null, { timeout: 30000 }).catch(() => {});
     await P.ev(CLEAR);
-    const won = await waitScreen("over", 25000);
+    const won = await waitScreenGame(P.page, "over", 9);
     const vs = await P.ev(() => ({
       state: window.__riftTest.game.world?.state,
       title: document.getElementById("overTitle").textContent,
