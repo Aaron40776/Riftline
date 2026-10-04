@@ -97,7 +97,9 @@ async function open(profName, { save = null, block = false } = {}) {
       }
       return true;
     }, id);
-  P.tap = async (sel) => {
+  // settle: wait out the touch ghost-click guard (900 ms) or a desktop repaint (300 ms) after the tap; a caller that
+  // waits for the tap's effect itself passes { settle: false }
+  P.tap = async (sel, { settle = true } = {}) => {
     const el = typeof sel === "string" ? await page.$(sel) : sel;
     if (!el) throw new Error("missing " + sel);
     await el.scrollIntoViewIfNeeded().catch(() => {});
@@ -107,7 +109,7 @@ async function open(profName, { save = null, block = false } = {}) {
       y = b.y + b.height / 2;
     if (prof.touch) await page.touchscreen.tap(x, y);
     else await page.mouse.click(x, y);
-    await page.waitForTimeout(prof.touch ? 900 : 300); // > touch ghost-click guard window
+    if (settle) await page.waitForTimeout(prof.touch ? 900 : 300); // > touch ghost-click guard window
   };
   // click a dialog button by its label
   P.dlg = async (label) => {
@@ -1029,9 +1031,19 @@ for (const profName of ["desktop", "phone"])
     for (let guard = 0; guard < 60; guard++) {
       const b = await P.page.$("#wsList [data-buy]:not([disabled])");
       if (!b) break;
-      await P.tap(b);
+      // 3.10.0: wait for the purchase itself instead of a fixed pause per tap (58 s for the 50-odd levels); a
+      // double purchase still shows in buys !== levels below
+      const owned = () => Object.values(window.__riftTest.store.data.workshop).reduce((a, b) => a + b, 0);
+      const before = await P.ev(owned);
+      await P.tap(b, { settle: false });
+      await P.page.waitForFunction(
+        (n) => Object.values(window.__riftTest.store.data.workshop).reduce((a, b) => a + b, 0) > n,
+        before,
+        { timeout: 10000 },
+      );
       buys++;
     }
+    if (P.prof.touch) await P.page.waitForTimeout(900); // the last tap's ghost click must not count after the check
     const ws = await P.ev(() => {
       const T = window.__riftTest,
         d = T.store.data;
