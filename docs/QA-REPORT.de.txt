@@ -1,3 +1,92 @@
+RIFTLINE v3.10.0 – THE ATTACKS OF ENEMIES AND BOSSES LOOK AND SOUND LIKE WHAT THEY ARE
+Base: v3.9.0 · Build r3100a1004a-r1 · 04.10.2026
+
+Requested: look through the project for things that "missed" the polishing of the last days ("the pools on the ground
+were just colored circles"), make the music fit each place, and add more sounds of the place. First of three PRs (see
+ROADMAP.de.md: 3.10.0 visuals, 3.11.0 soundscapes, 3.12.0 music).
+
+1) Finding
+   - Screenshots of every attack in every biome: the 11 kinds of world.hazards (stomp, drill, slag, rain, mortar,
+     frost, glacier, mine, sapper, fire, volatile) were drawn the same way, a red ring around a flat red disc; the
+     blast was one generic burst with one "boom" sound; every blast and every bigger kill left the same soft black
+     blob (the shadow texture) in every biome, on ice and in the Void too; every enemy shot was a glowing ball, and
+     the drone, weaver, carrier and turret shots fell back to the same pink orb.
+   - The rain kind is shared by four makers (Crucible eruptions and vents, Hive Queen plague, Rift Core bombardment and
+     collapse), stomp by two (Warden, Crucible hammer), mortar by two (mortar enemy, Crucible slag lobs).
+
+2) New: render/attacks-view.js
+   - A zone shader with eight looks: crack (seams that run out to the rim as the warning runs, the plates darken;
+     stomp, drill), lava crack (the Crucible's hammer), molten (a pool of lava that wells up; slag, Crucible rain and
+     slag lobs), frost (creeps in from the rim with facets, feathers and glints; frost nova, glacier), acid (wells up
+     and bubbles faster; the plague), rift (arms that wind tighter, a dark core that opens; the Core), target (two rings
+     and four ticks that turn, a countdown sweep; mortar, mine, sapper), burn (the ground smoulders; burning and
+     volatile enemies). The look follows the kind and, for shared kinds, the maker (hazard.src; the boom event now
+     carries src as well).
+   - The warning keeps the language of the game: the pulsing ring at the edge, a ring that fills it, the red tint of
+     the old disc in every surface (yellow with Clear warnings, plus the inner ring), a soft dark pool under it for the
+     pale floor of the Cryo Vault.
+   - Models: a minebot's mine (puck, dome, studs, a ring of light) and a sapper's charge (three sticks, a light) pop out
+     and blink faster and faster; mortar shells fly as shells along their arc (yaw, pitch, spin) with a shadow that
+     grows where they land; the Crucible's lobs are glowing slag with a trail of embers.
+   - Blasts by look: cracks with a white shockwave, dust thrown along the floor and lumps (embers for the Crucible);
+     pillars of fire and thrown lava; ice spikes that burst up, stand and shatter; splashes of acid that fall back;
+     bolts of light out of the sky; fireballs with sparks, rising smoke and lumps.
+   - Marks of the place (a second shader, one draw call for all): addScorch draws a burnt mark of the biome instead of
+     the black blob (Blackout City burnt wet asphalt with a cold sheen and dying embers, Ember Works char with cracks
+     that glow and cool, Cryo Vault a melted wet middle with a star of new frost, Toxin Marsh a splash of mud with
+     glowing slime, Void Core a violet scar with veins and specks); the attacks leave cracks, slag that cools to a
+     crust, frost that melts, slime and rift scars. A new biome starts clean.
+   - Enemy shots by kind: Prism shards and weaver shards as spinning crystals, drone needles and carrier pods as darts
+     with a short trail, sniper and turret tracers (the turret's heavier, with sparks), lumps of slag that flicker and
+     drip embers; the gunner's orbs stay.
+   - All of it is instance pools made when first needed (two shaders, five small models); the removed scorch pool and
+     the enemy-shot and hazard loops in renderer.js are gone.
+   - Cost: the first draft drew every mark with its full shader (noise and cells per pixel); a cleared wave leaves
+     twenty marks, and the frame after a big clear got slower than on 3.9.0 (the QA waits for the upgrade choice ran
+     out twice under software rendering). The marks are now painted once per biome into an atlas (6 x 4 cells of
+     128 px: each look fresh and cooled, two variants; an sRGB render target) and drawn with two texture lookups that
+     blend from fresh to cooled. Measured per frame with a forced sync (software WebGL, 1280 x 800, 24 marks): 3.9.0
+     334 ms base, 496 ms with the marks, 1210 ms the first frame; 3.10.0 332, 497, 1242. The zones keep their live
+     shader (few at a time, they move).
+
+3) Sounds (audio/sound.js)
+   - Each blast has a voice of its kind: aQuake (crack, deep thud, rumble, crumbling gravel; deeper for a bigger
+     zone), aLava (a roar that opens and falls, a push, a sizzle, popping blobs), aIce (crack, glassy body, splinters,
+     a tinkle), aAcid (a wet slap, rising blobs, a lingering sizzle), aRift (a zap from high to low, a crack, a deep
+     boom, a shimmer), aFire (a soft whoomph). The mortar shells, mines, charges, bombers and volatile enemies keep the
+     explosion. Panned by where they happen like every effect, gated (one per 60 ms when a ring of slag goes off), the
+     bigger ones dip the music a little and ring in the room of the biome.
+   - Levels (offline render, mono): boom 0.27 peak; aQuake 0.28 (a stomp of 4.8 m) and 0.21 (1.6 m), aLava 0.28, aRift
+     0.26, aIce 0.21, aAcid 0.18, aFire 0.12. A first draft had aQuake at 0.45 and aLava at 0.37; lowered, as stomps
+     come often and a ring of slag goes off at once. Lowered, the quake came too close to the trap mine (0.31, its
+     sharp crack), then to the Nova (0.38) and the old boom (0.36 to 0.43; the measure varies a little between runs);
+     it is now a dull crunch, a deep thud and a dark rumble that rolls on for more than a second whatever the size,
+     with low gravel after it, far from every other strike.
+   - An MP3 of the six voices after the old boom was sent to the owner.
+
+4) Other
+   - build.js accepts four version digits in the build id (r3100 for 3.10.0); nothing in the game compares versions
+     other than for equality (checked), so 3.10.0 after 3.9.0 is safe.
+   - New test script tests/attack-shots.mjs (also in npm run screens): every attack of every biome while it warns, on
+     the blast and with its marks, and every enemy shot, on PC.
+
+5) Tests
+   - New deep-test part (v3100): the five bosses (2400 frames each, the second half enraged) and the mortar, minebot,
+     sapper and driller enemies really make the 13 expected kinds and makers; every one has a look, a blast and a
+     mark; the shared kinds take the look and voice of their maker; every new voice is in the catalog; the zones,
+     the mine and charge models, the shell, two crystals and two darts are drawn; addScorch makes a burnt mark and the
+     old scorch pool is gone.
+   - The sound comparison counts the five new blasts among the strikes (the closest pair stays tsMine / boom at 0.51,
+     limit 0.4); the offline test renders all new voices (not silent, no clipping, every voice ends).
+   - Determinism: unchanged (the boom event gained a field, the counts of the events are the same).
+
+6) Results 3.10.0 (headless Chromium, software WebGL)
+RESULTS_PLACEHOLDER
+
+7) Open doubts
+   - Only seen in software rendering and measured, not heard: whether the surfaces read well on a phone in a busy fight
+     (the warning ring is unchanged, so the danger stays readable), and whether the blasts sound good.
+
 RIFTLINE v3.9.0 – SOUNDS OF THE PLACE AND AN AMBIENCE VOLUME
 Base: v3.8.0 · Build r390a1003a-r1 · 03.10.2026
 

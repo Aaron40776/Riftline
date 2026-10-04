@@ -52,6 +52,7 @@ import { weaponDefs } from "../data/weapons.js";
 import { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles } from "./biome-visuals.js";
 import { TrapView } from "./traps-view.js";
 import { HazardView } from "./hazards-view.js";
+import { AttackView, MARK_LOOK } from "./attacks-view.js";
 
 const tmpColor = new Color(),
   InstancePool = class {
@@ -368,13 +369,6 @@ const MAX_PARTICLES = 1400,
     }
     return color;
   },
-  // 2.4.6: slag, the molten orbs of the Crucible
-  enemyShotColors = {
-    orb: hexColor(16727423),
-    fast: hexColor(16722474),
-    shard: hexColor(9431295),
-    slag: hexColor(16743722),
-  },
   shardColors = { 1: hexColor(8386303), 5: hexColor(16762954), 25: hexColor(16734936) },
   healColor = hexColor(7208842),
   whiteColor = hexColor(16777215),
@@ -438,6 +432,8 @@ const MAX_PARTICLES = 1400,
       this.trapView = new TrapView(this, InstancePool);
       // 3.8.0: the map hazards (vents, manholes, ice, acid, portals) with models of their own
       this.hazardView = new HazardView(this, InstancePool);
+      // 3.10.0: the attacks of enemies and bosses (zones, mines, shells, shots) and the marks they leave
+      this.attackView = new AttackView(this, InstancePool);
       // the colour of the warnings (setAccess turns it yellow for Clear warnings)
       this.warnColor = warnColor;
       this.texGlow = makeGlowTexture();
@@ -483,16 +479,9 @@ const MAX_PARTICLES = 1400,
         60,
       );
       this.debris = new InstancePool(debrisGeometry(), new MeshLambertMaterial({ flatShading: true }), 320);
-      this.scorch = new InstancePool(
-        floorQuad.clone(),
-        new MeshBasicMaterial({ map: this.texShadow, transparent: true, depthWrite: false, color: 16777215 }),
-        70,
-        { color: false },
-      );
       let columnGeo = new CylinderGeometry(1, 1, 1, 16, 1, true);
       columnGeo.translate(0, 0.5, 0);
       this.columns = new InstancePool(columnGeo, additiveMaterial(makeColumnTexture(), { side: DoubleSide }), 60);
-      this.scorch.mesh.renderOrder = 0;
       this.columns.mesh.renderOrder = 4;
       this.shieldPool.mesh.renderOrder = 5;
       this.shadows.mesh.renderOrder = 1;
@@ -520,13 +509,11 @@ const MAX_PARTICLES = 1400,
       this.flashes = [];
       this.D = [];
       this.corpses = [];
-      this.scorches = [];
       this.kick = 0;
       this.kickA = 0;
     }
     allPools() {
       return [
-        this.scorch,
         this.shadows,
         this.discs,
         this.ringPool,
@@ -545,6 +532,7 @@ const MAX_PARTICLES = 1400,
         this.sparks,
         ...this.trapView.list,
         ...this.hazardView.list,
+        ...this.attackView.list,
       ];
     }
     initParticles() {
@@ -834,21 +822,9 @@ const MAX_PARTICLES = 1400,
         this.D = list.filter((piece) => piece.life > 0);
       }
     }
+    /* 3.10.0: a burnt mark of the place (until 3.9.0 the same black blob in every biome) */
     addScorch(x, z, radius) {
-      if (this.scorches.length >= 60) {
-        this.scorches.shift();
-      }
-      this.scorches.push({ x, z, r: radius, life: 7, a: Math.random() * TAU });
-    }
-    drawScorch(dt) {
-      for (let mark of this.scorches) {
-        mark.life -= dt;
-        let fade = mark.life < 1.5 ? Math.max(0, mark.life / 1.5) : 1;
-        this.scorch.y(mark.x, 0.015, mark.z, mark.a, mark.r * 2 * fade);
-      }
-      if (this.scorches.length && this.scorches[0].life <= 0) {
-        this.scorches = this.scorches.filter((mark) => mark.life > 0);
-      }
+      this.attackView.mark(x, z, radius * 1.15, MARK_LOOK.burn);
     }
     consume(events, world, opts) {
       let showNumbers = opts.numbers !== false,
@@ -1022,6 +998,8 @@ const MAX_PARTICLES = 1400,
               this.trapView.blast(ev, world, shakeK);
               break;
             }
+            // 3.10.0: the blasts of the attacks of enemies and bosses look like what they are
+            if (this.attackView.impact(ev, world, shakeK)) break;
             let color =
                 ev.kind === "nova"
                   ? hexColor(8386303)
@@ -1496,7 +1474,6 @@ const MAX_PARTICLES = 1400,
       }
       this.updateLights(dt, menu ? null : world);
       this.drawDebris(dt);
-      this.drawScorch(dt);
       this.drawParticles(dt);
       this.drawTransient(dt);
       for (let pool of pools) pool.end();
@@ -1974,20 +1951,8 @@ const MAX_PARTICLES = 1400,
         let puff = this.sprites.bb(trail.x, 0.3, trail.y, 1.3 * Math.min(1, trail.life), basis);
         this.sprites.colHex(puff, 8386303, 0.35 * Math.min(1, trail.life));
       }
-      for (let shot of world.eb) {
-        let color = enemyShotColors[shot.kind] || enemyShotColors.orb;
-        if (shot.kind === "fast") {
-          let angle = Math.atan2(shot.vy, shot.vx),
-            core = this.ebCore.y(shot.x, 0.75, shot.y, angle, shot.r * 5, shot.r * 0.8, shot.r * 0.8);
-          this.ebCore.col(core, 1, 0.75, 0.75);
-        } else {
-          let pulse = 1 + Math.sin(time * 14 + shot.x) * 0.08,
-            core = this.ebCore.y(shot.x, 0.75, shot.y, 0, shot.r * 0.85 * pulse);
-          this.ebCore.col(core, 1, 0.82 + color.g * 0.2, 0.9 + color.b * 0.1);
-        }
-        let halo = this.sprites.bb(shot.x, 0.75, shot.y, shot.r * 7.5, basis);
-        this.sprites.colC(halo, color, 0.95);
-      }
+      // 3.10.0: every kind of enemy shot has a shape of its own
+      this.attackView.shots(world);
       for (let pickup of world.pickups) {
         let lift = 0.45 + Math.sin(time * 4 + pickup.id) * 0.12;
         if (pickup.rain && pickup.t < 0.6) {
@@ -2055,29 +2020,13 @@ const MAX_PARTICLES = 1400,
           );
         }
       }
-      for (let hazard of world.hazards) {
-        let k = clamp(hazard.t / hazard.delay, 0, 1);
-        if (!hazard.done && hazard.sx != null) {
-          let hx = hazard.sx + (hazard.x - hazard.sx) * k,
-            hz = hazard.sy + (hazard.y - hazard.sy) * k,
-            hy = 0.8 + Math.sin(Math.PI * k) * 7,
-            core = this.ebCore.y(hx, hy, hz, 0, 0.26);
-          this.ebCore.col(core, 1, 0.85, 0.6);
-          let halo = this.sprites.bb(hx, hy, hz, 1.6, basis);
-          this.sprites.colHex(halo, 16752957, 0.9);
-          if (Math.random() < 0.5) {
-            this.emit(hx, hy, hz, 0, 0, 0, 0.3, 0.35, hexColor(6965808), { drag: 1, grow: 1.2 });
-          }
-        }
-        if (!hazard.done) {
-          let ring = this.ringPool.y(hazard.x, 0.05, hazard.y, 0, hazard.r);
-          this.ringPool.colC(ring, warnColor, 0.55 + Math.sin(time * 25) * 0.25 * k);
-          let disc = this.discs.y(hazard.x, 0.04, hazard.y, 0, hazard.r * k);
-          this.discs.colC(disc, warnColor, 0.18 + k * 0.12);
-          if (this.contrast) {
-            let inner = this.ringPool.y(hazard.x, 0.05, hazard.y, 0, hazard.r * 0.55);
-            this.ringPool.colC(inner, warnColor, 0.7);
-          }
+      // 3.10.0: the attack zones (world.hazards) with a look of their kind, the marks on the floor
+      try {
+        this.attackView.update(dt, world);
+      } catch (err) {
+        if (!this.rlAttackErr) {
+          logError("attacks", err);
+          this.rlAttackErr = true;
         }
       }
       for (let beam of world.beams) {

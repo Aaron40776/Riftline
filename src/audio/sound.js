@@ -96,6 +96,30 @@ const RL_BOSS_ATK = {
   collapse: "bRain",
 };
 const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse"]);
+/* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
+   choice as the look in render/attacks-view.js); null: the generic explosion ("boom") */
+function attackVoice(kind, src, biome) {
+  switch (kind) {
+    case "stomp":
+    case "drill":
+      return "aQuake";
+    case "slag":
+      return "aLava";
+    case "frost":
+    case "glacier":
+      return "aIce";
+    case "fire":
+      return "aFire";
+    case "mortar":
+      return src === "forge" ? "aLava" : null;
+    case "rain": {
+      const who = src || { works: "forge", marsh: "queen", void: "core" }[biome];
+      return who === "forge" ? "aLava" : who === "queen" ? "aAcid" : who === "core" ? "aRift" : null;
+    }
+    default:
+      return null;
+  }
+}
 const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   /* 2.9.0: every boss has a timbre (wave, filter) and a short motif (semitones above the root, two octaves up)
    that its telegraphs, roar and death share, so that the ear knows who is attacking: the Warden stern and
@@ -124,6 +148,10 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     mutator: 0.12,
     bOverdrive: 0.1,
     evolve: 0.1,
+    aQuake: 0.1,
+    aRift: 0.1,
+    aLava: 0.08,
+    aIce: 0.08,
     guardBreak: 0.08,
     thud: 0.08,
     grenadeBlast: 0.1,
@@ -155,6 +183,11 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     victory: 0.3,
     mutator: 0.35,
     bOverdrive: 0.3,
+    aQuake: 0.3,
+    aLava: 0.25,
+    aIce: 0.35,
+    aAcid: 0.15,
+    aRift: 0.35,
   },
   /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Toxin Marsh damp */
   SFX_ROOM_BIOME = { yard: 0.28, works: 0.38, vault: 0.5, marsh: 0.2, void: 0.55 },
@@ -228,7 +261,15 @@ const RL_SOUND_EVENTS = {
   blink: [{}],
   blinkWarn: [{}],
   block: [{}],
-  boom: [{ kind: "boom" }],
+  boom: [
+    { kind: "boom" },
+    { kind: "stomp", r: 4.8 },
+    { kind: "slag", r: 1.4 },
+    { kind: "glacier", r: 2.3 },
+    { kind: "rain", src: "queen", r: 1.5 },
+    { kind: "rain", src: "core", r: 2.2 },
+    { kind: "fire", r: 1 },
+  ],
   boss: [{ id: "warden" }, { id: "forge" }, { id: "prism" }, { id: "queen" }, { id: "core" }],
   bossAtk: [{ id: "warden", atk: "ring" }],
   bossDown: [{ id: "warden" }],
@@ -2105,6 +2146,69 @@ const musicChords = {
             this.tone(510, 0.35, "sawtooth", 0.05, { to: 58, lp: 1200, at: 0.12, detune: 40 });
           }
           break;
+        // ---- 3.10.0: the blasts of the attacks of enemies and bosses (arg: the radius of the zone; bigger is deeper)
+        case "aQuake": {
+          // the ground breaks: a dull crunch (no sharp crack: that is a mine), a deep thud, a long rumble that rolls
+          // away and gravel that keeps crumbling after it
+          if (!this.gate(id, 0.06)) break;
+          const big = Math.min(1.4, Math.max(0.6, (arg || 2) / 3));
+          this.noise(0.09, 0.12, { type: "bandpass", f: 420, q: 1.2, attack: 0.002 });
+          this.tone(64 * pitch, 0.45 * big, "sine", 0.24, { to: 26 });
+          // the rumble rolls on for over a second, whatever the size (a blast is short)
+          this.noise(1.0 + 0.3 * big, 0.17, { f: 240, to: 50, color: "brown", attack: 0.04, hold: 0.35 });
+          this.tone(42, 1.0 + 0.3 * big, "triangle", 0.07, { to: 32, lp: 180, attack: 0.06, hold: 0.35 });
+          for (let i = 0; i < 6; i++)
+            this.noise(0.04, 0.03 - i * 0.003, { type: "bandpass", f: 300 + r() * 500, q: 3, at: 0.1 + i * 0.1 });
+          break;
+        }
+        case "aLava":
+          // lava bursts: a roar that opens and falls, a deep push, a sizzle and blobs that pop
+          if (!this.gate(id, 0.06)) break;
+          this.noise(0.5, 0.15, { f: 1800, to: 280, color: "brown", attack: 0.01 });
+          this.tone(82 * pitch, 0.35, "sine", 0.17, { to: 38 });
+          this.noise(0.45, 0.045, { type: "bandpass", f: 3800, q: 1.2, at: 0.06, attack: 0.03 });
+          for (let i = 0; i < 3; i++) {
+            const f = 110 + r() * 110;
+            this.tone(f, 0.12, "sine", 0.05, { to: f * 2.1, at: 0.12 + i * 0.09 });
+          }
+          break;
+        case "aIce":
+          // ice bursts out of the floor and shatters: a sharp crack, a falling glassy body, splinters, a tinkle
+          if (!this.gate(id, 0.06)) break;
+          this.noise(0.02, 0.14, { type: "highpass", f: 3500, attack: 0.001 });
+          this.tone(110 * pitch, 0.3, "sine", 0.2, { to: 45 });
+          this.tone(320, 0.22, "triangle", 0.1, { to: 120, lp: 2500 });
+          for (let i = 0; i < 6; i++)
+            this.tone(2200 + r() * 2500, 0.09, "sine", 0.03, { to: 1400 + r() * 600, at: 0.02 + i * 0.035 });
+          for (let i = 0; i < 4; i++) this.tone(3000 + r() * 2200, 0.4, "sine", 0.014, { at: 0.5 + i * 0.07 });
+          break;
+        case "aAcid":
+          // a wet splash: a slap of water, blobs that rise, a thump under it and a sizzle that lingers
+          if (!this.gate(id, 0.06)) break;
+          this.noise(0.25, 0.2, { type: "bandpass", f: 1300, to: 420, q: 0.9, attack: 0.003 });
+          this.tone(95 * pitch, 0.2, "sine", 0.2, { to: 50 });
+          for (let i = 0; i < 3; i++) {
+            const f = 240 + r() * 260;
+            this.tone(f, 0.08, "sine", 0.05, { to: f * 2.3, at: 0.05 + i * 0.07 });
+          }
+          this.noise(0.6, 0.05, { type: "bandpass", f: 3600, q: 1.4, at: 0.1, attack: 0.05 });
+          break;
+        case "aRift":
+          // a bolt out of the tear: a zap that falls from high to low, a crack and a deep boom with a shimmer
+          if (!this.gate(id, 0.06)) break;
+          this.tone(2600, 0.28, "sawtooth", 0.05, { to: 110, lp: 3200 });
+          this.tone(1300, 0.1, "sine", 0.07, { to: 90 });
+          this.noise(0.02, 0.1, { type: "highpass", f: 3e3, attack: 0.001 });
+          this.tone(62 * pitch, 0.4, "sine", 0.3, { to: 26, at: 0.02 });
+          this.noise(0.35, 0.09, { type: "bandpass", f: 3000, to: 600, q: 2, at: 0.02 });
+          this.tone(1800, 0.6, "sine", 0.012, { at: 0.12, detune: 25 });
+          break;
+        case "aFire":
+          // burning ground flares up: a soft whoomph
+          if (!this.gate(id, 0.08)) break;
+          this.noise(0.3, 0.1, { f: 900, to: 300, color: "brown", attack: 0.02 });
+          this.tone(120, 0.12, "sine", 0.08, { to: 60 });
+          break;
         default:
           break;
       }
@@ -2311,6 +2415,11 @@ const musicChords = {
             // 3.0.0: the grenade and the traps have blasts of their own (grenadeBlast, trapFire); 3.6.0: so has the
             // Combo Surge ("surge")
             if (ev.kind === "trap" || ev.kind === "surge") break;
+            // 3.10.0: the attacks of enemies and bosses sound like what they are
+            if (attackVoice(ev.kind, ev.src, this.biome)) {
+              this.play(attackVoice(ev.kind, ev.src, this.biome), ev.r);
+              break;
+            }
             this.play(
               ev.kind === "grenade"
                 ? "grenadeBlast"
@@ -4449,6 +4558,9 @@ function rlSoundCatalog() {
   ids(["tmMine", "tmFrost", "tmSpore", "tmRift"], 0.45);
   for (const skin of ["mine", "frost", "spore", "riftmine"]) ids(["tArm"], skin);
   ids(["tsPlate", "tsCrusher", "tsIce", "tsGeyser", "tsRift", "tsMine", "tsFrost", "tsSpore", "tsRiftMine"]);
+  // 3.10.0: the blasts of the attacks of enemies and bosses
+  ids(["aQuake", "aLava", "aIce", "aAcid", "aRift"], 2);
+  ids(["aFire"], 1);
   for (const boss of Object.keys(BOSS_ROOT)) {
     ids(["bossIntro"], boss);
     for (const id of [
@@ -4494,4 +4606,5 @@ export {
   MAX_VOICES,
   MUSIC_DUCK,
   BOSS_SOUND,
+  attackVoice,
 };

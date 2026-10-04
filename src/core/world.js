@@ -2145,7 +2145,8 @@ const rlStep = 1 / 60,
           this.hurtPlayer(opts.dmgPlayer || dmg, x, y, opts.src || this._src);
         }
       }
-      this.emit("boom", { x: x, y: y, r: radius, kind: opts.kind || "boom" });
+      // 3.10.0: src (who made the blast) lets a shared kind (rain, mortar, stomp) look like its maker
+      this.emit("boom", { x: x, y: y, r: radius, kind: opts.kind || "boom", src: opts.src || null });
     }
     chainFrom(from, jumps, dmg, hits, src = "weapon") {
       let cur = from,

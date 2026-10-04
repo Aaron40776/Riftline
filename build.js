@@ -22,7 +22,8 @@ function meta() {
   const version = pkg.version,
     build = pkg.riftline && pkg.riftline.build;
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`package.json version "${version}" is not x.y.z`);
-  if (!/^r\d{3}a\d{4}[a-z]-r\d+$/.test(build || ""))
+  // 3.10.0: the version digits may be four (r3100 for 3.10.0)
+  if (!/^r\d{3,4}a\d{4}[a-z]-r\d+$/.test(build || ""))
     throw new Error(`package.json riftline.build "${build}" does not look like r233a0926g-r1`);
   return { version, build, dashed: version.replace(/\./g, "-"), gameFile: `game-v${version}-final.js` };
 }

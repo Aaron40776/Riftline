@@ -28,6 +28,7 @@ const res = await page.evaluate(() => {
     v371: r.v371?.fail,
     v380: r.v380?.fail,
     v390: r.v390?.fail,
+    v3100: r.v3100?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
@@ -209,6 +210,12 @@ const distinct = await page.evaluate(async () => {
       "grenadeBlast",
       "nova",
       "boom",
+      // 3.10.0: the blasts of the attacks of enemies and bosses
+      "aQuake:2",
+      "aLava:2",
+      "aIce:2",
+      "aAcid:2",
+      "aRift:2",
     ]),
   );
   out.warns = await group(

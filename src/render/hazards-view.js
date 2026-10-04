@@ -782,4 +782,4 @@ function seg(pool, x0, y0, z0, x1, y1, z1, width, color, alpha) {
   );
   pool.colC(idx, color, alpha);
 }
-export { HazardView };
+export { HazardView, SURF_VERT, SURF_LIB };

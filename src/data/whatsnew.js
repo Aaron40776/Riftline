@@ -2,6 +2,18 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.10.0",
+    title: "Attacks you can read",
+    items: [
+      "Boss and enemy attacks show what they are: the ground cracks, lava wells up, frost creeps in, acid bubbles, a rift tears open.",
+      "Ice spikes burst out of the floor, lava blasts in a pillar of fire, the Rift Core strikes with bolts of light.",
+      "Mines and sapper charges have models that blink faster before they blow; mortar shells fly as shells.",
+      "Blasts leave marks of the place: wet burnt asphalt, glowing cracks, melted frost, mud, violet scars; slag cools.",
+      "Enemy shots have shapes of their own: ice crystals, needles, homing darts, tracers and lumps of slag.",
+      "Each kind of attack has a blast sound of its own.",
+    ],
+  },
+  {
     version: "3.9.0",
     title: "Sounds of the place",
     items: [
