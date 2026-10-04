@@ -2,7 +2,7 @@
  "note": "Golden records of tests/determinism.mjs. Regenerate with `node tools/qa.js determinism --update` only for intended behaviour changes.",
  "cases": {
   "data-tables": {
-   "digest": "168b8aaf12bee350",
+   "digest": "323da2175397fe12",
    "rec": {
     "ue": "b45826cf7b0e6307",
     "Ae": "3bc4c55b9acbcfb2",
@@ -25,7 +25,7 @@
     "$i": "183ff0d5cde42481",
     "Qf": "bc6afe59071da871",
     "tp": "f5492d200a5d45c8",
-    "Oh": "67fe000e15e3029c",
+    "Oh": "5938bf682adeda34",
     "hazard": "99e2844965a1355a",
     "kiters": "8773ecb846d1ab04",
     "events": "950fddfe742530be",

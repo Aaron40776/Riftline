@@ -364,11 +364,9 @@ const getById = (id) => document.getElementById(id),
         };
       bindToggle("setAuto", "autoFire");
       bindToggle("setAssist", "assist");
-      bindToggle("setSwap", "swap");
       bindToggle("setShake", "shake");
       bindToggle("setNumbers", "numbers");
       bindToggle("setContrast", "contrast");
-      bindToggle("setCalm", "calm");
       for (let [id, key] of [
         ["setSfx", "sfx"],
         ["setMusic", "music"],
@@ -746,11 +744,9 @@ const getById = (id) => document.getElementById(id),
       let settings = this.save.settings;
       getById("setAuto").checked = settings.autoFire;
       getById("setAssist").checked = settings.assist;
-      getById("setSwap").checked = settings.swap;
       getById("setShake").checked = settings.shake;
       getById("setNumbers").checked = settings.numbers;
       getById("setContrast").checked = settings.contrast;
-      getById("setCalm").checked = settings.calm;
       getById("setSfx").value = settings.sfx;
       getById("setMusic").value = settings.music;
       this.renderPreview();
@@ -956,9 +952,6 @@ const getById = (id) => document.getElementById(id),
         getById("coachText").textContent = text;
         box.hidden = false;
       }
-    }
-    setSwap(on) {
-      getById("hud").classList.toggle("swap", !!on);
     }
     showHud(on) {
       getById("hud").hidden = !on;
@@ -1571,7 +1564,6 @@ const getById = (id) => document.getElementById(id),
       btn.classList.add(kind);
     }
     hurtFlash() {
-      if (this.calm) return;
       let el = getById("flash");
       el.classList.add("on");
       requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove("on")));

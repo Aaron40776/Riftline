@@ -26,6 +26,7 @@ const res = await page.evaluate(() => {
     v330: r.v330?.fail,
     v360: r.v360?.fail,
     v371: r.v371?.fail,
+    v380: r.v380?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
@@ -160,7 +161,9 @@ const distinct = await page.evaluate(async () => {
   const group = async (list) => {
     const feats = [];
     for (const { name, spec } of list) {
-      const r = await engine.renderOffline({ ...spec, wav: true });
+      // 3.8.0: seeded and dry (no room), so the distances are the same in every run (tsMine / boom once came out at
+      // 0.39, below the limit of 0.4)
+      const r = await engine.renderOffline({ ...spec, wav: true, seed: 7, room: false });
       feats.push({ name, f: features(r.samples) });
     }
     let min = 1e9,

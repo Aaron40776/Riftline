@@ -51,6 +51,7 @@ import { biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
 import { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles } from "./biome-visuals.js";
 import { TrapView } from "./traps-view.js";
+import { HazardView } from "./hazards-view.js";
 
 const tmpColor = new Color(),
   InstancePool = class {
@@ -428,7 +429,6 @@ const MAX_PARTICLES = 1400,
       this.bossView = null;
       this.flashT = 0;
       this.menuA = 0;
-      this.flashK = 1;
       this.contrast = false;
       this.resize();
     }
@@ -436,6 +436,10 @@ const MAX_PARTICLES = 1400,
       let scene = this.scene;
       // 3.0.0: traps and the grenade (its pools are made when a skin first appears)
       this.trapView = new TrapView(this, InstancePool);
+      // 3.8.0: the map hazards (vents, manholes, ice, acid, portals) with models of their own
+      this.hazardView = new HazardView(this, InstancePool);
+      // the colour of the warnings (setAccess turns it yellow for Clear warnings)
+      this.warnColor = warnColor;
       this.texGlow = makeGlowTexture();
       this.texShadow = makeShadowTexture();
       this.texSpark = makeSparkTexture();
@@ -540,6 +544,7 @@ const MAX_PARTICLES = 1400,
         this.sprites,
         this.sparks,
         ...this.trapView.list,
+        ...this.hazardView.list,
       ];
     }
     initParticles() {
@@ -716,7 +721,7 @@ const MAX_PARTICLES = 1400,
       if (this.flashes.length > 24) {
         this.flashes.shift();
       }
-      this.flashes.push({ x, z, r: radius, i: intensity * this.flashK, col: color, decay });
+      this.flashes.push({ x, z, r: radius, i: intensity, col: color, decay });
     }
     updateLights(dt, world) {
       let flashes = this.flashes;
@@ -868,7 +873,7 @@ const MAX_PARTICLES = 1400,
                 x: ev.x + dirX * 0.6,
                 z: ev.y + dirZ * 0.6,
                 r: def.id === "rail" ? 3.2 : 2.2,
-                i: (def.id === "flame" ? 0.35 : 0.55) * this.flashK,
+                i: def.id === "flame" ? 0.35 : 0.55,
                 col: color,
                 decay: 16,
                 muzzle: true,
@@ -2113,189 +2118,13 @@ const MAX_PARTICLES = 1400,
       }
     }
     drawFeatures(dt, world) {
-      let arena = world.arena,
-        time = this.time,
-        basis = this.B,
-        // 3.4.0: Blackout City's vents are live manholes: steel blue, crackling white before and while they arc
-        city = arena.biome.id === "yard",
-        ventCol = hexColor(city ? 0x5aa8ff : 16734746),
-        ventWarnCol = hexColor(city ? 0xdff2ff : 16756816);
-      for (let vent of arena.vents) {
-        let state = world.state === "fight" ? arena.ventState(vent, world.waveT) : "idle",
-          cycle = (world.waveT + vent.phase) % vent.period,
-          warnStart = vent.period - 2.7,
-          disc = this.discs.y(vent.x, 0.03, vent.y, 0, vent.r),
-          ring = this.ringPool.y(vent.x, 0.05, vent.y, 0, vent.r);
-        if (state === "idle") {
-          this.discs.colC(disc, ventCol, city ? 0.05 : 0.1 + Math.sin(time * 2 + vent.phase) * 0.03);
-          this.ringPool.colC(ring, ventCol, city ? 0.28 : 0.35);
-        } else if (state === "warn") {
-          let k = clamp((cycle - warnStart) / 1.2, 0, 1);
-          // a live manhole crackles: its glow flickers instead of rising steadily
-          if (city) this.discs.colC(disc, ventCol, 0.08 + k * 0.18 * (Math.random() < 0.5 ? 1 : 0.3));
-          else this.discs.colC(disc, ventWarnCol, 0.2 + k * 0.35 + Math.sin(time * 30) * 0.08 * k);
-          this.ringPool.colC(ring, this.contrast ? warnColor : ventWarnCol, 0.6 + k * 0.5);
-          if (Math.random() < dt * 18) {
-            this.emit(
-              vent.x + (Math.random() - 0.5) * vent.r,
-              0.1,
-              vent.y + (Math.random() - 0.5) * vent.r,
-              0,
-              city ? 2.5 + k * 3 : 1.5 + k * 2,
-              0,
-              city ? 0.2 : 0.4,
-              city ? 0.14 : 0.25,
-              ventWarnCol,
-              city ? { drag: 1, spark: true } : { drag: 1 },
-            );
-          }
-        } else {
-          this.discs.colC(disc, city ? ventCol : ventWarnCol, city ? 0.3 + Math.random() * 0.2 : 0.75);
-          this.ringPool.colC(ring, city ? ventWarnCol : whiteColor, city ? 0.6 : 0.8);
-          if (city) {
-            // three thin arcs that flicker in place, height and brightness (lava stands as one column)
-            for (let a = 0; a < 3; a++) {
-              const ang = Math.random() * TAU,
-                off = Math.random() * vent.r * 0.55,
-                bolt = this.columns.y(
-                  vent.x + Math.cos(ang) * off,
-                  0,
-                  vent.y + Math.sin(ang) * off,
-                  0,
-                  0.06 + Math.random() * 0.05,
-                  1.6 + Math.random() * 2.6,
-                  0.06 + Math.random() * 0.05,
-                );
-              this.columns.colC(bolt, a ? ventWarnCol : whiteColor, 0.5 + Math.random() * 0.5);
-            }
-          } else {
-            let column = this.columns.y(vent.x, 0, vent.y, 0, vent.r * 0.8, 3.2, vent.r * 0.8);
-            this.columns.colC(column, ventCol, 0.9);
-          }
-          if (Math.random() < dt * 40) {
-            this.emit(
-              vent.x + (Math.random() - 0.5) * vent.r * 1.4,
-              0.3,
-              vent.y + (Math.random() - 0.5) * vent.r * 1.4,
-              (Math.random() - 0.5) * 2,
-              4 + Math.random() * 4,
-              (Math.random() - 0.5) * 2,
-              city ? 0.25 : 0.6,
-              city ? 0.16 : 0.5,
-              ventCol,
-              city ? { drag: 1, spark: true } : { drag: 1.5, grav: 6, grow: 0.6 },
-            );
-          }
-        }
-      }
-      let iceCol = hexColor(12580095);
-      for (let patch of arena.ice) {
-        let disc = this.discs.y(patch.x, 0.02, patch.y, 0, patch.r);
-        this.discs.colC(disc, iceCol, 0.09);
-        let ring = this.ringPool.y(patch.x, 0.03, patch.y, 0, patch.r);
-        this.ringPool.colC(ring, iceCol, 0.22);
-        if (Math.random() < dt * 3 * patch.r) {
-          let angle = Math.random() * TAU,
-            dist = Math.random() * patch.r;
-          this.emit(
-            patch.x + Math.cos(angle) * dist,
-            0.08,
-            patch.y + Math.sin(angle) * dist,
-            0,
-            0.3,
-            0,
-            0.5,
-            0.18,
-            whiteColor,
-            {
-              spark: true,
-              drag: 0,
-            },
-          );
-        }
-      }
-      // 3.6.0: the acid is a darker, murkier green and glows less (the bright lime pools drowned the enemies and the
-      // warnings standing in them); the pools stay easy to see, and the Acid Coating pools keep their brighter cyan
-      let acidCol = hexColor(0x8fd43a),
-        // 2.5.0: the player's own Acid Coating puddles are cyan, so they never read as a threat
-        mineCol = hexColor(0x4de8ff);
-      for (let puddle of arena.acid) {
-        let color = puddle.mine ? mineCol : acidCol,
-          fade = puddle.life != null ? Math.min(1, puddle.life / 1.2) : 1,
-          disc = this.discs.y(puddle.x, 0.025, puddle.y, 0, puddle.r);
-        this.discs.colC(disc, color, ((puddle.mine ? 0.16 : 0.1) + Math.sin(time * 2 + puddle.x) * 0.025) * fade);
-        let ring = this.ringPool.y(puddle.x, 0.03, puddle.y, 0, puddle.r);
-        this.ringPool.colC(ring, color, (puddle.mine ? 0.35 : 0.22) * fade);
-        if (Math.random() < dt * 2.5 * puddle.r) {
-          let angle = Math.random() * TAU,
-            dist = Math.random() * puddle.r;
-          this.emit(
-            puddle.x + Math.cos(angle) * dist,
-            0.1,
-            puddle.y + Math.sin(angle) * dist,
-            0,
-            0.8,
-            0,
-            0.7,
-            0.25,
-            color,
-            {
-              drag: 1,
-              grow: 0.8,
-            },
-          );
-        }
-      }
-      for (let portal of arena.portals)
-        for (let [px, pz, color] of [
-          [portal.ax, portal.ay, hexColor(16732120)],
-          [portal.bx, portal.by, hexColor(8386303)],
-        ]) {
-          let ring = this.ringPool.y(px, 0.06, pz, time * 2.4, 1.05);
-          this.ringPool.colC(ring, color, 0.9);
-          let inner = this.ringPool.y(px, 0.07, pz, -time * 3.1, 0.7);
-          this.ringPool.colC(inner, color, 0.6);
-          let disc = this.discs.y(px, 0.03, pz, 0, 0.95);
-          this.discs.colC(disc, color, 0.2 + Math.sin(time * 5) * 0.05);
-          let column = this.columns.y(px, 0, pz, 0, 0.75, 1.6, 0.75);
-          this.columns.colC(column, color, 0.35);
-          let glow = this.sprites.bb(px, 0.4, pz, 2.2, basis);
-          this.sprites.colC(glow, color, 0.35);
-          if (Math.random() < dt * 14) {
-            let angle = Math.random() * TAU;
-            this.emit(
-              px + Math.cos(angle) * 1,
-              0.2,
-              pz + Math.sin(angle) * 1,
-              -Math.cos(angle) * 1.6,
-              0.8,
-              -Math.sin(angle) * 1.6,
-              0.5,
-              0.22,
-              color,
-              { drag: 0 },
-            );
-          }
-        }
-      // 2.5.0 C: Rift Storm (Void Core): the spots the portals jump to glow ahead of the jump — a
-      // shrinking ring in the portal colour and a faint line from the old spot
-      for (const portal of world.arena.portals) {
-        const next = portal.next;
-        if (!next) continue;
-        const k = clamp((portal.moveIn || 0) / 1.6, 0, 1),
-          blink = 0.45 + (Math.floor(time * 10) % 2) * 0.35;
-        for (const [x, y, ox, oy, col] of [
-          [next.ax, next.ay, portal.ax, portal.ay, hexColor(16732120)],
-          [next.bx, next.by, portal.bx, portal.by, hexColor(8386303)],
-        ]) {
-          const ring = this.ringPool.y(x, 0.06, y, time * 3, 1.05 + k * 1.3);
-          this.ringPool.colC(ring, col, blink);
-          const inner = this.ringPool.y(x, 0.05, y, -time * 2, 0.6);
-          this.ringPool.colC(inner, col, 0.5);
-          const disc = this.discs.y(x, 0.03, y, 0, 1.05);
-          this.discs.colC(disc, col, 0.12 + (1 - k) * 0.2);
-          const line = this.beams.seg(ox, oy, x, y, 0.08, 0.05, 0.05);
-          this.beams.colC(line, col, 0.18 + (1 - k) * 0.2);
+      // 3.8.0: the hazards have models of their own (render/hazards-view.js)
+      try {
+        this.hazardView.update(dt, world);
+      } catch (err) {
+        if (!this.rlHazardErr) {
+          logError("hazards", err);
+          this.rlHazardErr = true;
         }
       }
     }
@@ -2549,11 +2378,10 @@ const MAX_PARTICLES = 1400,
       let dist = (0.75 - origin.y) / dir.y;
       return { x: origin.x + dir.x * dist, y: origin.z + dir.z * dist };
     }
-    setAccess(contrast, reduceFlash) {
+    setAccess(contrast) {
       this.contrast = !!contrast;
       warnColor.setHex(contrast ? 16773226 : 16728160);
       beamColor.setHex(contrast ? 16765498 : 16732064);
-      this.flashK = reduceFlash ? 0.35 : 1;
     }
     resetCamera() {
       this.camInit = false;

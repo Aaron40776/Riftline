@@ -182,7 +182,6 @@ h2 { font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; }
 @keyframes novaPulse { 50% { box-shadow: 0 0 34px rgba(197, 139, 255, 0.95); } }
 /* 3.0.0: GADGET (grenade) sits left of NOVA in one row above DASH; orange like the grenade's damage colour. */
 .act-row { display: flex; align-items: center; gap: 12px; }
-#hud.swap .act-row { flex-direction: row-reverse; }
 .act-btn.gadget { width: 60px; height: 60px; color: #ffb347; border-color: rgba(255, 179, 71, 0.55); }
 .act-btn.gadget .gico { position: relative; z-index: 2; width: 26px; height: 26px; margin-top: -6px; }
 .act-btn.gadget .ring { position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(rgba(255, 179, 71, 0.8) var(--q, 100%), rgba(255, 255, 255, 0.07) 0); -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%); }
@@ -196,8 +195,6 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .act-btn.gadget.deny { animation: deny 0.28s ease-out; }
 @keyframes gadgetPop { 0% { box-shadow: 0 0 0 0 rgba(255, 179, 71, 0.9); transform: scale(1.1); } 100% { box-shadow: 0 0 0 16px rgba(255, 179, 71, 0); transform: none; } }
 .act-btn:active { transform: scale(0.94); }
-#hud.swap .act { right: auto; left: calc(var(--sl) + 14px); align-items: flex-start; }
-#hud.swap .act-btn.nova { margin-right: 0; margin-left: 34px; }
 /* The button layout of the player (ui/hud-layout.js). Every control sits at its own point of the safe area
    (--hx, --hy from 0 to 1) and has its own size (--hk, times its default size); the boxes around them dissolve, and the
    pause button leaves its room in the top bar so that the shard counter stays where it is. */
@@ -717,10 +714,8 @@ body.device-phone.is-landscape #hud .act {
   bottom: calc(var(--sb) + 10px);
   gap: 9px;
 }
-body.device-phone.is-landscape #hud.swap .act { left: calc(var(--sl) + 10px); }
 body.device-phone.is-landscape #hud .act-btn { width: 58px; height: 58px; }
 body.device-phone.is-landscape #hud .act-btn.nova { width: 50px; height: 50px; margin-right: 24px; }
-body.device-phone.is-landscape #hud.swap .act-btn.nova { margin-left: 24px; }
 body.device-phone.is-landscape #hud .act-btn.gadget { width: 50px; height: 50px; }
 body.device-phone.is-landscape #hud .act-row { gap: 9px; }
 body.device-phone.is-landscape #hud .act-btn.gadget .gico { width: 22px; height: 22px; margin-top: -5px; }
@@ -1599,7 +1594,6 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
       <div class="set-group">
         <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest enemy while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
         <label class="set-row"><span><b>Aim assist</b><small>Nudges your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
-        <label class="set-row"><span><b>Left-handed</b><small>Move on the right, aim and dash on the left.</small></span><input type="checkbox" id="setSwap" class="toggle"></label>
         <div class="set-row"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the buttons and the sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
       </div>
       <h3 class="section-h">Display</h3>
@@ -1613,7 +1607,6 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
         <label class="set-row"><span><b>Clear warnings</b><small>Danger zones and lasers in bright yellow with a second ring — easier to tell apart from enemies.</small></span><input type="checkbox" id="setContrast" class="toggle"></label>
         <label class="set-row"><span><b>Run timer</b><small>Shows the run time in the corner while you play.</small></span><input type="checkbox" id="setTimer" class="toggle"></label>
         <label class="set-row"><span><b>FPS counter</b><small>Shows the frame rate in the corner while you play.</small></span><input type="checkbox" id="setFps" class="toggle"></label>
-        <label class="set-row"><span><b>Reduce flashes</b><small>Softer light bursts, no red screen pulse when hit.</small></span><input type="checkbox" id="setCalm" class="toggle"></label>
       </div>
       <h3 class="section-h">Tutorial</h3>
       <div class="set-group">

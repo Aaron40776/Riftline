@@ -17,7 +17,6 @@ const Input = class {
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, down: false, active: false, t: 0 };
     this.pending = { dash: false, nova: false, gadget: false };
-    this.swap = false;
     this.R = 56;
     // the stick size of the player (times the default radius) and, with a fixed move stick, where it sits
     // (a function that returns its centre in px, see ui/hud-layout.js; null: the stick starts where the thumb does)
@@ -63,9 +62,8 @@ const Input = class {
   }
   zoneIsMove(x) {
     let rect = this.layer.getBoundingClientRect(),
-      middle = rect.left + (rect.width || this.layer.clientWidth || window.innerWidth) * 0.5,
-      left = x < middle;
-    return this.swap ? !left : left;
+      middle = rect.left + (rect.width || this.layer.clientWidth || window.innerWidth) * 0.5;
+    return x < middle;
   }
   down(ev) {
     RL_RT.pointerdown++;

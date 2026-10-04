@@ -2,6 +2,17 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.8.0",
+    title: "Hazards you can see",
+    items: [
+      "Lava vents are craters of basalt with moving lava; they swell before they erupt in a pillar of fire.",
+      "Live manholes have iron covers that rattle and leak light before they arc in jagged bolts.",
+      "Ice sheets show frost, cracks and shards of ice; acid pools bubble behind banks of mud.",
+      "Portals are swirls with rune stones floating around them.",
+      "The Left-handed and Reduce flashes settings are gone.",
+    ],
+  },
+  {
     version: "3.7.1",
     title: "Fixes",
     items: [

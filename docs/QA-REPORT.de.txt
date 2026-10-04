@@ -1,3 +1,81 @@
+RIFTLINE v3.8.0 – THE MAP HAZARDS HAVE MODELS OF THEIR OWN
+Base: v3.7.1 · Build r380a1003a-r1 · 03.10.2026
+
+Requested: "the fire pillars, ice areas, manholes etc. are all just colored circles, maybe make them prettier". Second
+of the three PRs of the checkup (see ROADMAP.de.md). Also requested while it was being tested: "just fully remove that
+left handed and reduce flash thing" (section 3).
+
+1) Finding
+   - drawFeatures (render/renderer.js) drew every hazard with the effect pools: a disc and a ring per vent, ice sheet,
+     acid pool and portal end, a glowing tube (the column texture) for an erupting lava vent, three thin flickering
+     columns for an arcing manhole. Close-ups of every biome confirmed it.
+
+2) New: render/hazards-view.js (HazardView, drawn instead of drawFeatures)
+   - Like the traps: each part is one instance pool (built the first time it is needed), the body Lambert with vertex
+     colours, the glowing parts unlit with their brightness in the instance colour; the surfaces are shaders on a flat
+     disc (instance colour: level, seed, switch), animated by the time of the renderer.
+   - Lava vent (Ember Works): basalt crater (a sloped bank and eleven rocks, hot cracks running out of it), a lava
+     surface with a drifting crust whose seams widen with the heat (colours in linear space: a near-black crust,
+     orange to yellow melt); while it warns a dome of lava swells and trembles, the warning ring lights up and lava
+     drops jump; it erupts as a pillar of fire (a flame shader on an open tube, an outer and a hotter inner pillar
+     turning against each other, additive) with lava thrown up around it.
+   - Live manhole (Blackout City): an iron cover with a raised grid, six bolts and two pick holes in a concrete
+     collar; it hums faintly with a dim light under the cover, rattles and leaks a cold light while it charges, lifts
+     and tilts while it arcs; the arcs are three jagged bolts of five segments each that change every few frames.
+   - Ice sheet (Cryo Vault): a frozen sheet with frost streaks, fine branching cracks on two scales, facets, a deeper
+     blue towards the middle, a bright rim and glints; the floor shows through; ice shards (seven or more, from the
+     seed of the sheet) lean out of the rim, each drawn on its own so it keeps its shape on a big sheet.
+   - Acid pool (Toxin Marsh): murky liquid with slow ripples, bubbles that rise and pop (in the shader and three
+     small spheres per pool), foam at the edge; cyan for the player's Acid Coating; the pools of the map have a bank
+     of mud lumps and dead reeds, the short-lived splashes of traps and bosses fade and shrink.
+   - Portal (Void Core): spiral arms that turn into a dark core with a bright rim (magenta or blue end), five rune
+     stones floating around the mouth; the Rift Storm marks of the next spots stay as they were.
+   - Warnings: the vents keep a ring at the edge of the danger that lights up while they warn and stays bright while
+     they erupt (the warning colour with Clear warnings). Ice and acid keep a faint ring at their edge.
+   - First drafts looked at and corrected: the crust of the lava was light brown (the heat dimmed the whole crust
+     instead of widening the seams), the fire pillar burnt white, the bank of the crater was a black ring, the ice
+     sheet looked like the floor and its shards like needles, the rings at the edges were too heavy.
+
+3) Left-handed and Reduce flashes removed
+   - Settings: both rows are gone. Left-handed (setting swap) mirrored the touch halves, the action buttons and the
+     fixed move stick of the button layout; the editor checked every layout for both hands. Now the move side is
+     always the left one: Input, the overlay hints, the tutorial texts, hud-layout.js (no mirroring, one check
+     instead of two) and the CSS of #hud.swap were simplified. Reduce flashes (setting calm) softened the light
+     bursts of blasts and muzzles and turned off the red pulse when hit: renderer.flashK and ui.calm are gone.
+   - Saves: only the known settings are kept on load, so a save with swap or calm simply drops them (the old saves
+     in tests/fixtures still have them and load as before).
+   - Tests: the settings checks of the full QA no longer toggle swap and calm (a new check: neither setting nor row
+     exists), the import check uses Clear warnings and the music volume, the check "left-handed mirrors the action
+     buttons" is gone.
+
+4) Tests
+   - New deep-test part (v380): in every biome its hazards are drawn (lava and crater, collar and cover, ice and
+     shards, acid with bank and bubbles, swirl and stones), an erupting vent draws its fire pillar or its bolts, and
+     an old save with swap and calm loads without them.
+   - The deep test failed once with "strikes too similar: tsMine / boom (0.39)" (the limit is 0.4), then passed three
+     times in a row: the sounds vary their pitch and noise at random, and the reverb of Chrome renders its tail on
+     another thread. The comparison of the sound groups is now seeded and dry (renderOffline: spec.seed, spec.room);
+     two runs give the same distances (tsMine / boom 0.51). Neither sound was changed.
+   - Determinism unchanged (15/15): only the picture changes.
+
+5) Results 3.8.0 (headless Chromium, software WebGL)
+   - npm test: green (build, deep test with v380, full-qa files, data audit, determinism 15/15; the reference was
+     rewritten once for the data table of the default settings, which lost swap and calm; every simulation is
+     unchanged).
+   - Full QA: all 431 checks passed (fewer than before: the toggles and the mirror check of the two removed settings
+     are gone, one new check that they no longer exist).
+   - E2E: 170 checks, 0 failures on all five devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     2444 events in 37 kinds, all consumed.
+   - Screens and biome pictures PC/phone/landscape: no page errors. Looked at: the close-ups of every hazard (idle,
+     warning, eruption; own script with the simulation frozen at the moment), Ember Works on the phone (craters,
+     an eruption beside the drone), Toxin Marsh on the PC (acid pools with banks, bubbles and foam).
+   - Format check: ok.
+
+6) Open doubts
+   - Looked at in screenshots only (software rendering): the frame rate with the new shaders on a weak phone, and
+     whether the lava and the ice read well on a small screen in a full fight.
+
 RIFTLINE v3.7.1 – CHECKUP: BUG HUNT AND FIXES
 Base: v3.7.0 · Build r371a1003a-r1 · 03.10.2026
 
