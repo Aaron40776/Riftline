@@ -56,8 +56,11 @@ npm install          # esbuild, playwright, prettier (browsers are preinstalled 
 npm run build        # -> dist/ (the deployable site)
 npm run dev          # build unminified, rebuild on change, serve http://localhost:8124
 npm run serve        # serve dist/ on http://localhost:8124
-npm test             # build + deep self-test + file/PWA contract + data audit + determinism (~1.5 min, also in CI)
-npm run qa           # full QA: saves, settings, workshop, runs on PC and phone, layout, buttons (~10 min)
+npm test             # build + deep self-test + file/PWA contract + data audit + determinism (~2-6 min, also in CI)
+npm run check        # quick check while developing: format + the npm test steps (~2 min with cached sound
+                     # results); name full-QA sections to add them: npm run check -- run-desktop codex
+npm run release-check  # everything a release needs, one step after another, with a time per step (~41-45 min)
+npm run qa           # full QA: saves, settings, workshop, runs on PC and phone, layout, buttons (~17 min)
 npm run e2e          # end-to-end with real pointer/touch input on 5 device sizes
 npm run audit        # world audit (routes, walls, spawns), data audit, bot run to wave 22 + post-run audit
 npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
@@ -68,8 +71,14 @@ npm run screens      # screenshot of every screen and every biome on PC, phone a
 
 Single test scripts run with `node tools/qa.js <script> [args]`. It serves `dist/` on a free port and
 passes the URL to the script, for example `node tools/qa.js full-qa run-desktop` runs one section
-of the full QA. Before a release run
-`npm run qa`, `npm run e2e`, `npm run audit` and `npm run screens`, then look at the screenshots.
+of the full QA (`QA_TIMES=1` prints the seconds each check took). Before a release run `npm run release-check`
+(it runs `npm test`, `npm run qa`, `npm run e2e`, `npm run audit` and `npm run screens` once each), then look at the
+screenshots.
+
+The browser tests run the game in software WebGL at a few frames per second, so they never run in parallel (each
+browser takes every core) and waits that depend on the game count game time (`tests/lib/wait.mjs`), not real time.
+The deep test reuses its sound results while the sound engine's files are unchanged
+(`node_modules/.cache/riftline/`); CI and `node tools/qa.js deep-test --full` render every sound again.
 
 ## Project structure
 

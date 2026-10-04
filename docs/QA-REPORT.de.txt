@@ -80,10 +80,47 @@ ROADMAP.de.md: 3.10.0 visuals, 3.11.0 soundscapes, 3.12.0 music).
      limit 0.4); the offline test renders all new voices (not silent, no clipping, every voice ends).
    - Determinism: unchanged (the boom event gained a field, the counts of the events are the same).
 
-6) Results 3.10.0 (headless Chromium, software WebGL)
-RESULTS_PLACEHOLDER
+6) Faster and steadier release checks (asked by the owner: "the tests and reports take 30 min to 1 h")
+   - The open QA failure of the first runs (run-desktop · boss kill → upgrade choice) was not caused by 3.10.0: the
+     same boss kill took 19.0 s (Ember Works) and 20.4 s (Cryo Vault) on main from the kill to the upgrade choice,
+     19.0 and 17.1 s on the branch, against a limit of 20 s, with no page errors on either. Under software WebGL the
+     game runs at about 2 fps and a frame advances at most 0.1 s of game time, so the 3.5 s cleared phase takes 15 to
+     35 s of real time. The E2E had the same kind of failure (W+D held for 1.2 s of real time moved the drone 0.85 m
+     of the 1 m it needs), and the HUD chips of Heat Sink and Slipstream were read 400 ms after they were set.
+   - Waits that depend on the game now count game time the way the main loop does (tests/lib/wait.mjs: the upgrade
+     choice after a clear, victory, game over, input held for a while), with a real-time cap against hangs; the HUD
+     chips are read after three frames.
+   - A section that threw left its page running and every later section timed out on page.goto (seen in an earlier
+     run); the QA now closes every page a section left open.
+   - Less waiting: sections that only need the upgrade choice reach it by running the world logic in one go
+     (visual 204 → 56 s, qol 54 → 35 s, codex-desktop 87 → 57 s); the run sections and the E2E keep the real clear
+     (the transition is what they test). The workshop check waits for each purchase instead of 300/900 ms per tap
+     (ui-desktop 97 → 81 s, ui-phone 111 → 66 s). No check was dropped or loosened.
+   - The deep test's sound checks (about 205 s) reuse their last passing result while the files the sound engine
+     imports, the deep test and the lockfile are unchanged (node_modules/.cache/riftline/); CI and --full render
+     everything. The deep test prints the time of each part, the QA the time of each check with QA_TIMES=1.
+   - npm run check (quick, while developing: format, build, deep test, files, data audit, determinism, plus any QA
+     sections named) and npm run release-check (the whole chain once, built once, a time per step).
+   - Measured on the same machine: the chain before 51 min (npm test 5.6, QA 22.7, E2E 7.1, audit 3.0, screens
+     12.9 min, with one E2E failure); now 44 min 26 s with every sound rendered again (deep test 4:38, QA 16:58,
+     E2E 7:03, audits 2:59, screens 12:24), about 41 min with the sound cache; npm run check 2 min 04 s (npm test
+     was 5.6 min). The rest is the game itself rendering in software; the portrait sections that go with landscape
+     only (3.11.0) are about 9 minutes more.
 
-7) Open doubts
+7) Results 3.10.0 (headless Chromium, software WebGL; npm run release-check --full)
+   - npm test steps: green (build, deep test with v3100 and every sound rendered again, full-qa files, data audit,
+     determinism 15/15 unchanged).
+   - Sounds: the closest strikes stay tsMine / boom (0.51, limit 0.4); weapons rail / rocket 0.88; music 10 tracks,
+     30 budgets, no failure (the calm works / void doubt of an earlier run did not come back).
+   - Full QA: all 432 checks passed.
+   - E2E: 170 checks, 0 failures on all five devices.
+   - Audit: world (240 waves, 20903 spawns, 48 bosses) and data without findings; bot run: victory at wave 20, Endless
+     to wave 22, no runtime errors, 3016 events in 42 kinds, all consumed.
+   - Screens, biome pictures PC/phone/landscape and the attack pictures on PC: no page errors. Looked at: the
+     Ember Works blasts (pillars of fire, molten pools, slag), the upgrade choice on PC.
+   - Format check: ok.
+
+8) Open doubts
    - Only seen in software rendering and measured, not heard: whether the surfaces read well on a phone in a busy fight
      (the warning ring is unchanged, so the danger stays readable), and whether the blasts sound good.
 

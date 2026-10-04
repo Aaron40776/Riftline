@@ -113,79 +113,48 @@ Plan:
    frog croaks in time and a wobbling drone; Void Core glass, choir, reversed swells, glitches); the boss tracks take
    the place sounds into their drums; the ambience thins out where the music already carries a sound; MP3 previews of
    all ten tracks before the merge.
-4. Then the boss rewards (3.13.0), the walker.
+4. Then the boss rewards, the walker. (Renumbered on 04.10.2026: the owner's later requests come first, as 3.11.0
+   landscape only and 3.12.0 the Singularity, so the soundscapes become 3.13.0 and the music 3.14.0.)
 
-### HANDOFF (04.10.2026, the owner paused the work; read this first when the work goes on)
+### HANDOFF (night of 04/05.10.2026; read this first when the work goes on)
 
-**Where everything is.** Branch `claude/attack-looks-3100` (pushed, working tree clean, no PR yet, `main` untouched).
-It holds 3.10.0 as work in progress (commit "WIP 3.10.0") and this roadmap. A new session must check out that branch
-(`git fetch origin claude/attack-looks-3100 && git checkout claude/attack-looks-3100`), run `npm install`, and not
-start from `main`, where none of this exists. Never push to `main`; open the PR against `main` and let the owner merge.
-Everything is written in English, times in German time (CET/CEST). The owner said "stop for now": do not continue
-without being asked; the owner pastes a short "continue" message.
+**State.** 3.10.0 is finished on branch `claude/attack-looks-3100` (PR against `main`, not merged yet): the attack
+looks and sounds, plus the faster and steadier release checks the owner asked for (QA report 3.10.0, points 6 and 7:
+release-check green, 432 QA checks, 170 E2E checks, no page errors). The open QA failure of the first runs was a
+timing flake under software WebGL that main had too; the waits that depend on the game now count game time.
 
-**What 3.10.0 contains** (details: top section of `docs/QA-REPORT.de.txt`, whose results block, `RESULTS_PLACEHOLDER`
-in point 6, still has to be filled in):
-- `src/render/attacks-view.js` (new): zone shader with eight looks (crack, lava crack, molten, frost, acid, rift,
-  target, burn) for every `world.hazards` zone, chosen by `lookOf(kind, src, biome)`; models for mines, sapper charges
-  and mortar shells; blasts per look (`impact`), ice spikes, pillars of fire and bolts of light; marks of the place
-  (replace the old black scorch blob; baked once per biome into an atlas render target, `bakeMarks`); enemy shots by
-  kind (`shots`). `render/hazards-view.js` exports `SURF_VERT`/`SURF_LIB` for it.
-- `render/renderer.js` uses it (old scorch pool, enemy-shot loop and hazard loop removed); `core/world.js`: the
-  `boom` event carries `src`.
-- `audio/sound.js`: voices `aQuake`, `aLava`, `aIce`, `aAcid`, `aRift`, `aFire`, `attackVoice()`, routed in the `boom`
-  case of `consume`; levels near the old boom; the quake was reshaped twice to stay far from `tsMine`/`nova`/`boom`
-  in the sound-similarity test.
-- `core/selftest.js` part `selfTestV3100` (v3100), `tests/deep-test.mjs` reports it and compares the new blasts,
-  `tests/attack-shots.mjs` (new screenshots of every attack, also in `npm run screens`).
-- Release files done: version 3.10.0 / build `r3100a1004a-r1` (`build.js` now accepts four version digits),
-  `package-lock.json`, `src/data/whatsnew.js`, `src/build-info.json`, README, roadmap, QA report (results missing).
+**Order agreed with the owner for the night (04.10.2026), one PR each, stacked because nothing is merged overnight**
+(each later branch starts from the earlier one, each PR targets the earlier branch and says "stacked on #N, merge in
+order"; after a merge and a deleted branch GitHub retargets the next PR to main):
+1. 3.10.0 with the faster tests (done, see above).
+2. 3.11.0 Landscape only: phones open and stay in landscape (manifest orientation landscape, screen.orientation.lock
+   where the browser allows it, a "rotate your phone" screen that pauses a run in portrait; iPhone Safari and browser
+   tabs cannot be locked); the portrait layouts, the portrait layout of the button editor and the portrait tests go
+   (about 9 minutes less in the release checks). PC unchanged.
+3. 3.12.0 The Singularity replaces the grenade: thrown fast and far (to the aim or the biggest group within about
+   14 m), it opens a small rift that pulls enemies together for about 1.5 s, then collapses in a blast. Its own model
+   (a spinning core with a ring), a swirling rift mark on the ground as the warning, a rising pull and a collapse as the
+   sound; the three cards keep their ids (gcells, gblast, gfire) with new effects (more charges and faster recharge;
+   bigger pull and blast; burning ground), so saves stay valid.
+4. If usage is left: the repository cleanup the owner asked for (README as the landing page with the Play link,
+   stale information, docs, .github), without deleting this roadmap or the QA report (CLAUDE.md needs them).
+5. Then the roadmap below in its order: 3.13.0 soundscapes, 3.14.0 music of the place, boss rewards, the walker.
 
-**What is open before the PR (in this order):**
-1. **Full QA fails at `run-desktop · boss kill → upgrade choice`** (the upgrade screen did not appear within 20 s after
-   the boss was cleared). Run 1 (before the mark atlas): only this check failed. Run 2 (after the atlas): the same one,
-   then "victory" showed the title SIGNAL LOST (a defeat) instead of RIFT SEALED, `world` became null
-   (`Cannot set properties of null (setting 'god')`) and every later section timed out on `page.goto` after exactly 30 s
-   (a cascade: the failed section leaves its page running in software GL at ~300 % CPU; every section after
-   `run-desktop` in the log took 30 s). E2E failed once at `choose screen after wave clear` (15 s wait) before the atlas;
-   its last run was killed by hand, so it is invalid. `npm test` (deep test, files, data audit, determinism 15/15),
-   `npm run audit` (no page errors) and `npm run screens` were green on the final build.
-   - Nothing proves the change is the cause. A boss repro in all four boss biomes (waves 5/10/15/20, 12 s each, then
-     clear, wait for the choose screen) gave no page errors and the choose screen every time; software GL runs at
-     2 to 6 fps, so a 15/20 s wait is tight, and the frame after a big clear costs 1.2 s on both `main` and the branch
-     (measured with a forced sync: base 334 ms vs 332 ms, with 24 marks 496 vs 497 ms).
-   - Do first: build `main` in a worktree (`git worktree add <dir> b228930`, `ln -s` the `node_modules`, `node build.js`)
-     and run the same section there (`node tools/qa.js full-qa run-desktop`) to see whether it is flaky on `main` too.
-     Then run it on the branch alone, nothing else running at the same time. If it fails only on the branch: log
-     `pageerror` and `console` errors in that section and look at what `renderer.consume`/`frame` do on the boss-kill
-     frame (an exception there skips `ui.showChoose` in `main.js` around lines 849 to 870). Do not just raise the
-     timeouts unless the cause is proven to be the slow renderer.
-   - Also consider making the QA runner close a page when its section throws (the cascade above).
-2. Run `npm test`, `npm run qa`, `npm run e2e`, `npm run audit`, `npm run screens` one after another and never anything
-   else in parallel (parallel browsers starve each other under software GL and cause false failures). Look at the
-   screenshots in `tests/shots/` (the attack shots are in `tests/shots/attacks-pc/`).
-3. Fill `RESULTS_PLACEHOLDER` in the QA report (like the earlier releases: results per step, counts), commit, push, open
-   the PR against `main` (check for a PR template, end the description with the attribution lines of the session), ask
-   the owner whether to watch it. Send the owner the MP3 of the new blasts again only if the sounds change.
-4. One music-similarity check (`calm works / void: too similar`) failed once in the deep test and passed in other runs;
-   music was not touched. If it comes back, it is borderline and unrelated to 3.10.0; report it, do not hide it.
+Usage rules of the owner: stop at a clean point at about 90 % of the 5-hour window and go on after its reset; stop and
+report at about 85 % of the weekly limit. Before every PR: code review of the diff, the full release check, a look at
+the screenshots, no new page errors or audit warnings, determinism unchanged unless the change means it.
 
-**After 3.10.0 is merged**, in this order (details above and below in this file): the owner's later requests (grenade
-replacement, landscape only, faster tests; plan these with the owner first, they are not designed yet), then 3.11.0
-soundscapes, 3.12.0 music of the place, then the boss rewards (3.13.0) and the walker.
-
-**Notes for the faster-tests request.** Measured on 04.10.2026 (software GL, one run): `npm test` is about 12 minutes
-of which the determinism part is 51 s and the deep test about a minute plus the offline renders of 254 sounds; the
-full QA is the biggest part (sections: saves 53 s, workshop-merge 50 s, ui-desktop 95 s, ui-phone 117 s, run-desktop
-152 s, visual 78 s, then about 20 sections of about 30 s each, most of them one page load plus a few checks); E2E runs
-five device sizes; `npm run screens` renders six profiles. Ideas to check: run independent sections in parallel with
-separate browsers (only if the machine has the cores; software GL uses them all), one shared browser per section group,
-a quick `npm run check` (format, build, deep test, the section of the touched area) for development with the full chain
-only before a release, skipping the portrait sections once portrait is gone, and a per-section timer in the runner.
+**Notes for the tests.** `npm run check` while developing (about 2 minutes), `npm run release-check` before a
+release (about 41 to 44 minutes). Never run two browser tests at once (software WebGL takes every core). Waits that
+depend on the game use `tests/lib/wait.mjs` (game time), never a fixed real-time limit. The slowest parts left are the
+real transitions (run-desktop 146 s, the E2E with five devices 7 min) and the screenshots (12 min); what is left is
+the game rendering in software. Ideas not done: one browser shared by several sections, fewer device sizes once
+portrait is gone.
 
 ## Requested on 04.10.2026 (later the same day): next ideas of the owner
 
-Not started; to be planned with the owner when the work goes on (after 3.10.0 is finished):
+Planned with the owner on 04.10.2026 (the order and the designs are in the HANDOFF above; faster tests done in
+3.10.0):
 - **Replace the grenade**: "the current grenades just aren't useful, you gotta get so close until they actually fly
   into the enemies that you'll basically always have defeated them already". Make it another, cooler mechanic that
   fits the game (with model, sound, telegraph and tests, like everything else).

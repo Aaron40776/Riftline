@@ -27,8 +27,9 @@ README.md explains build, commands, project structure and hosting. Read it first
 - A release also adds a short player-facing entry at the top of `src/data/whatsnew.js` (the What's new tab; the
   first entry must match the version, the QA checks it), its changes at the top of `changes` in `src/build-info.json` and a new
   section at the top of `docs/QA-REPORT.de.txt` (same layout as the earlier ones).
-- Run `npm test` before every commit. Before a release also run `npm run qa`, `npm run e2e`,
-  `npm run audit` and `npm run screens`, and look at the screenshots.
+- Run `npm test` before every commit (`npm run check` runs the same steps plus the format check, quicker with its
+  sound cache). Before a release also run `npm run qa`, `npm run e2e`, `npm run audit` and `npm run screens`
+  (`npm run release-check` runs all of it in order), and look at the screenshots.
 - All changes go through pull requests: work on a branch, open a PR against `main`, and let the
   owner merge it. Never push to `main` directly.
 - A push to `main` deploys the game to GitHub Pages. Other branches and pull requests only run
