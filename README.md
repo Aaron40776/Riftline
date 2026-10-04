@@ -1,14 +1,41 @@
-# Riftline
+<p align="center"><img src="public/icon-192.png" width="96" height="96" alt=""></p>
 
-A 3D arena roguelite shooter. You pilot a small combat drone through 20 waves of the rift, pick
-one upgrade after every wave and fight a boss every fifth wave, the boss of the biome you are in.
-After each boss the rift moves on to the next biome. After the Rift Core at wave 20 you can keep
-going in Endless mode. Shards from every run, won or lost, buy permanent modules in the Workshop.
+<h1 align="center">Riftline</h1>
 
-The game runs in the browser (desktop, and phones and tablets in landscape) and installs as an offline-capable PWA. It is
-built with three.js and plain JavaScript. There is no framework.
+<p align="center"><b>A 3D arena roguelite shooter that runs in your browser.</b><br>
+Pilot a small combat drone through 20 waves of the rift, five biomes and five bosses, then keep going in Endless.</p>
 
-**Play:** <https://aaron40776.github.io/Riftline/> (GitHub Pages, rebuilt on every push to `main`). Locally: `npm install && npm run dev`, then open <http://localhost:8124/>.
+<p align="center"><a href="https://aaron40776.github.io/Riftline/"><b>▶&nbsp;&nbsp;Play Riftline</b></a><br>
+<sub>Desktop, and phones and tablets in landscape · installs as an offline app · free, no account</sub></p>
+
+<p align="center">
+<a href="https://github.com/Aaron40776/Riftline/actions/workflows/pages.yml"><img src="https://github.com/Aaron40776/Riftline/actions/workflows/pages.yml/badge.svg" alt="Deploy"></a>
+<a href="https://github.com/Aaron40776/Riftline/actions/workflows/test.yml"><img src="https://github.com/Aaron40776/Riftline/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
+</p>
+
+<p align="center"><img src="docs/media/void-core.jpg" width="860" alt="A fight in the Void Core: the drone among enemies, swirling portals and rune stones"></p>
+
+## What is Riftline?
+
+Every run is 20 waves. After each wave you pick one of three upgrades, every fifth wave brings the boss of the biome
+you are in, and after each boss the rift moves on to the next biome. Beat the Rift Core at wave 20 and the run can go
+on in Endless, which keeps getting harder. Shards from every run, won or lost, buy permanent modules in the Workshop.
+
+- **7 weapons** (Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher, Ember Jet) and **55
+  upgrades**, 13 of them evolutions.
+- **5 biomes with a boss each**: Blackout City, Ember Works, Cryo Vault, Toxin Marsh and Void Core, each with its own
+  floor, hazards, traps, enemy skins, events, music and sounds.
+- **25 enemy types and 5 bosses** with their own models and attacks that show and sound like what they are.
+- **The Singularity**: a gadget that pulls a crowd together, then collapses.
+- **Endless** with mutators, a **Workshop** of 18 modules, 47 milestones, a codex, and Threat I–V on top of Standard.
+- Everything you see and hear is made in code: low-poly models, WebAudio sounds and music, no image or audio files.
+
+| | |
+|:---:|:---:|
+| <img src="docs/media/ember-works-attacks.jpg" width="420" alt="Ember Works: the Crucible's lava blasts"> | <img src="docs/media/singularity.jpg" width="420" alt="The Singularity pulling a ring of enemies together"> |
+| Ember Works: lava wells up where the Crucible strikes | The Singularity pulls a crowd together |
+| <img src="docs/media/menu.jpg" width="420" alt="The main menu with weapon and threat choice"> | |
+| The menu: weapon, threat level, Workshop, Records | |
 
 ## Controls
 
@@ -18,167 +45,105 @@ built with three.js and plain JavaScript. There is no framework.
 | Aim and fire | hold the left mouse button (auto-fire shoots the nearest enemy otherwise) | drag on the right half |
 | Dash | `Space` or `Shift` | `DASH` button |
 | Nova | `E` (also `Q`, `F`) | `NOVA` button |
-| Singularity (pulls a crowd together, then collapses) | `G` | `GADGET` button (aimed with the aim stick) |
+| Singularity | `G` | `GADGET` button (aimed with the aim stick) |
 | Pause | `Esc` or `P` | pause button |
 | Pick an upgrade | `1`–`4`, `R` rerolls | tap a card |
 | Back in menus | `Esc` | back button |
 
-*Button layout* in Settings opens an editor over the HUD: drag DASH, NOVA, GADGET and the pause
-button to any free spot, resize each one, set the button opacity and the stick size, or pin the
-move stick to one spot. Phones and tablets play in landscape only: held upright they show a "turn your device"
-screen, and a run waits paused behind it.
+Keys are read by their position, so on AZERTY and other layouts the same physical keys move the drone. *Settings →
+Button layout* moves and resizes the touch buttons. Phones and tablets play in landscape only; held upright they
+show a "turn your device" screen and a run waits paused.
 
-Keys are read by their position, so on AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY)
-move the drone.
+## Running it locally
 
-## Content
-
-| | |
-|---|---|
-| Weapons | 7, unlocked with shards: Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher, Ember Jet |
-| Enemies | 25 types with their own models, plus biome champions; enemies and bosses wear a skin of the biome (lava veins, frost, slime, void glow) |
-| Look and sound | Procedural low-poly models with a silhouette of their own for the drone, 25 enemies and 5 bosses, animated per instance; all sounds and music are synthesised with WebAudio (no audio files); every biome has its own calm theme in the style of the Cryo Vault (no beat, a motif on its own instrument, a soft pad) over a soft atmosphere of its place (pink and brown noise and tones, no hiss; drops, crickets, embers and ice are notes of the theme) and a cinematic boss track carrying the same motif (taikos, staccato strings, brass, choir, arpeggios; one style per boss: cyberpunk chase, forge, ice trance, tribal acid, drum and bass) that starts when the boss appears; sounds are panned by where they happen and big blasts ring out in the room of the biome; the attacks of enemies and bosses show what they are (cracks, lava, frost, acid, rifts, turning targets, mines and shells with models; ice spikes, pillars of fire and bolts of light when they strike) and sound like it, and leave marks of the place; enemy shots have shapes of their kind; the hazards sound where they are (lava, manholes, ice, acid, portals) and every biome has rare far sounds of its own, with their own Ambience volume; Settings can preview the music |
-| Bosses | 5, one per biome: The Warden (Blackout City), The Crucible (Ember Works), Frost Prism (Cryo Vault), Hive Queen (Toxin Marsh), Rift Core (Void Core); a boss wave brings the boss of its biome, its hull follows the wave (5, 10, 15, 20) and grows by a quarter per boss before it (at most double); every later boss rests less between attacks; enraged, each boss adds its Overdrive attack (Warden: laser lockdown grid, Crucible: expanding lava rings, Prism: three-beam whiteout, Queen: acid plague, Core: collapse), and the Warden, Crucible and Prism call reinforcements of their biome |
-| Biomes | 5, one per boss cycle: waves 1–5 Blackout City, 6–15 two of Ember Works, Cryo Vault and Toxin Marsh in a seeded order, 16–20 Void Core, the third from wave 21 in Endless. Each has its own floor, props, border, particles, light, music, hazard and enemy mix: Blackout City (wet streets in a power cut, live manholes with iron covers that arc, armed gangs; the Neon Yard until 3.4.0), Ember Works (lava craters that erupt in pillars of fire, heavy enemies), Cryo Vault (slick floor and frozen sheets with ice shards, shielded/ranged enemies), Toxin Marsh (bubbling acid pools behind mud banks and fog, swarms), Void Core (swirling portals with rune stones over the abyss, teleporters). A new biome opens with a title card; each biome has one event per visit: Blackout (Blackout City: the lights die, the manholes arc in a chain), Meltdown (Ember Works), Whiteout (Cryo Vault), Spore Bloom (Toxin Marsh), Rift Storm (Void Core) |
-| Upgrades | 55, 13 of them evolutions; each does something of its own (2.5.0–2.8.0 folded the copies and weak ones into the originals and rebalanced them; 3.0.0 added three gadget cards) |
-| Singularity | the gadget on `G` (3.12.0, it replaced the grenade): two charges, about 6 s per charge, thrown fast and far where you aim or at the densest group in sight; opens a rift that pulls the enemies around it together for 1.5 s, then collapses in a blast with a short slow; cards Rift Cells, Event Horizon, Searing Collapse |
-| Traps | from wave 6 the arena fights back, with a skin per biome: floor strikes (electric plate, piston crusher, ice spikes, acid geyser, rift burst), sweeping beams (laser, flame jet, rift beam, from wave 9) and mines (from wave 12); all warn first, hurt you and, as a share of their hull, enemies; boss waves get floor traps from wave 15 on; many more and faster in Endless |
-| Difficulty beyond wave 20 | Endless hulls grow faster after wave 30, and from wave 40 an enemy can lose only a shrinking share of its hull within a quarter of a second, whatever lands (`core/difficulty.js`); from wave 21 every tenth wave adds an Endless mutator for the rest of the run (Volatile, Shielded, Hasted, Armored, Barrage, Trap Storm; then they level up, `core/mutators.js`) |
-| Workshop | 18 permanent modules, among them Starter Kit, Hazard Attunement and Emergency Shield |
-| Milestones | 47 with shard rewards |
-| Codex | in Records: every enemy, boss and upgrade you have seen |
-| Threat | Standard and Threat I–V |
-
-## Commands
+You need Node.js 22 (what CI uses) and npm.
 
 ```bash
-npm install          # esbuild, playwright, prettier (browsers are preinstalled in the cloud env,
-                     # elsewhere: npx playwright install chromium)
-npm run build        # -> dist/ (the deployable site)
-npm run dev          # build unminified, rebuild on change, serve http://localhost:8124
-npm run serve        # serve dist/ on http://localhost:8124
-npm test             # build + deep self-test + file/PWA contract + data audit + determinism (~2-6 min, also in CI)
-npm run check        # quick check while developing: format + the npm test steps (~2 min with cached sound
-                     # results); name full-QA sections to add them: npm run check -- run-desktop codex
-npm run release-check  # everything a release needs, one step after another, with a time per step (~41-45 min)
-npm run qa           # full QA: saves, settings, workshop, runs on PC and phone, layout, buttons (~15 min)
-npm run e2e          # end-to-end with real pointer/touch input on 4 device sizes
-npm run audit        # world audit (routes, walls, spawns), data audit, bot run to wave 22 + post-run audit
-npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
-npm run format       # Prettier over src/, tests/, tools/ (CI runs npm run format:check)
-npm run screens      # screenshot of every screen and every biome on PC and a landscape phone, and the
-                     # attacks of enemies and bosses in every biome -> tests/shots/
+git clone https://github.com/Aaron40776/Riftline.git
+cd Riftline
+npm install
+npm run dev          # builds, rebuilds on change and serves http://localhost:8124
 ```
 
-Single test scripts run with `node tools/qa.js <script> [args]`. It serves `dist/` on a free port and
-passes the URL to the script, for example `node tools/qa.js full-qa run-desktop` runs one section
-of the full QA (`QA_TIMES=1` prints the seconds each check took). Before a release run `npm run release-check`
-(it runs `npm test`, `npm run qa`, `npm run e2e`, `npm run audit` and `npm run screens` once each), then look at the
-screenshots.
+The browser tests drive the real game in Chromium through Playwright. Install the browser once with
+`npx playwright install chromium` (the cloud environment has it already).
+
+## Development
+
+```bash
+npm run build          # src/ -> dist/ (the deployable site)
+npm run serve          # serve dist/ on http://localhost:8124
+npm test               # build, deep self-test, file/PWA contract, data audit, determinism (CI runs this)
+npm run check          # quick check while developing: format + the npm test steps (~2 min with cached sounds);
+                       # full-QA sections can be added by name: npm run check -- run-desktop codex
+npm run release-check  # everything a release needs, one step after another, with a time per step (~35-45 min)
+npm run qa             # full QA: saves, settings, workshop, runs on PC and phone, layouts, buttons (~15 min)
+npm run e2e            # end-to-end with real pointer and touch input on 4 device sizes
+npm run audit          # world audit, data audit, a bot run to wave 22 with its post-run audit
+npm run screens        # screenshots of every screen, biome and attack -> tests/shots/
+npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
+npm run format         # Prettier (width 120); CI runs npm run format:check
+```
+
+Single test scripts run with `node tools/qa.js <script> [args]`; it serves `dist/` on a free port, for example
+`node tools/qa.js full-qa run-desktop` runs one section of the full QA (`QA_TIMES=1` prints the seconds per check).
 
 The browser tests run the game in software WebGL at a few frames per second, so they never run in parallel (each
-browser takes every core) and waits that depend on the game count game time (`tests/lib/wait.mjs`), not real time.
-The deep test reuses its sound results while the sound engine's files are unchanged
-(`node_modules/.cache/riftline/`); CI and `node tools/qa.js deep-test --full` render every sound again.
+browser takes every core), and waits that depend on the game count game time (`tests/lib/wait.mjs`), not real time.
+The deep test reuses its sound results while the sound engine is unchanged (`node_modules/.cache/riftline/`); CI and
+`node tools/qa.js deep-test --full` render every sound again.
+
+How the code is organised, its history and the rules for changing it: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Project structure
 
 ```
 src/
   main.js          entry point: boot, game controller, main loop, wiring
-  core/            simulation and services: world, arena, waves, AI, stats, traps, difficulty, save, diagnostics (runtime log and monitor), selftest (deep self-test), util
-  data/            tables: weapons, enemies, upgrades, progression (workshop, milestones, threat), biomes, whatsnew (the News tab)
-  render/          three.js renderer, models, biome visuals and skins, traps and hazards, 2D overlay
+  core/            simulation and services: world, arena, waves, AI, stats, traps, difficulty, save,
+                   diagnostics (runtime log and monitor), selftest (deep self-test), util
+  data/            tables: weapons, enemies, upgrades, progression, biomes, whatsnew (the News tab)
+  render/          three.js renderer, models, biome visuals, traps, hazards and attacks, 2D overlay
   audio/           sound effects, music and the sounds of the place
   ui/              DOM UI (screens, HUD, dialogs), input and the button layout editor
-  index.html       page shell, all CSS, device detection, layout audit
+  index.html       page shell, all CSS, device detection, rotate screen, layout audit
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)
 public/            icons, fonts, web manifest, third-party licenses (copied to dist/ unchanged)
-tests/             browser test scripts (Playwright) and real old saves for migration tests
-tools/             build helpers: static server, test runner, sim summary
-docs/              QA reports of every release (German until 3.7.0, English since 3.7.1) and the roadmap
+tests/             browser tests (Playwright), shared helpers in tests/lib, fixtures with real old saves
+tools/             test runner and check chains, static server, sim summary
+docs/              development notes, roadmap, QA report of every release, README pictures
 build.js           src/ -> dist/
-CLAUDE.md          short working rules for Claude Code sessions in this repository
+CLAUDE.md          working rules for Claude Code sessions in this repository
 ```
 
-### About the game code
+## Build and deployment
 
-Riftline was released as one minified bundle (game code and three.js, built with esbuild) and then
-patched by hand for several releases. The module sources the bundle was built from are not part of
-the release, so the code was turned back into readable sources step by step:
+Every push to `main` runs `.github/workflows/pages.yml`: it installs, runs `npm test` (which builds) and publishes
+`dist/` on GitHub Pages at <https://aaron40776.github.io/Riftline/>. Pull requests and other branches run the format
+check and the same tests without deploying (`.github/workflows/test.yml`).
 
-- 2.4.3: three.js comes from npm (`three`, pinned to 0.186.0 / r186). Each module imports the
-  classes it needs by their three.js names (`import { BoxGeometry, Mesh } from "three"`). Updating
-  three.js means changing the version in `package.json`, running `npm install` and the full release
-  checks.
-- 2.4.4: the game code is split into ES modules under `src/`. `build.js` bundles `src/main.js`,
-  everything it imports and three.js into one minified file.
-- 2.4.5: readable top-level names: `game` (controller), `ui` (instance of `GameUI`), `store`
-  (`SaveStore`), `renderer` (`Renderer`), `input` (`Input`), `sound` (`SoundEngine`), `World`
-  (simulation), `weaponDefs`, `enemyDefs`, `bossDefs`, `upgradeList`/`upgradesById`,
-  `workshopModules`, `milestones`, `threatLevels`, `biomeList`/`biomesById`, `computeStats`,
-  `planWave`, `updateEnemy`, `buildLayout` … The imports at the top of each file say where a name
-  comes from.
-- 2.5.1: the patches of the content packs and later fixes (methods wrapped from outside, up to
-  eight times) are folded into the classes and functions, so every method is in one place; local
-  variables have readable names; the syntax tricks of the minifier (`!0`, comma chains,
-  `a && f()` as a statement …) are plain statements; the self-tests have their own module
-  (`core/selftest.js`); `window.__riftTest` uses the real names; Prettier (`.prettierrc`, width
-  120) formats everything and CI checks it.
+`dist/` is a static site that works in any sub-path. The service worker caches only files of its own folder and
+removes old `riftline-*` caches on update. A new version is downloaded in the background and applied when no run is
+going on, so a run is never interrupted. The game file carries the version in its name, and the service worker
+fetches `index.html` and `build-info.json` with `no-store`, so the 10-minute cache of GitHub Pages does no harm.
 
-Working rules:
+Saves live in `localStorage` under `riftline.*`. Riftdeck (<https://aaron40776.github.io/Riftdeck/>), a deckbuilder
+in the same universe, runs on the same origin and only uses `riftdeck.*`, so the two games never touch each other's
+data.
 
-- Every file starts with a comment that says what it contains. `main.js` imports every module.
-- Change classes and functions directly, in the module that owns them; nothing is patched from
-  outside. Keep a version comment (`// 2.5.1: …`) only where it explains why code looks the way
-  it does.
-- An imported binding cannot be assigned. Where one module sets a variable of another, the
-  owning module exports a setter (`set_RL_RETIRE_NOTE(v)`).
-- `tests/determinism.mjs` runs fixed-seed simulations, stat computations, arena layouts and wave
-  plans and compares them with `tests/fixtures/determinism.json`. A refactor must pass it
-  unchanged. Only a change that is meant to alter game behaviour updates the file
-  (`node tools/qa.js determinism --update`), in the same commit.
-- `window.__riftTest` (end of `main.js`) exposes the game, UI, store, renderer and data tables for
-  the tests.
-- `npm run format` formats the code; `npm run format:check` is what CI runs.
+## Docs
 
-### Versions
+- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md): code organisation, history, working rules, versions.
+- [`docs/ROADMAP.de.md`](docs/ROADMAP.de.md): the owner's wishes, decisions and plan (older parts in German).
+- [`docs/QA-REPORT.de.txt`](docs/QA-REPORT.de.txt): what changed and how it was tested, for every release (German
+  until 3.7.0, English since 3.7.1).
 
-The version and build id exist only in `package.json` (`version`, `riftline.build`). The sources use
-the placeholders `__RL_VERSION__`, `__RL_BUILD__`, `__RL_VERSION_DASHED__` and `__RL_GAME_FILE__`,
-and `build.js` fills them in. That keeps the version contract the game checks at start-up
-(HTML meta, script name, JS constants, build-info.json, service-worker cache) consistent. `build.js`
-also fails if the service worker would precache a file that does not exist.
-
-For a release: bump `version` and `riftline.build` in `package.json`, add the changes at the top of
-`changes` in `src/build-info.json`, and write the QA report in `docs/`.
-
-## Hosting
-
-Every push to `main` runs `.github/workflows/pages.yml`: it installs, runs `npm test` (which builds)
-and publishes `dist/` on GitHub Pages. One-time setup: *Settings → Pages → Build and deployment →
-Source: GitHub Actions*. Pushes to other branches and pull requests run the same tests without
-deploying (`.github/workflows/test.yml`).
-
-`dist/` is a static site that works in any sub-path. The service worker only caches files of its own
-folder and removes old `riftline-*` caches on update. A new version is downloaded in the
-background and applied on its own when no run is going on (at start, back in the menu, or when the
-page is hidden in the menu); a run is never interrupted. GitHub Pages sends `max-age=600` for every
-file and allows no custom cache headers. None are needed: the service worker fetches `index.html`
-and `build-info.json` with `no-store`, and the game file has the version in its name.
-
-Saves live in `localStorage` under `riftline.save.v1` (plus a log and backups under `riftline.*`).
-Riftdeck (<https://aaron40776.github.io/Riftdeck/>) runs on the same origin and only uses
-`riftdeck.*` keys, so the two games never touch each other's data.
+Automated tests run in Chromium; Firefox and Safari are checked by hand.
 
 ## Licenses
 
-The game bundles three.js (MIT) and uses the fonts Chakra Petch and Barlow Semi Condensed
-(SIL Open Font License 1.1). Their notices and license texts are in
-[`public/THIRD-PARTY-NOTICES.txt`](public/THIRD-PARTY-NOTICES.txt), which is also published next
-to the game.
-
-## Known limits and ideas
-
-- Automated tests run only in Chromium. Firefox and Safari are checked by hand.
+Riftline's own code has no license file yet; the owner decides whether it gets one. The game bundles
+three.js (MIT) and uses the fonts Chakra Petch and Barlow Semi Condensed (SIL Open Font License 1.1); their notices
+and license texts are in [`public/THIRD-PARTY-NOTICES.txt`](public/THIRD-PARTY-NOTICES.txt), which is also published
+next to the game.

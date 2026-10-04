@@ -4,7 +4,8 @@ This repository is **Riftline**, the 3D arena roguelite shooter (three.js). **Ri
 deckbuilder set in the same universe, is a different game in its own repository
 (`Aaron40776/Riftdeck`). Do not mix the two up, and do not change Riftdeck from here.
 
-README.md explains build, commands, project structure and hosting. Read it first. In short:
+README.md explains build, commands, project structure and hosting; `docs/DEVELOPMENT.md` the code history, working
+rules and release steps. Read them first. In short:
 
 - The game code is split into ES modules under `src/` (`main.js`, `core/`, `data/`, `render/`,
   `audio/`, `ui/`; see README). three.js comes from npm (`three`, pinned to 0.186.0) and
