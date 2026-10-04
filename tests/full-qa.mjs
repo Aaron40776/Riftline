@@ -19,8 +19,12 @@ const PROFILES = {
 };
 let fails = 0;
 const out = [];
+// 3.10.0: QA_TIMES=1 adds the seconds since the previous check to every line (to find the slow steps)
+let lastCheckAt = Date.now();
 const log = (sec, st, name, detail = "") => {
-  out.push(`[${st}] ${sec} · ${name}${detail ? " — " + detail : ""}`);
+  const took = process.env.QA_TIMES ? ` (+${((Date.now() - lastCheckAt) / 1000).toFixed(1)} s)` : "";
+  lastCheckAt = Date.now();
+  out.push(`[${st}] ${sec} · ${name}${detail ? " — " + detail : ""}${took}`);
   if (st === "FAIL") fails++;
 };
 
@@ -192,6 +196,23 @@ const CLEAR = () => {
   w.championPending = null;
   w.markers = [];
   for (const e of [...w.enemies]) w.killEnemy(e);
+};
+
+// 3.10.0: clear the wave and run the real world logic (the cleared phase, the pickups, the offer) to the upgrade
+// choice in one go, without waiting for frames. For checks of the choice screen itself; the run sections keep the
+// real clear through the main loop (the transition is what they test). A frame under software GL advances at most
+// 0.1 s of game time, so waiting for the ~3.5 s cleared phase took 15 to 35 s of real time per clear.
+const CLEAR_TO_CHOICE = () => {
+  const w = window.__riftTest.game.world;
+  w.god = true;
+  w.planIdx = w.plan.length;
+  w.bossPending = null;
+  w.championPending = null;
+  w.markers = [];
+  for (let k = 0; k < 900 && w.state !== "choose"; k++) {
+    for (const e of [...w.enemies]) w.killEnemy(e);
+    w.step(1 / 60, {});
+  }
 };
 
 /* ======================= 1. files / PWA ======================= */
@@ -1498,7 +1519,7 @@ await section("visual", async (L) => {
     await P.boot();
     await P.ev(() => window.__riftTest.game.startRun({}));
     await P.page.waitForTimeout(800);
-    await P.ev(CLEAR);
+    await P.ev(CLEAR_TO_CHOICE);
     await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
     await P.page.waitForTimeout(600);
     await P.ev(() =>
@@ -1838,7 +1859,7 @@ for (const [name, vp, touch] of [
       g.paused = false;
       window.__riftTest.ui.hidePause();
     });
-    await P.ev(CLEAR);
+    await P.ev(CLEAR_TO_CHOICE);
     await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
     await P.page.waitForTimeout(700);
     await P.ev(() => {
@@ -2004,7 +2025,7 @@ await section("qol", async (L) => {
     JSON.stringify(tip),
   );
   // upgrade choice by keys: locked for 650 ms, then 1–4 pick and R rerolls
-  await P.ev(CLEAR);
+  await P.ev(CLEAR_TO_CHOICE);
   await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
   await P.page.keyboard.press("1");
   const early = await P.ev(() => window.__riftTest.game.world.state);
@@ -2358,14 +2379,7 @@ await section("upgrades250A", async (L) => {
       ["slipstream", "surge", "reactive"],
     ].entries()) {
       // clear and run the simulation to the choice (splitters leave mites; a busy machine renders slowly)
-      await P.ev(CLEAR);
-      await P.ev(() => {
-        const w = window.__riftTest.game.world;
-        for (let k = 0; k < 900 && w.state !== "choose"; k++) {
-          for (const e of [...w.enemies]) w.killEnemy(e);
-          w.step(1 / 60, {});
-        }
-      });
+      await P.ev(CLEAR_TO_CHOICE);
       await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
       await P.ev((o) => {
         const T = window.__riftTest,
@@ -2416,7 +2430,9 @@ await section("upgrades250A", async (L) => {
       w.god = true;
       w.player.heatT = 3;
       w.player.slipT = 1.3;
-      await new Promise((r) => setTimeout(r, 400));
+      // 3.10.0: three animation frames (the HUD updates once per game frame) instead of 400 ms, which under
+      // software GL (2 to 6 fps) could pass without a single frame
+      for (let k = 0; k < 3; k++) await new Promise((r) => requestAnimationFrame(r));
       const chips = [...document.querySelectorAll("#buffs [data-b]")].map((b) => b.dataset.b);
       await new Promise((r) => setTimeout(r, 2500));
       return { chips, state: w.state, finite: [w.player.x, w.player.y, w.player.nova].every(Number.isFinite) };
@@ -2737,7 +2753,7 @@ for (const profName of ["desktop", "phone", "land"])
       );
     check(L, "biome card fades out on its own", gone);
     // upgrades that are offered count as seen (and are saved)
-    await P.ev(CLEAR);
+    await P.ev(CLEAR_TO_CHOICE);
     await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 60000 });
     const up = await P.ev(() => {
       const w = window.__riftTest.game.world,
@@ -2795,7 +2811,7 @@ for (const profName of ["desktop", "phone", "land"])
       );
     check(L, "boss card fades out after the pan", gone2);
     // biome change after the boss: the card of the next biome and its boss
-    await P.ev(CLEAR);
+    await P.ev(CLEAR_TO_CHOICE);
     await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 60000 });
     await P.ev(() => {
       const g = window.__riftTest.game;

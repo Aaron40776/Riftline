@@ -4,7 +4,7 @@ const URL = process.argv[2] || "http://localhost:8124/index.html";
 const only = process.argv[3] || "";
 const SHOTS = "tests/shots";
 import fs from "fs";
-import { waitScreenGame } from "./lib/wait.mjs";
+import { waitGameTime, waitScreenGame } from "./lib/wait.mjs";
 fs.mkdirSync(SHOTS, { recursive: true });
 const PROFILES = [
   { name: "desktop-1440", viewport: { width: 1440, height: 900 }, touch: false },
@@ -166,7 +166,8 @@ for (const prof of PROFILES) {
     } else {
       await page.keyboard.down("d");
       await page.keyboard.down("w");
-      await page.waitForTimeout(1200);
+      // 3.10.0: held for 1.2 s of game time (1.2 s of real time is only ~0.3 s of game time under software GL)
+      await waitGameTime(page, 1.2);
       await page.keyboard.up("d");
       await page.keyboard.up("w");
     }
