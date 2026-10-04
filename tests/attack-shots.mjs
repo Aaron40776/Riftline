@@ -126,6 +126,28 @@ for (const id of ids) {
   const state = await ev(() => window.__riftTest.game.world.state);
   console.log(id, "state", state);
 }
+// 3.12.0: the Singularity of the player: thrown into a ring of enemies, while it pulls them in, and its collapse
+await ev(() => {
+  const w = window.__riftTest.game.world,
+    px = w.player.x,
+    py = w.player.y;
+  w.god = true;
+  w.hazards.length = 0;
+  w.player.gadgetN = Math.max(1, w.player.gadgetN);
+  ["grunt", "brute", "striker", "gunner", "splitter", "grunt"].forEach((type, k) => {
+    const a = (k / 6) * Math.PI * 2;
+    const enemy = w.spawnEnemy(type, px + 7 + Math.cos(a) * 3.6, py + Math.sin(a) * 3.6, {});
+    enemy.spawnT = 0;
+    enemy.maxHp = enemy.hp = 1e6;
+  });
+  w.useGadget({ aim: true, ax: 1, ay: 0 });
+});
+await p.waitForFunction(() => (window.__riftTest.game.world.singularities[0]?.pullT ?? -1) > 0.9, null, {
+  timeout: 60000,
+});
+await p.screenshot({ path: `${OUT}/singularity-1-pull.png` });
+await p.waitForFunction(() => !window.__riftTest.game.world.singularities.length, null, { timeout: 60000 });
+await p.screenshot({ path: `${OUT}/singularity-2-collapse.png` });
 console.log(errs.length ? "ERRORS:\n" + errs.join("\n") : "no errors");
 await b.close();
 process.exit(errs.length ? 1 : 0);

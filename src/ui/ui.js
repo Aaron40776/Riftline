@@ -159,9 +159,9 @@ const getById = (id) => document.getElementById(id),
     ],
     ["Chain jumps", (stats) => (stats.arc ? stats.arcJumps : 0), String],
     ["Blast", (stats) => stats.payloadF, formatPercent],
-    ["Grenades", (stats) => stats.gadgetMax, String], // 3.0.0
-    ["Grenade recharge", (stats) => stats.gadgetCd, formatCooldown],
-    ["Grenade blast", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
+    ["Singularities", (stats) => stats.gadgetMax, String], // 3.0.0, 3.12.0: the Singularity
+    ["Singularity recharge", (stats) => stats.gadgetCd, formatCooldown],
+    ["Collapse damage", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
     ["Burn", (stats) => stats.thermite, formatPercent],
     ["Repair chance", (stats) => stats.siphonCh, formatPercent],
     ["Nova radius", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
@@ -180,7 +180,7 @@ const getById = (id) => document.getElementById(id),
     pop: ["Bomber blasts", "#ffe14a"],
     lava: ["Lava", "#ff6a2a"],
     inferno: ["Inferno", "#ff5a3a"],
-    grenade: ["Grenades", "#ffb347"],
+    grenade: ["Singularity", "#b57bff"], // 3.12.0: the old id of the gadget, kept for saved run records
     trap: ["Arena traps", "#aeb9cf"], // 3.0.0: enemies caught by a trap
     other: ["Other", "#93a2bf"],
   },
@@ -1107,7 +1107,7 @@ const getById = (id) => document.getElementById(id),
         getById("novaBtn").style.setProperty("--p", pct + "%");
         getById("novaBtn").classList.toggle("ready", pct >= 100);
       });
-      // 3.0.0: grenade charges as pips, recharge ring from gadgetT/gadgetCd
+      // 3.0.0: gadget charges as pips, recharge ring from gadgetT/gadgetCd
       const gadgetN = player.gadgetN | 0,
         gadgetMax = stats.gadgetMax | 0;
       update("gadgetPips", gadgetN + "/" + gadgetMax, () => {
@@ -1123,7 +1123,7 @@ const getById = (id) => document.getElementById(id),
         }
         const btn = getById("gadgetBtn");
         btn.classList.toggle("empty", gadgetN <= 0);
-        btn.setAttribute("aria-label", `Throw grenade, ${gadgetN} of ${gadgetMax} ready`);
+        btn.setAttribute("aria-label", `Throw Singularity, ${gadgetN} of ${gadgetMax} ready`);
       });
       const gadgetPct =
         gadgetN >= gadgetMax || !(stats.gadgetCd > 0)

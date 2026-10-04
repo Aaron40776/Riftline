@@ -1018,10 +1018,10 @@ function handleWorldEvents(world) {
         }
         if (ev.n === 4) {
           showTipOnce(
-            "grenade",
+            "singularity",
             rlKeys()
-              ? "Tip: G throws a grenade at the thickest crowd. Charges refill over time."
-              : "Tip: tap the grenade button to lob a grenade at the thickest crowd. Hold the aim side to pick the spot.",
+              ? "Tip: G throws a Singularity at the thickest crowd: it pulls them together, then collapses. Charges refill."
+              : "Tip: tap the gadget button to throw a Singularity at the thickest crowd. Hold the aim side to pick the spot.",
           );
         }
         if (ev.n === 3) {

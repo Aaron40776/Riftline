@@ -218,7 +218,7 @@ const Input = class {
         this.pending.nova = true;
         ev.preventDefault();
       }
-      // 3.0.0: G throws a grenade
+      // 3.0.0: G throws the gadget (3.12.0: the Singularity)
       if (down && !ev.repeat && name === "g") {
         this.pending.gadget = true;
         ev.preventDefault();

@@ -1,8 +1,8 @@
-// 3.0.0: how traps and the grenade look. TrapView draws `world.traps` (the simulation decides everything, this only
-// shows it) and `world.grenades`. Every trap skin belongs to its biome: the same three families (floor, beam, mine)
-// in a different skin of colours, shapes and materials. Per skin there are at most three instance pools (static
-// body, glowing parts, moving part), created the first time the skin appears, so a wave with a dozen traps costs
-// a handful of draw calls and no per-frame allocations. Telegraphs keep the language of the boss hazards: a red
+// 3.0.0: how traps look, 3.12.0: and the Singularity. TrapView draws `world.traps` (the simulation decides everything,
+// this only shows it) and `world.singularities`. Every trap skin belongs to its biome: the same three families (floor,
+// beam, mine) in a different skin of colours, shapes and materials. Per skin there are at most three instance pools
+// (static body, glowing parts, moving part), created the first time the skin appears, so a wave with a dozen traps
+// costs a handful of draw calls and no per-frame allocations. Telegraphs keep the language of the boss hazards: a red
 // ring that fills up, never used for decoration. The look of the idle trap stays dark and quiet.
 
 import {
@@ -17,6 +17,7 @@ import {
 } from "three";
 import { meshPart, mergeParts, box, ball, bar, spike } from "./models.js";
 import { clamp, TAU, angleDiff } from "../core/util.js";
+import { MARK_LOOK } from "./attacks-view.js";
 
 const WHITE = new Color(16777215),
   WARN = new Color(16728160),
@@ -39,6 +40,13 @@ const LOOK = {
   spore: { main: hex(0xa8f03a), alt: hex(0xe6ff8a), dust: hex(0x4a7a1a), led: hex(0xd7ff4a) },
   riftmine: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650), led: hex(0xff4de0) },
 };
+// 3.12.0: the Singularity: a dark violet core, the cyan of the player on its rim, violet arms (never the red of a
+// warning: it is the player's own)
+const SING_CORE = hex(0x7a3cff),
+  SING_RIM = hex(0x7ae8ff),
+  SING_ARM = hex(0xb57bff),
+  SING_WHITE = hex(0xf2ecff);
+// the embers of Searing Collapse
 const NADE = hex(0xffb347),
   NADE_WHITE = hex(0xffeccc),
   ARMING = hex(0x6fa0ff),
@@ -445,18 +453,14 @@ const MODELS = {
       ),
     ],
   }),
-  // the grenade itself: a squat canister with a lever and a hot ring
-  nade: () => ({
+  // 3.12.0: the Singularity: a dark core in a cage of two crossed rings, a bright heart and a rim of light
+  sing: () => ({
     body: [
-      meshPart(new SphereGeometry(0.17, 8, 6), 0x3b4132, { sy: 1.1 }),
-      cyl(0x6a655c, 0.07, 0.08, 0.1, 6, { y: 0.15 }),
-      box(0x6a655c, 0.2, 0.025, 0.05, { x: 0.08, y: 0.27 }),
-      box(0x4a5040, 0.36, 0.04, 0.04, { y: 0 }),
+      meshPart(new SphereGeometry(0.2, 10, 8), 0x140a24),
+      meshPart(new TorusGeometry(0.29, 0.026, 4, 16), 0x2a2140, { rx: Math.PI / 2 }),
+      meshPart(new TorusGeometry(0.29, 0.026, 4, 16), 0x2a2140, { ry: Math.PI / 2 }),
     ],
-    glow: [
-      meshPart(new TorusGeometry(0.17, 0.022, 4, 12), 0xffb347, { rx: Math.PI / 2 }),
-      ball(0xffe9b0, 0.05, 5, 3, { y: 0.27 }),
-    ],
+    glow: [meshPart(new TorusGeometry(0.34, 0.03, 4, 20), 0x7ae8ff, { rx: Math.PI / 2 }), ball(0xd9c4ff, 0.09, 6, 4)],
   }),
 };
 const FLAME_PARTS = [0, 0.2, 0.42, 0.66, 0.85, 1];
@@ -540,7 +544,7 @@ class TrapView {
       }
       this[trap.fam](trap, s, look, dt, quality, world);
     }
-    this.grenades(dt, world, quality);
+    this.singularities(dt, world, quality);
   }
   // the red ring that fills up: the same language as every other warning of the game
   warnRing(x, z, radius, k, fast) {
@@ -1058,94 +1062,141 @@ class TrapView {
         r.addShake(0.3 * shakeK);
     }
   }
-  /* the grenade: a tumbling canister on an arc with a trail, a shadow on the ground and a dashed gold marker
-     where it lands (gold and white: never the red of a warning) */
-  grenades(dt, world, quality) {
-    const list = world.grenades;
+  /* 3.12.0: the Singularity. In flight: the core on a flat, fast arc with a trail of violet sparks, its shadow and a
+     white marker where it lands. Open: it hangs over the spot and spins up, the pull shows as five spiral arms that
+     wind inward, a dark pool that deepens, a rim at the pull radius and sparks drawn into the middle; in its last
+     0.3 s the rim snaps in (the collapse is coming). */
+  singularities(dt, world, quality) {
+    const list = world.singularities;
     if (!list || !list.length) return;
     const r = this.r,
       time = r.time,
-      P = this.get("nade", 12),
+      P = this.get("sing", 10),
       radius = (world.stats && world.stats.gadgetR) || 3.4;
     for (const g of list) {
-      const k = clamp(g.t / g.dur, 0, 1),
-        dist = Math.hypot(g.tx - g.fx, g.ty - g.fy),
-        arc = clamp(1.6 + dist * 0.14, 1.8, 4.6),
-        x = g.fx + (g.tx - g.fx) * k,
-        z = g.fy + (g.ty - g.fy) * k,
-        h = 0.8 + Math.sin(Math.PI * k) * arc;
-      P.body.yr(x, h, z, time * 6, 1.2, 1.2, 1.2, time * 11, time * 7);
-      P.glow.colC(
-        P.glow.yr(x, h, z, time * 6, 1.2, 1.2, 1.2, time * 11, time * 7),
-        WHITE,
-        1.1 + Math.sin(time * 30) * 0.3,
-      );
-      r.sprites.colC(r.sprites.bb(x, h, z, 0.9, r.B), NADE, 0.55);
-      if (Math.random() < dt * 90 * quality)
-        r.emit(
-          x + (Math.random() - 0.5) * 0.1,
-          h,
-          z + (Math.random() - 0.5) * 0.1,
-          0,
-          0.3,
-          0,
-          0.35,
-          0.2,
-          Math.random() < 0.4 ? NADE_WHITE : NADE,
-          { drag: 3, spark: Math.random() < 0.4 },
-        );
-      // shadow, smaller the higher the grenade is
-      r.shadows.y(x, 0.02, z, 0, 0.9 - Math.min(0.5, h * 0.1));
-      // landing marker: white ticks that turn and a ring that closes in (white, never the red of a warning)
-      const spin = time * 1.4;
-      for (let i = 0; i < 12; i++) {
-        const a = spin + (i / 12) * TAU,
-          x0 = g.tx + Math.cos(a) * radius,
-          z0 = g.ty + Math.sin(a) * radius,
-          x1 = g.tx + Math.cos(a + 0.2) * radius,
-          z1 = g.ty + Math.sin(a + 0.2) * radius;
-        r.beams.colC(r.beams.seg(x0, z0, x1, z1, 0.06, 0.08, 0.03), MARK, 0.35 + k * 0.45);
+      if (g.pullT < 0) {
+        const k = clamp(g.t / g.dur, 0, 1),
+          dist = Math.hypot(g.tx - g.fx, g.ty - g.fy),
+          x = g.fx + (g.tx - g.fx) * k,
+          z = g.fy + (g.ty - g.fy) * k,
+          h = 0.9 + Math.sin(Math.PI * k) * clamp(0.6 + dist * 0.06, 0.8, 1.6);
+        P.body.yr(x, h, z, time * 9, 1, 1, 1, time * 13, time * 5);
+        P.glow.colC(P.glow.yr(x, h, z, time * 9, 1, 1, 1, time * 13, time * 5), WHITE, 1.2);
+        r.sprites.colC(r.sprites.bb(x, h, z, 0.95, r.B), SING_ARM, 0.6);
+        if (Math.random() < dt * 110 * quality)
+          r.emit(x, h, z, 0, 0.2, 0, 0.3, 0.18, Math.random() < 0.5 ? SING_RIM : SING_ARM, { drag: 3, spark: true });
+        r.shadows.y(x, 0.02, z, 0, 0.8);
+        for (let i = 0; i < 10; i++) {
+          const a = -time * 1.6 + (i / 10) * TAU,
+            rr = radius * 0.9;
+          r.beams.colC(
+            r.beams.seg(
+              g.tx + Math.cos(a) * rr,
+              g.ty + Math.sin(a) * rr,
+              g.tx + Math.cos(a + 0.22) * rr,
+              g.ty + Math.sin(a + 0.22) * rr,
+              0.06,
+              0.08,
+              0.03,
+            ),
+            MARK,
+            0.3 + k * 0.45,
+          );
+        }
+        r.ringPool.colC(r.ringPool.y(g.tx, 0.05, g.ty, 0, 0.3 + 0.3 * k), SING_RIM, 0.6);
+        continue;
       }
-      r.ringPool.colC(r.ringPool.y(g.tx, 0.05, g.ty, 0, radius * (1 - 0.45 * k)), MARK, 0.1 + k * 0.2);
-      r.ringPool.colC(r.ringPool.y(g.tx, 0.05, g.ty, 0, 0.3 + 0.25 * k), MARK, 0.6);
+      const pullR = g.r || radius * 1.7,
+        k = clamp(g.pullT / 1.5, 0, 1),
+        end = clamp((g.pullT - 1.2) / 0.3, 0, 1),
+        h = 1 + Math.sin(time * 3) * 0.05,
+        spin = time * (5 + k * 9),
+        grow = 1 + k * 0.5 - end * 0.6;
+      P.body.yr(g.tx, h, g.ty, spin, grow, grow, grow, spin * 0.7, spin * 0.4);
+      P.glow.colC(P.glow.yr(g.tx, h, g.ty, spin, grow, grow, grow, spin * 0.7, spin * 0.4), WHITE, 1.3 + end);
+      r.sprites.colC(r.sprites.bb(g.tx, h, g.ty, 1.4 + k * 0.8, r.B), SING_CORE, 0.5 + k * 0.3);
+      // the dark pool of the rift and its rim at the pull radius (the rim snaps in at the end)
+      r.shadows.y(g.tx, 0.03, g.ty, 0, pullR * (0.7 + k * 0.5));
+      const rim = pullR * (1 - end * 0.85);
+      r.ringPool.colC(r.ringPool.y(g.tx, 0.05, g.ty, 0, rim), SING_RIM, 0.35 + end * 0.4);
+      r.ringPool.colC(r.ringPool.y(g.tx, 0.052, g.ty, 0, radius * (1 - end * 0.7)), SING_ARM, 0.25 + k * 0.25);
+      // five spiral arms that wind inward
+      for (let arm = 0; arm < 5; arm++) {
+        let px = null,
+          pz = null;
+        for (let i = 0; i <= 8; i++) {
+          const f = 1 - i / 8,
+            a = -time * 2.4 + (arm / 5) * TAU + f * 2.6,
+            d = 0.3 + f * rim,
+            x = g.tx + Math.cos(a) * d,
+            z = g.ty + Math.sin(a) * d;
+          if (px != null)
+            r.beams.colC(r.beams.seg(px, pz, x, z, 0.05, 0.07 + (1 - f) * 0.05, 0.03), SING_ARM, 0.18 + (1 - f) * 0.4);
+          px = x;
+          pz = z;
+        }
+      }
+      // sparks drawn from the rim into the middle
+      if (Math.random() < dt * 70 * quality * (1 - end)) {
+        const a = Math.random() * TAU,
+          d = pullR * (0.7 + Math.random() * 0.3),
+          x = g.tx + Math.cos(a) * d,
+          z = g.ty + Math.sin(a) * d,
+          speed = d / 0.6;
+        r.emit(
+          x,
+          0.25,
+          z,
+          -Math.cos(a) * speed,
+          0.6,
+          -Math.sin(a) * speed,
+          0.6,
+          0.14,
+          Math.random() < 0.5 ? SING_RIM : SING_ARM,
+          {
+            drag: 0.4,
+            spark: true,
+          },
+        );
+      }
     }
   }
-  /* the blast of a grenade (a `boom` of kind "grenade"): a hot core, gold shock rings, debris and, with
-     Napalm Cells, embers that glow on after the blast */
-  blast(ev, world, shakeK) {
+  /* 3.12.0: the collapse of a Singularity (a `boom` of kind "singularity"): a ring that snaps inward, a white core,
+     then a violet shock ring outward, sparks and a rift scar on the floor; with Searing Collapse, embers */
+  singularityBlast(ev, world, shakeK) {
     const r = this.r,
       x = ev.x,
       z = ev.y,
       rad = ev.r,
       fire = world.stats && world.stats.gadgetFire;
-    r.ring(x, z, rad * 0.25, rad * 1.05, NADE, 0.34);
-    r.ring(x, z, rad * 0.1, rad * 0.65, NADE_WHITE, 0.2);
-    r.ring(x, z, rad * 0.5, rad * 1.2, NADE, 0.6, 0.04);
-    r.burst(x, z, 0.5, Math.round(10 + rad * 5), rad * 4, NADE, 0.5, 0.5, { drag: 3, grav: 6 });
-    r.burst(x, z, 0.5, 14, rad * 5, NADE_WHITE, 0.35, 0.2, { spark: true, drag: 3, grav: 8 });
-    r.emit(x, 0.7, z, 0, 0, 0, 0.16, rad * 2.2, NADE_WHITE, { drag: 0 });
-    r.emit(x, 0.7, z, 0, 0.5, 0, 0.3, rad * 1.7, NADE, { drag: 0 });
-    r.debrisBurst(x, z, 0.4, 9, hex(0x3b4132), 0.16, 8);
-    r.flash(x, z, rad * 1.9, 1.5, NADE, 4);
-    r.addScorch(x, z, rad * 0.6);
-    r.addShake(0.3 * shakeK);
-    const embers = fire ? 22 : 6;
-    for (let i = 0; i < embers; i++) {
-      const a = Math.random() * TAU,
-        d = Math.random() * rad * 0.9;
-      r.emit(
-        x + Math.cos(a) * d,
-        0.2,
-        z + Math.sin(a) * d,
-        (Math.random() - 0.5) * 1.5,
-        0.5 + Math.random() * 1.4,
-        (Math.random() - 0.5) * 1.5,
-        1.1 + Math.random() * (fire ? 1.4 : 0.6),
-        0.1 + Math.random() * 0.06,
-        Math.random() < 0.5 ? NADE : NADE_WHITE,
-        { drag: 1.2, grav: -0.6, spark: true },
-      );
-    }
+    r.ring(x, z, rad * 1.3, rad * 0.1, SING_RIM, 0.18);
+    r.ring(x, z, rad * 0.15, rad * 1.15, SING_ARM, 0.42);
+    r.ring(x, z, rad * 0.1, rad * 0.75, SING_WHITE, 0.24);
+    r.emit(x, 0.8, z, 0, 0, 0, 0.18, rad * 1.8, SING_WHITE, { drag: 0 });
+    r.emit(x, 0.8, z, 0, 0.4, 0, 0.32, rad * 1.5, SING_CORE, { drag: 0 });
+    r.burst(x, z, 0.6, Math.round(12 + rad * 5), rad * 4.5, SING_ARM, 0.5, 0.3, { spark: true, drag: 3, grav: 4 });
+    r.burst(x, z, 0.6, 12, rad * 5.5, SING_RIM, 0.35, 0.18, { spark: true, drag: 3, grav: 6 });
+    r.flash(x, z, rad * 2, 1.6, SING_ARM, 4);
+    if (r.attackView) r.attackView.mark(x, z, rad * 0.7, MARK_LOOK.rift);
+    else r.addScorch(x, z, rad * 0.6);
+    r.addShake(0.32 * shakeK);
+    if (fire)
+      for (let i = 0; i < 22; i++) {
+        const a = Math.random() * TAU,
+          d = Math.random() * rad * 0.9;
+        r.emit(
+          x + Math.cos(a) * d,
+          0.2,
+          z + Math.sin(a) * d,
+          (Math.random() - 0.5) * 1.5,
+          0.5 + Math.random() * 1.4,
+          (Math.random() - 0.5) * 1.5,
+          1.4 + Math.random() * 1.2,
+          0.1 + Math.random() * 0.06,
+          Math.random() < 0.5 ? NADE : NADE_WHITE,
+          { drag: 1.2, grav: -0.6, spark: true },
+        );
+      }
   }
 }
 

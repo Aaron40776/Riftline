@@ -153,30 +153,31 @@ const upgradeList = [
     icon: "drone",
     desc: () => "A drone that fights beside you",
   },
-  // 3.0.0: the Grenade gadget (key G, a button on touch screens) and its cards
+  // 3.0.0: the gadget (key G, a button on touch screens) and its cards; 3.12.0: the Singularity replaced the grenade
+  // (the ids stay, so saves keep their cards)
   {
     id: "gcells",
-    name: "Grenade Cells",
+    name: "Rift Cells",
     rarity: 2,
     max: 3,
     icon: "target",
-    desc: () => "+1 grenade and 12% faster recharge",
+    desc: () => "+1 Singularity and 12% faster recharge",
   },
   {
     id: "gblast",
-    name: "Blast Core",
+    name: "Event Horizon",
     rarity: 2,
     max: 4,
     icon: "burst",
-    desc: () => "Grenades deal +30% damage and +15% radius",
+    desc: () => "Singularity: +30% collapse damage, +15% pull and blast radius",
   },
   {
     id: "gfire",
-    name: "Incendiary Mix",
+    name: "Searing Collapse",
     rarity: 3,
     max: 1,
     icon: "flame",
-    desc: () => "Grenades set enemies in the blast on fire",
+    desc: () => "The Singularity's collapse sets enemies on fire",
   },
   {
     id: "bloodrush",

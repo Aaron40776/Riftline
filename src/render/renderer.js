@@ -428,7 +428,7 @@ const MAX_PARTICLES = 1400,
     }
     initPools() {
       let scene = this.scene;
-      // 3.0.0: traps and the grenade (its pools are made when a skin first appears)
+      // 3.0.0: traps, 3.12.0: and the Singularity (its pools are made when a skin first appears)
       this.trapView = new TrapView(this, InstancePool);
       // 3.8.0: the map hazards (vents, manholes, ice, acid, portals) with models of their own
       this.hazardView = new HazardView(this, InstancePool);
@@ -990,12 +990,13 @@ const MAX_PARTICLES = 1400,
             break;
           }
           case "boom": {
-            // 3.0.0: a trap strike is drawn per skin by its trapFire event, the grenade has a blast of its own
+            // 3.0.0: a trap strike is drawn per skin by its trapFire event; 3.12.0: the Singularity's collapse has a
+            // blast of its own
             if (ev.kind === "trap") break;
             // the Combo Surge shockwave is drawn by its own "surge" event
             if (ev.kind === "surge") break;
-            if (ev.kind === "grenade") {
-              this.trapView.blast(ev, world, shakeK);
+            if (ev.kind === "singularity") {
+              this.trapView.singularityBlast(ev, world, shakeK);
               break;
             }
             // 3.10.0: the blasts of the attacks of enemies and bosses look like what they are
@@ -1129,9 +1130,15 @@ const MAX_PARTICLES = 1400,
           case "trapArm":
             this.trapView.event(ev, world, shakeK);
             break;
-          case "grenade":
-            this.burst(ev.x, ev.y, 0.9, 5, 4, hexColor(16757575), 0.25, 0.18, { spark: true, drag: 4 });
-            this.ring(ev.x, ev.y, 0.2, 0.9, hexColor(16757575), 0.2, 0.9);
+          // 3.12.0: the Singularity leaves the hand with a violet flick; where it opens, a ring of light runs out to the
+          // pull radius
+          case "singularity":
+            this.burst(ev.x, ev.y, 0.9, 6, 4, hexColor(0xb57bff), 0.25, 0.16, { spark: true, drag: 4 });
+            this.ring(ev.x, ev.y, 0.2, 0.9, hexColor(0x7ae8ff), 0.2, 0.9);
+            break;
+          case "singOpen":
+            this.ring(ev.x, ev.y, 0.3, ev.r, hexColor(0x7ae8ff), 0.35);
+            this.flash(ev.x, ev.y, ev.r, 0.9, hexColor(0x7a3cff), 5);
             break;
           case "gadgetReady":
             this.ring(world.player.x, world.player.y, 0.3, 1.2, hexColor(16757575), 0.3, 0.1);

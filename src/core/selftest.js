@@ -1721,7 +1721,7 @@ function selfTestV270Sound(result) {
       else if (voice && voice.fire) trapVoices.push(voice.fire);
     }
     if (new Set(trapVoices).size !== trapVoices.length) fail.push("trap-sounds-shared");
-    for (const id of ["grenadeThrow", "grenadeBlast", "gadgetReady", "gadgetNo", "resist"])
+    for (const id of ["singThrow", "singPull", "singCollapse", "gadgetReady", "gadgetNo", "resist"])
       if (!known.has(id)) fail.push("no-sound:" + id);
     for (const table of [RL_CHARGE_VOICE, RL_DASH_VOICE, RL_BOSS_ATK])
       for (const id of Object.values(table)) if (id && !known.has(id)) fail.push("voice-missing-sound:" + id);
@@ -2125,7 +2125,7 @@ function selfTestV300(result) {
   } catch (err) {
     fail.push("exception:" + (err && err.message));
   }
-  // the Grenade gadget
+  // the gadget: 3.12.0 the Singularity (thrown far and fast, pulls the crowd together for 1.5 s, then collapses)
   try {
     const world = new World({ seed: 0x301, weapon: "pulse", threat: 0, ws: {} });
     world.startWave(2);
@@ -2133,6 +2133,8 @@ function selfTestV300(result) {
     world.god = true;
     world.hold = false;
     world.arena.obs = [];
+    // no live manholes or other hazards of the place: they hurt enemies on their own
+    for (const kind of ["vents", "ice", "acid", "portals"]) world.arena[kind] = [];
     const player = world.player,
       reset = () => {
         for (const enemy of [...world.enemies]) enemy.dead = true;
@@ -2141,7 +2143,7 @@ function selfTestV300(result) {
         world.planIdx = 0;
         world.bossPending = null;
         world.championPending = null;
-        world.grenades = [];
+        world.singularities = [];
         player.gadgetN = world.stats.gadgetMax;
         player.gadgetT = 0;
         // a far, tough dummy keeps the wave (and so the fight state) alive
@@ -2151,8 +2153,8 @@ function selfTestV300(result) {
         dummy.spawnT = 0;
         dummy.maxHp = dummy.hp = 1e9;
       },
-      spawn = (dx, dy, hp = 1e6) => {
-        const enemy = world.spawnEnemy("brute", player.x + dx, player.y + dy);
+      spawn = (dx, dy, hp = 1e6, type = "brute") => {
+        const enemy = world.spawnEnemy(type, player.x + dx, player.y + dy);
         enemy.spawnT = 0;
         enemy.maxHp = enemy.hp = hp;
         return enemy;
@@ -2160,57 +2162,104 @@ function selfTestV300(result) {
       run = (seconds, input = {}) => {
         for (let i = 0; i < seconds * 60; i++)
           world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false, ...(i === 0 ? input : {}) });
-      };
-    if (world.stats.gadgetMax !== 2 || player.gadgetN !== 2) fail.push("grenade-charges:" + player.gadgetN);
+      },
+      spread = (list, x, y) => list.reduce((sum, enemy) => sum + Math.hypot(enemy.x - x, enemy.y - y), 0) / list.length;
+    if (world.stats.gadgetMax !== 2 || player.gadgetN !== 2) fail.push("sing-charges:" + player.gadgetN);
     // thrown at the crowd, not at the lone enemy that is closer
     reset();
     const lone = spawn(-4, 0),
       crowd = [spawn(8, 0), spawn(9.2, 0.5), spawn(8.4, -1)];
     const before = world.fx.length;
     world.useGadget({});
-    const throwEv = world.fx.slice(before).find((ev) => ev.k === "grenade");
-    if (!throwEv || Math.hypot(throwEv.tx - 8.5 - player.x, throwEv.ty - player.y) > 2.5)
-      fail.push("grenade-aim-crowd");
-    if (player.gadgetN !== 1) fail.push("grenade-charge-not-used");
+    const throwEv = world.fx.slice(before).find((ev) => ev.k === "singularity");
+    if (!throwEv || Math.hypot(throwEv.tx - 8.5 - player.x, throwEv.ty - player.y) > 2.5) fail.push("sing-aim-crowd");
+    if (player.gadgetN !== 1) fail.push("sing-charge-not-used");
+    // fast: it lands and opens within half a second; the crowd it was thrown at is hit by the collapse
+    run(0.5);
+    if (!world.fx.slice(before).some((ev) => ev.k === "singOpen")) fail.push("sing-not-open");
+    run(1.8);
+    if (!crowd.every((enemy) => enemy.hp < enemy.maxHp)) fail.push("sing-no-damage");
+    if (lone.hp < lone.maxHp - 1e-6 === true) fail.push("sing-hit-the-lone-enemy");
+    if (!crowd.some((enemy) => enemy.slowT > 0)) fail.push("sing-no-slow");
+    if (world.singularities.length) fail.push("sing-not-done");
+    // the pull gathers enemies spread around the rift (walking towards the player) before the collapse
+    reset();
+    const ring = [spawn(11, 4), spawn(15, 0.5), spawn(8, -3.5), spawn(13, -3.5, 1e6, "grunt")];
+    const pullBefore = world.fx.length;
+    world.useGadget({ aim: true, ax: 1, ay: 0 });
+    const pullEv = world.fx.slice(pullBefore).find((ev) => ev.k === "singularity");
+    const s0 = spread(ring, pullEv.tx, pullEv.ty);
+    run(1.8);
+    const s1 = spread(ring, pullEv.tx, pullEv.ty);
+    if (!(s1 < s0 * 0.6)) fail.push(`sing-no-pull:${s0.toFixed(2)}->${s1.toFixed(2)}`);
+    if (ring.some((enemy) => enemy.hp < enemy.maxHp)) fail.push("sing-damage-before-collapse");
+    run(0.4);
+    if (!ring.every((enemy) => enemy.hp < enemy.maxHp)) fail.push("sing-collapse-missed-the-gathered");
+    // farther than the grenade: a crowd 14.5 m away is the target (the grenade looked 14 m far)
+    reset();
+    const far = [spawn(14.5, 0), spawn(15, 0.8), spawn(14.2, -0.7)];
+    const farBefore = world.fx.length;
+    world.useGadget({});
+    const farEv = world.fx.slice(farBefore).find((ev) => ev.k === "singularity");
+    if (!farEv || Math.hypot(farEv.tx - player.x, farEv.ty - player.y) < 13.5) fail.push("sing-short-reach");
+    for (const enemy of far) enemy.dead = true;
+    // elites are pulled less than the same enemy without the elite mark; bosses stand
+    reset();
+    const plain = spawn(10, 3.5),
+      elite = spawn(10, -3.5);
+    elite.elite = true;
+    world.useGadget({ aim: true, ax: 1, ay: 0 });
+    const ex = elite.y,
+      px = plain.y;
     run(1.2);
-    if (!crowd.every((enemy) => enemy.hp < enemy.maxHp)) fail.push("grenade-no-damage");
-    if (lone.hp < lone.maxHp - 1e-6 === true) fail.push("grenade-hit-the-lone-enemy");
-    if (!crowd.some((enemy) => enemy.slowT > 0)) fail.push("grenade-no-slow");
+    if (!(Math.abs(px - plain.y) > Math.abs(ex - elite.y) + 0.2))
+      fail.push(`sing-elite-pull:${Math.abs(px - plain.y).toFixed(2)}/${Math.abs(ex - elite.y).toFixed(2)}`);
     // recharge: one charge after gadgetCd, no throw without a charge
     reset();
     world.useGadget({});
     world.useGadget({});
     const denyBefore = world.fx.length;
     if (world.useGadget({}) !== false || !world.fx.slice(denyBefore).some((ev) => ev.k === "gadgetDeny"))
-      fail.push("grenade-deny");
+      fail.push("sing-deny");
     run(world.stats.gadgetCd + 0.3);
-    if (player.gadgetN < 1) fail.push("grenade-no-recharge:" + player.gadgetN);
+    if (player.gadgetN < 1) fail.push("sing-no-recharge:" + player.gadgetN);
     // never into a wall: a wall 4 m ahead stops the throw in front of it
     reset();
     world.arena.obs = [{ x: player.x + 4, y: player.y, w: 0.4, h: 6, t: "b" }];
     const wallBefore = world.fx.length;
     world.useGadget({ aim: true, ax: 1, ay: 0 });
-    const wallEv = world.fx.slice(wallBefore).find((ev) => ev.k === "grenade");
-    if (!wallEv || wallEv.tx > player.x + 4 - 0.3) fail.push("grenade-through-wall");
+    const wallEv = world.fx.slice(wallBefore).find((ev) => ev.k === "singularity");
+    if (!wallEv || wallEv.tx > player.x + 4 - 0.3) fail.push("sing-through-wall");
     world.arena.obs = [];
-    // Incendiary Mix sets survivors on fire; the cards change the numbers
+    // Searing Collapse sets survivors on fire; the cards change the numbers
     reset();
     world.up = { gfire: 1, gcells: 2, gblast: 2 };
     world.stats = computeStats(world.weapon, world.up, world.ws);
     if (world.stats.gadgetMax !== 4 || !(world.stats.gadgetR > 3.4 * 1.29) || !(world.stats.gadgetDmg > 1.59))
-      fail.push("grenade-cards");
+      fail.push("sing-cards");
     player.gadgetN = world.stats.gadgetMax;
-    const victim = spawn(6, 0);
+    // at the spot the aimed Singularity lands (11 m ahead), so the collapse surely reaches it
+    const victim = spawn(10.5, 0);
     world.useGadget({ aim: true, ax: 1, ay: 0 });
-    run(1.4);
-    if (!(victim.burnT > 0)) fail.push("grenade-no-burn");
+    run(2.4);
+    if (!(victim.burnT > 0)) fail.push("sing-no-burn");
+    // a Singularity still pulling when the wave ends does not hang over the upgrade choice
+    reset();
+    for (const enemy of [...world.enemies]) enemy.dead = true;
+    world.enemies.length = 0;
+    world.useGadget({ aim: true, ax: 1, ay: 0 });
+    run(0.6);
+    world.state = "cleared";
+    world.stateT = 1.7;
+    run(0.1);
+    if (world.state !== "choose" || world.singularities.length) fail.push(`sing-left-over:${world.state}`);
     // nothing is thrown outside a fight
     reset();
     world.state = "cleared";
-    if (world.useGadget({}) !== false) fail.push("grenade-outside-fight");
+    if (world.useGadget({}) !== false) fail.push("sing-outside-fight");
     world.state = "fight";
   } catch (err) {
-    fail.push("grenade-exception:" + (err && err.message));
+    fail.push("sing-exception:" + (err && err.message));
   }
   // traps: which wave, which family, which skin; placement; behaviour of each family
   try {

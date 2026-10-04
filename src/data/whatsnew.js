@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.12.0",
+    title: "The Singularity",
+    items: [
+      "The grenade is gone: G or the gadget button now throws a Singularity, fast and far, at the thickest crowd.",
+      "It opens a small rift that pulls the enemies around it together for a moment, then collapses in a blast.",
+      "Bosses stand their ground; elites and big enemies are pulled less.",
+      "Its cards: Rift Cells (more charges), Event Horizon (bigger pull and blast), Searing Collapse (sets them on fire).",
+    ],
+  },
+  {
     version: "3.11.0",
     title: "Landscape only",
     items: [

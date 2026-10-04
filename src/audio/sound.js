@@ -154,7 +154,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     aIce: 0.08,
     guardBreak: 0.08,
     thud: 0.08,
-    grenadeBlast: 0.1,
+    singCollapse: 0.1,
     tsCrusher: 0.08,
     tsRift: 0.08,
     bSlam: 0.08,
@@ -167,7 +167,8 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   SFX_ROOM = {
     boom: 0.3,
     surge: 0.3,
-    grenadeBlast: 0.35,
+    singCollapse: 0.35,
+    singPull: 0.25,
     nova: 0.3,
     bigkill: 0.35,
     die: 0.3,
@@ -302,7 +303,8 @@ const RL_SOUND_EVENTS = {
   hatch: [{}, { big: true }],
   heal: [{}],
   maxed: [{ heal: 30, shards: 12 }],
-  grenade: [{}],
+  singularity: [{}],
+  singOpen: [{ r: 5.8, dur: 1.5 }],
   gadgetReady: [{}],
   gadgetDeny: [{}],
   ping: [{ resist: true }],
@@ -1896,7 +1898,7 @@ const musicChords = {
         lfo.stop(start + dur + 0.02);
       }
     }
-    /* 3.0.0: the sounds of the grenade gadget and of the traps (see RL_TRAP_SOUND for the event mapping).
+    /* 3.0.0: the sounds of the gadget (3.12.0: the Singularity) and of the traps (see RL_TRAP_SOUND for the event mapping).
      Every biome has its own timbre: the Yard plate zaps, the Works crusher slams metal, the Vault ice
      cracks, the Marsh geyser gurgles, the Void sigil implodes. The warnings rise (charge) and end where
      the strike begins; strikes are loud but never reach full scale; the beams hum until they end. */
@@ -1906,28 +1908,38 @@ const musicChords = {
       // the time of a warning (arg: seconds, or {delay, dur} for a beam), kept within what the tests render
       let d = Math.max(0.3, Math.min(1.6, (arg && arg.delay) || arg || 1));
       switch (id) {
-        // ---- grenade ----
-        case "grenadeThrow":
-          // pin clink (two metal ticks), the whoosh of the throw and a soft thump of the hand
+        // ---- 3.12.0: the Singularity (it replaced the grenade) ----
+        case "singThrow":
+          // a quick flick: an airy sweep up, a glassy chirp and a soft push of the hand
           if (this.gate(id, 0.1)) {
-            this.tone(3300, 0.05, "triangle", 0.05, { to: 3000 });
-            this.tone(4700, 0.04, "sine", 0.035, { at: 0.035 });
-            this.noise(0.03, 0.05, { type: "bandpass", f: 4200, q: 6, at: 0.01 });
-            this.noise(0.3, 0.12, { type: "bandpass", f: 500, to: 2600, q: 1.1, attack: 0.1, at: 0.07 });
-            this.tone(140, 0.12, "sine", 0.16, { to: 70, at: 0.07 });
+            this.noise(0.18, 0.1, { type: "bandpass", f: 600, to: 3200, q: 1.4, attack: 0.04 });
+            this.tone(900, 0.12, "sine", 0.04, { to: 1900 });
+            this.tone(2800, 0.06, "sine", 0.02, { at: 0.05, to: 3600 });
+            this.tone(130, 0.1, "sine", 0.12, { to: 75 });
           }
           break;
-        case "grenadeBlast":
-          // a punchy frag boom: a hard crack, a short mid body, a tight sub and a patter of debris
-          if (this.gate(id, 0.05)) {
-            this.noise(0.04, 0.22, { type: "highpass", f: 3500, attack: 0.001 });
-            this.noise(0.38, 0.3, { f: 2400, to: 220, attack: 0.001 });
-            this.tone(95 * pitch, 0.34, "sine", 0.38, { to: 34 });
-            this.tone(260, 0.1, "square", 0.05, { to: 90, lp: 1500 });
-            [0.1, 0.17, 0.22, 0.31, 0.38, 0.47].forEach((at, i) =>
-              this.noise(0.035, 0.05 - i * 0.004, { type: "bandpass", f: 2200 + ((i * 1300) % 3400), q: 5, at }),
+        case "singPull":
+          // the rift opens and pulls for 1.5 s: a suction that rises, a low hum that swells and wobbles, a thin whine
+          // that climbs towards the collapse
+          if (this.gate(id, 0.2)) {
+            this.noise(1.45, 0.11, { type: "bandpass", f: 260, to: 1500, q: 1.6, attack: 0.9 });
+            this.tone(52, 1.45, "sine", 0.13, { to: 78, attack: 0.5 });
+            this.tone(104, 1.4, "triangle", 0.035, { to: 150, attack: 0.6, lp: 600 });
+            this.tone(330, 1.4, "sine", 0.018, { to: 880, attack: 1.0 });
+            [0.25, 0.55, 0.85, 1.1].forEach((at, i) =>
+              this.tone(46 + i * 6, 0.22, "sine", 0.05, { at, to: 60 + i * 6 }),
             );
-            this.tone(1500, 0.18, "sine", 0.025, { to: 700, at: 0.04 });
+          }
+          break;
+        case "singCollapse":
+          // the collapse: a short in-suck, then a deep soft thump (no crack) and a hollow ring that fades
+          if (this.gate(id, 0.05)) {
+            this.noise(0.09, 0.08, { type: "bandpass", f: 900, to: 4200, q: 2, attack: 0.08 });
+            this.tone(70 * pitch, 0.55, "sine", 0.42, { to: 30, at: 0.08 });
+            this.noise(0.45, 0.2, { type: "lowpass", f: 900, to: 120, attack: 0.01, at: 0.08 });
+            this.tone(392, 0.8, "sine", 0.045, { at: 0.1, to: 380 });
+            this.tone(587, 0.65, "sine", 0.03, { at: 0.11, to: 570 });
+            this.tone(196, 0.5, "triangle", 0.05, { at: 0.09, to: 150, lp: 900 });
           }
           break;
         case "gadgetReady":
@@ -1937,7 +1949,7 @@ const musicChords = {
           }
           break;
         case "gadgetNo":
-          // the grenade is not ready: a dull double buzz
+          // the gadget is not ready: a dull double buzz
           if (this.gate(id, 0.2)) {
             this.tone(96, 0.1, "square", 0.07, { lp: 480 });
             this.tone(88, 0.12, "square", 0.07, { lp: 420, at: 0.12 });
@@ -2108,7 +2120,7 @@ const musicChords = {
           }
           break;
         case "tsMine":
-          // a sharp mine blast: a crack, a hard body and a low rumble (no debris patter: that is the grenade)
+          // a sharp mine blast: a crack, a hard body and a low rumble (no debris patter: that was the grenade)
           if (this.gate(id, 0.05)) {
             this.noise(0.04, 0.34, { type: "highpass", f: 2.4e3, attack: 0.001 });
             this.tone(1100, 0.16, "square", 0.08, { to: 300, lp: 3.5e3 });
@@ -2412,7 +2424,8 @@ const musicChords = {
             }
             break;
           case "boom":
-            // 3.0.0: the grenade and the traps have blasts of their own (grenadeBlast, trapFire); 3.6.0: so has the
+            // 3.0.0: the traps have blasts of their own (trapFire), 3.12.0: so has the Singularity (singCollapse);
+            // 3.6.0: so has the
             // Combo Surge ("surge")
             if (ev.kind === "trap" || ev.kind === "surge") break;
             // 3.10.0: the attacks of enemies and bosses sound like what they are
@@ -2421,8 +2434,8 @@ const musicChords = {
               break;
             }
             this.play(
-              ev.kind === "grenade"
-                ? "grenadeBlast"
+              ev.kind === "singularity"
+                ? "singCollapse"
                 : ev.kind === "payload" || ev.kind === "pop"
                   ? "smallboom"
                   : "boom",
@@ -2510,8 +2523,11 @@ const musicChords = {
           case "maxed":
             this.play("heal");
             break;
-          case "grenade":
-            this.play("grenadeThrow");
+          case "singularity":
+            this.play("singThrow");
+            break;
+          case "singOpen":
+            this.play("singPull");
             break;
           case "gadgetReady":
             this.play("gadgetReady");
@@ -4549,8 +4565,8 @@ function rlSoundCatalog() {
   ]);
   ids(["hatch"], 0);
   ids(["hatch"], 1);
-  // 3.0.0: grenade, resisted hits and traps
-  ids(["grenadeThrow", "grenadeBlast", "gadgetReady", "gadgetNo", "resist"]);
+  // 3.0.0: the gadget (3.12.0: the Singularity), resisted hits and traps
+  ids(["singThrow", "singPull", "singCollapse", "gadgetReady", "gadgetNo", "resist"]);
   // 3.3.0: the Endless mutator
   ids(["mutator"], "volatile");
   ids(["tcPlate", "tcCrusher", "tcIce", "tcGeyser", "tcRift"], 1);
