@@ -1,3 +1,66 @@
+RIFTLINE v3.11.0 – LANDSCAPE ONLY ON PHONES AND TABLETS
+Base: v3.10.0 · Build r3110a1005a-r1 · 05.10.2026
+
+Requested: "the game is way better at landscape", so on phones it should open in landscape and always stay that way;
+PC keeps working as it does. Planned with the owner on 04.10.2026; second of the stacked PRs of the night (stacked on
+3.10.0).
+
+1) What a browser allows
+   - An installed app follows the manifest: "orientation" is now "landscape" (was "any").
+   - A page in a browser tab cannot force the orientation. screen.orientation.lock("landscape") works only where the
+     browser allows it (an installed app, Android in full screen); it is tried when a run starts and a refusal is
+     ignored. iPhone Safari has no lock at all.
+   - So a touch phone or tablet held upright gets a rotate screen over everything (index.html sets needs-rotate on
+     <body> from the device profile that was already there: a touch device that is not a desktop and taller than
+     wide). A desktop window of any shape, also a tall narrow one, keeps working as before.
+
+2) The rotate screen
+   - A turning phone (an SVG in the cyan of the game with a soft glow, still with reduced motion), "TURN YOUR DEVICE"
+     and "Riftline plays in landscape. A run waits paused until you turn it back." It covers every screen, dialogs
+     included, and takes every touch.
+   - A run pauses behind it (main.js: every frame while needs-rotate, game.pause() does nothing outside the fight or
+     when already paused; the pause music plays). Resume does nothing while the rotate screen is up (a tablet with a
+     keyboard could press Esc there). Turned back, the pause menu waits for the player.
+
+3) What went
+   - The portrait-only layouts of phones and tablets: the menu (logo, panels, buttons), the upgrade choice, the biome
+     and boss cards, the editor panel position (about 50 lines of CSS). Generic rules for narrow windows stay (a
+     desktop window can still be narrow).
+   - The orientation chip of the button editor and "Each orientation keeps its own layout". The layouts are still
+     saved per orientation, so older saves load unchanged; the portrait one is simply never used.
+
+4) Tests
+   - The touch sections of the full QA (ui, run, workshop-merge, upgrades, biome events, codex) run on a phone held
+     sideways (844 x 390) instead of upright; the codex section no longer runs twice on the same screen; the layout
+     sections check PC, the small phone as 640 x 360 and the landscape phone; the button editor section runs in
+     landscape and checks that turning the phone upright shows the rotate screen and pauses the run, and that the own
+     layout is back after turning it back.
+   - New section rotate: the manifest asks for landscape; a tall desktop window shows the game; on a phone upright in
+     the menu the rotate screen covers everything (the element under a touch is the rotate screen) and the menu is
+     back after turning; upright in a run the run pauses, Esc does not resume it there, turned back the pause menu
+     waits and Resume goes on; no page errors. Screenshot tests/shots/qa-rotate-phone.png.
+   - The portrait E2E device (390 x 844) and the portrait screenshot runs (screens, biome shots) are gone.
+   - The sound cache of the deep test is keyed on the installed Playwright instead of the lockfile (a version bump
+     changed the lockfile and threw away the sound results for nothing).
+
+5) Results 3.11.0 (headless Chromium, software WebGL; npm run release-check)
+   - npm test steps: green (build, deep test with every sound rendered again, data audit, determinism 15/15
+     unchanged; the closest strikes stay tsMine / boom at 0.51).
+   - Full QA: all 403 checks passed (432 before: the portrait layout section and the second landscape codex run are
+     gone, the rotate section is new; the touch sections now run sideways).
+   - E2E: 136 checks, 0 failures on the four devices (desktop 1440, desktop 1280 x 640, tablet, phone sideways).
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     4414 events in 38 kinds, all consumed.
+   - Screens and biome pictures PC and landscape phone, attack pictures PC: no page errors. Looked at: the rotate
+     screen on a phone held upright, the menu on the landscape phone.
+   - Time of the whole chain: 40 min 06 s with every sound rendered again (3.10.0: 44 min 26 s).
+   - Format check: ok.
+
+6) Open doubts
+   - Only tested in headless Chromium: how the rotate screen and the lock behave on a real iPhone and Android phone,
+     installed and in the browser.
+   - Tablets are treated like phones (landscape only); the owner spoke of phones. Easy to limit to phones if wanted.
+
 RIFTLINE v3.10.0 – THE ATTACKS OF ENEMIES AND BOSSES LOOK AND SOUND LIKE WHAT THEY ARE
 Base: v3.9.0 · Build r3100a1004a-r1 · 04.10.2026
 

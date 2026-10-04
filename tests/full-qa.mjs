@@ -15,7 +15,8 @@ const browser = await chromium.launch({
 });
 const PROFILES = {
   desktop: { viewport: { width: 1440, height: 900 }, touch: false },
-  phone: { viewport: { width: 390, height: 844 }, touch: true, mobile: true },
+  // 3.11.0: phones play in landscape only; the touch sections run on a phone held sideways
+  phone: { viewport: { width: 844, height: 390 }, touch: true, mobile: true },
 };
 let fails = 0;
 const out = [];
@@ -1588,8 +1589,7 @@ await section("visual", async (L) => {
 /* ======================= 4c. layout criteria per device ======================= */
 for (const [name, vp, touch] of [
   ["pc", { width: 1920, height: 955 }, false],
-  ["phone", { width: 390, height: 844 }, true],
-  ["small", { width: 360, height: 640 }, true],
+  ["small", { width: 640, height: 360 }, true],
   ["land", { width: 844, height: 390 }, true],
 ])
   await section(`layout-${name}`, async (L) => {
@@ -2618,7 +2618,7 @@ for (const profName of ["desktop", "phone"])
 
 /* ======================= 2.5.0 D: biome title card, boss intro card, Codex ======================= */
 PROFILES.land = { viewport: { width: 844, height: 390 }, touch: true, mobile: true };
-for (const profName of ["desktop", "phone", "land"])
+for (const profName of ["desktop", "phone"])
   await section(`codex-${profName}`, async (L) => {
     // an old save: no Codex keys except one enemy tip, a defeated boss and a build in the history
     const P = await open(profName, {
@@ -2909,6 +2909,79 @@ await section("tabs", async (L) => {
 });
 
 /* ======================= 3.6.0: the button layout editor ======================= */
+/* ======================= 3.11.0: landscape only ======================= */
+await section("rotate", async (L) => {
+  const save = JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } });
+  // the installed app asks for landscape
+  {
+    const P = await open("desktop");
+    const manifest = await (await P.page.request.get(BASE + "manifest.webmanifest")).json();
+    check(L, "manifest: orientation landscape", manifest.orientation === "landscape", manifest.orientation);
+    await P.close();
+  }
+  // a desktop window of any shape keeps working (no rotate screen in a tall, narrow window)
+  {
+    PROFILES.tall = { viewport: { width: 600, height: 900 }, touch: false };
+    const P = await open("tall", { save });
+    await P.boot();
+    check(
+      L,
+      "desktop: a tall window shows the game, not the rotate screen",
+      !(await P.vis("rotate")) && (await P.vis("home")),
+    );
+    await P.close();
+  }
+  const P = await open("phone", { save });
+  await P.boot();
+  const { page } = P,
+    upright = () => page.setViewportSize({ width: 390, height: 844 }),
+    sideways = () => page.setViewportSize({ width: 844, height: 390 }),
+    rotated = (on) =>
+      page
+        .waitForFunction((on) => document.body.classList.contains("needs-rotate") === on, on, { timeout: 5000 })
+        .then(
+          () => true,
+          () => false,
+        );
+  check(L, "phone sideways: no rotate screen", !(await P.vis("rotate")) && (await P.vis("home")));
+  // upright in the menu: the rotate screen covers everything, nothing under it can be tapped
+  await upright();
+  const covered =
+    (await rotated(true)) &&
+    (await P.vis("rotate")) &&
+    (await P.ev(() => {
+      const el = document.elementFromPoint(innerWidth / 2, innerHeight * 0.8);
+      return !!el && !!el.closest("#rotate");
+    }));
+  check(L, "phone upright in the menu: the rotate screen covers everything", covered);
+  await page.screenshot({ path: new URL("./shots/qa-rotate-phone.png", import.meta.url).pathname });
+  await sideways();
+  check(L, "turned back: the menu is there again", (await rotated(false)) && (await P.vis("home")));
+  // upright during a run: the run pauses behind the rotate screen and stays paused until the player resumes it
+  await P.tap("#playBtn");
+  await page.waitForFunction(() => window.__riftTest.game.world?.state === "fight", null, { timeout: 20000 });
+  await upright();
+  const paused =
+    (await rotated(true)) &&
+    (await page
+      .waitForFunction(() => window.__riftTest.game.paused, null, { timeout: 10000 })
+      .then(
+        () => true,
+        () => false,
+      ));
+  const t0 = await P.ev(() => window.__riftTest.game.world.time);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(600);
+  const still = await P.ev((t0) => window.__riftTest.game.paused && window.__riftTest.game.world.time === t0, t0);
+  check(L, "phone upright in a run: the run pauses and Esc does not resume it there", paused && still);
+  await sideways();
+  check(L, "turned back: the pause menu waits, Resume goes on", (await rotated(false)) && (await P.vis("pause")));
+  await P.tap("#resumeBtn");
+  check(L, "Resume after turning back", !(await P.ev(() => window.__riftTest.game.paused)));
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 3).join(" | "));
+  await P.close();
+});
+
 await section("layout360", async (L) => {
   const P = await open("phone", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
   await P.boot();
@@ -2930,8 +3003,8 @@ await section("layout360", async (L) => {
       await page.waitForTimeout(150);
     },
     problems = () => P.ev(() => [...window.__riftTest.hudEditor.problems()]),
-    W = 390,
-    H = 844;
+    W = 844,
+    H = 390;
   // the cleaning of a save: broken places fall back to the default layout, numbers keep the range of their sliders
   const cleaned = await P.ev(() => {
     const S = window.__riftTest.store,
@@ -2993,7 +3066,7 @@ await section("layout360", async (L) => {
   check(
     L,
     "a tap picks a button without making a layout of its own; P keeps the editor open",
-    (await P.ev(() => window.__riftTest.hudEditor.draft.layouts.portrait === null)) &&
+    (await P.ev(() => window.__riftTest.hudEditor.draft.layouts.landscape === null)) &&
       (await page.textContent("#heWhat")) === "DASH" &&
       (await P.vis("hudEdit")),
   );
@@ -3040,11 +3113,11 @@ await section("layout360", async (L) => {
   const stored = await P.stored();
   check(
     L,
-    "Save stores the layout (portrait only) and the fixed stick",
+    "Save stores the layout (landscape only) and the fixed stick",
     stored.settings.hudLayout &&
-      stored.settings.hudLayout.portrait &&
-      stored.settings.hudLayout.landscape === null &&
-      stored.settings.hudLayout.portrait.nova.s === 1.4 &&
+      stored.settings.hudLayout.landscape &&
+      stored.settings.hudLayout.portrait === null &&
+      stored.settings.hudLayout.landscape.nova.s === 1.4 &&
       stored.settings.stickFixed === true,
     JSON.stringify(stored.settings.hudLayout),
   );
@@ -3109,7 +3182,7 @@ await section("layout360", async (L) => {
   await P.ev(() => {
     const set = window.__riftTest.store.data.settings,
       broken = structuredClone(set.hudLayout);
-    broken.portrait.dash = { ...broken.portrait.nova };
+    broken.landscape.dash = { ...broken.landscape.nova };
     set.hudLayout = broken;
     window.__riftTest.game.settingsChanged(true);
   });
@@ -3126,20 +3199,23 @@ await section("layout360", async (L) => {
     window.__riftTest.store.data.settings.hudLayout = JSON.parse(json);
     window.__riftTest.game.settingsChanged(true);
   }, kept);
-  await page.setViewportSize({ width: 844, height: 390 });
-  await page.waitForTimeout(700);
+  // 3.11.0: turned upright, the phone shows the rotate screen and the run waits; turned back, the own layout is there
+  await page.setViewportSize({ width: H, height: W });
+  await page.waitForFunction(() => document.body.classList.contains("needs-rotate"), null, { timeout: 5000 });
   check(
     L,
-    "landscape uses its own (default) layout",
-    !(await P.ev(() => document.getElementById("hud").classList.contains("custom"))),
+    "upright: the rotate screen covers the run and the run is paused",
+    (await P.vis("rotate")) && (await P.ev(() => window.__riftTest.game.paused)),
   );
   await page.setViewportSize({ width: W, height: H });
+  await page.waitForFunction(() => !document.body.classList.contains("needs-rotate"), null, { timeout: 5000 });
   await page.waitForTimeout(700);
   check(
     L,
-    "portrait gets its layout back",
+    "turned back: the own layout is still in use",
     await P.ev(() => document.getElementById("hud").classList.contains("custom")),
   );
+  await P.tap("#resumeBtn");
   // the editor from the pause menu gives the HUD back to the pause menu
   await P.ev(() => window.__riftTest.game.pause());
   await P.tap("#pauseSetBtn");

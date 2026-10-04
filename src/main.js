@@ -326,6 +326,7 @@ const overlay = new Overlay(elementById("ov")),
     cloud: null,
     startRun(options) {
       const { resume } = options;
+      lockLandscape();
       let save = store.data,
         snap = resume ? save.run : null;
       if (!resume) {
@@ -437,7 +438,8 @@ const overlay = new Overlay(elementById("ov")),
       }
     },
     resume() {
-      if (this.paused) {
+      // 3.11.0: not behind the rotate screen (a tablet with a keyboard could press Esc there)
+      if (this.paused && !needsRotate()) {
         this.paused = false;
         ui.hidePause();
         input.reset();
@@ -767,6 +769,19 @@ let loopFrameId = 0,
   fpsWindowFrames = 0,
   dimFrameCounter = 0,
   menuFrame = 0;
+/* 3.11.0: Riftline plays in landscape on phones and tablets. index.html sets needs-rotate on <body> while such a
+   device is held upright (the rotate screen). Where the browser allows it (an installed app, Android in full screen)
+   the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens. */
+function needsRotate() {
+  return document.body.classList.contains("needs-rotate");
+}
+function lockLandscape() {
+  if (document.body.dataset.device === "desktop") return;
+  try {
+    const lock = screen.orientation && screen.orientation.lock && screen.orientation.lock("landscape");
+    if (lock && lock.catch) lock.catch(() => {});
+  } catch {}
+}
 function startLoop() {
   if (!loopFrameId) {
     game.last = performance.now();
@@ -779,6 +794,9 @@ function loopTick(now) {
   if (!(qualityPreset.fps && dt < 1 / qualityPreset.fps - 0.004)) {
     game.last = now;
     dt = Math.min(0.1, Math.max(0, dt));
+    // 3.11.0: a phone or tablet held upright shows the rotate screen; a run waits paused behind it (pause() does
+    // nothing outside the fight or when already paused)
+    if (needsRotate()) game.pause();
     try {
       const frameStart = performance.now();
       runFrame(dt);

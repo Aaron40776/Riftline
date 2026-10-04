@@ -524,14 +524,13 @@ class HudEditor {
     getById("heStickSize").value = String(this.draft.stickSize);
     getById("heStickV").textContent = Math.round(this.draft.stickSize * 100) + "%";
     getById("heFixed").checked = this.draft.stickFixed;
-    getById("heOrient").textContent = orient === "landscape" ? "Landscape" : "Portrait";
     const note = getById("heNote");
     note.textContent =
       this.note ||
       (bad.size
         ? "Red buttons cover another button or the hull and wave display: move them."
         : this.draft.stickFixed
-          ? "Drag a button or the stick to move it, tap a button to resize it. Each orientation keeps its own layout."
+          ? "Drag a button or the stick to move it, tap a button to resize it."
           : "Drag a button to move it, tap it to resize it. The move stick starts where your thumb lands.");
     note.classList.toggle("bad", !!this.note || bad.size > 0);
     getById("heSave").disabled = bad.size > 0;

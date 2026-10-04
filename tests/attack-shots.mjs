@@ -1,5 +1,5 @@
 // 3.10.0: screenshots of the attacks of enemies and bosses in every biome: the zones while they warn, the blasts and
-// the marks they leave, the enemy shots of every kind. Usage: node tools/qa.js attack-shots [pc|phone]
+// the marks they leave, the enemy shots of every kind. Usage: node tools/qa.js attack-shots pc
 //   -> tests/shots/attacks-<profile>/
 import { chromium } from "playwright";
 import fs from "fs";
@@ -7,10 +7,9 @@ const URL = /^https?:/.test(process.argv[2] || "") ? process.argv[2] : "http://l
 const NAME = (/^https?:/.test(process.argv[2] || "") ? process.argv[3] : process.argv[2]) || "pc";
 const prof = {
   pc: { viewport: { width: 1440, height: 900 } },
-  phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
 }[NAME];
 if (!prof) {
-  console.error("usage: node attack-shots.mjs [url] pc|phone");
+  console.error("usage: node attack-shots.mjs [url] pc");
   process.exit(2);
 }
 const OUT = `tests/shots/attacks-${NAME}`;

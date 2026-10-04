@@ -5,7 +5,7 @@ one upgrade after every wave and fight a boss every fifth wave, the boss of the 
 After each boss the rift moves on to the next biome. After the Rift Core at wave 20 you can keep
 going in Endless mode. Shards from every run, won or lost, buy permanent modules in the Workshop.
 
-The game runs in the browser (desktop and phone) and installs as an offline-capable PWA. It is
+The game runs in the browser (desktop, and phones and tablets in landscape) and installs as an offline-capable PWA. It is
 built with three.js and plain JavaScript. There is no framework.
 
 **Play:** <https://aaron40776.github.io/Riftline/> (GitHub Pages, rebuilt on every push to `main`). Locally: `npm install && npm run dev`, then open <http://localhost:8124/>.
@@ -25,7 +25,8 @@ built with three.js and plain JavaScript. There is no framework.
 
 *Button layout* in Settings opens an editor over the HUD: drag DASH, NOVA, GADGET and the pause
 button to any free spot, resize each one, set the button opacity and the stick size, or pin the
-move stick to one spot. Portrait and landscape keep their own layouts.
+move stick to one spot. Phones and tablets play in landscape only: held upright they show a "turn your device"
+screen, and a run waits paused behind it.
 
 Keys are read by their position, so on AZERTY or other layouts the same physical keys (where W A S D sit on QWERTY)
 move the drone.
@@ -60,12 +61,12 @@ npm test             # build + deep self-test + file/PWA contract + data audit +
 npm run check        # quick check while developing: format + the npm test steps (~2 min with cached sound
                      # results); name full-QA sections to add them: npm run check -- run-desktop codex
 npm run release-check  # everything a release needs, one step after another, with a time per step (~41-45 min)
-npm run qa           # full QA: saves, settings, workshop, runs on PC and phone, layout, buttons (~17 min)
-npm run e2e          # end-to-end with real pointer/touch input on 5 device sizes
+npm run qa           # full QA: saves, settings, workshop, runs on PC and phone, layout, buttons (~15 min)
+npm run e2e          # end-to-end with real pointer/touch input on 4 device sizes
 npm run audit        # world audit (routes, walls, spawns), data audit, bot run to wave 22 + post-run audit
 npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
 npm run format       # Prettier over src/, tests/, tools/ (CI runs npm run format:check)
-npm run screens      # screenshot of every screen and every biome on PC, phone and landscape phone, and the
+npm run screens      # screenshot of every screen and every biome on PC and a landscape phone, and the
                      # attacks of enemies and bosses in every biome -> tests/shots/
 ```
 

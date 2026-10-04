@@ -1,16 +1,15 @@
 // 2.4.0: one screenshot of every biome in a running wave (and its boss arena), for looking at
-// them side by side. Usage: node tools/qa.js biome-shots [pc|phone|land]  -> tests/shots/biomes-<profile>/
+// them side by side. Usage: node tools/qa.js biome-shots [pc|land]  -> tests/shots/biomes-<profile>/
 import { chromium } from "playwright";
 import fs from "fs";
 const URL = /^https?:/.test(process.argv[2] || "") ? process.argv[2] : "http://localhost:8124/index.html";
 const NAME = (/^https?:/.test(process.argv[2] || "") ? process.argv[3] : process.argv[2]) || "pc";
 const prof = {
   pc: { viewport: { width: 1440, height: 900 } },
-  phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   land: { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
 }[NAME];
 if (!prof) {
-  console.error("usage: node biome-shots.mjs [url] pc|phone|land");
+  console.error("usage: node biome-shots.mjs [url] pc|land");
   process.exit(2);
 }
 const OUT = `tests/shots/biomes-${NAME}`;

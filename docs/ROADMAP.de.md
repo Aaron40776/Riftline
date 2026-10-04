@@ -118,7 +118,8 @@ Plan:
 
 ### HANDOFF (night of 04/05.10.2026; read this first when the work goes on)
 
-**State.** 3.10.0 is finished on branch `claude/attack-looks-3100` (PR against `main`, not merged yet): the attack
+**State.** 3.11.0 (landscape only) is finished on branch `claude/landscape-3110`, stacked on 3.10.0 (PR #30); merge
+#30 first. 3.10.0 is finished on branch `claude/attack-looks-3100` (PR #30 against `main`, not merged yet): the attack
 looks and sounds, plus the faster and steadier release checks the owner asked for (QA report 3.10.0, points 6 and 7:
 release-check green, 432 QA checks, 170 E2E checks, no page errors). The open QA failure of the first runs was a
 timing flake under software WebGL that main had too; the waits that depend on the game now count game time.
@@ -127,7 +128,7 @@ timing flake under software WebGL that main had too; the waits that depend on th
 (each later branch starts from the earlier one, each PR targets the earlier branch and says "stacked on #N, merge in
 order"; after a merge and a deleted branch GitHub retargets the next PR to main):
 1. 3.10.0 with the faster tests (done, see above).
-2. 3.11.0 Landscape only: phones open and stay in landscape (manifest orientation landscape, screen.orientation.lock
+2. 3.11.0 Landscape only (done, QA report 3.11.0): phones open and stay in landscape (manifest orientation landscape, screen.orientation.lock
    where the browser allows it, a "rotate your phone" screen that pauses a run in portrait; iPhone Safari and browser
    tabs cannot be locked); the portrait layouts, the portrait layout of the button editor and the portrait tests go
    (about 9 minutes less in the release checks). PC unchanged.
