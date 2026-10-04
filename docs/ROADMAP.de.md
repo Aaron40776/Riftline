@@ -115,6 +115,25 @@ Plan:
    all ten tracks before the merge.
 4. Then the boss rewards (3.13.0), the walker.
 
+Status when the owner paused the work (04.10.2026): 3.10.0 is on the branch `claude/attack-looks-3100` as work in
+progress (no PR yet). Open before the PR: the full QA failed every run at "boss kill → upgrade choice" (on the last
+run a page-load timeout cascade followed); E2E once at "choose screen after wave clear". A repro in four boss biomes
+passed without errors, so the cause is still open. QA, E2E, audit and screens need a clean pass; the QA report section
+still has a results placeholder. The music check "calm works / void too similar" failed once (music untouched,
+borderline, it passed in other runs).
+
+## Requested on 04.10.2026 (later the same day): next ideas of the owner
+
+Not started; to be planned with the owner when the work goes on (after 3.10.0 is finished):
+- **Replace the grenade**: "the current grenades just aren't useful, you gotta get so close until they actually fly
+  into the enemies that you'll basically always have defeated them already". Make it another, cooler mechanic that
+  fits the game (with model, sound, telegraph and tests, like everything else).
+- **Landscape only**: "the game is way better at landscape", so on phones it should open in landscape and always stay
+  that way; PC keeps working as it does. (The portrait layouts, the portrait button layout of the editor and the
+  portrait tests would go.)
+- **Faster tests**: the release checks take about 45 minutes; optimize the steps for this project.
+
+
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
 ### 1. Boss-Belohnungen
