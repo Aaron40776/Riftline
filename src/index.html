@@ -1299,8 +1299,14 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     if (coarse) body.classList.add('device-touch');
     body.dataset.device = device;
     body.dataset.orientation = w >= h ? 'landscape' : 'portrait';
-    // 3.11.0: phones and tablets play in landscape only (the rotate screen covers the game while held upright)
-    body.classList.toggle('needs-rotate', device !== 'desktop' && h > w);
+    // 3.11.0: phones and tablets play in landscape only (the rotate screen covers the game while held upright).
+    // The screen itself has to be upright too, not only the window: a touch laptop with the browser snapped to half
+    // its screen or an iPad in Split View has a tall window on a landscape screen, and turning would not help there.
+    const so = screen.orientation && screen.orientation.type;
+    const screenUpright = so ? so.startsWith('portrait')
+      : typeof window.orientation === 'number' ? window.orientation % 180 === 0
+      : screen.height > screen.width;
+    body.classList.toggle('needs-rotate', device !== 'desktop' && h > w && screenUpright);
     root.style.setProperty('--vw', `${w}px`);
     root.style.setProperty('--vh', `${h}px`);
   }

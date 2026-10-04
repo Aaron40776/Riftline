@@ -42,6 +42,7 @@ async function open(profName, { save = null, block = false } = {}) {
     hasTouch: !!prof.touch,
     isMobile: !!prof.mobile,
     deviceScaleFactor: prof.mobile ? 2 : 1,
+    ...(prof.screen ? { screen: prof.screen } : {}),
   });
   await ctx.addInitScript(
     ([k, v, block]) => {
@@ -2928,6 +2929,21 @@ await section("rotate", async (L) => {
       L,
       "desktop: a tall window shows the game, not the rotate screen",
       !(await P.vis("rotate")) && (await P.vis("home")),
+    );
+    await P.close();
+  }
+  // a touch laptop with the browser snapped to half of its landscape screen: a tall window, but turning would not
+  // help, so no rotate screen (found in the code review of 3.11.0)
+  {
+    PROFILES.snapped = { viewport: { width: 683, height: 768 }, screen: { width: 1366, height: 768 }, touch: true };
+    const P = await open("snapped", { save });
+    await P.boot();
+    const r = await P.ev(() => ({ device: document.body.dataset.device, type: screen.orientation?.type }));
+    check(
+      L,
+      "touch laptop, window snapped to half the screen: no rotate screen",
+      r.device !== "desktop" && !(await P.vis("rotate")) && (await P.vis("home")),
+      JSON.stringify(r),
     );
     await P.close();
   }

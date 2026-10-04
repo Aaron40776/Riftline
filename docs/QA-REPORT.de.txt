@@ -12,7 +12,12 @@ PC keeps working as it does. Planned with the owner on 04.10.2026; second of the
      ignored. iPhone Safari has no lock at all.
    - So a touch phone or tablet held upright gets a rotate screen over everything (index.html sets needs-rotate on
      <body> from the device profile that was already there: a touch device that is not a desktop and taller than
-     wide). A desktop window of any shape, also a tall narrow one, keeps working as before.
+     wide, on a screen that is upright too). A desktop window of any shape, also a tall narrow one, keeps working as
+     before.
+   - Found in the code review: the first draft looked only at the window. A touch laptop with the browser snapped to
+     half of its screen (683 x 768 on 1366 x 768) counts as a tablet and would have got the rotate screen with no way
+     out, and so would an iPad in Split View. The screen itself must be upright now (screen.orientation, on older
+     Safari window.orientation, else the screen size); the rotate section checks the snapped window.
 
 2) The rotate screen
    - A turning phone (an SVG in the cyan of the game with a soft glow, still with reduced motion), "TURN YOUR DEVICE"
@@ -35,7 +40,8 @@ PC keeps working as it does. Planned with the owner on 04.10.2026; second of the
      sections check PC, the small phone as 640 x 360 and the landscape phone; the button editor section runs in
      landscape and checks that turning the phone upright shows the rotate screen and pauses the run, and that the own
      layout is back after turning it back.
-   - New section rotate: the manifest asks for landscape; a tall desktop window shows the game; on a phone upright in
+   - New section rotate: the manifest asks for landscape; a tall desktop window and a snapped window on a touch
+     laptop show the game; on a phone upright in
      the menu the rotate screen covers everything (the element under a touch is the rotate screen) and the menu is
      back after turning; upright in a run the run pauses, Esc does not resume it there, turned back the pause menu
      waits and Resume goes on; no page errors. Screenshot tests/shots/qa-rotate-phone.png.
@@ -46,7 +52,7 @@ PC keeps working as it does. Planned with the owner on 04.10.2026; second of the
 5) Results 3.11.0 (headless Chromium, software WebGL; npm run release-check)
    - npm test steps: green (build, deep test with every sound rendered again, data audit, determinism 15/15
      unchanged; the closest strikes stay tsMine / boom at 0.51).
-   - Full QA: all 403 checks passed (432 before: the portrait layout section and the second landscape codex run are
+   - Full QA: all 403 checks passed, 404 with the snapped-window check added after the review (432 before: the portrait layout section and the second landscape codex run are
      gone, the rotate section is new; the touch sections now run sideways).
    - E2E: 136 checks, 0 failures on the four devices (desktop 1440, desktop 1280 x 640, tablet, phone sideways).
    - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
