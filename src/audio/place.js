@@ -208,6 +208,25 @@ const PLACE = {
   glitch(e, a) {
     for (let i = 0; i < 5; i++) T(e, a, rand(200, 2200), 0.03, "square", 0.02, { at: i * 0.045, lp: 3000 });
   },
+  // ---- 3.17.0: the props near the drone (placeTick, PROP_HEAR) ----
+  // Blackout City: a street lamp at the edge buzzes on the mains (100 Hz and its harmonics), now and then it ticks
+  lampBuzz(e, a) {
+    T(e, a, 100, 0.62, "sawtooth", 0.012, { lp: 900, attack: 0.08 });
+    T(e, a, 200, 0.6, "square", 0.004, { lp: 1600, attack: 0.08 });
+    if (Math.random() < 0.25) N(e, a, 0.03, 0.03, { type: "highpass", f: 4500, at: rand(0, 0.4) });
+  },
+  // Ember Works: the gears on a machine block turn, tooth by tooth, over the whir of its motor
+  gears(e, a) {
+    for (let i = 0; i < 4; i++) N(e, a, 0.025, 0.035, { type: "bandpass", f: rand(1600, 2400), q: 4, at: i * 0.11 });
+    T(e, a, 320, 0.45, "triangle", 0.008, { to: 330, lp: 1200 });
+    T(e, a, 80, 0.45, "sine", 0.02);
+  },
+  // Void Core: an obelisk bends the room: two low tones that beat against each other and swell
+  gravityHum(e, a) {
+    T(e, a, 55, 1.25, "sine", 0.045, { attack: 0.4 });
+    T(e, a, 58.5, 1.25, "sine", 0.04, { attack: 0.4 });
+    T(e, a, 165, 1.1, "triangle", 0.008, { attack: 0.5, to: 160, lp: 600 });
+  },
   // ---- 3.13.0: the steady layers (soft grains, many of them) ----
   // Blackout City: light rain as single drops (no hiss), sometimes a gutter, sometimes rain on metal
   rainDrop(e, a) {
@@ -484,6 +503,45 @@ const SCAPE = {
 const BIOME_PLACE = Object.fromEntries(Object.entries(SCAPE).map(([biome, sc]) => [biome, sc.far.map((f) => f.id)]));
 const PLACE_IDS = Object.keys(PLACE);
 
+/* 3.17.0: the sounding prop nearest to the drone (null: none within PROP_HEAR). The street lamps stand every ~7 m
+   1.6 m outside the edges (render/biome-props.js rlStreet), the machine blocks are the box obstacles of the Ember
+   Works, the obelisks the round obstacles of the Void Core (render/biome-visuals.js). */
+const PROP_HEAR = 7;
+function nearestProp(arena, player) {
+  const biome = arena.biome.id;
+  let best = null,
+    bestD = PROP_HEAR;
+  const take = (x, y, id, lo, hi) => {
+    const d = Math.hypot(x - player.x, y - player.y);
+    if (d < bestD) {
+      bestD = d;
+      best = { x, y, id, lo, hi };
+    }
+  };
+  if (biome === "yard") {
+    const W = arena.W,
+      H = arena.H;
+    for (const [len, along, fixed, alongX] of [
+      [W, player.x, -H - 1.6, true],
+      [W, player.x, H + 1.6, true],
+      [H, player.y, -W - 1.6, false],
+      [H, player.y, W + 1.6, false],
+    ]) {
+      const n = Math.round((len * 2) / 7),
+        step = (len * 2) / n,
+        i = Math.max(0, Math.min(n, Math.round((along + len) / step))),
+        s = -len + i * step;
+      if (alongX) take(s, fixed, "lampBuzz", 0.55, 0.62);
+      else take(fixed, s, "lampBuzz", 0.55, 0.62);
+    }
+  } else if (biome === "works") {
+    for (const ob of arena.obs) if (ob.t !== "c") take(ob.x, ob.y, "gears", 0.42, 0.5);
+  } else if (biome === "void") {
+    for (const ob of arena.obs) if (ob.t === "c") take(ob.x, ob.y, "gravityHum", 1.05, 1.2);
+  }
+  return best;
+}
+
 /* One step of the sounds of the place (main.js calls it every frame of a running fight). st keeps the timers of each
    hazard; they start anew in a new arena. At most three sounds start in one frame. */
 function placeTick(e, world, dt) {
@@ -543,6 +601,16 @@ function placeTick(e, world, dt) {
     const portal = arena.portals[Math.floor(Math.random() * arena.portals.length)];
     play("portalWhisper", at(portal.ax, portal.ay));
   }
+  // 3.17.0: the props near the drone: the street lamps along the edges of Blackout City, the machine blocks of the Ember
+  // Works, the obelisks of the Void Core (all where the renderer draws them), the nearest one within PROP_HEAR
+  const prop = nearestProp(arena, player);
+  if (prop && due("prop:" + prop.id, prop.lo, prop.hi)) {
+    const d = Math.hypot(prop.x - player.x, prop.y - player.y);
+    play(prop.id, {
+      g: Math.pow(Math.max(0, 1 - d / PROP_HEAR), 2) * (world.boss ? 0.6 : 1),
+      pan: Math.max(-0.85, Math.min(0.85, (prop.x - player.x) / 10)),
+    });
+  }
   // 3.13.0: the soundscape of the biome; a boss fight thins it out (its timers run at half speed, the bed is softer)
   const scape = SCAPE[arena.biome.id];
   if (!scape) return;
@@ -582,4 +650,4 @@ function placeTick(e, world, dt) {
   }
 }
 
-export { PLACE, PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, near as placeNear };
+export { PLACE, PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, near as placeNear, nearestProp, PROP_HEAR };

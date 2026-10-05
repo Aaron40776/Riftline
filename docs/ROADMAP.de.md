@@ -134,6 +134,19 @@ reward (the numbers are in the constants at the top of `core/boss-cards.js`).
 prefers that to the MP3 previews); whether tablets stay landscape-only too; the GitHub settings of the repository
 (description, website, topics, social preview, a license).
 
+**Check of 05.10.2026 (the owner: "check the project again… at least the Warden boss still had the same old
+attacks").** Every promise of the requests since 03.10.2026 was checked against the code. Done in 3.16.0: the Warden,
+Hive Queen and Rift Core fired the generic orb (now siren slugs, spores, rift rings), the Warden's laser grid and the
+Rift Core's beams were the generic beam (now the security laser and the rift ribbon), the boss volleys shared one sound
+and many were silent (now a voice per boss on every volley), the Warden's charge hit the wall without a mark (now it
+cracks), the weaver's volley was silent and the carrier played the gunner's sound, Searing Collapse had no burning
+ground. Also done in 3.16.0 (the owner: integrate it now, not later): the sounds of the props near the drone (street
+lamps of Blackout City, gears on the machines of the Ember Works, obelisks of the Void Core), the Cryo Vault theme with
+the rhythm of its place, the boss tracks of the Frost Prism, Hive Queen and Rift Core with their place in the drums, the
+portals a boss calls open in its colours, the sentinel's beam in the skin of its place, and a test that the ambience
+stays below the music. Not done, because not asked for: the Hive Queen's eggs and summons still hatch with the shared
+burst.
+
 **Next on the list:** the walker (section 2 below: a two-legged robot instead of the drone, footsteps per ground; the
 ambience part of that section is done by 3.13.0). Not built yet, on purpose: burning ground for Searing Collapse
 (3.12.0), sounds tied to props near the drone (3.13.0).

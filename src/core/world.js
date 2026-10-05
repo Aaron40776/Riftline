@@ -1424,6 +1424,18 @@ const rlStep = 1 / 60,
           kind: "singularity",
           burn: stats.gadgetFire ? dmg * 0.15 : 0,
         });
+        // 3.16.0: Searing Collapse leaves burning ground for 3 s that keeps the enemies in it alight (boss-cards.js
+        // updates it with the slag of the Crucible Hammer, the view draws it as fire)
+        if (stats.gadgetFire)
+          this.slag.push({
+            id: this.nextId++,
+            x: sing.tx,
+            y: sing.ty,
+            r: radius * 0.7,
+            life: 3,
+            fire: true,
+            dps: dmg * 0.1,
+          });
         // the collapse rattles what it does not kill: enemies in it are slowed for a moment
         this.hash.query(sing.tx, sing.ty, radius, (enemy) => {
           if (!enemy.dead && !enemy.boss && Math.hypot(enemy.x - sing.tx, enemy.y - sing.ty) < radius + enemy.r)

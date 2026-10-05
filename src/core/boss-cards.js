@@ -169,6 +169,7 @@ function updateSlag(world, dt) {
   const burn = SLAG_DPS * world.stats.dmgMul;
   for (const pool of world.slag) {
     pool.life -= dt;
+    const dps = pool.dps || burn;
     world.hash.query(pool.x, pool.y, pool.r, (enemy) => {
       if (
         enemy.dead ||
@@ -179,8 +180,9 @@ function updateSlag(world, dt) {
         return;
       const was = enemy.burnT > 0 ? enemy.burnDps : 0;
       enemy.burnT = Math.max(enemy.burnT, 1);
-      enemy.burnDps = Math.max(was, burn);
-      enemy.burnSrc = "hammer";
+      enemy.burnDps = Math.max(was, dps);
+      // the burning ground of Searing Collapse counts as burning, the molten ground of the hammer as the hammer
+      enemy.burnSrc = pool.fire ? "burn" : "hammer";
     });
   }
   world.slag = world.slag.filter((pool) => pool.life > 0);

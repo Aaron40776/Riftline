@@ -375,6 +375,14 @@ const MAX_PARTICLES = 1400,
     return color;
   },
   shardColors = { 1: hexColor(8386303), 5: hexColor(16762954), 25: hexColor(16734936) },
+  // 3.16.0: the colours of the portals a boss calls open (render loop, world.markers with `boss`)
+  BOSS_PORTAL = {
+    warden: [hexColor(0xff3346), hexColor(0x3d7bff)],
+    forge: [hexColor(0xff8a2a), hexColor(0xffd27a)],
+    prism: [hexColor(0x9ae6ff), hexColor(0xffffff)],
+    queen: [hexColor(0xa8f03a), hexColor(0xe6ff8a)],
+    core: [hexColor(0xa56bff), hexColor(0xff4de0)],
+  },
   healColor = hexColor(7208842),
   whiteColor = hexColor(16777215),
   hurtColor = hexColor(16724048),
@@ -2068,6 +2076,34 @@ const MAX_PARTICLES = 1400,
           size = marker.fake ? 2.2 : 1.2 - k * 0.5,
           ring = this.ringPool.y(marker.x, 0.05, marker.y, time * 2, size);
         this.ringPool.colC(ring, color, 0.5 + k * 0.6);
+        // 3.16.0: a portal a boss calls open wears the boss's colours: a second ring and a sigil of three spokes that
+        // turns faster as it opens (the Warden's flash red and blue like its siren)
+        const call = marker.boss && BOSS_PORTAL[marker.boss];
+        if (call) {
+          const flip = Math.sin(time * 14 + marker.x) > 0,
+            c0 = flip ? call[0] : call[1],
+            c1 = flip ? call[1] : call[0],
+            spin = time * (2 + k * 6);
+          this.ringPool.colC(this.ringPool.y(marker.x, 0.055, marker.y, -spin, size * 1.35), c0, 0.45 + k * 0.5);
+          for (let j = 0; j < 3; j++) {
+            const a = spin + (j / 3) * TAU,
+              r0 = size * 0.35,
+              r1 = size * 1.3;
+            this.beams.colC(
+              this.beams.seg(
+                marker.x + Math.cos(a) * r0,
+                marker.y + Math.sin(a) * r0,
+                marker.x + Math.cos(a + 0.5) * r1,
+                marker.y + Math.sin(a + 0.5) * r1,
+                0.07,
+                0.07,
+                0.03,
+              ),
+              c1,
+              0.4 + k * 0.6,
+            );
+          }
+        }
         let disc = this.discs.y(marker.x, 0.04, marker.y, 0, size * 0.9);
         this.discs.colC(disc, color, 0.12 + k * 0.2);
         if (!marker.fake) {
