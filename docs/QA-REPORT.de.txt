@@ -1,3 +1,56 @@
+RIFTLINE v3.18.0 – ALWAYS LANDSCAPE
+Base: v3.17.2 · Build r3180a1005a-r1 · 05.10.2026
+
+Requested (05.10.2026): remove the "turn your phone" screen and make the game always landscape, also when the phone is
+held upright, like Clash of Clans or Brawl Stars. A web page cannot lock the orientation of an iPhone (and an upright
+Android browser tab cannot either), so the game turns itself.
+
+1) How it works (src/index.html, the script at the top of the head)
+   - On a touch device (coarse pointer, screen up to 1400 px), when the page is the top window, not a frame, and not
+     ?shell=0 and not an automated browser (navigator.webdriver; ?shell=1 forces it), the script writes a thin shell page
+     in place of the document: an iframe with the same file (?frame=1), as wide as the screen is tall and as tall as it is
+     wide, turned a quarter (translateX(W) rotate(90deg), origin 0 0) so that it fills the upright screen. The game inside
+     sees an ordinary landscape window: its layouts, its touch coordinates and its safe areas are those of a landscape
+     phone. The safe-area insets of the screen are remapped to the turned sides (--st, --sr, --sb, --sl).
+   - Held sideways the frame is simply upright again; the game goes on without a reload (checked with a mark in the page).
+     The shell fits again on resize, orientationchange and visual viewport changes (twice more after 150 and 450 ms, the
+     window reports its size a moment after its orientation). A tall window on a landscape screen (a touch laptop with
+     the browser at half width, iPad Split View) is not turned.
+   - The rotate screen, its CSS and the pause of a run on turning are gone (main.js needsRotate); screen.orientation.lock
+     stays for installed apps. window.__rlShell tells what the shell does.
+
+2) Found by testing
+   - document.open() does nothing while a script of the page being parsed runs: the shell's markup was merged into the
+     game's own page (both showed). Now it replaces the document in a task of its own, which also aborts the parser so the
+     game never runs in the outer window.
+   - Chromium delivers pointerrawupdate events inside a turned frame without the turn (the move stick pushed the drone
+     the wrong way, a tap was right). In a frame the stick listens to pointermove (the game reads it once a frame anyway);
+     the position of the event itself is used.
+
+3) Tests
+   - full QA section shell: manifest orientation; upright phone: frame turned and 844 x 390, the game sees a landscape
+     phone and no rotate screen; a tap on the turned PLAY and DASH buttons; a finger dragged along the screen moves the drone
+     to the right of the game; turned to landscape: the frame is upright, the run goes on, DASH works; a sideways phone is
+     not turned; a tall desktop window and a touch laptop at half width are not turned; ?shell=0 runs the game directly.
+     layout360 adapted (turning no longer pauses). Picture: tests/shots/qa-shell-upright.png.
+   - Results of the chain: see section 4.
+
+4) Results 3.18.0 (headless Chromium, software WebGL; npm run release-check)
+   - All steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, e2e, world and run audit, screens pc
+     and land, biome shots pc and land, attack shots pc). Full QA: every check passed except one in the new shell section
+     (the DASH tap after a landscape turn waited a fixed 2.2 s of real time and the loaded machine had not run the
+     cooldown out yet); it now waits for the cooldown in game time, the section passes (run alone). Time of the chain:
+     44 min 13 s (this branch does not have the lighter full QA of 3.17.1 yet).
+   - The picture of the turned start screen (tests/shots/qa-shell-upright.png) was looked at: the game fills the upright
+     screen, turned a quarter, nothing cut off.
+
+5) Open doubts
+   - NOT tested on a real device: Safari on an iPhone (touches, safe areas, the address bar and audio inside a turned frame)
+     and Chrome on Android. If something is off, ?shell=0 runs the game without the shell (upright it then has no portrait
+     layout and no rotate screen any more, so it would look wrong), and the shell can be switched off in index.html.
+   - The game is turned clockwise: held upright, the top of the game is the right edge of the screen (turn the phone
+     counter-clockwise to read it).
+
 RIFTLINE v3.17.2 – SOUND NOTES
 Base: v3.17.1 · Build r3172a1005a-r1 · 05.10.2026
 

@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.18.0",
+    title: "Always landscape",
+    items: [
+      'No more "turn your phone" screen: held upright, the game turns itself and stays landscape, like other landscape games.',
+      "Your run keeps going while you turn the phone, and the touch buttons and safe areas follow.",
+    ],
+  },
+  {
     version: "3.17.2",
     title: "Sound notes",
     items: [

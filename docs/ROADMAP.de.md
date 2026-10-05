@@ -176,6 +176,26 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
 - **Faster tests**: the release checks take about 45 minutes; optimize the steps for this project.
 
 
+## Requested on 05.10.2026: always landscape, and the sound of Osmos
+
+- **Always landscape** (done in 3.18.0): "remove the turn phone thing and make the game simply always landscape, like
+  Clash of Clans / Brawl Stars": the shell in `index.html` turns the game when the phone is held upright. Open: the
+  behaviour of touches in the turned frame on a real iPhone (Safari) could not be tested without a device.
+- **A more professional look** (owner, 05.10.2026: "it's all looking like a kids game, we need more professional
+  style"). Looked at the current pictures first. What reads as toy-like: flat, evenly lit low-poly shapes without
+  material (no metal or roughness, no wear, no ambient occlusion, soft blob shadows), saturated flat colours in the
+  Cryo Vault and in the effects (the pink slab of a telegraph, white glowing blobs), the same rounded chunky shapes for
+  props, enemies and the walker. The HUD and the cards are already restrained. To plan with the owner: a graded look
+  (filmic tone mapping, a little bloom, vignette and grain, less saturation, one accent colour per biome), PBR-style
+  materials with a few small details (panel lines, bolts, wear, emissive strips), contact shadows and AO, telegraphs as
+  thin hazard outlines and hatching instead of flat slabs, calmer effect colours, a tighter model language (hard-surface
+  shapes for machines, organic only for the Hive). Needs a decision: how far (a polish pass on everything vs. an opt-in
+  Ultra preset), and a reference (a game or a picture whose look is meant).
+- **Sound direction** (the owner likes the mobile game *Osmos*): high quality stereo ambience, a nice subtle melody and
+  ambient effect sounds, noticeable and pleasant, distinct for each biome. To plan (not built yet): wider stereo (slow
+  auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
+  (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
+
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
 ### 1. Boss-Belohnungen

@@ -32,8 +32,11 @@ const Input = class {
   bind() {
     let layer = this.layer;
     layer.addEventListener("pointerdown", (ev) => this.down(ev));
-    layer.addEventListener("onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove", (ev) =>
-      this.moveEv(ev),
+    // 3.18.0: in the frame of the landscape shell the raw updates come without the turn of the frame (the stick would move
+    // the wrong way); pointermove carries the newest sample too and the game reads it once a frame anyway
+    layer.addEventListener(
+      "onpointerrawupdate" in window && window.top === window ? "pointerrawupdate" : "pointermove",
+      (ev) => this.moveEv(ev),
     );
     layer.addEventListener("pointerup", (ev) => this.up(ev));
     layer.addEventListener("pointercancel", (ev) => this.cancel(ev));
@@ -121,13 +124,13 @@ const Input = class {
       RL_INPUT.touch = false;
       return;
     }
-    let coalesced = ev.getCoalescedEvents ? ev.getCoalescedEvents() : null,
-      last = coalesced && coalesced.length ? coalesced[coalesced.length - 1] : ev,
-      x = Number.isFinite(last.clientX) ? last.clientX : ev.clientX,
-      y = Number.isFinite(last.clientY) ? last.clientY : ev.clientY;
+    // 3.18.0: the position of the event itself (the newest sample, the same as the last coalesced one). The coalesced events
+    // of a frame the landscape shell has turned come without the turn, so the stick moved the wrong way there.
+    let x = ev.clientX,
+      y = ev.clientY;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     for (let stick of [this.move, this.aim]) {
-      if (!stick.active || stick.id !== last.pointerId) continue;
+      if (!stick.active || stick.id !== ev.pointerId) continue;
       stick.lastEv = performance.now();
       stick.x = x;
       stick.y = y;
