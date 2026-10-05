@@ -2936,13 +2936,15 @@ function selfTestV3130(result) {
         fail.push("uncatalogued:" + id);
     if (typeof OfflineAudioContext !== "undefined") {
       // 20 minutes of each biome (10 of them in a boss fight): what the scheduler plays, when
-      const listen = (biome, boss, seconds) => {
+      const listen = (biome, boss, seconds, crowd = false) => {
         const world = new World({ seed: 0x3130, weapon: "pulse", threat: 0, ws: {} }),
           index = world.route.indexOf(biome);
         world.startWave(2 + 5 * Math.max(0, index));
         world.state = "fight";
         world.arena.biome = { ...world.arena.biome, id: biome };
         for (const kind of ["vents", "ice", "acid", "portals"]) world.arena[kind] = [];
+        // a crowded arena: eight portals around the drone hum all the time and take the voice slots of many frames
+        if (crowd) for (let i = 0; i < 8; i++) world.arena.portals.push({ ax: i - 4, ay: 2, bx: i - 4, by: -2 });
         world.boss = boss ? { type: "warden" } : null;
         const engine = new SoundEngine();
         engine.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
@@ -2992,6 +2994,13 @@ function selfTestV3130(result) {
       }
       if (!SCAPE.yard.far.some((f) => f.light === "lightning") || !SCAPE.yard.far.some((f) => f.light === "siren"))
         fail.push("city-light");
+      // with the voice slots taken by hazards, a light still never comes without its sound, and the thunder still comes
+      {
+        const { heard, lights } = listen("yard", false, 1200, true),
+          thunder = heard.filter((h) => h.id === "thunder").length,
+          flashes = lights.filter((l) => l.kind === "lightning").length;
+        if (thunder !== flashes || thunder < 1200 / 50 - 2) fail.push(`crowded-light:${thunder}/${flashes}`);
+      }
     }
   } catch (err) {
     fail.push("exception:" + (err && err.message));

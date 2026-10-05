@@ -555,6 +555,9 @@ function placeTick(e, world, dt) {
   }
   const far = st.far;
   for (const f of scape.far) {
+    // no free voice slot in this frame (the hazards took them): the far sounds wait for the next frame, so a light
+    // never comes without its sound and no sound loses its turn
+    if (budget.n <= 0) break;
     const next = far.next.get(f.id);
     if (t < next) continue;
     // never two far sounds within 2.5 s, never the same twice in a row, never two big ones at once: try again soon
