@@ -54,7 +54,17 @@ the night (stacked on the repository cleanup).
      by the renderer only, the simulation does not know where they are.
 
 6) Results 3.13.0 (headless Chromium, software WebGL; npm run release-check)
-RESULTS_3130
+   - npm test steps: green (deep test with v3130 and the level rules; determinism 15/15 unchanged: the soundscapes
+     are not part of the simulation).
+   - Full QA: all 403 checks passed. E2E: 136 checks, 0 failures on the four devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     4301 events in 37 kinds, all consumed.
+   - Screens, biome and attack pictures: no page errors.
+   - Found in the code review and fixed: with the voice slots of a frame taken by hazards, a due far sound was
+     skipped while its light flashed and its timer ran on (lightning without thunder); far sounds now wait for a free
+     slot (self-test with eight humming portals).
+   - MP3 previews of the five biomes (tests/shots/scapes/) sent to the owner.
+   - Time of the whole chain: 33 min 11 s. Format check: ok.
 
 7) Open doubts
    - Only measured, not heard: whether the layers are pleasant over a long run, and whether the rates are right
