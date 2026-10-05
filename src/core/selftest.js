@@ -3257,6 +3257,16 @@ function selfTestV3150(result) {
     if (!(world.dmgSrc.shard > 0)) fail.push("shard-no-hit");
     if (!(next.slowT > 0)) fail.push("shard-no-chill");
     if (world.splinters.length) fail.push("shard-not-gone");
+    // Endless restarts the clock at 0 after the victory: the shatter must not wait for the old time to come round again
+    world.time = 500;
+    world.splinters = [];
+    const first = spawn(5, 1, 10, "grunt");
+    world.hurtEnemy(first, 1000, 0, 0, 0, false, "weapon");
+    world.restartClock();
+    world.splinters = [];
+    const second = spawn(5, -1, 10, "grunt");
+    world.hurtEnemy(second, 1000, 0, 0, 0, false, "weapon");
+    if (world.splinters.length !== 5) fail.push("shard-blocked-after-clock-restart:" + world.splinters.length);
   } catch (err) {
     fail.push("shard-exception:" + (err && err.message));
   }

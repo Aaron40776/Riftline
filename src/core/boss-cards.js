@@ -128,6 +128,7 @@ function updateLockdown(world, dt) {
         enemy.y = cage.y + (dy / dist) * edge;
         enemy.vx = 0;
         enemy.vy = 0;
+        world.arena.resolve(enemy, enemy.r);
       }
       // the damage comes in two hits a second (one number each, not a stream of small ones)
       enemy.lockAcc = (enemy.lockAcc || 0) + dmg * dt;
@@ -189,7 +190,13 @@ function updateSlag(world, dt) {
 }
 
 function shatter(world, enemy) {
-  if (world.splinters.length > SPLINTER_MAX - SPLINTERS || world.time - (world.shatterAt ?? -9) < 0.08) return;
+  // (Endless restarts the clock at 0: a last shatter that lies in the "future" must not block it for the whole run)
+  const last = world.shatterAt;
+  if (
+    world.splinters.length > SPLINTER_MAX - SPLINTERS ||
+    (last != null && world.time >= last && world.time - last < 0.08)
+  )
+    return;
   world.shatterAt = world.time;
   const turn = world.rng.next() * TAU,
     dmg = SPLINTER_DMG * world.stats.dmgMul;
@@ -326,6 +333,8 @@ function updateImplode(world, dt) {
       step = Math.min(pull, dist - 1.2);
     enemy.x += (dx / dist) * step;
     enemy.y += (dy / dist) * step;
+    // a wall between the enemy and the drone keeps it out (it is pulled in a straight line)
+    world.arena.resolve(enemy, enemy.r);
   });
   if (imp.t >= COLLAPSE_TIME || !player.alive || world.state !== "fight") {
     world.implode = null;

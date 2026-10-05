@@ -1763,6 +1763,8 @@ const musicChords = {
           break;
         case "hatch":
           if (this.gate(id, 0.08)) {
+            // 3.17.0: the shell cracks first
+            this.noise(0.03, 0.06, { type: "bandpass", f: 3000, q: 3 });
             this.tone(320 * pitch, 0.12, "sine", 0.08, { to: 120 });
             this.noise(0.12, 0.05, { type: "bandpass", f: 600, to: 250, q: 4 });
             if (arg) {

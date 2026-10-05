@@ -1292,9 +1292,14 @@ const MAX_PARTICLES = 1400,
             this.addShake((ev.big ? 0.4 : 0.15) * shakeK);
             this.ring(ev.x, ev.y, 0.5, ev.big ? 3.5 : 1.8, hexColor(16756896), 0.3);
             break;
-          case "hatch":
-            this.burst(ev.x, ev.y, 1.2, ev.big ? 16 : 6, 4, hexColor(13041469), 0.4, 0.3);
+          case "hatch": {
+            // 3.17.0: an egg of the Hive Queen's brood opens: the acid-green burst, a ring, and pale bits of shell
+            const acid = hexColor(13041469);
+            this.burst(ev.x, ev.y, 1.2, ev.big ? 16 : 6, 4, acid, 0.4, 0.3);
+            this.ring(ev.x, ev.y, 0.2, ev.big ? 2.2 : 1, acid, 0.3);
+            this.debrisBurst(ev.x, ev.y, 0.6, ev.big ? 8 : 3, hexColor(0xe6e2c8), 0.12, 4);
             break;
+          }
           case "blink":
             if (ev.small) {
               let color = hexColor(ev.phase ? 16732120 : enemyDefs.striker.color);
