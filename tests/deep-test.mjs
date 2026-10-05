@@ -702,13 +702,13 @@ const switched = await page.evaluate(async (under) => {
     ["boss", "works"],
     ["boss", "vault"],
   ]) {
-    const spec = { music, biome, intensity: 0.9, heat: 0.5, wav: true, seed: 5, musicEnd: 6 },
+    const spec = { music, biome, intensity: 0.9, heat: 0.5, wav: true, seed: 5, musicEnd: 6, noBed: true },
       kept = (await E.renderOffline(spec, 10)).samples,
       cut = (await E.renderOffline({ ...spec, quietAt: 6 }, 10)).samples,
-      // the music plays 0.25 s into the render: 4 to 6 s of the music is the level before the change; 0.45 to 3 s after it
+      // the music plays 0.25 s into the render: 4 to 6 s of the music is the level before the change; 0.3 to 1.75 s after it
       before = rms(cut, 4.25, 6.25),
-      after = rms(cut, 6.7, 9.25),
-      ringing = rms(kept, 6.7, 9.25);
+      after = rms(cut, 6.55, 8),
+      ringing = rms(kept, 6.55, 8);
     out[`${music}:${biome}`] = { before: +before.toFixed(4), after: +after.toFixed(4), ringing: +ringing.toFixed(4) };
     if (!(after < before * under))
       fail.push(`${music}:${biome}: ${(after / before).toFixed(2)} of the level is still heard after the change`);
