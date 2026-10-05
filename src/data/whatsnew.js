@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.17.0",
+    title: "The walker",
+    items: [
+      "The drone has legs: a two-legged robot with the weapon on its back. Its legs swing, bend and plant as it walks, and it breathes while it stands.",
+      "A dash is a jump now: the legs tuck, the body rises and comes down with a thud.",
+      "Every foot comes down with the sound of its ground: wet asphalt, steel grating, frozen ground, sheets of ice, marsh mud, glass in the Void Core, acid.",
+      "Each step kicks up a puff of what it walks on.",
+    ],
+  },
+  {
     version: "3.16.0",
     title: "Bosses, places and music, finished",
     items: [

@@ -25,6 +25,8 @@ import {
 } from "../audio/sound.js";
 import { lookOf, ATTACK_LOOK } from "../render/attacks-view.js";
 import { PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, PROP_HEAR } from "../audio/place.js";
+import { STEP_LEN, FLOOR } from "./walk.js";
+import { buildPlayerModel } from "../render/models.js";
 import {
   BOSS_CARD,
   BOSS_CARD_CHANCE,
@@ -474,6 +476,7 @@ function rlSelfTest() {
   result = selfTestV3140(result);
   result = selfTestV3150(result);
   result = selfTestV3160(result);
+  result = selfTestV3170(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3475,4 +3478,106 @@ function selfTestV3160(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3160: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.17.0: the walker. A foot comes down every STEP_LEN metres walked (alternating feet, with the ground of the
+   biome, of an ice sheet or of an acid pool), none while the dash has the drone in the air, and a landing when it ends;
+   the model has two legs that swing opposite to each other, tuck in the air and stand still when it stands ---- */
+function selfTestV3170(result) {
+  const fail = [];
+  try {
+    const arena = (biome) => {
+      const world = new World({ seed: 0x3170, weapon: "pulse", threat: 0, ws: {} });
+      world.startWave(2);
+      world.state = "fight";
+      world.god = true;
+      world.arena.biome = { ...world.arena.biome, id: biome };
+      world.arena.obs = [];
+      for (const kind of ["vents", "ice", "acid", "portals"]) world.arena[kind] = [];
+      for (const enemy of world.enemies) enemy.dead = true;
+      world.enemies.length = 0;
+      world.plan = [];
+      world.planIdx = 0;
+      world.traps = [];
+      const keep = world.spawnEnemy("turret", world.player.x, world.player.y - 17);
+      keep.spawnT = 0;
+      keep.maxHp = keep.hp = 1e9;
+      keep.speed = 0;
+      world.player.x = -10;
+      world.player.y = 0;
+      return world;
+    };
+    const run = (world, seconds, input) => {
+      const found = [];
+      for (let i = 0; i < Math.round(seconds * 60); i++) {
+        world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false, ...input });
+        for (const ev of world.fx) if (ev.k === "step" || ev.k === "land") found.push({ ...ev });
+        world.fx.length = 0;
+      }
+      return found;
+    };
+    // standing still: no steps; walking: about one per STEP_LEN metres, the feet alternate
+    const world = arena("yard");
+    if (run(world, 1, {}).length) fail.push("steps-standing");
+    const x0 = world.player.x,
+      walked = run(world, 2, { mx: 1 }),
+      dist = world.player.x - x0,
+      steps = walked.filter((ev) => ev.k === "step");
+    if (!(Math.abs(steps.length - Math.floor(world.player.stride / STEP_LEN)) <= 1 && steps.length >= 5))
+      fail.push(`step-count:${steps.length}/${dist.toFixed(1)}m`);
+    if (steps.some((ev, i) => i && ev.foot === steps[i - 1].foot)) fail.push("feet-not-alternating");
+    if (!steps.every((ev) => ev.ground === FLOOR.yard)) fail.push("ground-yard");
+    // the dash is a jump: no steps in the air, one landing at the end
+    world.player.dashCdT = 0;
+    const jump = run(world, 0.6, { mx: 1, dash: true });
+    const lands = jump.filter((ev) => ev.k === "land");
+    if (lands.length !== 1) fail.push("lands:" + lands.length);
+    const landAt = jump.findIndex((ev) => ev.k === "land");
+    if (jump.slice(0, landAt).some((ev) => ev.k === "step")) fail.push("step-in-the-air");
+    // every biome has its own ground; ice and acid take over where they are
+    for (const [biome, ground] of Object.entries(FLOOR)) {
+      const w = arena(biome),
+        found = run(w, 1.2, { mx: 1 }).filter((ev) => ev.k === "step");
+      if (!found.length || !found.every((ev) => ev.ground === ground))
+        fail.push(`ground-${biome}:${found[0] && found[0].ground}`);
+    }
+    {
+      const w = arena("vault");
+      w.arena.ice = [{ x: 0, y: 0, r: 60 }];
+      const found = run(w, 1.2, { mx: 1 }).filter((ev) => ev.k === "step");
+      if (!found.length || found.some((ev) => ev.ground !== "ice")) fail.push("ground-ice");
+    }
+    {
+      const w = arena("marsh");
+      w.arena.acid = [{ x: 0, y: 0, r: 60 }];
+      const found = run(w, 1.2, { mx: 1 }).filter((ev) => ev.k === "step");
+      if (!found.length || found.some((ev) => ev.ground !== "acid")) fail.push("ground-acid");
+    }
+    // the model: two legs that swing opposite to each other, tuck in the air and stand still when it stands
+    const model = buildPlayerModel("pulse", 0x49f2ff);
+    if (!model.legs || model.legs.length !== 2) fail.push("model-legs");
+    else {
+      model.setWalk(Math.PI / 2, 1, 0, 0);
+      const [a, b] = model.legs;
+      if (!(a.hip.rotation.z * b.hip.rotation.z < 0 && Math.abs(a.hip.rotation.z) > 0.5))
+        fail.push("legs-not-opposite");
+      model.setWalk(0, 0, 0, 0);
+      if (Math.abs(a.hip.rotation.z) > 1e-6 || Math.abs(b.knee.rotation.z) > 1e-6) fail.push("legs-move-standing");
+      model.setWalk(0, 0, 1, 0);
+      if (!(a.hip.rotation.z > 0.4 && a.knee.rotation.z < -0.8 && b.knee.rotation.z < -0.8))
+        fail.push("legs-not-tucked");
+      // standing the model's feet are on the floor: the lowest point of the feet is within 5 cm of y = 0
+      model.setWalk(0, 0, 0, 0);
+      model.group.updateMatrixWorld(true);
+      let low = 1e9;
+      for (const leg of model.legs) {
+        const v = leg.ankle.getWorldPosition(leg.ankle.position.clone());
+        low = Math.min(low, v.y);
+      }
+      if (!(low > -0.05 && low < 0.1)) fail.push("feet-height:" + low.toFixed(3));
+    }
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3170: { ok: fail.length === 0, fail } };
 }

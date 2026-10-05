@@ -147,9 +147,15 @@ portals a boss calls open in its colours, the sentinel's beam in the skin of its
 stays below the music. Not done, because not asked for: the Hive Queen's eggs and summons still hatch with the shared
 burst.
 
-**Next on the list:** the walker (section 2 below: a two-legged robot instead of the drone, footsteps per ground; the
-ambience part of that section is done by 3.13.0). Not built yet, on purpose: burning ground for Searing Collapse
-(3.12.0), sounds tied to props near the drone (3.13.0).
+**3.17.0 the walker (done, 05.10.2026):** two legs (the owner's decision: two, not four), the weapon on its back; legs
+follow the stride of the world (`core/walk.js`), a dash is a jump with a landing, a footstep per ground with a servo
+whine, dust of the ground at every foot. Not built: sliding on ice has no sound of its own (the ice footstep is the
+scrape), no steps near lava or manholes (the place sounds cover them), and the texts still say "drone" (the owner's
+word for the player's unit). Only seen in software and measured: how the legs look while moving fast (6 steps a second
+at full speed) and whether the footsteps feel too busy in a long run, the level is a constant in `audio/sound.js`.
+
+**Next on the list:** nothing planned. The open proposals below (death recap, stat overview, wave preview, gamepad,
+vibration, pacts, daily challenge, boss medals, Cloudflare when the owner says go) wait for the owner's decision.
 
 **Notes for the tests.** `npm run check` while developing (about 2 minutes, 5 when the sound engine changed),
 `npm run release-check` before a release (about 35 to 45 minutes). Never run two browser tests at once (software WebGL

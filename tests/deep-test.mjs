@@ -41,6 +41,7 @@ const res = await page.evaluate(() => {
     v3140: r.v3140?.fail,
     v3150: r.v3150?.fail,
     v3160: r.v3160?.fail,
+    v3170: r.v3170?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
@@ -110,6 +111,14 @@ const sound = cached
             `${key} (peak ${peaks[key].toFixed(3)}) is louder than ${bed ? "60 % of a Pulse shot" : "a Scattergun shot"} (${limit.toFixed(3)})`,
           );
       }
+      // 3.17.0: the footsteps (up to six a second) stay under 60 % of a Pulse shot, the landing under a Scattergun shot
+      const stepKeys = Object.keys(peaks).filter((key) => key.startsWith("step:") || key.startsWith("land:"));
+      for (const key of stepKeys) {
+        const limit = key.startsWith("land:") ? farLimit : bedLimit;
+        if (!(peaks[key] < limit))
+          fail.push(`${key} (peak ${peaks[key].toFixed(3)}) is too loud (limit ${limit.toFixed(3)})`);
+      }
+      const loudStep = stepKeys.filter((key) => key.startsWith("step:")).sort((a, b) => peaks[b] - peaks[a])[0];
       const loudPlace = placeKeys.sort((a, b) => peaks[b] - peaks[a])[0],
         loudBed = placeKeys.filter((key) => BEDS.includes(key.slice(6))).sort((a, b) => peaks[b] - peaks[a])[0];
       return {
@@ -117,6 +126,7 @@ const sound = cached
         maxPeak,
         longest,
         flameCv,
+        stepPeak: { loudest: loudStep, peak: peaks[loudStep], limit: bedLimit },
         placePeak: {
           loudest: loudPlace,
           peak: peaks[loudPlace],
@@ -275,6 +285,11 @@ const distinct = cached
         byName(["tcPlate:1", "tcCrusher:1", "tcIce:1", "tcGeyser:1", "tcRift:1", "tbLaser", "tbFlame", "tbRift"]),
       );
       out.fuses = await group(byName(["tmMine:0.45", "tmFrost:0.45", "tmSpore:0.45", "tmRift:0.45"]));
+      // 3.17.0: the footsteps of the walker: every ground sounds like itself (the landing is the same sound, heavier)
+      out.steps = await group(
+        byName(["asphalt", "grate", "frost", "ice", "mud", "glass", "acid"].map((g) => "step:" + g)),
+      );
+      out.steps.min < 0.25 && out.fail.push(`footsteps too similar: ${out.steps.pair} (${out.steps.min.toFixed(2)})`);
       out.strikes.min < 0.4 &&
         out.fail.push(`strikes too similar: ${out.strikes.pair} (${out.strikes.min.toFixed(2)})`);
       out.warns.min < 0.3 &&
@@ -679,6 +694,7 @@ res.soundDistinct = {
   strikes: { min: distinct.strikes.min, pair: distinct.strikes.pair },
   warns: { min: distinct.warns.min, pair: distinct.warns.pair },
   fuses: { min: distinct.fuses.min, pair: distinct.fuses.pair },
+  steps: { min: distinct.steps.min, pair: distinct.steps.pair },
   musicFlood: distinct.music.length,
   fail: distinct.fail,
 };

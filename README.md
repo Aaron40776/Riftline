@@ -3,7 +3,7 @@
 <h1 align="center">Riftline</h1>
 
 <p align="center"><b>A 3D arena roguelite shooter that runs in your browser.</b><br>
-Pilot a small combat drone through 20 waves of the rift, five biomes and five bosses, then keep going in Endless.</p>
+Pilot a small two-legged combat robot through 20 waves of the rift, five biomes and five bosses, then keep going in Endless.</p>
 
 <p align="center"><a href="https://aaron40776.github.io/Riftline/"><b>▶&nbsp;&nbsp;Play Riftline</b></a><br>
 <sub>Desktop, and phones and tablets in landscape · installs as an offline app · free, no account</sub></p>
@@ -27,6 +27,8 @@ on in Endless, which keeps getting harder. Shards from every run, won or lost, b
   floor, hazards, traps, enemy skins, events, music and sounds.
 - **25 enemy types and 5 bosses** with their own models and attacks that show and sound like what they are.
 - **The Singularity**: a gadget that pulls a crowd together, then collapses.
+- **A walker**: the drone has legs that swing, bend and plant, a dash is a jump, and every foot sounds like its
+  ground (asphalt, grating, frozen ground, ice, mud, glass, acid).
 - **Endless** with mutators, a **Workshop** of 18 modules, 47 milestones, a codex, and Threat I–V on top of Standard.
 - Everything you see and hear is made in code: low-poly models, WebAudio sounds and music, no image or audio files.
 

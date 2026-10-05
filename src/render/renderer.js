@@ -52,6 +52,7 @@ import { weaponDefs } from "../data/weapons.js";
 import { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles } from "./biome-visuals.js";
 import { TrapView } from "./traps-view.js";
 import { BossCardView } from "./boss-cards-view.js";
+import { STEP_LEN, DASH_TIME } from "../core/walk.js";
 import { HazardView } from "./hazards-view.js";
 import { AttackView, MARK_LOOK } from "./attacks-view.js";
 
@@ -375,6 +376,16 @@ const MAX_PARTICLES = 1400,
     return color;
   },
   shardColors = { 1: hexColor(8386303), 5: hexColor(16762954), 25: hexColor(16734936) },
+  // 3.17.0: what a foot kicks up on each ground (core/walk.js FLOOR): a puff of dust, snow, mud, droplets or sparks
+  STEP_LOOK = {
+    asphalt: { color: hexColor(0x8a93a0), size: 0.26, life: 0.35, up: 0.5, grav: 1.5 },
+    grate: { color: hexColor(0xffb347), size: 0.1, life: 0.28, up: 1.2, grav: 6, spark: true },
+    frost: { color: hexColor(0xe6f6ff), size: 0.3, life: 0.45, up: 0.6, grav: 1 },
+    ice: { color: hexColor(0xbff0ff), size: 0.12, life: 0.3, up: 1, grav: 5, spark: true, ring: true },
+    mud: { color: hexColor(0x5a4a2a), size: 0.22, life: 0.45, up: 1.6, grav: 8 },
+    glass: { color: hexColor(0xb070ff), size: 0.14, life: 0.3, up: 0.5, grav: 0, spark: true, ring: true },
+    acid: { color: hexColor(0xa8f03a), size: 0.16, life: 0.4, up: 1.8, grav: 7 },
+  },
   // 3.16.0: the colours of the portals a boss calls open (render loop, world.markers with `boss`)
   BOSS_PORTAL = {
     warden: [hexColor(0xff3346), hexColor(0x3d7bff)],
@@ -1211,6 +1222,35 @@ const MAX_PARTICLES = 1400,
           case "dash":
             this.ring(world.player.x, world.player.y, 0.3, 1.4, hexColor(8386303), 0.25);
             break;
+          // 3.17.0: the walker: a foot comes down (a puff of the ground it stands on, at the foot), the landing after a
+          // dash (a ring and a burst of it)
+          case "step":
+          case "land": {
+            const look = STEP_LOOK[ev.ground] || STEP_LOOK.asphalt,
+              face = world.player.face,
+              land = ev.k === "land",
+              side = land ? 0 : ev.foot ? 0.2 : -0.2,
+              fx = ev.x - Math.sin(face) * side,
+              fz = ev.y + Math.cos(face) * side,
+              n = land ? 10 : this.maxParticles >= 600 ? 2 : 1;
+            if (!land && Math.hypot(world.player.vx, world.player.vy) < 1) break;
+            for (let i = 0; i < n; i++)
+              this.emit(
+                fx + (Math.random() - 0.5) * 0.2,
+                0.05,
+                fz + (Math.random() - 0.5) * 0.2,
+                (Math.random() - 0.5) * (land ? 3.2 : 1.2),
+                look.up * (0.6 + Math.random() * 0.8) * (land ? 1.6 : 1),
+                (Math.random() - 0.5) * (land ? 3.2 : 1.2),
+                look.life * (0.7 + Math.random() * 0.6),
+                look.size * (land ? 1.6 : 1),
+                look.color,
+                { drag: 2.5, grav: look.grav, spark: look.spark },
+              );
+            if (look.ring) this.ring(fx, fz, 0.1, land ? 1.4 : 0.55, look.color, land ? 0.3 : 0.2);
+            if (land) this.addShake(0.05 * shakeK);
+            break;
+          }
           case "edash":
             {
               let color = hexColor(enemyDefs[ev.type] ? enemyDefs[ev.type].color : 16777215);
@@ -1563,12 +1603,11 @@ const MAX_PARTICLES = 1400,
     drawMenuPlayer(dt) {
       let drone = this.player;
       drone.group.visible = true;
-      drone.group.position.set(0, 0.25 + Math.sin(this.time * 2) * 0.08, 0);
-      drone.base.rotation.y = this.time * 0.3;
+      // 3.17.0: the walker stands on the floor and breathes; its body turns slowly and the weapon scans
+      drone.group.position.set(0, drone.setWalk(0, 0, 0, this.time), 0);
       drone.turret.rotation.y = Math.sin(this.time * 0.7) * 1.2;
       drone.shield.visible = false;
-      drone.base.rotation.set(0, this.time * 0.3, -0.04);
-      drone.setThrust(0.3, this.time);
+      drone.base.rotation.set(0, this.time * 0.3, 0);
       this.corpses.length = 0;
       for (let mat of drone.mats) mat.emissive.setScalar(0);
       let shadow = this.shadows.y(0, 0.02, 0, 0, 2.2),
@@ -1603,22 +1642,24 @@ const MAX_PARTICLES = 1400,
         drone = this.player;
       drone.group.visible = player.alive;
       if (player.alive) {
-        let bob = Math.sin(time * 5) * 0.05;
-        drone.group.position.set(player.x, 0.22 + bob, player.y);
         drone.base.rotation.y = -player.face;
         drone.turret.rotation.y = -player.aim;
-        // 2.7.0: nozzle flames follow the speed (a dash burns full), the hull leans into the movement and banks in turns
+        // 3.17.0: the walker: the legs follow the stride of the world (a foot comes down every STEP_LEN metres, the
+        // same moment as the footstep sound), a dash is a jump (the legs tuck, the body rises and falls), the body
+        // leans into the movement and banks in turns
         {
           const speed = Math.hypot(player.vx, player.vy),
-            thrust = player.dashT > 0 ? 1.7 : clamp(speed / Math.max(3, world.stats.speed), 0, 1.15),
+            amount = clamp(speed / Math.max(2, world.stats.speed * 0.55), 0, 1),
+            jump = player.dashT > 0 ? Math.sin(Math.PI * clamp(1 - player.dashT / DASH_TIME, 0, 1)) : 0,
             turn = angleDiff(drone.faceLast === undefined ? player.face : drone.faceLast, player.face),
             k = dampFactor(10, dt);
           drone.faceLast = player.face;
-          drone.lean += (thrust * 0.16 - drone.lean) * k;
+          drone.lean += ((player.dashT > 0 ? 0.22 : amount * 0.1) - drone.lean) * k;
           drone.bank += (clamp((turn * 0.08) / Math.max(dt, 0.008), -0.4, 0.4) - drone.bank) * k;
           drone.base.rotation.z = -drone.lean;
           drone.base.rotation.x = drone.bank;
-          drone.setThrust(thrust, time);
+          const body = drone.setWalk((player.stride / STEP_LEN) * Math.PI, amount, jump, time);
+          drone.group.position.set(player.x, body + jump * 0.6, player.y);
         }
         drone.shield.visible = player.shield;
         drone.shield.material.opacity = 0.12 + Math.sin(time * 6) * 0.04;
@@ -1658,24 +1699,7 @@ const MAX_PARTICLES = 1400,
               hexColor(8386303),
               { drag: 4 },
             );
-        else if (player.moving && Math.random() < dt * 30) {
-          let ex = player.x - Math.cos(player.face) * 0.55,
-            ez = player.y - Math.sin(player.face) * 0.55;
-          this.emit(
-            ex,
-            0.45,
-            ez,
-            -Math.cos(player.face) * 2,
-            0.2,
-            -Math.sin(player.face) * 2,
-            0.25,
-            0.35,
-            hexColor(weaponDefs[world.weapon].color),
-            {
-              drag: 3,
-            },
-          );
-        }
+
         let count = world.stats.orbit;
         for (let i = 0; i < count; i++) {
           let angle = world.time * 3.3 + (i * TAU) / count,
