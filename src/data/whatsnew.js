@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.18.2",
+    title: "Long-run checks",
+    items: [
+      "A 120-wave Endless run, thousands of random taps across five screen sizes and a weapon comparison found no leaks and no stuck screens.",
+      "One note of the Blackout City piano reached above what anyone can hear; it is gone.",
+    ],
+  },
+  {
     version: "3.18.1",
     title: "Clean music changes",
     items: [

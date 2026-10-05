@@ -86,6 +86,9 @@ npm run audit          # world audit, data audit, a bot run to wave 22 with its 
 npm run screens        # screenshots of every screen, biome and attack -> tests/shots/
 node tools/qa.js scape-preview   # every biome's soundscape as WAV/MP3 -> tests/shots/scapes/ (`music`: the ten tracks)
 npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
+npm run soak -- flame 90       # an Endless run of 90 waves: heap, GPU objects and lists must settle, no hang
+npm run fuzz -- 3 200          # a monkey over the interface (seed 3, 200 steps per window size)
+npm run balance -- 4 0,2 50    # how far a plain bot gets with each weapon, and how fast each clears waves
 npm run format         # Prettier (width 120); CI runs npm run format:check
 ```
 

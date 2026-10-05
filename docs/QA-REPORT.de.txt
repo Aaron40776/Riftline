@@ -1,3 +1,53 @@
+RIFTLINE v3.18.2 – LONG-RUN CHECKS
+Base: v3.18.1 · Build r3182a1005a-r1 · 05.10.2026
+
+Asked by the owner (05.10.2026): "do another check up (feel free to test accordingly to catch smaller things)", and "keep
+continuing and checking everything". Three tools for what a normal test run does not look at, and what they found.
+
+1) Endless soak (tests/soak.mjs, npm run soak [weapon] [waves])
+   - A bot plays an Endless run in the live game (loop and renderer); every third wave the JS heap, the geometries,
+     textures and programs of the renderer, the objects of the scene, the DOM nodes, the music voices and the lists of the
+     world are written down. The first third is warm-up (every biome, enemy and boss is built the first time it appears);
+     from the middle third to the last none of them may keep growing (for geometries, programs and scene objects the
+     floor of each third is compared, as they follow the biome of the moment).
+   - Measured (pulse 75 waves, flame 120 waves, all seven weapons to 60): the heap stays at 11 MB (8 MB at the start),
+     the geometries move between 150 and 250 without a trend (they are disposed with the biome), the programs stay at 24 to
+     27, the textures at 5, the DOM at 700 nodes. No leak.
+   - A step that does not answer in a minute stops the page with the debugger and prints the stack (build with
+     RL_NO_MINIFY=1 for readable names). The headless Chromium of the test machine crashed now and then in long runs
+     (about one run in six, at random waves); its own log shows errors of the GPU process ("Trying to Produce a Skia
+     representation from a non-existent mailbox"), the heap of the game is flat; a forced garbage collection through the
+     debugger protocol made it worse and was removed. A crash is reported as a finding, not hidden.
+
+2) UI fuzz (tests/fuzz.mjs, npm run fuzz [seed] [steps])
+   - A seeded monkey over five window sizes (phone 844 x 390 and 667 x 375, tablet, two desktops): it presses any visible
+     control, keys (Esc, Enter, Space, Tab, arrows, 1-4, R, E, G), plays a little, resizes the window (never below 568 x
+     320, the smallest landscape phone), confirms dialogs; after every step it looks for a page error, a dead screen
+     (nothing to press), a save in localStorage that is not valid JSON, and, every 20 steps, the layout audit.
+   - Found: the layout audit counted the buttons of a screen under a dialog (its backdrop) or under another screen on top
+     as covered; that is by design. Fixed in the audit (src/index.html). After that seeds 1 to 7 (about 6500 steps)
+     found nothing. At 372 x 318 (below any phone) the list of the Sound notes clips a row; not a real size, not changed.
+
+3) Weapon comparison (tests/balance.mjs, npm run balance [seeds] [threats] [cap])
+   - A mortal bot dies at the first boss (wave 5) with every weapon at threat 0 and 2: it says little about the weapons
+     (it does not dodge boss attacks). In god mode the clear speed is comparable: median seconds per ordinary wave 24
+     (flame), 27 (rail), 30 (tesla), 31 (disc, pulse), 33 (rocket), 37 (scatter): a spread of 1.5; per boss wave 19 (flame)
+     to 43 (rocket): 2.2. No weapon is out of line; flame is the fastest, scatter the slowest on ordinary waves and rocket
+     on bosses. Numbers for a talk about balance, not a verdict (a bot is no player).
+
+4) Found in the log of a soak run
+   - The Blackout City electric piano plays a tine at 7.1 times the pitch of a note; in the high octave this was 24992 Hz,
+     above the limit of the sampling rate (the browser clamped it and warned in the console). Inaudible, but wrong. The tine
+     is left out above 16 kHz. New deep-test check: every sound of the catalog (310) and every music track must only ask
+     for tones from 15 Hz to 20 kHz (found with a scan of all of them: this was the only one).
+
+5) Results 3.18.2 (headless Chromium, software WebGL; npm run release-check)
+   - RESULTS_PLACEHOLDER
+
+6) Open doubts
+   - The soak crash of the browser (see 1) could hide a problem of the game that only shows in the GPU process; the heap and
+     the object counts say no. If a real device ever crashes in a long run, the soak with a stack is the first tool.
+
 RIFTLINE v3.18.1 – CLEAN MUSIC CHANGES
 Base: v3.18.0 · Build r3181a1005a-r1 · 05.10.2026
 
