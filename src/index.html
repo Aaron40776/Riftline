@@ -1409,7 +1409,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
           const hit=document.elementFromPoint(x,y);
           // 3.18.2: a button under a modal dialog or under another screen on top of its own (the pause menu behind the
           // confirm box, the settings behind the sound notes) is covered by design
-          const over=hit&&hit.closest('[aria-modal="true"], .screen');
+          const over=hit&&hit.closest('[aria-modal="true"], .dialog-wrap, .screen');
           if(over&&over!==b.closest('.screen')) continue;
           if(hit&&hit!==b&&!b.contains(hit)) findings.push(`${b.id||b.textContent.trim().slice(0,20)} covered by ${hit.id||hit.className||hit.tagName}`);
         }
