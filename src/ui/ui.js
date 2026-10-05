@@ -1454,8 +1454,8 @@ const getById = (id) => document.getElementById(id),
         items = [];
       if (music)
         items.push({
-          key: `music:${music.kind === "boss" ? "boss" : "calm"}:${music.biome}`,
-          sub: `playing · intensity ${music.intensity.toFixed(1)}`,
+          key: `music:${musicLabel(music.kind)}:${music.biome}`,
+          sub: music.paused ? "paused here" : `playing · intensity ${music.intensity.toFixed(1)}`,
         });
       for (const s of sound.recentSounds())
         if (!SOUND_NOTES_SKIP.has(s.key) && items.length < 17)
@@ -1494,7 +1494,7 @@ const getById = (id) => document.getElementById(id),
         reason,
         wave: inRun ? world.wave : null,
         biome: inRun ? world.arena.biome.id : null,
-        music: music ? `${music.kind} ${music.biome} ${music.intensity.toFixed(1)}` : null,
+        music: music ? `${musicLabel(music.kind)} ${music.biome} ${music.intensity.toFixed(1)}` : null,
       });
       writeSoundNotes(notes.slice(-300));
       const label = SOUND_REASONS.find(([id]) => id === reason);
@@ -1809,6 +1809,8 @@ const SOUND_REASONS = [
   ],
   SOUND_NOTES_SKIP = new Set(["click", "hover", "reroll", "offer"]),
   SOUND_NOTES_KEY = "riftline.soundNotes";
+// the name of a music track in the notes: the calm theme of a fight, the boss track, the music of the menus
+const musicLabel = (kind) => (kind === "boss" ? "boss" : kind === "fight" ? "calm" : "menu");
 function readSoundNotes() {
   try {
     const list = JSON.parse(localStorage.getItem(SOUND_NOTES_KEY) || "[]");

@@ -3624,7 +3624,12 @@ function selfTestV3172(result) {
       engine.playBiome = "works";
       engine.intensity = 0.6;
       const now = engine.musicNow();
-      if (!now || now.kind !== "boss" || now.biome !== "works") fail.push("music-now");
+      if (!now || now.kind !== "boss" || now.biome !== "works" || now.paused) fail.push("music-now");
+      // paused in a fight the game plays the menu music but holds the track: that is the one that counts
+      engine.playKind = "menu";
+      engine.held = { kind: "fight", biome: "works" };
+      const held = engine.musicNow();
+      if (!held || held.kind !== "fight" || held.biome !== "works" || !held.paused) fail.push("music-held");
     }
   } catch (err) {
     fail.push("exception:" + (err && err.message));

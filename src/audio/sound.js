@@ -1127,11 +1127,18 @@ const musicChords = {
         for (const e of this.recent.values()) if (now - e.t <= window) out.push({ key: e.key, n: e.n, ago: now - e.t });
       return out.sort((a, b) => a.ago - b.ago);
     }
-    /* the music that plays now (null: none): the track and the intensity of the fight */
+    /* the music of the moment (null: none): the track and the intensity of the fight. Paused in a fight, the game plays
+       the menu music but keeps the track it paused (`held`): that is the one the player heard and means. */
     musicNow() {
-      return this.playKind && this.playKind !== "off"
-        ? { kind: this.playKind, biome: this.playBiome || this.biome, intensity: this.intensity || 0 }
-        : null;
+      const held = this.held,
+        kind = held ? held.kind : this.playKind;
+      if (!kind || kind === "off") return null;
+      return {
+        kind,
+        biome: (held ? held.biome : this.playBiome) || this.biome,
+        intensity: this.intensity || 0,
+        paused: !!held,
+      };
     }
     /* 2.9.0: a light sidechain: the music gain dips by `depth` (at most 15 %) for about 80 ms and comes back
      (time constant 70 ms), so that a big hit is heard over the music. Nothing is stopped or skipped. */

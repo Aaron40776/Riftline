@@ -2361,8 +2361,9 @@ for (const profName of ["desktop", "phone"])
     check(L, "sound notes open from the settings", await Q.vis("sndNotes"));
     check(
       L,
-      "no run: it says nothing played lately",
-      /Nothing played lately/.test(await Q.ev(() => document.getElementById("snMusic").textContent)),
+      "no run: the music of the menu is the one thing to note",
+      (await Q.ev(() => [...document.querySelectorAll("#snList .sn-item")].map((e) => e.dataset.key))).join() ===
+        "music:menu:yard",
     );
     await Q.tap("#snBack");
     check(L, "Back returns to the settings", (await Q.vis("settings")) && !(await Q.vis("sndNotes")));

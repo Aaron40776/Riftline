@@ -412,6 +412,18 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 .sn-reasons { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 8px; }
 .sn-reasons button { padding: 8px 12px; background: var(--panel2); border: 1px solid var(--line2); color: inherit; font: 600 13px/1 var(--display); }
 .sn-reasons button.done { border-color: #5bf29b; color: #5bf29b; }
+/* short screens (a phone held sideways): the list on the left, the reasons and the buttons on the right, no hint text */
+@media (max-height: 560px) {
+  .center-col.sn { width: min(780px, 96vw); max-width: 780px; display: grid; grid-template-columns: 1.15fr 1fr; grid-template-rows: auto auto auto auto 1fr; column-gap: 14px; row-gap: 6px; align-content: center; }
+  .center-col.sn .eyebrow, .center-col.sn .note { display: none; }
+  .center-col.sn h2 { grid-column: 1 / -1; margin: 0; font-size: 20px; }
+  .sn-music { grid-column: 1 / -1; margin: 0; }
+  .sn-list { grid-column: 1; grid-row: 3 / 6; max-height: 70vh; margin: 0; }
+  .sn-reasons { grid-column: 2; grid-row: 3; margin: 0; align-content: flex-start; }
+  .center-col.sn .btn-row { grid-column: 2; grid-row: 4; }
+  #snBack { grid-column: 2; grid-row: 5; align-self: start; }
+  .sn-item { padding: 7px 10px; }
+}
 .build-strip, .build-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 460px; }
 .bi { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; font: 600 12px/1 var(--display); color: var(--text); background: rgba(255, 255, 255, 0.05); border-left: 2px solid var(--rc, var(--r1)); }
 .bi .ico { width: 14px; height: 14px; color: var(--rc, var(--r1)); }
