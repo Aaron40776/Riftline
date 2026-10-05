@@ -25,7 +25,9 @@ keep melody and key and rebuild rhythm and instruments per place. Sixth of the s
    - Cryo Vault: unchanged (the model of the others).
    - The ambience steps back: where the calm theme plays a sound of the place (the rain drops of Blackout City, the
      crickets of the Toxin Marsh, the heartbeat of the Void Core), the steady layer of that sound plays at half level
-     while the calm theme is on (not in a boss fight, not with the music off).
+     while the calm theme plays it (not in a boss fight, not with the music off; the heartbeat only above intensity
+     0.5, where the Void Core theme plays its own; found in the code review: the first draft halved it at any
+     intensity, so below 0.5 it only got quieter).
 
 3) Tests
    - Deep test placeMusic: 8 s of each calm theme at intensity 0.1 and 0.9 with the music log; the rhythm of the place
@@ -33,7 +35,7 @@ keep melody and key and rebuild rhythm and instruments per place. Sixth of the s
      music tests stay green (ten tracks, 30 voice budgets, the themes differ pairwise, every boss track louder than
      its calm theme).
    - Self-test v3140: the rain bed of Blackout City is at half level under the calm theme, full in a boss fight and
-     with the music off.
+     with the music off; the heartbeat bed of the Void Core stays full at intensity 0.3 and is halved at 0.8.
    - node tools/qa.js scape-preview music: the ten tracks as MP3 (30 s each; calm at intensity 0.9). Measured: the calm
      themes at -31 to -33 dB mean, the boss tracks at -20 to -23 dB, no clipping (peaks -4 to -17 dB).
 
