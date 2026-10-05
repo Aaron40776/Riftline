@@ -218,8 +218,8 @@ const PLACE = {
   },
   gutter(e, a) {
     const f = rand(520, 820);
-    T(e, a, f, 0.16, "sine", 0.03, { to: f * 1.5, attack: 0.005, rev: 0.45 });
-    T(e, a, f * 0.5, 0.12, "sine", 0.02, { to: f * 0.8, at: 0.02 });
+    T(e, a, f, 0.16, "sine", 0.024, { to: f * 1.5, attack: 0.005, rev: 0.45 });
+    T(e, a, f * 0.5, 0.12, "sine", 0.016, { to: f * 0.8, at: 0.02 });
   },
   rainMetal(e, a) {
     for (let i = 0; i < 5; i++)
@@ -227,8 +227,8 @@ const PLACE = {
   },
   // Ember Works: the furnaces roar low (brown noise, nothing above 400 Hz) and the machines tick
   furnace(e, a) {
-    N(e, a, 1.8, 0.016, { f: 160, to: 260, color: "brown", attack: 0.6, hold: 0.6, rev: 0.4 });
-    T(e, a, 48, 1.8, "sine", 0.007, { attack: 0.6, hold: 0.6 });
+    N(e, a, 1.8, 0.012, { f: 160, to: 260, color: "brown", attack: 0.6, hold: 0.6, rev: 0.4 });
+    T(e, a, 48, 1.8, "sine", 0.005, { attack: 0.6, hold: 0.6 });
   },
   // Cryo Vault: wind that rises and falls through a narrow band (a whistle more than a hiss)
   wind(e, a) {

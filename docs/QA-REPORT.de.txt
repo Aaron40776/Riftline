@@ -16,8 +16,12 @@ keep melody and key and rebuild rhythm and instruments per place. Sixth of the s
    - Blackout City, noir: a walking bass on every beat (root, fifth, third, a step towards the next chord) instead of
      one plucked note on beat 3; brushes, a soft sweep on 2 and 4 and light taps on the other eighths; the far siren
      now sings up and down a minor third on the root of the chord (it was a fixed 640/960 Hz).
-   - Ember Works, industrial: a piston chuffs on the beats (softer off the beat), a conveyor rattles in sixteenths,
-     a hammer answers on 4 on the fifth of the chord.
+   - Ember Works, industrial: a piston in a machine groove (3-3-2, X..x..X.x..X..x.), a conveyor that rattles only
+     between its hits (the off sixteenths), a hammer answering on 4 on the fifth of the chord. (The first draft had the
+     piston on every eighth and the conveyor on every sixteenth; CI then found the calm themes of the Works and the
+     Void too similar: rhythm 0.074, colour 0.196, busyness 0.12, where one of them must reach 0.1, 0.2 or 0.25. The
+     renders are not seeded, so the numbers move a little between machines; with the groove, two local runs gave
+     0.093 / 0.272 / 0.113 and 0.118 / 0.227 / 0.276.)
    - Toxin Marsh, bayou: a log drum on root and fifth in a lazy syncopation (x..x..x...x.x...), and the frogs croak in
      time on the and of 2 and 4 on the root of the chord (they croaked anywhere before).
    - Void Core: a choir swells at the head of every fourth bar, glitches stutter in time at the end of every second
@@ -46,7 +50,10 @@ keep melody and key and rebuild rhythm and instruments per place. Sixth of the s
    - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
      3476 events in 41 kinds, all consumed.
    - Screens, biome and attack pictures: no page errors.
-   - MP3 previews of the ten tracks (tests/shots/scapes/music-*.mp3) sent to the owner.
+   - MP3 previews of the ten tracks (tests/shots/scapes/music-*.mp3) sent to the owner (rendered before the groove of
+     the Works; the piston there is on every eighth).
+   - The steady layers come close to their limit in some runs (the furnace 0.034 and the gutter 0.029 against 0.031):
+     both are softer now (the renders are not seeded).
    - Time of the whole chain: 34 min 35 s. Format check: ok.
 
 5) Open doubts

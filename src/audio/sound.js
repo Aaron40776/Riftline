@@ -3903,6 +3903,7 @@ function yardCalm(e, c) {
     });
 }
 
+const WORKS_PISTON = "X..x..X.x..X..x.";
 /* Ember Works, 66 BPM, D minor (Dm Bb C Am): a sleeping foundry. A motif of struck pipes, a warm dark pad, the sub;
    in the dark a far anvil, a chain, a breath of steam, crackling embers (the furnace is the atmosphere) */
 function worksCalm(e, c) {
@@ -3914,11 +3915,12 @@ function worksCalm(e, c) {
   calmFloor(k, c, { f0: 90, f1: 38, dur: 0.3 });
   if (L > 0.5 && b === 0) k.m.n(0.2, 0.014, { f: 300, to: 80, q: 1.2, color: "brown" });
   if (b === 4 && (bar & 3) === 1) clang(k.m, midiToFreq(chord[0] + 24), 0.04, { rev: 0.8, pan: -0.4 });
-  // 3.14.0: the works keep time as it swells: a piston chuffs on the beats (softer on the off-beats), a conveyor rattles
-  // in sixteenths, and a hammer answers on 4
-  if (L > 0.35 && b % 2 === 0)
-    k.m.n(0.12, b % 4 === 0 ? 0.022 : 0.011, { f: 420, to: 120, q: 1, color: "brown", attack: 0.004, pan: -0.15 });
-  if (L > 0.55) k.m.n(0.02, b % 4 === 1 ? 0.008 : 0.004, { type: "bandpass", f: 1250, q: 4, attack: 0.001, pan: 0.45 });
+  // 3.14.0: the works keep time as it swells: a piston in a machine groove (3-3-2, accents on the strong hits), a
+  // conveyor that rattles only between them (the off sixteenths), and a hammer answers on 4
+  const piston = pat(WORKS_PISTON)[b];
+  if (L > 0.35 && piston)
+    k.m.n(0.12, 0.016 * piston, { f: 420, to: 120, q: 1, color: "brown", attack: 0.004, pan: -0.15 });
+  if (L > 0.55 && b % 2 === 1) k.m.n(0.02, 0.005, { type: "bandpass", f: 1250, q: 4, attack: 0.001, pan: 0.45 });
   if (L > 0.6 && b === 12) clang(k.m, midiToFreq(chord[2] + 24), 0.018, { rev: 0.6, pan: 0.3 });
   if (L > 0.45 && c.sec >= 2 && b === 12 && (bar & 1) === 0)
     clang(k.m, midiToFreq(chord[2] + 24), 0.028, { rev: 0.8, pan: 0.5 });
