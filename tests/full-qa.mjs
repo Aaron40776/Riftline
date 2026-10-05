@@ -1768,7 +1768,7 @@ for (const [name, vp, touch] of [
     check(
       L,
       "GADGET button: visible, on screen, named, clear of NOVA/DASH/pause/hull/wave",
-      gad.shown && gad.inside && /grenade/i.test(gad.name) && !gad.overlap.length,
+      gad.shown && gad.inside && /singularity/i.test(gad.name) && !gad.overlap.length,
       JSON.stringify(gad),
     );
     check(L, "GADGET button: one pip per charge, all lit at the start", gad.pips === gad.want && gad.lit === gad.want);
@@ -1959,7 +1959,7 @@ await section("qol", async (L) => {
     az.left && !az.nova && az.released,
     JSON.stringify(az),
   );
-  // 3.0.0: G throws a grenade (one charge less, the pips follow), the first trap warning shows its tip
+  // 3.0.0: G throws the gadget (3.12.0: the Singularity; one charge less, the pips follow), the first trap warning shows its tip
   await P.page.waitForFunction(() => window.__riftTest.game.world.state === "fight", null, { timeout: 30000 });
   const gr = await P.ev(() => {
     const w = window.__riftTest.game.world;
@@ -1982,14 +1982,14 @@ await section("qol", async (L) => {
     const w = window.__riftTest.game.world;
     return {
       n: w.player.gadgetN,
-      flying: w.grenades.length,
+      flying: w.singularities.length,
       lit: document.querySelectorAll("#gadgetPips i.on").length,
       empty: document.getElementById("gadgetBtn").classList.contains("empty"),
     };
   });
   check(
     L,
-    "G throws a grenade: one charge less, a grenade in flight, the pips follow",
+    "G throws a Singularity: one charge less, one in flight, the pips follow",
     gr.n === gr.max && gr2.n === gr.max - 1 && gr2.lit === gr2.n && !gr2.empty,
     JSON.stringify({ gr, gr2 }),
   );

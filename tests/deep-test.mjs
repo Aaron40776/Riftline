@@ -211,7 +211,7 @@ const distinct = cached
         ),
       );
       out.bosses = await group(byName(["warden", "forge", "prism", "queen", "core"].map((n) => "bossIntro:" + n)));
-      // 3.0.0: every trap strike, the grenade blast and the two big old blasts; the trap warnings of the floor and
+      // 3.0.0: every trap strike, the gadget blast (3.12.0: the Singularity's collapse) and the two big old blasts; the trap warnings of the floor and
       // beam families (the mines' fuse beeps are compared on their own)
       out.strikes = await group(
         byName([
@@ -224,7 +224,7 @@ const distinct = cached
           "tsFrost",
           "tsSpore",
           "tsRiftMine",
-          "grenadeBlast",
+          "singCollapse",
           "nova",
           "boom",
           // 3.10.0: the blasts of the attacks of enemies and bosses

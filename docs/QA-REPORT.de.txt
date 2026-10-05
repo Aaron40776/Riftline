@@ -1,3 +1,78 @@
+RIFTLINE v3.12.0 – THE SINGULARITY REPLACES THE GRENADE
+Base: v3.11.0 · Build r3120a1005a-r1 · 05.10.2026
+
+Requested: "the current grenades just aren't useful, you gotta get so close until they actually fly into the enemies
+that you'll basically always have defeated them already"; make it another, cooler mechanic that fits the game. The
+design was proposed to the owner on 04.10.2026 and taken into the plan; third of the stacked PRs of the night
+(stacked on 3.11.0).
+
+1) Finding
+   - The grenade looked for a crowd within 14 m but flew at most where the player aimed (6 m without a target, 9 m
+     aimed), slowly (0.3 s + 0.03 s per metre), and its 3.4 m blast hit what was already near the drone.
+
+2) The Singularity (core/world.js)
+   - Thrown fast and far: to the aim (11 m) or to the densest group in sight within 16 m (a crowd counts within
+     4.5 m, as the pull gathers a wider group than the old blast reached); never into a wall; flight 0.16 s + 0.022 s
+     per metre (11 m: 0.4 s).
+   - Where it lands it opens a rift for 1.5 s: every enemy within 1.7 x the blast radius (5.8 m, more with Event
+     Horizon) is pulled to the middle through the knockback that moveEnemy already damps and keeps out of walls (the
+     pull grows over 0.5 s, fades near the middle and towards the rim); big enemies are pulled less (the mass of the
+     knockback), elites at 60 %, bosses and phased enemies not at all; enemies in it walk slower (else a brute walked
+     out of the pull towards the player, seen in the first trace).
+   - Then it collapses: 90 x damage multiplier x Event Horizon over the blast radius (3.4 m), a short knock, a slow of
+     1.2 s, fire with Searing Collapse. Damage only to enemies, credited to the gadget's old source id (saved run
+     records keep their numbers).
+   - Cards (ids unchanged, so saves keep them): Rift Cells (+1 charge, 12 % faster recharge), Event Horizon (+30 %
+     collapse damage, +15 % pull and blast radius), Searing Collapse (the collapse sets enemies on fire). Burning
+     ground, mentioned in the plan for Searing Collapse, was not built: it needs a new zone that hurts only enemies
+     with a look of its own; the fire of the collapse stays as it was.
+
+3) Look and sound
+   - Model: a dark core in two crossed rings, a bright heart and a cyan rim (the colour of the player; never the red
+     of a warning). In flight: a flat fast arc with violet sparks, its shadow, a white marker where it lands.
+   - Open: it hangs and spins up, five spiral arms wind inward, a dark pool deepens, a cyan rim at the pull radius
+     snaps in during the last 0.3 s (the collapse is coming), sparks are drawn from the rim to the middle; a ring of
+     light runs out to the pull radius when it opens.
+   - Collapse: a ring that snaps inward, a white core, a violet shock ring, sparks, a flash and a rift scar (the
+     marks of 3.10.0); embers with Searing Collapse. The old grenade model and blast are gone.
+   - Voices: singThrow (an airy flick and a glassy chirp), singPull (1.5 s: a rising suction, a low hum that swells,
+     a thin climbing whine), singCollapse (a short in-suck, a deep soft thump without a crack, a hollow ring). The
+     sound comparison counts the collapse among the strikes; the closest pair stays tsMine / boom.
+   - The gadget button is violet with a new icon (a core in a broken ring); its name, the stats in the pause menu,
+     the tip and the cards say Singularity.
+
+4) Tests
+   - Self-test (v300 part, rewritten): the throw goes to the crowd and not to the closer lone enemy, one charge used;
+     it opens within 0.5 s; the crowd is hit and slowed, the lone enemy not; four enemies spread 4.2 m around the
+     rift (walking towards the player) end at less than 60 % of that before the collapse and take no damage before
+     it, then all are hit; a crowd 14.5 m away is the target (the grenade stopped at 14 m); an elite is pulled less
+     than the same enemy without the mark; deny without a charge, recharge, never through a wall, the cards change
+     the numbers, Searing Collapse sets on fire, nothing outside a fight. The arena hazards are cleared in the test:
+     the live manholes of Blackout City hurt enemies standing on them, which first looked like damage of the pull.
+   - Full QA: the gadget button is named Singularity, G throws one (one charge less, one in flight).
+   - Determinism: only the data-table case changed (the card names and texts, the two new event kinds); the 14
+     simulations are identical. Golden file updated.
+   - Screenshots: tests/shots/attacks-pc/singularity-1-pull.png and singularity-2-collapse.png.
+
+5) Results 3.12.0 (headless Chromium, software WebGL; npm run release-check)
+   - npm test steps: green (build, deep test with the rewritten gadget part and the three new voices, data audit,
+     determinism 15/15 after the golden file update); the closest strikes stay tsMine / boom at 0.51 (limit 0.4).
+   - Full QA: all 403 checks passed.
+   - E2E: 136 checks, 0 failures on the four devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     4527 events in 39 kinds, all consumed.
+   - Screens, biome pictures PC/landscape phone and the attack pictures with the Singularity: no page errors. Looked
+     at: the pull (the cyan rim, the violet arms, a ring of six enemies drawn into one clump) and the collapse (the
+     violet shock ring, 90 damage on each gathered enemy), the violet gadget button.
+   - Found in the code review and fixed: a Singularity still pulling when the wave ended hung over the upgrade choice
+     (the choice does not step it); it now ends with the wave (self-test sing-left-over).
+   - Time of the whole chain: 34 min 19 s (the sound results reused: unchanged since their last render).
+   - Format check: ok.
+
+6) Open doubts
+   - Only measured and seen in pictures, not played or heard: whether the pull feels strong enough, whether 1.5 s is
+     the right length, and how the three voices sound.
+
 RIFTLINE v3.11.0 – LANDSCAPE ONLY ON PHONES AND TABLETS
 Base: v3.10.0 · Build r3110a1005a-r1 · 05.10.2026
 

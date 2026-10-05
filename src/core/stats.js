@@ -126,7 +126,7 @@ function computeStats(weaponId, run, workshop) {
   // Emergency Shield: barrier seconds and repair share once per wave below 30% hull
   stats.barrierT = 1 * moduleLevel("emergencyShield");
   stats.barrierHeal = 0.08 * moduleLevel("emergencyShield");
-  // 3.0.0: the Grenade gadget: charges, recharge time per charge, damage and radius, incendiary mix
+  // 3.0.0: the gadget (3.12.0: the Singularity): charges, recharge time per charge, damage and radius, burning collapse
   stats.gadgetMax = 2 + level("gcells");
   stats.gadgetCd = 6 * Math.max(0.5, 1 - 0.12 * level("gcells"));
   stats.gadgetDmg = 1 + 0.3 * level("gblast");

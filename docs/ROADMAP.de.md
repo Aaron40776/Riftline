@@ -118,8 +118,9 @@ Plan:
 
 ### HANDOFF (night of 04/05.10.2026; read this first when the work goes on)
 
-**State.** 3.11.0 (landscape only) is finished on branch `claude/landscape-3110`, stacked on 3.10.0 (PR #30); merge
-#30 first. 3.10.0 is finished on branch `claude/attack-looks-3100` (PR #30 against `main`, not merged yet): the attack
+**State.** 3.12.0 (the Singularity) is finished on branch `claude/singularity-3120`, stacked on 3.11.0 (PR #31).
+3.11.0 (landscape only) is finished on branch `claude/landscape-3110`, stacked on 3.10.0 (PR #30); merge #30, then
+#31, then the Singularity. 3.10.0 is finished on branch `claude/attack-looks-3100` (PR #30 against `main`, not merged yet): the attack
 looks and sounds, plus the faster and steadier release checks the owner asked for (QA report 3.10.0, points 6 and 7:
 release-check green, 432 QA checks, 170 E2E checks, no page errors). The open QA failure of the first runs was a
 timing flake under software WebGL that main had too; the waits that depend on the game now count game time.
@@ -132,7 +133,7 @@ order"; after a merge and a deleted branch GitHub retargets the next PR to main)
    where the browser allows it, a "rotate your phone" screen that pauses a run in portrait; iPhone Safari and browser
    tabs cannot be locked); the portrait layouts, the portrait layout of the button editor and the portrait tests go
    (about 9 minutes less in the release checks). PC unchanged.
-3. 3.12.0 The Singularity replaces the grenade: thrown fast and far (to the aim or the biggest group within about
+3. 3.12.0 The Singularity replaces the grenade (done, QA report 3.12.0; burning ground for Searing Collapse not built): thrown fast and far (to the aim or the biggest group within about
    14 m), it opens a small rift that pulls enemies together for about 1.5 s, then collapses in a blast. Its own model
    (a spinning core with a ring), a swirling rift mark on the ground as the warning, a rising pull and a collapse as the
    sound; the three cards keep their ids (gcells, gblast, gfire) with new effects (more charges and faster recharge;

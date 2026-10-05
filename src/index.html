@@ -180,20 +180,20 @@ h2 { font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; }
 .act-btn.nova .ring { position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(var(--violet) var(--p, 0%), rgba(255, 255, 255, 0.06) 0); -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%); }
 .act-btn.nova.ready { color: #fff; border-color: var(--violet); box-shadow: 0 0 22px rgba(197, 139, 255, 0.7); animation: novaPulse 1.1s ease-in-out infinite; }
 @keyframes novaPulse { 50% { box-shadow: 0 0 34px rgba(197, 139, 255, 0.95); } }
-/* 3.0.0: GADGET (grenade) sits left of NOVA in one row above DASH; orange like the grenade's damage colour. */
+/* 3.0.0: GADGET sits left of NOVA in one row above DASH; 3.12.0: violet like the Singularity it throws. */
 .act-row { display: flex; align-items: center; gap: 12px; }
-.act-btn.gadget { width: 60px; height: 60px; color: #ffb347; border-color: rgba(255, 179, 71, 0.55); }
+.act-btn.gadget { width: 60px; height: 60px; color: #b57bff; border-color: rgba(181, 123, 255, 0.55); }
 .act-btn.gadget .gico { position: relative; z-index: 2; width: 26px; height: 26px; margin-top: -6px; }
-.act-btn.gadget .ring { position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(rgba(255, 179, 71, 0.8) var(--q, 100%), rgba(255, 255, 255, 0.07) 0); -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%); }
+.act-btn.gadget .ring { position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(rgba(181, 123, 255, 0.8) var(--q, 100%), rgba(255, 255, 255, 0.07) 0); -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%); }
 .act-btn.gadget .pips { position: absolute; z-index: 2; left: 0; right: 0; bottom: 7px; display: flex; justify-content: center; gap: 3px; }
 .act-btn.gadget .pips i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.16); }
-.act-btn.gadget .pips i.on { background: #ffb347; box-shadow: 0 0 5px rgba(255, 179, 71, 0.9); }
+.act-btn.gadget .pips i.on { background: #b57bff; box-shadow: 0 0 5px rgba(181, 123, 255, 0.9); }
 .act-btn.gadget .key { display: none; position: absolute; z-index: 3; top: -4px; right: -4px; min-width: 16px; padding: 2px 4px; border-radius: 5px; background: rgba(10, 16, 30, 0.92); border: 1px solid var(--line2); font: 700 10px/1 var(--display); color: var(--dim); text-align: center; }
 body:not(.device-touch) .act-btn.gadget .key { display: block; }
-.act-btn.gadget.empty { color: rgba(255, 179, 71, 0.4); border-color: rgba(255, 179, 71, 0.22); }
+.act-btn.gadget.empty { color: rgba(181, 123, 255, 0.4); border-color: rgba(181, 123, 255, 0.22); }
 .act-btn.gadget.pop { animation: gadgetPop 0.38s ease-out; }
 .act-btn.gadget.deny { animation: deny 0.28s ease-out; }
-@keyframes gadgetPop { 0% { box-shadow: 0 0 0 0 rgba(255, 179, 71, 0.9); transform: scale(1.1); } 100% { box-shadow: 0 0 0 16px rgba(255, 179, 71, 0); transform: none; } }
+@keyframes gadgetPop { 0% { box-shadow: 0 0 0 0 rgba(181, 123, 255, 0.9); transform: scale(1.1); } 100% { box-shadow: 0 0 0 16px rgba(181, 123, 255, 0); transform: none; } }
 .act-btn:active { transform: scale(0.94); }
 /* The button layout of the player (ui/hud-layout.js). Every control sits at its own point of the safe area
    (--hx, --hy from 0 to 1) and has its own size (--hk, times its default size); the boxes around them dissolve, and the
@@ -1448,7 +1448,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <div id="coach" class="coach" hidden><div id="coachDots" class="coach-dots"></div><p id="coachText"></p></div>
     <div class="act">
       <div class="act-row">
-        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw grenade"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="7" fill="currentColor"/><rect x="9.5" y="4.5" width="5" height="3.5" rx="1" fill="currentColor"/><path d="M14.5 6h4l1.5-2.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 12.2a4.4 4.4 0 0 1 3-2" fill="none" stroke="rgba(4,6,12,0.55)" stroke-width="1.4" stroke-linecap="round"/></svg><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
+        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw Singularity"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
         <button id="novaBtn" class="act-btn nova" aria-label="Nova blast"><span class="ring"></span><span class="lbl">NOVA</span></button>
       </div>
       <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="cd"></span><span class="ring"></span><span class="lbl">DASH<small id="dashSec"></small></span></button>

@@ -127,10 +127,15 @@ const rlStep = 1 / 60,
     bomber: "pop",
     payload: "payload",
     rocket: "weapon",
-    grenade: "grenade",
+    // 3.12.0: the Singularity's collapse is credited to the gadget's old source id, so saved run records stay readable
+    singularity: "grenade",
   },
-  // 3.0.0: base damage of a grenade (times the damage multiplier and the Blast Core cards)
-  GRENADE_DAMAGE = 90,
+  // 3.12.0: the Singularity (it replaced the grenade): damage of its collapse (times the damage multiplier and Event
+  // Horizon), how long the rift pulls, how far it pulls (times the blast radius), how hard (m/s² before mass)
+  SING_DAMAGE = 90,
+  SING_PULL_TIME = 1.5,
+  SING_PULL_RADIUS = 1.7,
+  SING_PULL = 50,
   World = class {
     constructor(opts) {
       let snap = opts.snap || null;
@@ -205,7 +210,7 @@ const rlStep = 1 / 60,
         portalT: 0,
         onIce: false,
         shotN: 0,
-        // 3.0.0: Grenade gadget: charges and the time until the next one is back
+        // 3.0.0: the gadget (3.12.0: the Singularity): charges and the time until the next one is back
         gadgetN: this.stats.gadgetMax,
         gadgetT: 0,
         slowT: 0,
@@ -220,7 +225,7 @@ const rlStep = 1 / 60,
         this.player.hp = clamp(snap.hp, 1, this.stats.maxHp);
       }
       this.chronoT = 0;
-      this.grenades = [];
+      this.singularities = [];
       this.traps = [];
       this.offer = null;
       this.offerBoss = false;
@@ -303,10 +308,10 @@ const rlStep = 1 / 60,
         player.target = null;
         player.alive = true;
         player.shield = this.stats.shieldCd > 0;
-        // 3.0.0: every wave starts with all grenades
+        // 3.0.0: every wave starts with all charges of the gadget
         player.gadgetN = this.stats.gadgetMax;
         player.gadgetT = 0;
-        this.grenades = [];
+        this.singularities = [];
         player.shieldT = 0;
         let novaFloor = 25 * (this.ws.nova || 0);
         player.nova = nova ?? Math.max(player.nova, novaFloor);
@@ -551,7 +556,7 @@ const rlStep = 1 / 60,
       }
       const gadgetBefore = this.stats.gadgetMax;
       this.stats = computeStats(this.weapon, this.up, this.ws);
-      // 3.0.0: a new grenade cell comes charged
+      // 3.0.0: a new gadget cell comes charged
       player.gadgetN = Math.min(this.stats.gadgetMax, player.gadgetN + (this.stats.gadgetMax - gadgetBefore));
       if (id === "hp") {
         player.hp = Math.min(this.stats.maxHp, player.hp + 20 + (this.stats.maxHp - oldMaxHp - 20));
@@ -740,7 +745,7 @@ const rlStep = 1 / 60,
               }
               this.updateTrails(dt);
               this.updatePBullets(dt);
-              this.updateGrenades(slowDt);
+              this.updateSingularities(slowDt);
               this.updateEBullets(slowDt);
               this.updateBeams(slowDt);
               this.updateHazards(slowDt);
@@ -992,7 +997,7 @@ const rlStep = 1 / 60,
       input = input || {};
       player.iT = Math.max(0, player.iT - dt);
       player.dashCdT = Math.max(0, player.dashCdT - dt);
-      // 3.0.0: grenade recharge, one charge at a time
+      // 3.0.0: gadget recharge, one charge at a time
       if (player.gadgetN < stats.gadgetMax && this.state === "fight") {
         player.gadgetT -= dt;
         if (player.gadgetT <= 0) {
@@ -1292,27 +1297,31 @@ const rlStep = 1 / 60,
         }
       });
     }
-    // 3.0.0: the Grenade. Thrown where the player aims (manual aim) or at the densest group of enemies in sight,
-    // never into a wall; it flies for a moment, then blasts (damage to enemies only, no friendly fire)
-    grenadeTarget(input) {
+    // 3.12.0: the Singularity replaced the grenade ("you gotta get so close until they actually fly into the enemies
+    // that you'll basically always have defeated them already"). It flies fast and far: where the player aims
+    // (manual aim, 11 m) or at the densest group in sight within 16 m, never into a wall. Where it lands it opens a
+    // small rift that pulls the enemies around it together for 1.5 s (bosses stand, elites and big ones are pulled
+    // less), then collapses in a blast (damage to enemies only, no friendly fire).
+    singularityTarget(input) {
       const player = this.player;
       let angle = player.aim,
-        dist = 6;
+        dist = 9;
       if (input.aim && (input.ax || input.ay)) {
         angle = Math.atan2(input.ay, input.ax);
-        dist = 9;
+        dist = 11;
       } else {
         const near = [];
         for (const enemy of this.enemies) {
           if (enemy.dead || enemy.ghost || near.length >= 60) continue;
-          if (Math.hypot(enemy.x - player.x, enemy.y - player.y) < 14 && this.canSee(enemy)) near.push(enemy);
+          if (Math.hypot(enemy.x - player.x, enemy.y - player.y) < 16 && this.canSee(enemy)) near.push(enemy);
         }
         let best = null,
           bestScore = -1e9;
         for (const enemy of near) {
           let crowd = 0;
-          for (const other of near) if (Math.hypot(other.x - enemy.x, other.y - enemy.y) < 3) crowd++;
-          const score = crowd * 10 - Math.hypot(enemy.x - player.x, enemy.y - player.y) * 0.3 + (enemy.elite ? 4 : 0);
+          // the pull gathers a wider group than the grenade's blast reached, so the crowd counts within 4.5 m
+          for (const other of near) if (Math.hypot(other.x - enemy.x, other.y - enemy.y) < 4.5) crowd++;
+          const score = crowd * 10 - Math.hypot(enemy.x - player.x, enemy.y - player.y) * 0.2 + (enemy.elite ? 4 : 0);
           if (score > bestScore) {
             bestScore = score;
             best = enemy;
@@ -1335,36 +1344,62 @@ const rlStep = 1 / 60,
         this.emit("gadgetDeny");
         return false;
       }
-      const target = this.grenadeTarget(input),
-        dur = 0.3 + target.dist * 0.03;
+      const target = this.singularityTarget(input),
+        dur = 0.16 + target.dist * 0.022;
       player.gadgetN--;
       if (player.gadgetT <= 0) player.gadgetT = stats.gadgetCd;
-      this.grenades.push({ fx: player.x, fy: player.y, tx: target.x, ty: target.y, t: 0, dur });
-      this.emit("grenade", { x: player.x, y: player.y, tx: target.x, ty: target.y, dur });
+      this.singularities.push({ fx: player.x, fy: player.y, tx: target.x, ty: target.y, t: 0, dur, pullT: -1 });
+      this.emit("singularity", { x: player.x, y: player.y, tx: target.x, ty: target.y, dur });
       return true;
     }
-    updateGrenades(dt) {
-      if (!this.grenades.length) return;
-      const stats = this.stats;
-      for (const grenade of this.grenades) {
-        grenade.t += dt;
-        if (grenade.t < grenade.dur) continue;
-        grenade.done = true;
-        const radius = stats.gadgetR,
-          dmg = GRENADE_DAMAGE * stats.dmgMul * stats.gadgetDmg;
-        this.explode(grenade.tx, grenade.ty, radius, dmg, {
+    updateSingularities(dt) {
+      if (!this.singularities.length) return;
+      const stats = this.stats,
+        radius = stats.gadgetR,
+        pullR = radius * SING_PULL_RADIUS;
+      for (const sing of this.singularities) {
+        sing.t += dt;
+        if (sing.t < sing.dur) continue;
+        if (sing.pullT < 0) {
+          sing.pullT = 0;
+          sing.r = pullR;
+          this.emit("singOpen", { x: sing.tx, y: sing.ty, r: pullR, dur: SING_PULL_TIME });
+        }
+        sing.pullT += dt;
+        if (sing.pullT < SING_PULL_TIME) {
+          // the pull grows over the first half second, fades near the middle (no jitter) and towards the rim
+          const ramp = Math.min(1, sing.pullT / 0.5);
+          this.hash.query(sing.tx, sing.ty, pullR, (enemy) => {
+            if (enemy.dead || enemy.boss || enemy.ghost) return;
+            const dx = sing.tx - enemy.x,
+              dy = sing.ty - enemy.y,
+              d = Math.hypot(dx, dy);
+            if (d > pullR + enemy.r || d < 0.35) return;
+            const mass = (1 / (0.6 + enemy.r * enemy.r * 1.6)) * (enemy.elite ? 0.6 : 1),
+              falloff = Math.min(1, d / 1.2) * (1 - 0.35 * Math.min(1, d / pullR)),
+              push = SING_PULL * ramp * falloff * mass * dt;
+            enemy.kx += (dx / d) * push;
+            enemy.ky += (dy / d) * push;
+            // caught in the rift: an enemy walks slower while it is pulled (else a brute walked out of it)
+            enemy.slowT = Math.max(enemy.slowT, 0.1);
+          });
+          continue;
+        }
+        sing.done = true;
+        const dmg = SING_DAMAGE * stats.dmgMul * stats.gadgetDmg;
+        this.explode(sing.tx, sing.ty, radius, dmg, {
           enemies: true,
-          knock: 7,
-          kind: "grenade",
+          knock: 2.5,
+          kind: "singularity",
           burn: stats.gadgetFire ? dmg * 0.15 : 0,
         });
-        // the blast rattles what it does not kill: enemies in it are slowed for a moment
-        this.hash.query(grenade.tx, grenade.ty, radius, (enemy) => {
-          if (!enemy.dead && !enemy.boss && Math.hypot(enemy.x - grenade.tx, enemy.y - grenade.ty) < radius + enemy.r)
+        // the collapse rattles what it does not kill: enemies in it are slowed for a moment
+        this.hash.query(sing.tx, sing.ty, radius, (enemy) => {
+          if (!enemy.dead && !enemy.boss && Math.hypot(enemy.x - sing.tx, enemy.y - sing.ty) < radius + enemy.r)
             enemy.slowT = Math.max(enemy.slowT, 1.2);
         });
       }
-      this.grenades = this.grenades.filter((grenade) => !grenade.done);
+      this.singularities = this.singularities.filter((sing) => !sing.done);
     }
     nova() {
       let player = this.player,
@@ -2959,6 +2994,9 @@ const rlStep = 1 / 60,
           }
         }
         this.pickups.length = 0;
+        // 3.12.0: a Singularity still pulling when the wave ends (it lasts up to 2 s, the cleared phase can be 1.6 s)
+        // would hang over the upgrade choice, which does not step it; its enemies are gone, so it simply ends
+        this.singularities = [];
         if (this.isFinalWave()) {
           this.state = "victory";
           this.stateT = 0;
