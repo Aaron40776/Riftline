@@ -36,12 +36,18 @@ Android browser tab cannot either), so the game turns itself.
    - Results of the chain: see section 4.
 
 4) Results 3.18.0 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+   - All steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, e2e, world and run audit, screens pc
+     and land, biome shots pc and land, attack shots pc). Full QA: every check passed except one in the new shell section
+     (the DASH tap after a landscape turn waited a fixed 2.2 s of real time and the loaded machine had not run the
+     cooldown out yet); it now waits for the cooldown in game time, the section passes (run alone). Time of the chain:
+     44 min 13 s (this branch does not have the lighter full QA of 3.17.1 yet).
+   - The picture of the turned start screen (tests/shots/qa-shell-upright.png) was looked at: the game fills the upright
+     screen, turned a quarter, nothing cut off.
 
 5) Open doubts
    - NOT tested on a real device: Safari on an iPhone (touches, safe areas, the address bar and audio inside a turned frame)
-     and Chrome on Android. If something is off, ?shell=0 shows the game as before (with a "turn your device" absence: it
-     then plays upright with its portrait layouts removed) and the shell can be switched off in index.html.
+     and Chrome on Android. If something is off, ?shell=0 runs the game without the shell (upright it then has no portrait
+     layout and no rotate screen any more, so it would look wrong), and the shell can be switched off in index.html.
    - The game is turned clockwise: held upright, the top of the game is the right edge of the screen (turn the phone
      counter-clockwise to read it).
 

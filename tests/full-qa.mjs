@@ -3062,7 +3062,8 @@ await section("shell", async (L) => {
     );
     const dash2 = onScreen(st2, 844, await rectIn(fr, "#dashBtn"));
     const d2 = await fr.evaluate(() => window.__riftTest.game.world.runStats.dashes);
-    await P.page.waitForTimeout(2200);
+    // the dash of the tap before has to be ready again (game time, not real time: a loaded machine runs the game slowly)
+    await fr.waitForFunction(() => window.__riftTest.game.world.player.dashCdT <= 0, null, { timeout: 60000 });
     await P.page.touchscreen.tap(dash2.x, dash2.y);
     await P.page.waitForTimeout(400);
     check(
