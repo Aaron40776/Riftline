@@ -1,6 +1,6 @@
 // Run upgrades and evolutions, offer weights.
 
-const rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution"];
+const rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution", "Boss"];
 // 2.5.0 A: 19 upgrades that were weaker copies of another one are gone (RL_RETIRED_UPGRADES at the
 // end says where each went); the upgrade that took them over has a higher max.
 const upgradeList = [
@@ -459,6 +459,57 @@ upgradeList.push(
     icon: "shield",
     desc: (level, count = level + 1) =>
       `Getting hit releases a repulse wave (${45 + 25 * level} damage) that clears nearby shots`,
+  },
+);
+upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
+
+// 3.15.0: the boss cards (rarity 6, "Boss"): one per boss, offered only after its kill and never in a normal offer
+// (core/boss-cards.js has the chance and the mechanics). Max 1 each: a card taken never comes again in the run.
+upgradeList.push(
+  {
+    id: "lockdown",
+    name: "Lockdown Grid",
+    rarity: 6,
+    max: 1,
+    boss: "warden",
+    icon: "lockdown",
+    desc: () => "Every 8 s a laser cage drops on the densest enemy group: they cannot leave for 3 s and take damage",
+  },
+  {
+    id: "hammer",
+    name: "Crucible Hammer",
+    rarity: 6,
+    max: 1,
+    boss: "forge",
+    icon: "hammer",
+    desc: () => "Every 6 s your next dash ends in a slam: 75 damage, sets enemies on fire and leaves molten ground",
+  },
+  {
+    id: "shardfield",
+    name: "Shard Field",
+    rarity: 6,
+    max: 1,
+    boss: "prism",
+    icon: "snow",
+    desc: () => "Kills shatter into 5 ice splinters that hit and chill the enemies around",
+  },
+  {
+    id: "brood",
+    name: "Brood",
+    rarity: 6,
+    max: 1,
+    boss: "queen",
+    icon: "brood",
+    desc: () => "Every 10 kills a larva hatches (up to 4). It hunts an enemy and bursts into poison",
+  },
+  {
+    id: "collapse",
+    name: "Event Collapse",
+    rarity: 6,
+    max: 1,
+    boss: "core",
+    icon: "collapse",
+    desc: () => "Your Nova first pulls enemies in, then blasts 40% harder",
   },
 );
 upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));

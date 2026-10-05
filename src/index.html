@@ -386,6 +386,14 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 .card.r5 { --rc: #ffffff; border-color: rgba(255, 255, 255, 0.7); background: linear-gradient(120deg, rgba(73, 242, 255, 0.16), rgba(210, 123, 255, 0.16) 50%, rgba(255, 200, 74, 0.16)), var(--panel2); box-shadow: inset 0 0 34px rgba(255, 255, 255, 0.1); }
 .card.r5::before { background: linear-gradient(180deg, var(--cyan), var(--r3), var(--r4)); }
 .card.r5 .lv { color: #fff; }
+/* 3.15.0: a boss card: crimson with a gold rim and the boss seal in its corner */
+.card.r6 { --rc: #ff4a5a; border-color: rgba(255, 200, 74, 0.75); background: linear-gradient(135deg, rgba(255, 74, 90, 0.2), rgba(255, 200, 74, 0.1) 60%, rgba(255, 74, 90, 0.14)), var(--panel2); box-shadow: inset 0 0 36px rgba(255, 74, 90, 0.2); }
+.card.r6::before { background: linear-gradient(180deg, #ffc84a, #ff4a5a); }
+.card.r6 .lv { color: #ffc84a; }
+.card.r6 .seal { position: absolute; bottom: 7px; right: 9px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle, #ff4a5a, #8a1020); border: 2px solid #ffc84a; color: #ffe8b0; box-shadow: 0 0 12px rgba(255, 74, 90, 0.6); animation: sealPulse 1.6s ease-in-out infinite; }
+.card.r6 .seal .ico { width: 14px; height: 14px; }
+@keyframes sealPulse { 50% { box-shadow: 0 0 20px rgba(255, 120, 90, 0.95); } }
+@media (prefers-reduced-motion: reduce) { .card.r6 .seal { animation: none; } }
 .card .delta { display: block; margin-top: 4px; font: 600 12px/1.2 var(--display); letter-spacing: 0.03em; color: var(--cyan); }
 .card .evo-hint { display: block; margin-top: 4px; font: 600 12px/1.2 var(--display); letter-spacing: 0.04em; color: #e9dcff; }
 .bi.r5 { --rc: #ffffff; background: linear-gradient(90deg, rgba(73, 242, 255, 0.15), rgba(210, 123, 255, 0.15)); }
@@ -398,7 +406,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 .build-strip, .build-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 460px; }
 .bi { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; font: 600 12px/1 var(--display); color: var(--text); background: rgba(255, 255, 255, 0.05); border-left: 2px solid var(--rc, var(--r1)); }
 .bi .ico { width: 14px; height: 14px; color: var(--rc, var(--r1)); }
-.bi.r2 { --rc: var(--r2); } .bi.r3 { --rc: var(--r3); } .bi.r4 { --rc: var(--r4); } .bi.r5 { --rc: #ffffff; }
+.bi.r2 { --rc: var(--r2); } .bi.r3 { --rc: var(--r3); } .bi.r4 { --rc: var(--r4); } .bi.r5 { --rc: #ffffff; } .bi.r6 { --rc: #ff4a5a; }
 /* 2.4.2: the pause build explains each upgrade; key hints on the upgrade cards; HUD readouts;
    settings opened from the pause menu leave out backup and reset */
 button.bi { border-top: 0; border-right: 0; border-bottom: 0; cursor: pointer; pointer-events: auto; }
@@ -1404,7 +1412,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
 .cx-count { margin-left: 6px; letter-spacing: 0.08em; color: var(--cyan); }
 .codex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 8px; }
 .row.cx .rico { color: var(--cc, var(--cyan)); background: color-mix(in srgb, var(--cc, var(--cyan)) 12%, transparent); }
-.row.cx.r1 { --cc: var(--r1); } .row.cx.r2 { --cc: var(--r2); } .row.cx.r3 { --cc: var(--r3); } .row.cx.r4 { --cc: var(--r4); } .row.cx.r5 { --cc: #ffffff; }
+.row.cx.r1 { --cc: var(--r1); } .row.cx.r2 { --cc: var(--r2); } .row.cx.r3 { --cc: var(--r3); } .row.cx.r4 { --cc: var(--r4); } .row.cx.r5 { --cc: #ffffff; } .row.cx.r6 { --cc: #ff4a5a; }
 .row.cx .chip { padding: 2px 6px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cc, var(--text)); }
 .row.cx small { font-size: 13.5px; }
 .row.cx small.cx-extra { font-size: 12px; color: var(--mute); }

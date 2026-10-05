@@ -108,6 +108,12 @@ function computeStats(weaponId, run, workshop) {
   // Vector Capacitor took over Cryo Coolant and Afterburner: the Aegis recharges faster too
   stats.shieldCd *= Math.max(0.45, 1 - 0.08 * level("speed"));
   stats.skates = level("skates");
+  // 3.15.0: the boss cards (core/boss-cards.js)
+  stats.lockdown = has("lockdown");
+  stats.hammer = has("hammer");
+  stats.shardField = has("shardfield");
+  stats.brood = has("brood");
+  stats.collapse = has("collapse");
   stats.speed *= 1 + 0.04 * stats.skates;
   stats.acidCoat = level("acidcoat");
   stats.heatSink = level("heatsink");

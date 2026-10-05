@@ -123,6 +123,13 @@ const iconPaths = {
   skull:
     '<path d="M12 3a8 8 0 00-5 14.2V21h10v-3.8A8 8 0 0012 3z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  // 3.15.0: the boss cards (a laser cage, the hammer, a larva, an imploding ring)
+  lockdown: '<path d="M5 4v16M19 4v16M5 8h14M5 16h14"/><path d="M12 8v8" stroke-dasharray="2 2"/>',
+  hammer: '<path d="M4 6h10v5H4z"/><path d="M9 11v10M14 8.5h5"/><path d="M17 6v5"/>',
+  brood:
+    '<ellipse cx="12" cy="14" rx="4" ry="6"/><path d="M8 11l-5-3M16 11l5-3M8 15l-4 2M16 15l4 2M10 8l-1-4M14 8l1-4"/>',
+  collapse:
+    '<circle cx="12" cy="12" r="9" stroke-dasharray="3 2.5"/><path d="M12 5v4M12 15v4M5 12h4M15 12h4"/><circle cx="12" cy="12" r="1.6"/>',
 };
 function iconSvg(name, cls = "") {
   let paths = iconPaths[name] || iconPaths.info;
@@ -182,6 +189,11 @@ const getById = (id) => document.getElementById(id),
     inferno: ["Inferno", "#ff5a3a"],
     grenade: ["Singularity", "#b57bff"], // 3.12.0: the old id of the gadget, kept for saved run records
     trap: ["Arena traps", "#aeb9cf"], // 3.0.0: enemies caught by a trap
+    // 3.15.0: the boss cards
+    lockdown: ["Lockdown Grid", "#ff4a5a"],
+    hammer: ["Crucible Hammer", "#ff8a2a"],
+    shard: ["Shard Field", "#9ae6ff"],
+    brood: ["Brood", "#a8f03a"],
     other: ["Other", "#93a2bf"],
   },
   escapeHtml = (text) =>
@@ -1278,16 +1290,20 @@ const getById = (id) => document.getElementById(id),
         .map((id, i) => {
           let up = upgradesById[id],
             level = world.up[id] || 0,
-            tag = up.evo
-              ? "EVOLUTION"
-              : up.repeat
-                ? rarityNames[up.rarity].toUpperCase()
-                : level
-                  ? `LV ${level} \u2192 ${level + 1}`
-                  : `NEW \xB7 ${rarityNames[up.rarity].toUpperCase()}`,
+            // 3.15.0: a boss card carries the seal of its boss
+            tag = up.boss
+              ? `${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "BOSS"} \xB7 BOSS CARD`
+              : up.evo
+                ? "EVOLUTION"
+                : up.repeat
+                  ? rarityNames[up.rarity].toUpperCase()
+                  : level
+                    ? `LV ${level} \u2192 ${level + 1}`
+                    : `NEW \xB7 ${rarityNames[up.rarity].toUpperCase()}`,
             evo = this.evoHint(up, world),
             delta = this.statDelta(id, world);
-          return `<button class="card r${up.rarity}" data-pick="${id}" style="animation-delay:${i * 70}ms"><span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${tag}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
+          const seal = up.boss ? `<span class="seal" aria-hidden="true">${iconSvg("skull")}</span>` : "";
+          return `<button class="card r${up.rarity}" data-pick="${id}" style="animation-delay:${i * 70}ms">${seal}<span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${tag}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
         })
         .join("");
       cards.classList.add("locked");
@@ -1798,7 +1814,12 @@ function rlCodexEntries(save) {
         seen: seen["up_" + up.id] === true || offered.has(up.id),
         name: up.name,
         desc,
-        extra: weapon ? weapon.name + " only" : "",
+        // 3.15.0: a boss card says which boss it comes from
+        extra: up.boss
+          ? "Only from the " + (bossDefs[up.boss] ? bossDefs[up.boss].name : "boss")
+          : weapon
+            ? weapon.name + " only"
+            : "",
         rarity: up.evo ? 5 : up.rarity,
         tag: up.evo ? "Evolution" : rarityNames[up.rarity] || "",
         icon: up.icon,

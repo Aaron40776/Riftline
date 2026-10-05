@@ -22,6 +22,15 @@ import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHaz
 import { computeStats, DASH_CD_MIN } from "./stats.js";
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 import { rlPlanTraps, rlUpdateTraps } from "./traps.js";
+import {
+  bossCardOffer,
+  bossCardKill,
+  bossCardNova,
+  novaBlast,
+  resetBossCards,
+  updateBossCards,
+  BOSS_CARD_CHANCE,
+} from "./boss-cards.js";
 import { rlMutatorsFor } from "./mutators.js";
 // 2.2.3: the run monitor observes the live run's world (used at run time only; circular import)
 import { RL_MON, rlMonStep, rlMonIssue, rlMonBeginWave } from "./diagnostics.js";
@@ -129,6 +138,9 @@ const rlStep = 1 / 60,
     rocket: "weapon",
     // 3.12.0: the Singularity's collapse is credited to the gadget's old source id, so saved run records stay readable
     singularity: "grenade",
+    // 3.15.0: the boss cards
+    hammer: "hammer",
+    brood: "brood",
   },
   // 3.12.0: the Singularity (it replaced the grenade): damage of its collapse (times the damage multiplier and Event
   // Horizon), how long the rift pulls, how far it pulls (times the blast radius), how hard (m/s² before mass)
@@ -158,6 +170,10 @@ const rlStep = 1 / 60,
       this.dmgDealt = (snap && snap.dmgDealt) || 0;
       this.bestCombo = (snap && snap.bestCombo) || 0;
       this.evolved = (snap && snap.evolved) || 0;
+      // 3.15.0: the chance of the next boss card (it grows after each boss offer without one)
+      this.bossLuck = snap && Number.isFinite(snap.bossLuck) ? clamp(snap.bossLuck, 0, 1) : BOSS_CARD_CHANCE;
+      this.offerExclusive = null;
+      this.broodN = 0;
       this.runStats = {
         dmgTaken: (snap && snap.runStats && Number(snap.runStats.dmgTaken)) || 0,
         dashes: (snap && snap.runStats && Number(snap.runStats.dashes)) || 0,
@@ -220,12 +236,15 @@ const rlStep = 1 / 60,
         inAcid: false,
         // 3.7.1: the part of a hazard tick that has not added up to a whole point yet (rlChipDamage)
         chipAcc: 0,
+        // 3.15.0: the larvae of Brood (boss-cards.js)
+        brood: [],
       };
       if (snap) {
         this.player.hp = clamp(snap.hp, 1, this.stats.maxHp);
       }
       this.chronoT = 0;
       this.singularities = [];
+      resetBossCards(this);
       this.traps = [];
       this.offer = null;
       this.offerBoss = false;
@@ -243,6 +262,7 @@ const rlStep = 1 / 60,
         this.offerBoss = !!snap.offerBoss;
         this.state = "choose";
         this.offer = offer.length ? offer : this.makeOffer();
+        this.offerExclusive = this.offer.find((id) => upgradesById[id].boss) || null;
         // 2.9.1: a save stuck on an empty choice (everything maxed) goes on with the next wave
         if (!this.offer.length) this.skipEmptyChoice();
       }
@@ -296,6 +316,7 @@ const rlStep = 1 / 60,
         this.hazards = [];
         this.markers = [];
         this.trails = [];
+        resetBossCards(this);
         this.boss = null;
         this.combo = 0;
         this.comboT = 0;
@@ -529,6 +550,7 @@ const rlStep = 1 / 60,
         dmgDealt: Math.round(this.dmgDealt),
         bestCombo: this.bestCombo,
         evolved: this.evolved,
+        bossLuck: this.bossLuck,
         runStats: {
           dmgTaken: Math.round(this.runStats.dmgTaken),
           dashes: this.runStats.dashes | 0,
@@ -566,7 +588,8 @@ const rlStep = 1 / 60,
       }
       player.hp = Math.min(player.hp, this.stats.maxHp);
       this.offer = null;
-      this.emit("pick", { id: id, evo: upgrade.rarity === 5 });
+      this.offerExclusive = null;
+      this.emit("pick", { id: id, evo: upgrade.rarity === 5, boss: !!upgrade.boss });
       this.startWave(this.wave + 1);
       return true;
     }
@@ -579,20 +602,24 @@ const rlStep = 1 / 60,
     }
     makeOffer(exclude = []) {
       let count = 3 + ((this.ws.insight || 0) > 0 ? 1 : 0);
-      return rollUpgradeOffer(
+      // 3.15.0: the boss card holds the first place, also through a reroll
+      const exclusive = this.offerBoss ? this.offerExclusive : null;
+      const picks = rollUpgradeOffer(
         this.rng,
         this.up,
         this.wave,
         this.player.hp / this.stats.maxHp,
-        count,
+        count - (exclusive ? 1 : 0),
         this.offerBoss,
         exclude,
         this.weapon,
       );
+      return exclusive ? [exclusive, ...picks] : picks;
     }
     // 2.9.1: opens the upgrade choice after a wave. When nothing is left to offer (every upgrade at its
     // maximum, hull healthy) there is nothing to choose: the empty screen used to hang the run for good.
     beginChoice() {
+      this.offerExclusive = this.offerBoss ? bossCardOffer(this) : null;
       const offer = this.makeOffer();
       if (!offer.length) {
         this.skipEmptyChoice();
@@ -744,6 +771,7 @@ const rlStep = 1 / 60,
                 this.contactDamage();
               }
               this.updateTrails(dt);
+              updateBossCards(this, dt);
               this.updatePBullets(dt);
               this.updateSingularities(slowDt);
               this.updateEBullets(slowDt);
@@ -1407,15 +1435,9 @@ const rlStep = 1 / 60,
       if (player.nova < 100 || !player.alive || this.state !== "fight") return;
       player.nova = 0;
       player.iT = Math.max(player.iT, 0.5);
-      let radius = stats.novaR;
-      this.explode(player.x, player.y, radius, 70 * stats.dmgMul, { enemies: true, knock: 12, kind: "nova" });
-      for (let bullet of this.eb) {
-        if (Math.hypot(bullet.x - player.x, bullet.y - player.y) < radius * 1.7) {
-          bullet.life = 0;
-          this.emit("pop", { x: bullet.x, y: bullet.y });
-        }
-      }
-      this.emit("nova", { x: player.x, y: player.y, r: radius });
+      // 3.15.0: with Event Collapse the blast comes after the pull (boss-cards.js)
+      if (bossCardNova(this, stats.novaR)) return;
+      novaBlast(this, stats.novaR);
     }
     // 2.8.0: raw charge (Overcharge per-kill bonus) is not scaled by the charge rate, so the card text holds
     addNova(amount, raw = false) {
@@ -1958,6 +1980,7 @@ const rlStep = 1 / 60,
           this.addCombo();
         }
         this.addNova(2.5 * Math.max(1, def.cost) * (enemy.elite ? 3 : 1));
+        if (!enemy.noDrop) bossCardKill(this, enemy);
         let stats = this.stats,
           player = this.player;
         if (stats.siphonCh && this.rng.chance(stats.siphonCh)) {
@@ -2997,6 +3020,8 @@ const rlStep = 1 / 60,
         // 3.12.0: a Singularity still pulling when the wave ends (it lasts up to 2 s, the cleared phase can be 1.6 s)
         // would hang over the upgrade choice, which does not step it; its enemies are gone, so it simply ends
         this.singularities = [];
+        // 3.15.0: the same for the cages, slag, splinters and a Nova still pulling (the larvae stay with the drone)
+        resetBossCards(this);
         if (this.isFinalWave()) {
           this.state = "victory";
           this.stateT = 0;

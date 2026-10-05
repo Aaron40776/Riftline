@@ -155,6 +155,89 @@ await p.screenshot({ path: `${OUT}/scape-lightning.png` });
 await ev(() => window.__riftTest.renderer.scapeLight("siren", 0.6));
 await ev(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 await p.screenshot({ path: `${OUT}/scape-siren.png` });
+// 3.15.0: the boss cards: the Lockdown Grid holding a group (with larvae of the Brood and the ember glow of a ready
+// Crucible Hammer), the slam of the hammer, splinters of the Shard Field, the pull of Event Collapse, and the upgrade
+// choice with a boss card
+await ev(() => {
+  const T = window.__riftTest,
+    w = T.game.world;
+  w.god = true;
+  // a running fight again (the last stage can end in an upgrade choice), with one far enemy that keeps it going
+  w.startWave(w.wave);
+  T.game.intro = null;
+  w.planIdx = w.plan.length;
+  w.markers = [];
+  w.bossPending = null;
+  w.championPending = null;
+  for (const e of [...w.enemies]) w.killEnemy(e);
+  const keep = w.spawnEnemy("grunt", w.arena.W - 2, w.arena.H - 2, {});
+  keep.speed = 0;
+  keep.maxHp = keep.hp = 1e9;
+  document.getElementById("choose").hidden = true;
+  T.ui.coverHud(false);
+  w.hazards.length = 0;
+  w.singularities = [];
+  const px = w.player.x,
+    py = w.player.y;
+  Object.assign(w.up, { lockdown: 1, hammer: 1, shardfield: 1, brood: 1, collapse: 1 });
+  w.stats = T.computeStats(w.weapon, w.up, w.ws);
+  window.__bossGroup = ["grunt", "brute", "gunner", "grunt", "splitter"].map((type, k) => {
+    const a = (k / 5) * Math.PI * 2;
+    const enemy = w.spawnEnemy(type, px + 6 + Math.cos(a) * 1.4, py + Math.sin(a) * 1.4, {});
+    enemy.spawnT = 0;
+    enemy.maxHp = enemy.hp = 1e6;
+    enemy.speed = 0;
+    return enemy;
+  });
+  for (let k = 0; k < 3; k++)
+    w.player.brood.push({ id: w.nextId++, x: px - 1.5 + k, y: py + 1.5, vx: 0, vy: 0, t: -60, life: 99, target: null });
+  w.player.hammerT = 0;
+  w.player.lockT = 0.01;
+});
+await p.waitForFunction(() => (window.__riftTest.game.world.cages[0]?.t ?? 0) > 0.9, null, { timeout: 60000 });
+await p.screenshot({ path: `${OUT}/bosscards-1-cage.png` });
+await ev(() => {
+  const pl = window.__riftTest.game.world.player;
+  pl.dashX = 1;
+  pl.dashY = 0;
+  pl.dashT = 0.17;
+});
+await p.waitForFunction(() => window.__riftTest.game.world.slag.length > 0, null, { timeout: 60000 });
+await ev(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+await p.screenshot({ path: `${OUT}/bosscards-2-slam.png` });
+await ev(() => {
+  const w = window.__riftTest.game.world;
+  for (const enemy of window.__bossGroup.slice(0, 3)) w.hurtEnemy(enemy, 1e7, 0, 0, 0, false, "weapon");
+});
+await ev(() => new Promise((r) => requestAnimationFrame(r)));
+await p.screenshot({ path: `${OUT}/bosscards-3-shatter.png` });
+await ev(() => {
+  const w = window.__riftTest.game.world,
+    px = w.player.x,
+    py = w.player.y;
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    const enemy = w.spawnEnemy("grunt", px + Math.cos(a) * 8, py + Math.sin(a) * 5, {});
+    enemy.spawnT = 0;
+    enemy.maxHp = enemy.hp = 1e6;
+  }
+  w.player.nova = 100;
+  w.nova();
+});
+await p.waitForFunction(() => (window.__riftTest.game.world.implode?.t ?? 0) > 0.15, null, { timeout: 60000 });
+await p.screenshot({ path: `${OUT}/bosscards-4-implode.png` });
+await ev(() => {
+  const T = window.__riftTest,
+    w = T.game.world;
+  w.offerBoss = true;
+  w.offerExclusive = "lockdown";
+  w.up.lockdown = 0;
+  w.offer = w.makeOffer();
+  w.state = "choose";
+  T.ui.showChoose(w);
+});
+await p.waitForTimeout(1500);
+await p.screenshot({ path: `${OUT}/bosscards-5-choice.png` });
 console.log(errs.length ? "ERRORS:\n" + errs.join("\n") : "no errors");
 await b.close();
 process.exit(errs.length ? 1 : 0);

@@ -7,6 +7,7 @@ import { store } from "../main.js";
 import { weaponDefs } from "../data/weapons.js";
 import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rlRetired } from "../data/progression.js";
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
+import { BOSS_CARD_CHANCE } from "./boss-cards.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
@@ -283,6 +284,8 @@ function cleanRun(raw) {
     dmgDealt: Math.floor(cleanNumber(raw.dmgDealt, 0, 0, 1e12)),
     bestCombo: Math.floor(cleanNumber(raw.bestCombo, 0, 0, 1e6)),
     evolved: Math.floor(cleanNumber(raw.evolved, 0, 0, 1e6)),
+    // 3.15.0: the chance of the next boss card
+    bossLuck: cleanNumber(raw.bossLuck, BOSS_CARD_CHANCE, 0, 1),
     runStats: { dmgTaken: 0, dashes: 0, critHits: 0 },
     dmgSrc: {},
   };
@@ -301,7 +304,14 @@ function cleanRun(raw) {
   for (const key in src)
     if (/^[A-Za-z0-9_-]{1,18}$/.test(key)) run.dmgSrc[key] = Math.floor(cleanNumber(src[key], 0, 0, 1e12));
   if (Array.isArray(raw.offer)) {
-    const offer = [...new Set(raw.offer.filter((id) => typeof id === "string" && !!upgradesById[id]))].slice(0, 4);
+    // 3.15.0: a boss card belongs only in a boss offer
+    const offer = [
+      ...new Set(
+        raw.offer.filter(
+          (id) => typeof id === "string" && !!upgradesById[id] && (!upgradesById[id].boss || raw.offerBoss),
+        ),
+      ),
+    ].slice(0, 4);
     if (offer.length) {
       run.offer = offer;
       run.offerBoss = !!raw.offerBoss;
