@@ -1,3 +1,69 @@
+RIFTLINE v3.17.0 – THE WALKER
+Base: v3.16.0 · Build r3170a1005a-r1 · 05.10.2026
+
+Roadmap section 2 (decided with the owner on 03.10.2026: two legs, not four): a walking robot instead of the drone, legs
+animated while it walks, the dash as a jump, footsteps per ground, the weapon unchanged. The steering is untouched.
+
+1) The model (render/models.js buildPlayerModel)
+   - A squat torso with a glowing visor and a back pack, a pelvis, two legs of thigh, shin and a flat foot, glow strips
+     in the weapon colour on the knees, shins and feet (the dark legs read against the floor), the weapon mount on top.
+     The footprint (about 0.65), the hull colours and the weapon colour on the glowing parts are the same as before; the
+     exhaust flames and the trail of the old hull are gone. `base` still turns with the drone and `turret` aims.
+   - setWalk(phase, amount, air, time): the thigh swings, the knee bends while the leg swings forward, the ankle follows,
+     the torso turns against the hips and the body bobs; standing, it breathes (also in the start screen preview, where
+     the body turns slowly and the weapon scans); in the air both legs tuck.
+
+2) The stride (core/walk.js)
+   - World.player.stride is the metres walked; every STEP_LEN (1 m) a foot comes down: a `step` event with the foot
+     (alternating) and the ground under it. The legs of the model follow the same stride, so a foot is down at the moment
+     of its sound. Nothing changes how the drone moves.
+   - The ground: the floor of the biome (wet asphalt in Blackout City, steel grating in the Ember Works, frozen ground in
+     the Cryo Vault, mud in the Toxin Marsh, glass in the Void Core), ice where the drone stands on a sheet, acid in a
+     pool.
+   - A dash is a jump: no steps in the air, the model's legs tuck and its body rises and falls over the 0.17 s, a `land`
+     event comes when it ends (a ring, a burst of the ground's material and a small shake).
+   - In the upgrade choice and on the victory screen the world does not step: the walker stands (its velocity would freeze
+     the legs mid-stride; found while reviewing).
+
+3) The sounds (audio/sound.js, step and land)
+   - A footstep per ground, short and quiet: wet asphalt a soft slap with the odd splash, grating a clank with an
+     inharmonic ring, frozen ground a crunch of three grains, ice a glassy scrape with a tick, mud a squelch with a bubble,
+     glass a tick over nothing low, acid a splash that sizzles; a faint servo whine in each; each foot panned a little to
+     its side; the landing the same, heavier, with a thump. Gated to 0.11 s (up to six steps a second at full speed).
+   - Every step kicks up a puff of what the ground is made of (dust, snow, sparks on grating and ice, mud, droplets).
+
+4) Review of 3.15.0 to 3.17.0 (my own reading, the two helper reviewers hit the session limit)
+   - Found and fixed: Shard Field compared the world clock with the time of its last shatter; Endless restarts the clock
+     at 0 after the victory, so the card stayed blocked for the whole Endless run (self-test added: shatter after a
+     clock restart). It changed the Endless simulation of the determinism test (more kills and damage), the only case.
+   - Event Collapse and the Lockdown Grid moved enemies in a straight line, through walls: they respect walls now.
+   - The Hive Queen's hatch (eggs, summons) got a ring, bits of shell and a cracking sound (it was a plain burst).
+
+5) Tests
+   - Self-test v3170: no steps standing; a step per metre walked, the feet alternate; the ground of every biome; ice and
+     acid take over; none in the air and one landing after a dash; the model has two legs that swing opposite to each
+     other, tuck in the air, stand still when it stands and have their feet on the floor.
+   - Deep test: the footsteps of the seven grounds differ from each other (smallest distance 0.45), every step stays under
+     60 % of a Pulse shot (measured 0.021 to 0.028 against 0.032), the landing under a Scattergun shot.
+   - Attack shots: walker-1-stand, -2-stride, -3-jump (the camera zoomed in).
+   - Determinism: updated on purpose (the new step and land events; the Endless case after the Shard Field fix).
+
+6) Results 3.17.0 (headless Chromium, software WebGL; npm run release-check, then the quick check and the attack shots
+   again on the final code)
+   - npm test steps: green (deep test with v3170 and the footsteps; determinism 15/15 after the update).
+   - Full QA: all checks passed. E2E: 0 failures on the four devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     2931 events in 42 kinds, all consumed.
+   - Screens, biome and attack pictures: no page errors; the walker looked at in the menu, standing, mid-stride and in
+     the air.
+   - Time of the whole chain: 45 min 41 s. Format check: ok.
+
+7) Open doubts
+   - Only seen in software and measured: how the legs look at six steps a second and whether the footsteps feel too busy
+     in a long run (the level and the gate are constants in audio/sound.js).
+   - Not built: no sound of its own for sliding on ice (the ice step is the scrape), no puddle ground (the asphalt step
+     splashes now and then); the texts still say "drone".
+
 RIFTLINE v3.16.0 – BOSSES, PLACES AND MUSIC, FINISHED
 Base: v3.15.0 · Build r3160a1005a-r1 · 05.10.2026
 
