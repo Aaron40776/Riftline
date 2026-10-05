@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.14.0",
+    title: "Music of the place",
+    items: [
+      "The calm themes keep their melodies and pick up the rhythm of their place as the fight swells.",
+      "Blackout City turns noir with a walking bass and brushes; the far siren sings on the chord.",
+      "Ember Works keeps time with pistons, a rattling conveyor and a hammer; Toxin Marsh with a log drum and frogs in time.",
+      "The Void Core adds a choir and stuttering glitches; where the music plays rain or crickets, the place steps back.",
+    ],
+  },
+  {
     version: "3.13.0",
     title: "Places you can hear",
     items: [

@@ -81,7 +81,7 @@ npm run qa             # full QA: saves, settings, workshop, runs on PC and phon
 npm run e2e            # end-to-end with real pointer and touch input on 4 device sizes
 npm run audit          # world audit, data audit, a bot run to wave 22 with its post-run audit
 npm run screens        # screenshots of every screen, biome and attack -> tests/shots/
-node tools/qa.js scape-preview   # every biome's soundscape as WAV/MP3 -> tests/shots/scapes/
+node tools/qa.js scape-preview   # every biome's soundscape as WAV/MP3 -> tests/shots/scapes/ (`music`: the ten tracks)
 npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
 npm run format         # Prettier (width 120); CI runs npm run format:check
 ```

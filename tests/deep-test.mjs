@@ -38,6 +38,7 @@ const res = await page.evaluate(() => {
     v390: r.v390?.fail,
     v3100: r.v3100?.fail,
     v3130: r.v3130?.fail,
+    v3140: r.v3140?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
@@ -576,6 +577,34 @@ const music = cached
       return { ...out, fail };
     });
 lap(cached ? "sound (cached)" : "sound");
+// 3.14.0: the music of the place: each calm theme keeps its quiet start and adds the rhythm of its place as the fight
+// swells (8 s at intensity 0.1 against 0.9, from the first bar, with the music log)
+const placeMusic = await page.evaluate(async () => {
+  const E = window.__riftTest.game.sound.constructor,
+    fail = [],
+    out = {},
+    voices = async (biome, intensity) =>
+      (await E.renderOffline({ music: "fight", biome, intensity, log: true, seed: 3, room: false }, 8)).musicLog,
+    // what each place adds: Blackout City a walking bass (short low notes on the pump bus), Ember Works pistons and a
+    // conveyor (noises), Toxin Marsh a log drum (short low notes on the pump bus), Void Core a choir and glitches
+    // (the choir bus, short high notes)
+    want = {
+      yard: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 130 && v.dur < 0.6).length,
+      works: (log) => log.filter((v) => v.kind === "n").length,
+      marsh: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 200 && v.dur < 0.5).length,
+      void: (log) => log.filter((v) => v.bus === "c" || (v.kind === "t" && v.pitch > 900 && v.dur < 0.05)).length,
+    };
+  for (const [biome, count] of Object.entries(want)) {
+    const quiet = count(await voices(biome, 0.1)),
+      busy = count(await voices(biome, 0.9));
+    out[biome] = { quiet, busy };
+    if (!(busy >= quiet + 4)) fail.push(`${biome}: the rhythm of the place does not come in (${quiet} -> ${busy})`);
+  }
+  return { ...out, fail };
+});
+res.placeMusic = placeMusic;
+if (placeMusic.fail.length) res.ok = false;
+lap("place music");
 res.music = { fail: music.fail, tracks: Object.keys(music.tracks).length, budgets: music.budget.length };
 if (process.env.SOUND_DETAIL) console.error(JSON.stringify(music, null, 1));
 if (music.fail.length) res.ok = false;

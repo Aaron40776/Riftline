@@ -151,8 +151,8 @@ order"; after a merge and a deleted branch GitHub retargets the next PR to main)
    license. Was: if usage is left: the repository cleanup the owner asked for (README as the landing page with the Play link,
    stale information, docs, .github), without deleting this roadmap or the QA report (CLAUDE.md needs them).
 5. Then the roadmap below in its order: 3.13.0 soundscapes (done on branch `claude/soundscapes-3130`, stacked on the
-   cleanup; QA report 3.13.0; sounds tied to the props near the drone not done), 3.14.0 music of the place, boss
-   rewards, the walker.
+   cleanup; QA report 3.13.0; sounds tied to the props near the drone not done), 3.14.0 music of the place (done on
+   branch `claude/place-music-3140`, stacked on 3.13.0; QA report 3.14.0), boss rewards, the walker.
 
 Usage rules of the owner: stop at a clean point at about 90 % of the 5-hour window and go on after its reset; stop and
 report at about 85 % of the weekly limit. Before every PR: code review of the diff, the full release check, a look at

@@ -1,3 +1,49 @@
+RIFTLINE v3.14.0 – MUSIC OF THE PLACE
+Base: v3.13.0 · Build r3140a1005a-r1 · 05.10.2026
+
+Requested (04.10.2026, after 3.9.0): make the music fit the atmosphere of each place. Decision of the owner: option a,
+keep melody and key and rebuild rhythm and instruments per place. Sixth of the stacked PRs of the night (stacked on
+3.13.0).
+
+1) Finding
+   - The calm themes share one template (motif rhythm, heartbeat, sub); the place was in the instrument of the motif
+     (electric piano, pipes, ice bells, kalimba, glass) and rare notes, but none of them had the rhythm of its place.
+   - The boss tracks already carry their places in the drums (the Crucible's anvil on 2 and 4, the Warden's siren),
+     so they stay as they are.
+
+2) The rhythm of each place (audio/sound.js, calm themes; all of it comes in only as the intensity of the fight
+   rises, so a quiet moment sounds as before)
+   - Blackout City, noir: a walking bass on every beat (root, fifth, third, a step towards the next chord) instead of
+     one plucked note on beat 3; brushes, a soft sweep on 2 and 4 and light taps on the other eighths; the far siren
+     now sings up and down a minor third on the root of the chord (it was a fixed 640/960 Hz).
+   - Ember Works, industrial: a piston chuffs on the beats (softer off the beat), a conveyor rattles in sixteenths,
+     a hammer answers on 4 on the fifth of the chord.
+   - Toxin Marsh, bayou: a log drum on root and fifth in a lazy syncopation (x..x..x...x.x...), and the frogs croak in
+     time on the and of 2 and 4 on the root of the chord (they croaked anywhere before).
+   - Void Core: a choir swells at the head of every fourth bar, glitches stutter in time at the end of every second
+     bar (three sixteenths on chord tones, high and short).
+   - Cryo Vault: unchanged (the model of the others).
+   - The ambience steps back: where the calm theme plays a sound of the place (the rain drops of Blackout City, the
+     crickets of the Toxin Marsh, the heartbeat of the Void Core), the steady layer of that sound plays at half level
+     while the calm theme is on (not in a boss fight, not with the music off).
+
+3) Tests
+   - Deep test placeMusic: 8 s of each calm theme at intensity 0.1 and 0.9 with the music log; the rhythm of the place
+     comes in (walking bass 0 -> 11 notes, works noises 16 -> 88, log drum 0 -> 12, choir and glitches 0 -> 5). The
+     music tests stay green (ten tracks, 30 voice budgets, the themes differ pairwise, every boss track louder than
+     its calm theme).
+   - Self-test v3140: the rain bed of Blackout City is at half level under the calm theme, full in a boss fight and
+     with the music off.
+   - node tools/qa.js scape-preview music: the ten tracks as MP3 (30 s each; calm at intensity 0.9). Measured: the calm
+     themes at -31 to -33 dB mean, the boss tracks at -20 to -23 dB, no clipping (peaks -4 to -17 dB).
+
+4) Results 3.14.0 (headless Chromium, software WebGL; npm run release-check)
+RESULTS_3140
+
+5) Open doubts
+   - Only measured, not heard: whether the new rhythms fit the themes and how they sit under a busy fight (the MP3
+     previews are for that).
+
 RIFTLINE v3.13.0 – SOUNDSCAPES: EVERY PLACE SOUNDS LIKE ITSELF
 Base: v3.12.0 · Build r3130a1005a-r1 · 05.10.2026
 
