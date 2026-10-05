@@ -65,7 +65,7 @@ async function build() {
     outfile: path.join(DIST, m.gameFile),
     bundle: true,
     format: "iife",
-    minify: !watch,
+    minify: !watch && !process.env.RL_NO_MINIFY,
     target: "es2020",
     legalComments: "none",
     charset: "utf8",
