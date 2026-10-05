@@ -22,10 +22,29 @@ normal music?" Option C of the three offered (a quick fade-out at the switch) wa
      before it: with the cut under 12 % (measured about 1 %), without it 8 to 40 % (the test also fails when the control
      shows nothing).
 
-4) Results 3.18.1 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+4) The red cross on GitHub (found after the merges of #40 and #41)
+   - The deploy of #40 was cancelled by the deploy of #41 (GitHub replaces a running deploy by the newer one: normal).
+     The deploy of #41 failed in `npm test`, the deep test: "calm works / void: too similar (rhythm 0.099, colour 0.171,
+     busyness 0.024)" (the limit: rhythm 0.1, colour 0.2 or busyness 0.25; one of the three has to be reached). The same
+     test had always passed on the development machine. The live game stayed at 3.17.0 until a deploy passed.
+   - Cause, measured: the numbers of that test were not reproducible. Four runs of the same pair gave a rhythm of 0.085 to
+     0.148 and a colour of 0.132 to 0.278, so the limit lay inside the noise and the test was green or red by chance.
+     Two sources: (a) the random choices of the music were not seeded in the render (renderOffline seeded only the engine's
+     noise and one-off sounds), (b) the impulse of the music reverb and the pink and brown noise buffers are made from
+     Math.random once per page and then kept, so whichever test ran first decided what the room sounded like.
+   - Fix: renderOffline seeds the music (its notes and atmosphere) when the spec has a seed, the music numbers of the
+     deep test are rendered with a seed, and roomImpulse and colorNoise use their own seeded generator (the same kind of
+     noise; the room and the noise are now the same for everyone, and in every test). Two uncached runs (--full) in
+     separate processes give identical numbers for all ten calm and ten boss pairs; the closest pair (calm Ember Works /
+     Void Core) is at 1.39 times its limit (the colour 0.278 against 0.2), every other pair at 2.4 times or more.
 
-5) Open doubts
+5) Results 3.18.1 (headless Chromium, software WebGL)
+   - npm run release-check before the seeding: all steps ok (format, build, deep test, data audit, determinism 15/15
+     unchanged, full QA, e2e, world and run audit, screens pc and land, biome shots pc and land, attack shots pc), 37 min
+     22 s. After the seeding: npm test (deep test uncached, files check, data audit, determinism 15/15) ok. The seeding only
+     changes which noise the room and the pink and brown atmospheres are made of.
+
+6) Open doubts
    - The sound itself is judged by ear: the 0.25 s fade is short on purpose (a boss starts with an impact); the Sound
      notes (3.17.2) are the way to say if it is too abrupt.
 
