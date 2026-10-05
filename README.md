@@ -21,8 +21,8 @@ Every run is 20 waves. After each wave you pick one of three upgrades, every fif
 you are in, and after each boss the rift moves on to the next biome. Beat the Rift Core at wave 20 and the run can go
 on in Endless, which keeps getting harder. Shards from every run, won or lost, buy permanent modules in the Workshop.
 
-- **7 weapons** (Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher, Ember Jet) and **55
-  upgrades**, 13 of them evolutions.
+- **7 weapons** (Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher, Ember Jet) and **60
+  upgrades**: 13 evolutions and a boss card for each boss, which only that boss can give.
 - **5 biomes with a boss each**: Blackout City, Ember Works, Cryo Vault, Toxin Marsh and Void Core, each with its own
   floor, hazards, traps, enemy skins, events, music and sounds.
 - **25 enemy types and 5 bosses** with their own models and attacks that show and sound like what they are.
@@ -101,10 +101,10 @@ How the code is organised, its history and the rules for changing it: [`docs/DEV
 ```
 src/
   main.js          entry point: boot, game controller, main loop, wiring
-  core/            simulation and services: world, arena, waves, AI, stats, traps, difficulty, save,
+  core/            simulation and services: world, arena, waves, AI, stats, traps, boss cards, difficulty, save,
                    diagnostics (runtime log and monitor), selftest (deep self-test), util
   data/            tables: weapons, enemies, upgrades, progression, biomes, whatsnew (the News tab)
-  render/          three.js renderer, models, biome visuals, traps, hazards and attacks, 2D overlay
+  render/          three.js renderer, models, biome visuals, traps, hazards, attacks, boss cards, 2D overlay
   audio/           sound effects, music and the sounds of the place
   ui/              DOM UI (screens, HUD, dialogs), input and the button layout editor
   index.html       page shell, all CSS, device detection, rotate screen, layout audit

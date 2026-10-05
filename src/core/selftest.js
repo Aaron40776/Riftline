@@ -26,6 +26,17 @@ import {
 import { lookOf, ATTACK_LOOK } from "../render/attacks-view.js";
 import { PLACE_IDS, BIOME_PLACE, SCAPE, placeTick } from "../audio/place.js";
 import {
+  BOSS_CARD,
+  BOSS_CARD_CHANCE,
+  BOSS_CARD_STEP,
+  LOCK_EVERY,
+  LOCK_WARN,
+  HAMMER_EVERY,
+  BROOD_EVERY,
+  BROOD_MAX,
+  COLLAPSE_TIME,
+} from "./boss-cards.js";
+import {
   RL_RETIRE_NOTE,
   rlMigrateRetired,
   set_RL_RETIRE_NOTE,
@@ -461,6 +472,7 @@ function rlSelfTest() {
   result = selfTestV3100(result);
   result = selfTestV3130(result);
   result = selfTestV3140(result);
+  result = selfTestV3150(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -1090,7 +1102,8 @@ function selfTestV246(result) {
 function selfTestV250A(result) {
   const fail = [],
     NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
-  if (upgradeList.length !== 55) fail.push("count:" + upgradeList.length);
+  // 3.15.0: 55 and the five boss cards
+  if (upgradeList.length !== 60) fail.push("count:" + upgradeList.length);
   for (const [id, retired] of Object.entries(RL_RETIRED_UPGRADES)) {
     if (upgradesById[id]) fail.push("still-offered:" + id);
     const target = upgradesById[retired.to];
@@ -3046,4 +3059,246 @@ function selfTestV3140(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3140: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.15.0: the boss rewards: the offer (chance, growth after a miss, once per run, the first place through a reroll,
+   saved with the run) and the mechanics of the five boss cards ---- */
+function selfTestV3150(result) {
+  const fail = [];
+  const isBoss = (id) => !!upgradesById[id].boss;
+  try {
+    // one card per boss, all rarity 6, none in a normal offer
+    const bosses = Object.keys(BOSS_CARD).sort().join(",");
+    if (bosses !== "core,forge,prism,queen,warden") fail.push("cards:" + bosses);
+    if (Object.values(BOSS_CARD).some((id) => upgradesById[id].rarity !== 6 || upgradesById[id].max !== 1))
+      fail.push("card-rarity");
+    const normal = new World({ seed: 0x315, weapon: "pulse", threat: 0, ws: {} });
+    for (let i = 0; i < 400; i++) {
+      normal.wave = 1 + (i % 40);
+      if (normal.makeOffer().some(isBoss)) {
+        fail.push("card-in-normal-offer");
+        break;
+      }
+    }
+    // the first boss offer: about 30 % (the card's own random stream), always in the first place, still three cards,
+    // kept through a reroll
+    let got = 0,
+      order = 0,
+      kept = 0;
+    for (let seed = 0; seed < 600; seed++) {
+      const world = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
+      world.wave = 5;
+      world.offerBoss = true;
+      world.beginChoice();
+      const id = world.offer.find(isBoss);
+      if (!id) continue;
+      got++;
+      if (world.offer[0] === id && world.offer.length === 3 && id === BOSS_CARD[world.bossFor(5)]) order++;
+      world.reroll();
+      if (world.offer[0] === id && world.offer.filter(isBoss).length === 1) kept++;
+    }
+    if (!(got > 600 * (BOSS_CARD_CHANCE - 0.06) && got < 600 * (BOSS_CARD_CHANCE + 0.06))) fail.push("chance:" + got);
+    if (order !== got) fail.push(`first-place:${order}/${got}`);
+    if (kept !== got) fail.push(`reroll-kept:${kept}/${got}`);
+    // a miss raises the chance by 15 %, a hit sets it back; a card owned is never offered again
+    const luck = new World({ seed: 1, weapon: "pulse", threat: 0, ws: {} });
+    let misses = 0,
+      hit = false;
+    for (let wave = 5; wave <= 100 && !hit; wave += 5) {
+      luck.wave = wave;
+      luck.offerBoss = true;
+      const before = luck.bossLuck,
+        id = BOSS_CARD[luck.bossFor(wave)];
+      luck.beginChoice();
+      if (luck.offer[0] === id) {
+        hit = true;
+        if (luck.bossLuck !== BOSS_CARD_CHANCE) fail.push("luck-not-reset");
+      } else {
+        misses++;
+        if (Math.abs(luck.bossLuck - Math.min(1, before + BOSS_CARD_STEP)) > 1e-9)
+          fail.push("luck-step:" + luck.bossLuck);
+      }
+      if (misses > 5) break;
+    }
+    if (!hit) fail.push("never-hit");
+    const owned = new World({ seed: 2, weapon: "pulse", threat: 0, ws: {} });
+    owned.wave = 5;
+    const ownedId = BOSS_CARD[owned.bossFor(5)];
+    owned.up[ownedId] = 1;
+    owned.bossLuck = 1;
+    owned.offerBoss = true;
+    owned.beginChoice();
+    if (owned.offer.some(isBoss) || owned.bossLuck !== 1) fail.push("owned-offered");
+    // saved with the run: the chance, and a pending boss card in the first place after loading
+    const saved = new World({ seed: 3, weapon: "pulse", threat: 0, ws: {} });
+    saved.wave = 5;
+    saved.bossLuck = 1;
+    saved.offerBoss = true;
+    saved.beginChoice();
+    saved.bossLuck = 0.6;
+    const snap = JSON.parse(JSON.stringify(saved.snapshot())),
+      loaded = new World({ snap, ws: {} });
+    if (loaded.bossLuck !== 0.6) fail.push("luck-not-saved");
+    // through the save cleaner too (a resumed run), and a boss card in a normal offer is dropped there
+    const cleaned = cleanRun(snap);
+    if (!cleaned || cleaned.bossLuck !== 0.6 || cleaned.offer[0] !== snap.offer[0]) fail.push("luck-not-cleaned");
+    const forged = cleanRun({ ...snap, offerBoss: false });
+    if (!forged || (forged.offer || []).some(isBoss)) fail.push("card-in-normal-save");
+    if (!(loaded.offerExclusive && loaded.offer[0] === loaded.offerExclusive)) fail.push("pending-card-lost");
+    loaded.reroll();
+    if (loaded.offer[0] !== snap.offer[0]) fail.push("pending-card-reroll");
+    if (
+      !loaded.choose(loaded.offer[0]) ||
+      !loaded.stats[
+        { lockdown: "lockdown", hammer: "hammer", shardfield: "shardField", brood: "brood", collapse: "collapse" }[
+          snap.offer[0]
+        ]
+      ]
+    )
+      fail.push("pending-card-pick");
+  } catch (err) {
+    fail.push("offer-exception:" + (err && err.message));
+  }
+  // the mechanics, each in a clean arena with tough dummies
+  const arena = (up) => {
+    const world = new World({ seed: 0x3150, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(2);
+    world.state = "fight";
+    world.god = true;
+    world.arena.obs = [];
+    for (const kind of ["vents", "ice", "acid", "portals"]) world.arena[kind] = [];
+    for (const enemy of world.enemies) enemy.dead = true;
+    world.enemies.length = 0;
+    world.plan = [];
+    world.planIdx = 0;
+    world.traps = [];
+    world.bossPending = null;
+    world.championPending = null;
+    Object.assign(world.up, up);
+    world.stats = computeStats(world.weapon, world.up, world.ws);
+    const player = world.player,
+      keep = world.spawnEnemy("turret", player.x, player.y - 17);
+    keep.spawnT = 0;
+    keep.maxHp = keep.hp = 1e9;
+    const spawn = (dx, dy, hp = 1e6, type = "brute") => {
+        const enemy = world.spawnEnemy(type, player.x + dx, player.y + dy);
+        enemy.spawnT = 0;
+        enemy.maxHp = enemy.hp = hp;
+        return enemy;
+      },
+      run = (seconds, input = {}) => {
+        for (let i = 0; i < Math.round(seconds * 60); i++)
+          world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false, ...(i === 0 ? input : {}) });
+      };
+    return { world, player, spawn, run };
+  };
+  try {
+    // Lockdown Grid: the cage drops on the group (not on the lone enemy), holds it and burns it
+    const { world, player, spawn, run } = arena({ lockdown: 1 });
+    const lone = spawn(-5, 0, 1e6, "grunt"),
+      group = [spawn(7, 0, 1e6, "grunt"), spawn(7.8, 0.6, 1e6, "grunt"), spawn(7.4, -0.7, 1e6, "grunt")];
+    for (const enemy of [lone, ...group]) enemy.speed = 0;
+    player.lockT = 0.01;
+    run(0.1);
+    const cage = world.cages[0];
+    if (!cage || Math.hypot(cage.x - 7.4 - player.x, cage.y - player.y) > 1.5) fail.push("lock-aim");
+    else {
+      run(LOCK_WARN + 0.1);
+      if (cage.held.length !== 3) fail.push("lock-held:" + cage.held.length);
+      // a held enemy pulled away stays inside
+      group[0].x = cage.x + 6;
+      run(0.2);
+      if (Math.hypot(group[0].x - cage.x, group[0].y - cage.y) > cage.r) fail.push("lock-escaped");
+      run(1.5);
+      if (!(world.dmgSrc.lockdown > 3 * 26 * 1.5 * 0.8)) fail.push("lock-damage:" + world.dmgSrc.lockdown);
+      if (lone.hp < 1e6) fail.push("lock-hurt-lone");
+      run(2);
+      if (world.cages.length) fail.push("lock-not-gone");
+      if (!(player.lockT > 0 && player.lockT <= LOCK_EVERY)) fail.push("lock-cooldown:" + player.lockT);
+    }
+  } catch (err) {
+    fail.push("lock-exception:" + (err && err.message));
+  }
+  try {
+    // Crucible Hammer: a dash ends in a slam (damage, fire, molten ground), the next dash right after does not slam
+    const { world, player, spawn, run } = arena({ hammer: 1 });
+    const near = spawn(4.5, 0, 1e6);
+    near.speed = 0;
+    const fx0 = world.fx.length;
+    run(0.5, { dash: true, mx: 1, my: 0 });
+    const slam = world.fx.slice(fx0).find((ev) => ev.k === "boom" && ev.kind === "hammer");
+    if (!slam) fail.push("hammer-no-slam");
+    if (!(world.dmgSrc.hammer > 70)) fail.push("hammer-damage:" + world.dmgSrc.hammer);
+    if (!(near.burnT > 0 && near.burnSrc === "hammer")) fail.push("hammer-no-fire");
+    if (world.slag.length !== 1) fail.push("hammer-no-slag");
+    if (!(player.hammerT > HAMMER_EVERY - 1)) fail.push("hammer-cooldown");
+    player.dashCdT = 0;
+    const fx1 = world.fx.length;
+    run(0.5, { dash: true, mx: -1, my: 0 });
+    if (world.fx.slice(fx1).some((ev) => ev.kind === "hammer")) fail.push("hammer-twice");
+    run(3);
+    if (world.slag.length) fail.push("slag-not-gone");
+  } catch (err) {
+    fail.push("hammer-exception:" + (err && err.message));
+  }
+  try {
+    // Shard Field: a kill throws five splinters; the enemy next to it is hit and chilled
+    const { world, spawn, run } = arena({ shardfield: 1 });
+    const victim = spawn(5, 0, 10, "grunt"),
+      next = spawn(6.2, 0, 1e6);
+    for (const enemy of [victim, next]) enemy.speed = 0;
+    world.hurtEnemy(victim, 1000, 0, 0, 0, false, "weapon");
+    if (world.splinters.length !== 5) fail.push("shard-count:" + world.splinters.length);
+    run(0.5);
+    if (!(world.dmgSrc.shard > 0)) fail.push("shard-no-hit");
+    if (!(next.slowT > 0)) fail.push("shard-no-chill");
+    if (world.splinters.length) fail.push("shard-not-gone");
+  } catch (err) {
+    fail.push("shard-exception:" + (err && err.message));
+  }
+  try {
+    // Brood: every tenth kill hatches a larva (at most four); a larva hunts an enemy and bursts into poison
+    const { world, player, spawn, run } = arena({ brood: 1 });
+    for (let i = 0; i < BROOD_EVERY * (BROOD_MAX + 1); i++) {
+      const enemy = spawn(-6, 3, 5, "grunt");
+      world.hurtEnemy(enemy, 1000, 0, 0, 0, false, "weapon");
+    }
+    if (player.brood.length !== BROOD_MAX) fail.push("brood-count:" + player.brood.length);
+    const prey = spawn(6, 0, 1e6);
+    prey.speed = 0;
+    run(2.5);
+    if (!(world.dmgSrc.brood > 0)) fail.push("brood-no-burst");
+    if (!(prey.burnT > 0 && prey.burnSrc === "brood")) fail.push("brood-no-poison");
+    if (player.brood.length >= BROOD_MAX) fail.push("brood-not-spent");
+  } catch (err) {
+    fail.push("brood-exception:" + (err && err.message));
+  }
+  try {
+    // Event Collapse: the Nova pulls first (no damage yet), then blasts 40 % harder than a plain Nova
+    const nova = (up) => {
+      const { world, player, spawn, run } = arena(up),
+        far = spawn(8, 0, 1e6),
+        close = spawn(3, 0, 1e6);
+      for (const enemy of [far, close]) enemy.speed = 0;
+      // one step first: the blast finds enemies through the spatial hash, built in the step
+      run(1 / 60);
+      player.nova = 100;
+      world.nova();
+      const early = 1e6 - close.hp;
+      run(COLLAPSE_TIME * 0.5);
+      const midX = far.x - player.x;
+      run(COLLAPSE_TIME);
+      return { early, midX, dealt: 1e6 - close.hp, far: far.x - player.x, implode: !!world.implode };
+    };
+    const plain = nova({}),
+      collapse = nova({ collapse: 1 });
+    if (collapse.early !== 0) fail.push("collapse-hit-early");
+    if (!(collapse.midX < 7.6)) fail.push("collapse-no-pull:" + collapse.midX);
+    if (collapse.implode) fail.push("collapse-hangs");
+    if (!(Math.abs(collapse.dealt / plain.dealt - 1.4) < 0.05))
+      fail.push(`collapse-damage:${collapse.dealt}/${plain.dealt}`);
+  } catch (err) {
+    fail.push("collapse-exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3150: { ok: fail.length === 0, fail } };
 }

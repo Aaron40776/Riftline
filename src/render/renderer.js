@@ -51,6 +51,7 @@ import { biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
 import { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles } from "./biome-visuals.js";
 import { TrapView } from "./traps-view.js";
+import { BossCardView } from "./boss-cards-view.js";
 import { HazardView } from "./hazards-view.js";
 import { AttackView, MARK_LOOK } from "./attacks-view.js";
 
@@ -438,6 +439,8 @@ const MAX_PARTICLES = 1400,
       this.hazardView = new HazardView(this, InstancePool);
       // 3.10.0: the attacks of enemies and bosses (zones, mines, shells, shots) and the marks they leave
       this.attackView = new AttackView(this, InstancePool);
+      // 3.15.0: the boss cards (cages, slag, splinters, larvae, the implosion of Event Collapse)
+      this.bossCardView = new BossCardView(this, InstancePool);
       // the colour of the warnings (setAccess turns it yellow for Clear warnings)
       this.warnColor = warnColor;
       this.texGlow = makeGlowTexture();
@@ -540,6 +543,7 @@ const MAX_PARTICLES = 1400,
         ...this.trapView.list,
         ...this.hazardView.list,
         ...this.attackView.list,
+        ...this.bossCardView.list,
       ];
     }
     initParticles() {
@@ -876,7 +880,9 @@ const MAX_PARTICLES = 1400,
     consume(events, world, opts) {
       let showNumbers = opts.numbers !== false,
         shakeK = opts.shake === false ? 0 : 1;
-      for (let ev of events)
+      for (let ev of events) {
+        // 3.15.0: the events of the boss cards (and the blasts of the hammer and the larvae) are drawn by their view
+        if (this.bossCardView.event(ev, world, shakeK)) continue;
         switch (ev.k) {
           case "shot": {
             let def = weaponDefs[ev.w],
@@ -1348,6 +1354,7 @@ const MAX_PARTICLES = 1400,
             break;
           }
         }
+      }
     }
     updateCamera(dt, world, menu) {
       let cam = this.camera,
@@ -2032,6 +2039,14 @@ const MAX_PARTICLES = 1400,
           this.healPool.colC(cross, healColor, 1);
           let halo = this.sprites.bb(pickup.x, lift + 0.2, pickup.y, 1.6, basis);
           this.sprites.colC(halo, healColor, 0.5 + Math.sin(time * 6) * 0.15);
+        }
+      }
+      try {
+        this.bossCardView.update(dt, world);
+      } catch (err) {
+        if (!this.rlBossCardErr) {
+          logError("boss cards", err);
+          this.rlBossCardErr = true;
         }
       }
       try {

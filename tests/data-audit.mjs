@@ -73,7 +73,9 @@ const out = await page.evaluate(() => {
   const behaviour = new Set(["heal", "hp"]);
   for (const u of Z) {
     D.iconPaths[u.icon] || bad("icon", `upgrade ${u.id} icon "${u.icon}" missing`);
-    (u.rarity < 1 || u.rarity > 5 || !(u.max >= 1)) && bad("upgrade", `${u.id} rarity/max`);
+    // 3.15.0: rarity 6 is a boss card, which names its boss
+    (u.rarity < 1 || u.rarity > (u.boss ? 6 : 5) || (u.rarity === 6) !== !!u.boss || !(u.max >= 1)) &&
+      bad("upgrade", `${u.id} rarity/max`);
     for (let l = 0; l < Math.min(u.max, 8); l++) {
       const t = u.desc(l);
       (typeof t !== "string" || /NaN|undefined|Infinity/.test(t)) && bad("upgrade-text", `${u.id}(${l}): ${t}`);

@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.15.0",
+    title: "Boss rewards",
+    items: [
+      "Every boss now has a card of its own, with its seal: after its kill there is a 30% chance it comes up, more after each miss.",
+      "Warden: Lockdown Grid, a laser cage that holds a group. Crucible: Crucible Hammer, every few dashes end in a molten slam.",
+      "Frost Prism: Shard Field, kills shatter into ice splinters. Hive Queen: Brood, larvae that hatch from kills and hunt.",
+      "Rift Core: Event Collapse, your Nova pulls everything in before it blasts. Each card comes at most once a run.",
+    ],
+  },
+  {
     version: "3.14.0",
     title: "Music of the place",
     items: [

@@ -113,41 +113,36 @@ Plan:
    frog croaks in time and a wobbling drone; Void Core glass, choir, reversed swells, glitches); the boss tracks take
    the place sounds into their drums; the ambience thins out where the music already carries a sound; MP3 previews of
    all ten tracks before the merge.
-4. Then the boss rewards, the walker. (Renumbered on 04.10.2026: the owner's later requests come first, as 3.11.0
+4. Then the boss rewards (done in 3.15.0, see the HANDOFF), the walker. (Renumbered on 04.10.2026: the owner's later requests come first, as 3.11.0
    landscape only and 3.12.0 the Singularity, so the soundscapes become 3.13.0 and the music 3.14.0.)
 
-### HANDOFF (morning of 05.10.2026; read this first when the work goes on)
+### HANDOFF (05.10.2026, after 3.15.0; read this first when the work goes on)
 
-**State.** Six stacked PRs, all with a green release check and green CI, none merged. Merge them in this order (each
-PR targets the branch of the one before; when a merged branch is deleted GitHub retargets the next PR to main):
-1. #30 3.10.0 attack looks + faster and steadier tests (`claude/attack-looks-3100`, against main)
-2. #31 3.11.0 landscape only (`claude/landscape-3110`)
-3. #32 3.12.0 the Singularity replaces the grenade (`claude/singularity-3120`)
-4. #33 repository cleanup, README as the landing page, docs/DEVELOPMENT.md (`claude/repo-cleanup`, no release)
-5. #34 3.13.0 soundscapes (`claude/soundscapes-3130`)
-6. #35 3.14.0 music of the place (`claude/place-music-3140`)
-Details of each are in its PR and in the QA report. Things the owner should listen to or decide: the MP3 previews of
-the soundscapes and the ten tracks (`node tools/qa.js scape-preview` and `... scape-preview music` make them again),
-how the Singularity feels in play, whether tablets stay landscape-only too, and the GitHub settings listed in #33
+**State.** 3.10.0 to 3.14.0 and the repository cleanup were merged on the morning of 05.10.2026 and are live. The
+owner merges stacked PRs one after another (base of each switched to main before merging; a merged branch is only
+deleted once the next PR targets main, or GitHub closes the next one, as happened to #31). 3.15.0 (boss rewards) is its
+own PR against main.
+
+**3.15.0 boss rewards, decisions of the owner (05.10.2026):** a chance of 30 % for the boss's card that grows by 15 %
+after each boss offer without one; the Rift Core's card is Event Collapse (the Nova pulls first, then blasts harder;
+"Singularität" clashed with the gadget); each card at most once per run, also in Endless. Built in
+`core/boss-cards.js` (mechanics and chance) and `render/boss-cards-view.js` (looks); the boss offer keeps its rare,
+epic and legendary cards (as before). Only tested in software: whether the five cards feel strong enough for a boss
+reward (the numbers are in the constants at the top of `core/boss-cards.js`).
+
+**Open, for the owner:** try the Singularity, the soundscapes and the music of the place in the game (the owner
+prefers that to the MP3 previews); whether tablets stay landscape-only too; the GitHub settings of the repository
 (description, website, topics, social preview, a license).
 
-**Not built tonight, on purpose:** burning ground for Searing Collapse (3.12.0; needs a new enemy-only zone with a
-look of its own), sounds tied to props near the drone (3.13.0; the props are only drawn), the boss rewards and the
-walker (next on the list, they need decisions first, see below).
+**Next on the list:** the walker (section 2 below: a two-legged robot instead of the drone, footsteps per ground; the
+ambience part of that section is done by 3.13.0). Not built yet, on purpose: burning ground for Searing Collapse
+(3.12.0), sounds tied to props near the drone (3.13.0).
 
-**Next: the boss rewards (section 1 below) need the owner's answers before building.** Proposal to put to the owner:
-boss offers only from rare and better cards (today the filter only drops common ones), a chance of 30 % for the boss's
-exclusive card that grows by 15 % after each miss, the exclusive card with a boss seal, its own frame and sound, one
-per boss per run (Endless: again after each loop), a codex entry. The Rift Core idea "Singularität" (a pulling nova)
-now clashes with the Singularity gadget: suggest "Event Collapse" (the Nova implodes first) or another mechanic. The
-five ideas each need a model, a sound and tests; plan about one PR.
-
-**Notes for the tests.** `npm run check` while developing (about 2 minutes), `npm run release-check` before a
-release (about 41 to 44 minutes). Never run two browser tests at once (software WebGL takes every core). Waits that
-depend on the game use `tests/lib/wait.mjs` (game time), never a fixed real-time limit. The slowest parts left are the
-real transitions (run-desktop 146 s, the E2E with five devices 7 min) and the screenshots (12 min); what is left is
-the game rendering in software. Ideas not done: one browser shared by several sections, fewer device sizes once
-portrait is gone.
+**Notes for the tests.** `npm run check` while developing (about 2 minutes, 5 when the sound engine changed),
+`npm run release-check` before a release (about 35 to 45 minutes). Never run two browser tests at once (software WebGL
+takes every core). Waits that depend on the game use `tests/lib/wait.mjs` (game time), never a fixed real-time limit.
+A new mechanic belongs in a self-test of its version (`core/selftest.js`, World steps without rendering) and in the
+attack shots (`tests/attack-shots.mjs`).
 
 ## Requested on 04.10.2026 (later the same day): next ideas of the owner
 
@@ -165,6 +160,8 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
 ### 1. Boss-Belohnungen
+Done in 3.15.0 (05.10.2026, decisions in the HANDOFF above): Lockdown Grid (Warden), Crucible Hammer (Crucible),
+Shard Field (Frost Prism), Brood (Hive Queen), Event Collapse (Rift Core). The notes below are the original plan.
 - Nach dem Besiegen **jedes Bosses** gibt es nur **besonders starke Upgrades** (Angebot nur aus hohen Seltenheiten).
 - Jeder der fünf Bosse (Warden, Crucible, Frost Prism, Hive Queen, Rift Core) hat eine **Chance auf ein exklusives
   Upgrade**, das man nur von diesem einen Boss bekommen kann.

@@ -34,6 +34,8 @@ function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], w
       (upgrade) =>
         !(
           upgrade.evo ||
+          // 3.15.0: boss cards come only through the boss offer (World.makeOffer)
+          upgrade.boss ||
           deadForWeapon(upgrade.id, weapon, owned) ||
           (owned[upgrade.id] || 0) >= upgrade.max ||
           (upgrade.id === "heal" && hpFrac > 0.7) ||

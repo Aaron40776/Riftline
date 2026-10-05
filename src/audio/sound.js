@@ -155,6 +155,8 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     guardBreak: 0.08,
     thud: 0.08,
     singCollapse: 0.1,
+    bcHammer: 0.1,
+    bcImplode: 0.1,
     tsCrusher: 0.08,
     tsRift: 0.08,
     bSlam: 0.08,
@@ -169,6 +171,9 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     surge: 0.3,
     singCollapse: 0.35,
     singPull: 0.25,
+    bcHammer: 0.3,
+    bcImplode: 0.3,
+    bcCage: 0.15,
     nova: 0.3,
     bigkill: 0.35,
     die: 0.3,
@@ -303,6 +308,12 @@ const RL_SOUND_EVENTS = {
   hatch: [{}, { big: true }],
   heal: [{}],
   maxed: [{ heal: 30, shards: 12 }],
+  lockdown: [{ r: 3.2 }],
+  lockOn: [{ r: 3.2, n: 3 }],
+  hammerReady: [{}],
+  shatter: [{ r: 0.5 }],
+  broodHatch: [{}],
+  implode: [{ r: 9, t: 0.35 }],
   singularity: [{}],
   singOpen: [{ r: 5.8, dur: 1.5 }],
   gadgetReady: [{}],
@@ -366,6 +377,7 @@ const RL_SILENT_EVENTS = new Set([
   "spark", // impact effect, covered by "dmg"
   "spawn", // one enemy appears: the "portal" group sound covers it
   "zap", // effect of the arc weapons, covered by their shot voice
+  "splinterHit", // 3.15.0: a Shard Field splinter hitting, covered by "dmg" and the shatter
 ]);
 
 /* a small seeded random generator (0..1) for the offline test renders */
@@ -1942,6 +1954,77 @@ const musicChords = {
             this.tone(196, 0.5, "triangle", 0.05, { at: 0.09, to: 150, lp: 900 });
           }
           break;
+        // ---- 3.15.0: the boss cards ----
+        case "bcCage":
+          // Lockdown Grid: four pylons hit the floor one after another, a servo whine rises as the beams charge
+          if (this.gate(id, 0.2)) {
+            [0, 0.06, 0.12, 0.18].forEach((at, i) => {
+              this.tone(180 - i * 12, 0.09, "square", 0.05, { at, to: 90, lp: 1400 });
+              this.noise(0.05, 0.06, { type: "bandpass", f: 2400, q: 3, at });
+            });
+            this.tone(400, 0.4, "sawtooth", 0.02, { at: 0.05, to: 1300, lp: 2600 });
+          }
+          break;
+        case "bcLock":
+          // the beams light: a laser buzz that holds, with a bright zap on top
+          if (this.gate(id, 0.2)) {
+            this.hum(110, 0.9, "sawtooth", 0.035, { lp: 900, wob: { rate: 30, depth: 4 } });
+            this.tone(220, 0.8, "square", 0.012, { lp: 1600, attack: 0.02 });
+            this.noise(0.12, 0.08, { type: "highpass", f: 3e3 });
+            this.tone(2600, 0.12, "sine", 0.03, { to: 1800 });
+          }
+          break;
+        case "bcHammer":
+          // Crucible Hammer: an anvil clang (inharmonic partials), a deep thump and the hiss of the slag
+          if (this.gate(id, 0.1)) {
+            this.tone(60 * pitch, 0.5, "sine", 0.36, { to: 32 });
+            this.noise(0.18, 0.18, { type: "lowpass", f: 1400, to: 200 });
+            [1, 2.76, 5.4, 8.9].forEach((m, i) =>
+              this.tone(330 * m * pitch, 0.7 - i * 0.12, "sine", 0.05 / (i + 1), { at: 0.005 }),
+            );
+            this.noise(0.9, 0.05, { type: "highpass", f: 2500, attack: 0.1, at: 0.1 });
+          }
+          break;
+        case "bcReady":
+          // the hammer is ready again: a small bright ting
+          if (this.gate(id, 0.3)) {
+            this.tone(1320, 0.25, "sine", 0.035);
+            this.tone(1320 * 2.76, 0.12, "sine", 0.01);
+          }
+          break;
+        case "bcShatter":
+          // Shard Field: glass that breaks, a handful of high crystal pings
+          if (this.gate(id, 0.06)) {
+            this.noise(0.12, 0.07, { type: "highpass", f: 3500 });
+            for (let i = 0; i < 4; i++)
+              this.tone((2200 + r() * 2400) * pitch, 0.18, "sine", 0.018, { at: i * 0.025 + r() * 0.02 });
+          }
+          break;
+        case "bcHatch":
+          // Brood: a wet crack of the shell and a short insect chirp
+          if (this.gate(id, 0.15)) {
+            this.noise(0.06, 0.08, { type: "bandpass", f: 900, q: 2 });
+            this.tone(1800, 0.05, "square", 0.012, { at: 0.04, lp: 3e3 });
+            this.tone(2100, 0.05, "square", 0.012, { at: 0.1, lp: 3e3 });
+            this.hum(220, 0.25, "sawtooth", 0.012, { at: 0.04, lp: 700, wob: { rate: 60, depth: 20 } });
+          }
+          break;
+        case "bcBurst":
+          // a larva bursts: a soft wet pop and a fizz of poison
+          if (this.gate(id, 0.08)) {
+            this.tone(160 * pitch, 0.14, "sine", 0.14, { to: 70 });
+            this.noise(0.08, 0.09, { type: "bandpass", f: 700, q: 1.5 });
+            this.noise(0.5, 0.035, { type: "bandpass", f: 3200, q: 1.2, attack: 0.05, at: 0.05 });
+          }
+          break;
+        case "bcImplode":
+          // Event Collapse: everything is pulled in, a reversed swell that rises into the Nova
+          if (this.gate(id, 0.3)) {
+            this.noise(0.36, 0.14, { type: "bandpass", f: 2400, to: 300, q: 1.4, attack: 0.33 });
+            this.tone(40, 0.36, "sine", 0.18, { to: 90, attack: 0.3 });
+            this.tone(880, 0.34, "sine", 0.03, { to: 220, attack: 0.3 });
+          }
+          break;
         case "gadgetReady":
           if (this.gate(id, 0.2)) {
             this.tone(1760, 0.07, "sine", 0.05);
@@ -2278,6 +2361,19 @@ const musicChords = {
         case 5:
           this._play("evolve");
           break;
+        case 6:
+          // 3.15.0: a boss card: a war drum hit, a dark minor brass chord that opens to major and a gold shimmer
+          this.tone(midiToFreq(33), 1.1, "sine", 0.2, { attack: 0.01, to: midiToFreq(31) });
+          this.noise(0.25, 0.1, { type: "lowpass", f: 500, to: 120 });
+          [0, 3, 7].forEach((n) => this.tone(midiToFreq(55 + n), 0.45, "sawtooth", 0.035, { lp: 1600, attack: 0.03 }));
+          [0, 4, 7, 12].forEach((n) =>
+            this.tone(midiToFreq(55 + n), 0.9, "sawtooth", 0.03, { at: 0.35, lp: 2200, attack: 0.05, detune: 7 }),
+          );
+          [0, 0.08, 0.16, 0.24].forEach((at, i) =>
+            this.tone(midiToFreq(86 + [0, 4, 7, 12][i]), 0.5, "sine", 0.045, { at: 0.35 + at }),
+          );
+          this.noise(0.7, 0.04, { type: "highpass", f: 4e3, attack: 0.4, at: 0.3 });
+          break;
         default:
           // no rarity: the card select click (also used by the reroll button and the volume test)
           this.tone(1568, 0.06, "square", 0.03, { lp: 4e3 });
@@ -2433,6 +2529,11 @@ const musicChords = {
               this.play(attackVoice(ev.kind, ev.src, this.biome), ev.r);
               break;
             }
+            // 3.15.0: the boss cards: the Crucible Hammer's slam, a larva of the Brood bursting
+            if (ev.kind === "hammer" || ev.kind === "brood") {
+              this.play(ev.kind === "hammer" ? "bcHammer" : "bcBurst");
+              break;
+            }
             this.play(
               ev.kind === "singularity"
                 ? "singCollapse"
@@ -2510,6 +2611,25 @@ const musicChords = {
             break;
           case "pick":
             this.play("pick", ev.evo ? 5 : (upgradesById[ev.id] && upgradesById[ev.id].rarity) || 1);
+            break;
+          // 3.15.0: the boss cards
+          case "lockdown":
+            this.play("bcCage");
+            break;
+          case "lockOn":
+            this.play("bcLock");
+            break;
+          case "hammerReady":
+            this.play("bcReady");
+            break;
+          case "shatter":
+            this.play("bcShatter");
+            break;
+          case "broodHatch":
+            this.play("bcHatch");
+            break;
+          case "implode":
+            this.play("bcImplode");
             break;
           case "kit":
             this.play("pick", 2);
@@ -4632,7 +4752,9 @@ function rlSoundCatalog() {
     ])
       ids([id], boss);
   }
-  for (const rarity of [1, 2, 3, 4, 5]) ids(["pick"], rarity);
+  for (const rarity of [1, 2, 3, 4, 5, 6]) ids(["pick"], rarity);
+  // 3.15.0: the boss cards
+  ids(["bcCage", "bcLock", "bcHammer", "bcReady", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
   for (const id of ["elite", "rain", "blackout", "meltdown", "whiteout", "bloom", "riftstorm"]) ids(["event"], id);
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed });
   for (const biome of Object.keys(musicChords))
