@@ -113,8 +113,9 @@ for (const size of SIZES) {
         });
         await page.waitForTimeout(150);
       } else if (roll < 0.94) {
-        const w = 360 + Math.floor(rnd() * 1100),
-          h = 300 + Math.floor(rnd() * 600);
+        // sizes a device can have: no landscape phone is smaller than 568 x 320
+        const w = 568 + Math.floor(rnd() * 1000),
+          h = 320 + Math.floor(rnd() * 600);
         what = `resize ${w}x${h}`;
         await page.setViewportSize({ width: w, height: h });
         await page.waitForTimeout(250);

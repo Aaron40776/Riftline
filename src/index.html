@@ -1407,6 +1407,10 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
           if(sp){const pr=sp.getBoundingClientRect();if(y<pr.top||y>pr.bottom||x<pr.left||x>pr.right){scrolled++;continue}}
           if(x<0||y<0||x>innerWidth||y>innerHeight){findings.push(`${b.id||b.textContent.trim().slice(0,20)} offscreen`);continue;}
           const hit=document.elementFromPoint(x,y);
+          // 3.18.2: a button under a modal dialog or under another screen on top of its own (the pause menu behind the
+          // confirm box, the settings behind the sound notes) is covered by design
+          const over=hit&&hit.closest('[aria-modal="true"], .screen');
+          if(over&&over!==b.closest('.screen')) continue;
           if(hit&&hit!==b&&!b.contains(hit)) findings.push(`${b.id||b.textContent.trim().slice(0,20)} covered by ${hit.id||hit.className||hit.tagName}`);
         }
         window.__riftLayoutAuditResult={ok:findings.length===0,checked:all.length,bad:findings.length,scrolled,findings};
