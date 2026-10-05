@@ -56,11 +56,21 @@ const sound = cached
       const engine = window.__riftTest.game.sound.constructor,
         fail = [],
         catalog = engine.catalog();
+      // 3.18.2: no tone is asked for outside what can be heard and what the sampling rate carries (a note of the Blackout
+      // City piano had a tine at 24992 Hz: the browser clamped it and warned in the console)
+      const offHz = new Set(),
+        tone = engine.prototype.tone;
+      let current = "";
+      engine.prototype.tone = function (freq, dur, wave, vol, opts) {
+        if (!(freq >= 15 && freq <= 20000)) offHz.add(`${current} ${Math.round(freq)} Hz`);
+        return tone.call(this, freq, dur, wave, vol, opts);
+      };
       const peaks = {};
       let maxPeak = 0,
         longest = 0;
       for (const { name, spec } of catalog) {
         try {
+          current = name;
           const r = await engine.renderOffline(spec);
           peaks[name] = r.peak;
           maxPeak = Math.max(maxPeak, r.peak);
@@ -122,6 +132,8 @@ const sound = cached
       const loudStep = stepKeys.filter((key) => key.startsWith("step:")).sort((a, b) => peaks[b] - peaks[a])[0];
       const loudPlace = placeKeys.sort((a, b) => peaks[b] - peaks[a])[0],
         loudBed = placeKeys.filter((key) => BEDS.includes(key.slice(6))).sort((a, b) => peaks[b] - peaks[a])[0];
+      engine.prototype.tone = tone;
+      if (offHz.size) fail.push(`tones outside 15 Hz to 20 kHz: ${[...offHz].slice(0, 6).join(", ")}`);
       return {
         count: catalog.length,
         maxPeak,
@@ -507,8 +519,16 @@ const music = cached
           bpm,
         };
       };
+      const offHz = new Set(),
+        tone = E.prototype.tone;
+      let current = "";
+      E.prototype.tone = function (freq, dur, wave, vol, opts) {
+        if (!(freq >= 15 && freq <= 20000)) offHz.add(`${current} ${Math.round(freq)} Hz`);
+        return tone.call(this, freq, dur, wave, vol, opts);
+      };
       for (const biome of BIOMES)
         for (const kind of ["fight", "boss"]) {
+          current = `${biome}:${kind}`;
           const info = E.trackInfo(kind, biome),
             seconds = (6 * 240) / info.bpm,
             r = await E.renderOffline(
@@ -543,6 +563,8 @@ const music = cached
             if (share > BED_MAX) fail.push(`${name}: the atmosphere is ${Math.round(share * 100)} % of the sound`);
           }
         }
+      E.prototype.tone = tone;
+      if (offHz.size) fail.push(`tones outside 15 Hz to 20 kHz: ${[...offHz].slice(0, 6).join(", ")}`);
       const T = (name) => out.tracks[name].raw,
         gridDist = (a, b) => a.grid.reduce((p, v, i) => p + Math.abs(v - b.grid[i]), 0) / 2,
         pairs = (kind, list) => {

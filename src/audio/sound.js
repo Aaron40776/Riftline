@@ -4156,7 +4156,9 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       bus.t(f, o.lite ? 0.8 : 1.5, "sine", v, { attack: 0.003, rev: 0.7, ...o });
       if (o.lite) return;
       bus.t(f * 2, 0.6, "sine", v * 0.28, { attack: 0.002, ...o });
-      bus.t(f * 7.1, 0.07, "sine", v * 0.12, { attack: 0.001, ...o });
+      // 3.18.2: the tine of a note in the high octave lay above 20 kHz (24992 Hz at the top: the browser clamped it to the
+      // limit of the sampling rate and warned): no one hears it, so it is left out
+      if (f * 7.1 < 16000) bus.t(f * 7.1, 0.07, "sine", v * 0.12, { attack: 0.001, ...o });
     },
     // Ember Works: a struck pipe, warm and deep, a fifth and a minor tenth above it, a soft knock
     pipes: (bus, f, v, o) => {
