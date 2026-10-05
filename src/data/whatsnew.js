@@ -2,6 +2,18 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.16.0",
+    title: "Bosses, places and music, finished",
+    items: [
+      "The Warden fires siren slugs that flash red and blue, its laser grid uses the security lasers of Blackout City, and its charge cracks the wall it hits.",
+      "The Hive Queen spits thorny toxic spores; the Rift Core fires spinning rift rings and sweeps with ribbons of the rift.",
+      "Every boss volley now has a sound of its own, and so do the weaver's shards and the carrier's pods.",
+      "Portals a boss calls open wear its colours; Searing Collapse leaves burning ground for 3 seconds.",
+      "Places you can hear up close: street lamps buzz in Blackout City, gears turn on the machines of the Ember Works, obelisks hum in the Void Core.",
+      "The Cryo Vault theme ticks with icicles as the fight swells; the Frost Prism, Hive Queen and Rift Core bring ice, frogs and glitches into their drums.",
+    ],
+  },
+  {
     version: "3.15.0",
     title: "Boss rewards",
     items: [

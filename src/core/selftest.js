@@ -24,7 +24,7 @@ import {
   attackVoice,
 } from "../audio/sound.js";
 import { lookOf, ATTACK_LOOK } from "../render/attacks-view.js";
-import { PLACE_IDS, BIOME_PLACE, SCAPE, placeTick } from "../audio/place.js";
+import { PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, PROP_HEAR } from "../audio/place.js";
 import {
   BOSS_CARD,
   BOSS_CARD_CHANCE,
@@ -473,6 +473,7 @@ function rlSelfTest() {
   result = selfTestV3130(result);
   result = selfTestV3140(result);
   result = selfTestV3150(result);
+  result = selfTestV3160(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3301,4 +3302,177 @@ function selfTestV3150(result) {
     fail.push("collapse-exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3150: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.16.0: every boss attack has a look of its own: the shots of each boss have its shape (none is the generic
+   orb any more), every boss beam has a skin or a colour, and a boss volley names its boss for its sound ---- */
+function selfTestV3160(result) {
+  const fail = [];
+  const WANT = { warden: "siren", queen: "spore", core: "riftorb", prism: "shard", forge: "slag" };
+  try {
+    for (const type of Object.keys(WANT)) {
+      const world = new World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });
+      let wave = 5;
+      while (world.bossFor(wave) !== type && wave < 200) wave += 5;
+      if (world.bossFor(wave) !== type) {
+        fail.push("no-wave:" + type);
+        continue;
+      }
+      world.startWave(wave);
+      world.state = "fight";
+      world.god = true;
+      const kinds = new Set(),
+        bare = new Set(),
+        volleys = [];
+      let boss = null;
+      for (let i = 0; i < 60 * 70; i++) {
+        world.step(1 / 60, { mx: Math.sin(i / 90), my: Math.cos(i / 130), aim: false, fire: false, assist: false });
+        if (!boss && world.boss) {
+          boss = world.boss;
+          // the Overdrive comes first, then the whole pattern
+          boss.odDue = true;
+        }
+        for (const bullet of world.eb) if (bullet.src === type) kinds.add(bullet.kind);
+        for (const beam of world.beams) if (beam.src === type && !beam.skin && !beam.color) bare.add(beam.src);
+        for (const ev of world.fx) if (ev.k === "eshot" && ev.type === "boss") volleys.push(ev.boss);
+        world.fx.length = 0;
+        if (world.state !== "fight") break;
+      }
+      if (!boss) {
+        fail.push("no-boss:" + type);
+        continue;
+      }
+      if (!kinds.size) fail.push("no-shots:" + type);
+      if (kinds.has("orb")) fail.push("orb:" + type);
+      if (!kinds.has(WANT[type])) fail.push(`kind:${type}:${[...kinds].join("/")}`);
+      if (bare.size) fail.push("bare-beam:" + type);
+      if (volleys.some((id) => id !== type)) fail.push("volley-boss:" + type);
+    }
+    // Searing Collapse leaves burning ground that keeps enemies burning (credited as burning)
+    {
+      const world = new World({ seed: 0x316, weapon: "pulse", threat: 0, ws: {} });
+      world.startWave(2);
+      world.state = "fight";
+      world.god = true;
+      for (const kind of ["vents", "ice", "acid", "portals"]) world.arena[kind] = [];
+      Object.assign(world.up, { gfire: 1 });
+      world.stats = computeStats(world.weapon, world.up, world.ws);
+      for (const enemy of world.enemies) enemy.dead = true;
+      world.enemies.length = 0;
+      world.plan = [];
+      world.planIdx = 0;
+      const keep = world.spawnEnemy("turret", world.player.x, world.player.y - 17);
+      keep.spawnT = 0;
+      keep.maxHp = keep.hp = 1e9;
+      const target = world.spawnEnemy("brute", world.player.x + 8, world.player.y);
+      target.spawnT = 0;
+      target.maxHp = target.hp = 1e7;
+      target.speed = 0;
+      world.useGadget({});
+      for (let i = 0; i < 60 * 2.4; i++) world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false });
+      const ground = world.slag.find((pool) => pool.fire);
+      if (!ground) fail.push("searing-no-ground");
+      // the collapse's own burn lasts 3 s; well after it the ground still keeps the enemy alight
+      for (let i = 0; i < 60 * 2.5; i++) world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false });
+      const inside = ground && Math.hypot(target.x - ground.x, target.y - ground.y) < ground.r;
+      if (ground && inside && !(target.burnT > 0)) fail.push("searing-not-burning");
+    }
+    // the props near the drone sound (the street lamps of Blackout City, the machines of the Ember Works, the obelisks of
+    // the Void Core), and only near them
+    if (typeof OfflineAudioContext !== "undefined") {
+      const heard = (biome, where) => {
+        const world = new World({ seed: 0x3170, weapon: "pulse", threat: 0, ws: {} });
+        world.startWave(2);
+        world.state = "fight";
+        world.arena.biome = { ...world.arena.biome, id: biome };
+        for (const kind of ["vents", "ice", "acid", "portals"]) world.arena[kind] = [];
+        const spot = where(world.arena);
+        if (!spot) return null;
+        world.player.x = spot.x;
+        world.player.y = spot.y;
+        const engine = new SoundEngine();
+        engine.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
+        const ids = new Set();
+        engine.placePlay = (id) => ids.add(id);
+        for (let t = 0; t < 6; t += 0.1) placeTick(engine, world, 0.1);
+        return ids;
+      };
+      const PROPS = {
+        yard: ["lampBuzz", (arena) => ({ x: 0, y: -arena.H + 0.5 })],
+        works: ["gears", (arena) => arena.obs.find((ob) => ob.t !== "c")],
+        void: ["gravityHum", (arena) => arena.obs.find((ob) => ob.t === "c")],
+      };
+      for (const [biome, [id, near]] of Object.entries(PROPS)) {
+        const close = heard(biome, (arena) => {
+            const ob = near(arena);
+            return ob && { x: ob.x + (ob.t === "c" ? ob.r + 0.8 : (ob.w || 0) + 0.8), y: ob.y };
+          }),
+          far = heard(biome, (arena) => {
+            // a point that is far from every prop of that kind
+            for (let k = 0; k < 200; k++) {
+              const x = ((k * 37) % 21) - 10,
+                y = ((k * 53) % 13) - 6;
+              const tooNear =
+                biome === "yard"
+                  ? Math.min(arena.W - Math.abs(x), arena.H - Math.abs(y)) + 1.6 < PROP_HEAR
+                  : arena.obs.some(
+                      (ob) => (biome === "void") === (ob.t === "c") && Math.hypot(ob.x - x, ob.y - y) < PROP_HEAR,
+                    );
+              if (!tooNear && !arena.blocked(x, y, 0.6)) return { x, y };
+            }
+            return null;
+          });
+        if (!close) fail.push("prop-none:" + biome);
+        else if (!close.has(id)) fail.push("prop-silent:" + biome);
+        if (far && far.has(id)) fail.push("prop-far:" + biome);
+      }
+    }
+    // the portals a boss calls open name their boss (they wear its colours); the Rift Core summons in its pattern
+    {
+      const world = new World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });
+      let wave = 5;
+      while (world.bossFor(wave) !== "core" && wave < 200) wave += 5;
+      world.startWave(wave);
+      world.state = "fight";
+      world.god = true;
+      let called = 0;
+      for (let i = 0; i < 60 * 70 && !called; i++) {
+        world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false });
+        called = world.markers.filter((m) => m.boss === "core").length;
+      }
+      if (!called) fail.push("summon-portal-no-boss");
+    }
+    // the sentinel's beam is the security laser in Blackout City
+    {
+      const world = new World({ seed: 0x3161, weapon: "pulse", threat: 0, ws: {} });
+      world.startWave(2);
+      world.state = "fight";
+      world.god = true;
+      world.arena.biome = { ...world.arena.biome, id: "yard" };
+      world.arena.obs = [];
+      for (const enemy of world.enemies) enemy.dead = true;
+      world.enemies.length = 0;
+      world.plan = [];
+      world.planIdx = 0;
+      const sentinel = world.spawnEnemy("sentinel", world.player.x + 9, world.player.y);
+      sentinel.spawnT = 0;
+      sentinel.maxHp = sentinel.hp = 1e7;
+      let skin = null;
+      for (let i = 0; i < 60 * 12 && !skin; i++) {
+        world.step(1 / 60, { mx: 0, my: 0, aim: false, fire: false, assist: false });
+        const beam = world.beams.find((b) => b.src === "sentinel");
+        if (beam) skin = beam.skin || "none";
+      }
+      if (skin !== "laser") fail.push("sentinel-skin:" + skin);
+    }
+    // the shots of an ordinary enemy stay what they were
+    const world = new World({ seed: 1, weapon: "pulse", threat: 0, ws: {} });
+    world._src = "gunner";
+    const shot = world.shoot(0, 0, 0, 5, 5);
+    if (!shot || shot.kind !== "orb") fail.push("gunner-shot");
+    world._src = null;
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3160: { ok: fail.length === 0, fail } };
 }

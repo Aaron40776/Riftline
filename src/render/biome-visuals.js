@@ -693,6 +693,32 @@ const RL_BIOME_BUILD = {
           );
         }
         rlFootSlab(props, obstacle, glow, 0.25);
+        // 3.17.0: a gear turns on top of the machine (audio/place.js lets it be heard near the drone)
+        const gear = new Group(),
+          gr = Math.min(0.42, Math.min(obstacle.w, obstacle.h) * 0.55);
+        gear.add(new Mesh(new CylinderGeometry(gr, gr, 0.1, 12), pipe));
+        gear.add(new Mesh(new CylinderGeometry(gr * 0.3, gr * 0.3, 0.14, 8), hot));
+        for (let k = 0; k < 8; k++) {
+          const tooth = new Mesh(new BoxGeometry(gr * 0.32, 0.1, gr * 0.28), pipe),
+            ang = (k / 8) * TAU;
+          tooth.position.set(Math.cos(ang) * gr * 1.08, 0, Math.sin(ang) * gr * 1.08);
+          tooth.rotation.y = -ang;
+          gear.add(tooth);
+        }
+        gear.position.set(
+          obstacle.x + (longX ? obstacle.w * 0.55 : 0),
+          height + 0.16,
+          obstacle.y + (longX ? 0 : obstacle.h * 0.55),
+        );
+        props.add(gear);
+        view.rlAnim.push({
+          o: gear,
+          k: "spin",
+          s: 1.6 + (Math.abs(obstacle.x * 7 + obstacle.y) % 1),
+          b: height + 0.16,
+          ph: 0,
+          a: 0,
+        });
       }
   },
   // Cryo Vault: ice wall crowned with crystals, crystal clusters and ice blocks with snow caps

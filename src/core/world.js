@@ -115,6 +115,9 @@ const RL_MELTDOWN_PERIOD = 3.4,
   RL_STORM_EVERY = 6,
   RL_STORM_WARN = 1.6;
 
+// 3.16.0: the shots of each boss (the Warden's siren slugs, the Hive Queen's spores, the Rift Core's rift rings; the
+// Frost Prism and the Crucible name theirs, shard and slag, in their attacks)
+const BOSS_SHOT = { warden: "siren", queen: "spore", core: "riftorb", prism: "shard", forge: "slag" };
 const comboRewards = [
   [10, 3],
   [25, 8],
@@ -1421,6 +1424,18 @@ const rlStep = 1 / 60,
           kind: "singularity",
           burn: stats.gadgetFire ? dmg * 0.15 : 0,
         });
+        // 3.16.0: Searing Collapse leaves burning ground for 3 s that keeps the enemies in it alight (boss-cards.js
+        // updates it with the slag of the Crucible Hammer, the view draws it as fire)
+        if (stats.gadgetFire)
+          this.slag.push({
+            id: this.nextId++,
+            x: sing.tx,
+            y: sing.ty,
+            r: radius * 0.7,
+            life: 3,
+            fire: true,
+            dps: dmg * 0.1,
+          });
         // the collapse rattles what it does not kill: enemies in it are slowed for a moment
         this.hash.query(sing.tx, sing.ty, radius, (enemy) => {
           if (!enemy.dead && !enemy.boss && Math.hypot(enemy.x - sing.tx, enemy.y - sing.ty) < radius + enemy.r)
@@ -2605,7 +2620,8 @@ const rlStep = 1 / 60,
         dmg: dmg,
         life: opts.life || 5,
         age: 0,
-        kind: opts.kind || "orb",
+        // 3.16.0: a boss's shots have the shape of their boss unless the attack names its own kind
+        kind: opts.kind || BOSS_SHOT[opts.src || this._src] || "orb",
         homing: opts.homing || 0,
         accel: opts.accel || 0,
         solid: opts.solid,

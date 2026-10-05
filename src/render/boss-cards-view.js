@@ -167,6 +167,32 @@ class BossCardView {
         rise = clamp((3 - pool.life) / 0.25, 0, 1),
         rad = pool.r * (0.6 + 0.4 * rise);
       r.shadows.y(pool.x, 0.02, pool.y, 0, rad * 2.2);
+      // 3.16.0: the burning ground of Searing Collapse: scorched, with flames licking up instead of molten slag
+      if (pool.fire) {
+        r.discs.colC(
+          r.discs.y(pool.x, 0.035, pool.y, 0, rad),
+          EMBER,
+          (0.16 + Math.sin(time * 7 + pool.id) * 0.04) * fade,
+        );
+        r.ringPool.colC(r.ringPool.y(pool.x, 0.045, pool.y, 0, rad), HOT, 0.3 * fade);
+        if (Math.random() < dt * 40 * quality * fade) {
+          const a = Math.random() * TAU,
+            d = Math.sqrt(Math.random()) * rad * 0.9;
+          r.emit(
+            pool.x + Math.cos(a) * d,
+            0.1,
+            pool.y + Math.sin(a) * d,
+            (Math.random() - 0.5) * 0.4,
+            1.4 + Math.random() * 1.2,
+            (Math.random() - 0.5) * 0.4,
+            0.45,
+            0.26,
+            Math.random() < 0.6 ? EMBER : HOT,
+            { drag: 1.5, grow: 1, grav: -1 },
+          );
+        }
+        continue;
+      }
       r.discs.colC(r.discs.y(pool.x, 0.035, pool.y, 0, rad), MOLTEN, (0.35 + Math.sin(time * 5) * 0.05) * fade);
       r.discs.colC(r.discs.y(pool.x, 0.04, pool.y, time * 0.4, rad * 0.55), HOT, 0.3 * fade);
       r.ringPool.colC(r.ringPool.y(pool.x, 0.045, pool.y, 0, rad), EMBER, 0.45 * fade);

@@ -40,6 +40,7 @@ const res = await page.evaluate(() => {
     v3130: r.v3130?.fail,
     v3140: r.v3140?.fail,
     v3150: r.v3150?.fail,
+    v3160: r.v3160?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
@@ -594,6 +595,10 @@ const placeMusic = await page.evaluate(async () => {
       works: (log) => log.filter((v) => v.kind === "n").length,
       marsh: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 200 && v.dur < 0.5).length,
       void: (log) => log.filter((v) => v.bus === "c" || (v.kind === "t" && v.pitch > 900 && v.dur < 0.05)).length,
+      // 3.17.0 (in 3.16.0): Cryo Vault icicles on the off-beats (short high notes on the music bus) and the ice creaks
+      vault: (log) =>
+        log.filter((v) => v.bus === "m" && ((v.kind === "t" && v.pitch > 1000 && v.dur <= 0.06) || v.kind === "n"))
+          .length,
     };
   for (const [biome, count] of Object.entries(want)) {
     const quiet = count(await voices(biome, 0.1)),
@@ -601,9 +606,67 @@ const placeMusic = await page.evaluate(async () => {
     out[biome] = { quiet, busy };
     if (!(busy >= quiet + 4)) fail.push(`${biome}: the rhythm of the place does not come in (${quiet} -> ${busy})`);
   }
+  // 3.16.0: the boss tracks of the Frost Prism, Hive Queen and Rift Core take the sounds of their place into the drums
+  // (ice cracks and icicles, frogs and bubbles, glitches): 8 s of the drop must hold a handful of them
+  const boss = {
+    // icicles: short high notes on the music bus (before 3.16.0 there were none in the drop)
+    vault: (log) => log.filter((v) => v.bus === "m" && v.kind === "t" && v.pitch > 1000 && v.dur < 0.2).length,
+    // frogs and bubbles: short notes on the music bus
+    marsh: (log) => log.filter((v) => v.bus === "m" && v.kind === "t" && v.dur <= 0.08).length,
+    // glitches: very short high notes on the music bus
+    void: (log) => log.filter((v) => v.bus === "m" && v.kind === "t" && v.pitch > 900 && v.dur < 0.08).length,
+  };
+  for (const [biome, count] of Object.entries(boss)) {
+    const n = count(
+      (await E.renderOffline({ music: "boss", biome, intensity: 0.9, log: true, seed: 3, room: false }, 8)).musicLog,
+    );
+    out["boss-" + biome] = n;
+    if (!(n >= 4)) fail.push(`${biome}: the boss track has no sounds of its place in the drums (${n})`);
+  }
   return { ...out, fail };
 });
 res.placeMusic = placeMusic;
+// 3.16.0: the ambience stays well below the music (the 3.13.0 plan): 20 s of each biome's soundscape (the real
+// scheduler with the steady layer, the far sounds and the hazards of the arena) against 20 s of its calm theme, both at
+// the default volumes; the mean level (RMS) of the ambience must stay AMB_UNDER below the music
+const AMB_UNDER = 0.6;
+const ambience = await page.evaluate(async (under) => {
+  const T = window.__riftTest,
+    E = T.game.sound.constructor,
+    out = {},
+    fail = [],
+    rms = (x) => {
+      let sum = 0;
+      for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
+      return Math.sqrt(sum / x.length);
+    };
+  for (const biome of ["yard", "works", "vault", "marsh", "void"]) {
+    const music = rms(
+      (await E.renderOffline({ music: "fight", biome, intensity: 0.5, wav: true, room: false, seed: 5 }, 20)).samples,
+    );
+    const ctx = new OfflineAudioContext(1, 44100 * 20, 44100),
+      engine = new E();
+    engine.attach(ctx, { room: false });
+    engine.biome = biome;
+    engine.live = () => true;
+    const world = new T.World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(2 + 5 * Math.max(0, world.route.indexOf(biome)));
+    world.state = "fight";
+    for (let t = 0.1; t < 20; t += 0.1)
+      ctx.suspend(t).then(() => {
+        world.waveT += 0.1;
+        engine.place(world, 0.1);
+        ctx.resume();
+      });
+    const amb = rms((await ctx.startRendering()).getChannelData(0));
+    out[biome] = { music: +music.toFixed(4), ambience: +amb.toFixed(4), ratio: +(amb / music).toFixed(2) };
+    if (!(amb < music * under))
+      fail.push(`${biome}: the ambience (${amb.toFixed(4)}) is not below the music (${music.toFixed(4)})`);
+  }
+  return { ...out, fail };
+}, AMB_UNDER);
+res.ambience = ambience;
+if (ambience.fail.length) res.ok = false;
 if (placeMusic.fail.length) res.ok = false;
 lap("place music");
 res.music = { fail: music.fail, tracks: Object.keys(music.tracks).length, budgets: music.budget.length };

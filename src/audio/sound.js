@@ -51,7 +51,23 @@ const RL_DEATH_FAMILY = {
   beacon: "dShatter",
 };
 /* 2.9.0: the shot of an enemy by type (default "eshot", the gunner); the sniper has its own lock-on sound */
-const RL_ESHOT_VOICE = { sniper: "snipe", turret: "eshotTurret", drone: "eshotDrone", boss: "eshotBoss" };
+const RL_ESHOT_VOICE = {
+  sniper: "snipe",
+  turret: "eshotTurret",
+  drone: "eshotDrone",
+  boss: "eshotBoss",
+  // 3.16.0: the weaver's rift shards and the carrier's homing pods
+  weaver: "eshotWeaver",
+  carrier: "eshotCarrier",
+};
+/* 3.16.0: the shots of each boss sound like what they are (eshotBoss stays for a boss without a voice of its own) */
+const BOSS_ESHOT = {
+  warden: "eshotWarden",
+  queen: "eshotQueen",
+  core: "eshotCore",
+  prism: "eshotPrism",
+  forge: "eshotForge",
+};
 /* wind-up voices of the "charge" event (enemy types and the bosses that charge) */
 const RL_CHARGE_VOICE = {
   brute: "windHeavy",
@@ -300,7 +316,18 @@ const RL_SOUND_EVENTS = {
   die: [{}],
   enrage: [{ id: "warden" }],
   erupt: [{}],
-  eshot: [{ type: "gunner" }, { type: "turret" }, { type: "drone" }, { type: "boss" }, { type: "sniper" }],
+  eshot: [
+    { type: "gunner" },
+    { type: "turret" },
+    { type: "drone" },
+    { type: "boss" },
+    { type: "sniper" },
+    { type: "boss", boss: "warden" },
+    { type: "boss", boss: "queen" },
+    { type: "boss", boss: "core" },
+    { type: "weaver" },
+    { type: "carrier" },
+  ],
   freeze: [{}],
   fuse: [{}],
   guardBreak: [{}],
@@ -1324,6 +1351,66 @@ const musicChords = {
             this.tone(90, 0.25, "sine", 0.22, { to: 45 });
             this.tone(140, 0.2, "sawtooth", 0.05, { to: 70, lp: 500 });
             this.noise(0.18, 0.07, { f: 700, to: 200 });
+          }
+          break;
+        // ---- 3.16.0: the boss shots, each its own (a volley of rings or a fan, so each is one sound per volley) ----
+        case "eshotWarden":
+          // the Warden: a riot gun's hard crack with an electric snap and a short siren chirp up a minor third
+          if (this.gate(id, 0.1)) {
+            this.tone(110, 0.18, "sine", 0.2, { to: 55 });
+            this.noise(0.07, 0.12, { type: "bandpass", f: 1800, q: 1.2 });
+            this.tone(2400, 0.05, "square", 0.02, { lp: 5e3, to: 1200 });
+            this.tone(640, 0.09, "sawtooth", 0.025, { at: 0.03, lp: 2400 });
+            this.tone(760, 0.12, "sawtooth", 0.025, { at: 0.12, lp: 2400 });
+          }
+          break;
+        case "eshotQueen":
+          // the Hive Queen: a wet spit, a gurgle and the buzz of the swarm in it
+          if (this.gate(id, 0.1)) {
+            this.tone(220, 0.16, "sine", 0.14, { to: 90 });
+            this.noise(0.12, 0.1, { type: "bandpass", f: 900, to: 400, q: 2 });
+            this.hum(180, 0.22, "sawtooth", 0.02, { lp: 900, wob: { rate: 70, depth: 25 } });
+          }
+          break;
+        case "eshotCore":
+          // the Rift Core: a hollow glassy pulse that bends down, with a reversed shimmer before it
+          if (this.gate(id, 0.1)) {
+            this.noise(0.1, 0.05, { type: "bandpass", f: 3e3, to: 6e3, q: 3, attack: 0.09 });
+            this.tone(70, 0.3, "sine", 0.18, { at: 0.08, to: 40 });
+            this.tone(880, 0.3, "sine", 0.04, { at: 0.08, to: 620 });
+            this.tone(1320, 0.22, "sine", 0.025, { at: 0.08, to: 930 });
+          }
+          break;
+        case "eshotPrism":
+          // the Frost Prism: a cold crystal chime over a soft thump
+          if (this.gate(id, 0.1)) {
+            this.tone(95, 0.16, "sine", 0.16, { to: 50 });
+            [1, 2.76, 5.4].forEach((m, i) => this.tone(1180 * m, 0.25 - i * 0.05, "sine", 0.035 / (i + 1)));
+            this.noise(0.05, 0.05, { type: "highpass", f: 5e3 });
+          }
+          break;
+        case "eshotWeaver":
+          // the weaver: three glassy zips through a narrow band, quickly one after another
+          if (this.gate(id, 0.1)) {
+            [0, 0.04, 0.08].forEach((at, i) =>
+              this.noise(0.05, 0.05, { type: "bandpass", f: 2600 + i * 500, to: 5200, q: 6, at }),
+            );
+            this.tone(1500, 0.12, "triangle", 0.02, { to: 2300 });
+          }
+          break;
+        case "eshotCarrier":
+          // the carrier: three pods leave their tubes with a hollow pop and a short rocket hiss
+          if (this.gate(id, 0.1)) {
+            [0, 0.05, 0.1].forEach((at) => this.tone(190, 0.08, "sine", 0.08, { at, to: 110 }));
+            this.noise(0.3, 0.05, { type: "bandpass", f: 1400, to: 3200, q: 1, at: 0.04, attack: 0.03 });
+          }
+          break;
+        case "eshotForge":
+          // the Crucible: a heavy glob of slag thrown out, a low roar and a hiss
+          if (this.gate(id, 0.1)) {
+            this.tone(75, 0.3, "sine", 0.22, { to: 40 });
+            this.noise(0.22, 0.1, { type: "lowpass", f: 1200, to: 300 });
+            this.noise(0.35, 0.03, { type: "highpass", f: 3e3, at: 0.05, attack: 0.05 });
           }
           break;
         case "snipe":
@@ -2574,7 +2661,7 @@ const musicChords = {
             this.play("heal");
             break;
           case "eshot":
-            this.play(RL_ESHOT_VOICE[ev.type] || "eshot");
+            this.play((ev.type === "boss" && BOSS_ESHOT[ev.boss]) || RL_ESHOT_VOICE[ev.type] || "eshot");
             break;
           case "aim":
             this.play(ev.type === "turret" ? "servo" : "lock");
@@ -4102,6 +4189,24 @@ function vaultCalm(e, c) {
     k.m.n(0.9, 0.03, { type: "bandpass", f: 260, to: 210, q: 9, color: "pink", attack: 0.3, opt: true });
     k.m.t(78, 0.9, "sawtooth", 0.008, { to: 70, lp: 300, attack: 0.3, opt: true });
   }
+  // 3.17.0: the vault keeps time as it swells (like the other places since 3.14.0): icicles tick on the off-beats in
+  // a falling figure on the chord, the ice creaks on 2 and 4, and a gust of wind breathes in over every fourth bar
+  if (L > 0.35 && b % 4 === 2) {
+    const f = midiToFreq(c.chord[[2, 1, 0, 1][b >> 2]] + 36);
+    k.m.t(f, 0.05, "sine", 0.014, { to: f * 0.97, pan: b % 8 === 2 ? -0.45 : 0.45, rev: 0.5 });
+  }
+  if (L > 0.5 && (b === 4 || b === 12))
+    k.m.n(0.05, 0.012, { type: "bandpass", f: 2600, to: 1500, q: 3, color: "pink", attack: 0.002, pan: 0.2 });
+  if (L > 0.45 && (bar & 3) === 3 && b === 0)
+    k.m.n(c.barSec, 0.02, {
+      type: "bandpass",
+      f: 500,
+      to: 1400,
+      q: 1.2,
+      color: "pink",
+      attack: c.barSec * 0.8,
+      opt: true,
+    });
 }
 
 const LOG_DRUM = "x..x..x...x.x...";
@@ -4360,7 +4465,16 @@ function vaultBoss(e, c) {
   if (sec <= 1) {
     if (b % 4 === 0) kick(k, 0.45, { f0: 130, f1: 44, dur: 0.18, pump: 0.4, rel: 0.12 });
     if (b % 4 === 2) k.p.t(midiToFreq(root - 12), 0.16, "sawtooth", 0.05, { lp: 600, q: 1.5 });
-    if (b === 4 || b === 12) clap(k, 0.07);
+    if (b === 4 || b === 12) {
+      clap(k, 0.07);
+      // 3.17.0: the place in the drums: an ice crack doubles the clap
+      k.m.n(0.06, 0.03, { type: "bandpass", f: 3200, to: 1600, q: 2.5, color: "pink", attack: 0.002, pan: 0.15 });
+    }
+    // and icicles fall on the last sixteenths of every second bar
+    if ((bar & 1) === 1 && b >= 13) {
+      const f = midiToFreq(chord[(16 - b) % 3] + 36);
+      k.m.t(f, 0.06, "sine", 0.022, { to: f * 0.96, pan: (b - 14) * 0.4, rev: 0.4 });
+    }
     shaker(k, b % 2 ? 0.018 : 0.032, b % 4 < 2 ? -0.4 : 0.4);
     pluck(k, chord[ICE_ARP[b % 8]] + 24 + (b >= 8 && sec === 1 ? 12 : 0), 0.02, {
       wave: "triangle",
@@ -4437,8 +4551,21 @@ function marshBoss(e, c) {
   sectionHit(k, c);
   if (sec <= 1) {
     if (pat(TRIBE_DEEP)[b]) taiko(k, 0.45, { f: 78, deep: b === 0, pan: b === 6 ? -0.25 : b === 12 ? 0.25 : 0 });
-    if (pat(TRIBE_HAND)[b]) slap(k, 0.12, { pan: 0.4 });
-    if (pat(TRIBE_GHOST)[b]) tom(k, 0.06, 180 + (b % 3) * 30, { pan: -0.4 });
+    if (pat(TRIBE_HAND)[b]) {
+      slap(k, 0.12, { pan: 0.4 });
+      // 3.17.0: the place in the drums: a frog croaks with the hand drum on the root of the chord (every second bar)
+      if ((bar & 1) === 0) {
+        const f = midiToFreq(root - 12);
+        k.m.t(f, 0.07, "square", 0.02, { lp: 900, to: f * 0.8, pan: 0.5 });
+        k.m.t(f, 0.07, "square", 0.016, { lp: 900, to: f * 0.8, at: 0.09, pan: 0.5 });
+      }
+    }
+    if (pat(TRIBE_GHOST)[b]) {
+      tom(k, 0.06, 180 + (b % 3) * 30, { pan: -0.4 });
+      // and the acid bubbles pop on the ghost notes
+      const f = 300 + (b % 3) * 90;
+      k.m.t(f, 0.06, "sine", 0.03, { to: f * 2, pan: -0.5 });
+    }
     if (b === 0) {
       kick(k, 0.3, { f0: 120, f1: 42, dur: 0.18, pump: 0.5 });
       sub(k, root, c.barSec * 0.9, 0.14);
@@ -4495,6 +4622,19 @@ function voidBoss(e, c) {
     if (pat(BREAK_K[q === 3 ? 1 : 0])[b]) kick(k, 0.5, { f0: 160, f1: 44, dur: 0.14, pump: 0.5 });
     if (b === 4 || b === 12) bigSnare(k, 0.2, { f: 1700, bf: 230, dur: 0.12, rev: 0.25 });
     else if (pat(BREAK_GHOST)[b] && R(c, 1) < 0.6) bigSnare(k, 0.05, { f: 1900, bf: 250, dur: 0.06, rev: 0.1 });
+    // 3.17.0: the place in the drums: the rift glitches in time at the end of every second bar (three stuttered
+    // chord tones), and a reversed swell pulls into every fourth bar
+    if ((bar & 1) === 1 && b >= 13)
+      k.m.t(midiToFreq(chord[(b - 13) % 3] + 36), 0.03, "square", 0.012, { lp: 3500, pan: (b - 14) * 0.5 });
+    if ((bar & 3) === 3 && b === 8)
+      k.m.n(c.barSec * 0.5, 0.03, {
+        type: "bandpass",
+        f: 600,
+        to: 3600,
+        q: 1.5,
+        color: "pink",
+        attack: c.barSec * 0.48,
+      });
     shaker(k, b % 2 ? 0.018 : 0.03, P(c, 2, 0.6));
     if (b === 0 && (bar & 1) === 0)
       for (const det of [-12, 12])
@@ -4662,6 +4802,13 @@ function rlSoundCatalog() {
     "eshotDrone",
     "eshotTurret",
     "eshotBoss",
+    "eshotWarden",
+    "eshotQueen",
+    "eshotCore",
+    "eshotPrism",
+    "eshotForge",
+    "eshotWeaver",
+    "eshotCarrier",
     "warn",
     "fuse",
     "spawn",
@@ -4773,6 +4920,7 @@ export {
   SoundEngine,
   RL_DEATH_FAMILY,
   RL_ESHOT_VOICE,
+  BOSS_ESHOT,
   RL_CHARGE_VOICE,
   RL_DASH_VOICE,
   RL_BOSS_ATK,

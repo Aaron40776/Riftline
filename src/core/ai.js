@@ -642,6 +642,8 @@ function updateBoss(game, boss, dt) {
             boss.charging = false;
             if (boss.hitWall) {
               game.emit("thud", { x: boss.x, y: boss.y, big: true });
+              // 3.16.0: the wall cracks where the Warden hits it (the look and sound of its stomp, no damage)
+              game.explode(boss.x, boss.y, 2.4, 0, { kind: "stomp", src: "warden" });
               if (rage) {
                 shootRing(game, boss, 10, 7.5, shotDmg, boss.spin);
               }
@@ -674,7 +676,6 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.4 + boss.n * gap && boss.n < rings) {
           shootRing(game, boss, 16 + rage * 6, 7 + rage, shotDmg, (boss.n % 2) * (Math.PI / (16 + rage * 6)));
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
         }
         if (boss.t > 0.4 + rings * gap + 0.4) {
           endBossAttack(boss, 2.4 - rage * 0.7);
@@ -745,6 +746,7 @@ function updateBoss(game, boss, dt) {
           boss.ta = (boss.ta || 0) + 0.24;
           for (let k = 0; k < count; k++)
             game.shoot(boss.x, boss.y, boss.ta + (k / count) * TAU, 6.2, shotDmg, { r: 0.26 });
+          bossVolley(game, boss, 0.3);
         }
         if (boss.t > 3.2) {
           endBossAttack(boss, 1.4);
@@ -755,7 +757,7 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.35 + boss.n * 0.42 && boss.n < 3 + rage) {
           for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, aim + (k - 2) * 0.16, 9.5, shotDmg);
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
         if (boss.t > 2) {
           endBossAttack(boss, 1.3);
@@ -864,6 +866,7 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.3 + boss.n * 0.12 && boss.n < 8 + rage * 4) {
           let angle = aim + Math.PI + (boss.n - 4) * 0.4;
           game.shoot(boss.x, boss.y, angle, 5.5, shotDmg, { kind: "shard", homing: 1.3, life: 5, r: 0.24 });
+          bossVolley(game, boss, 0.25);
           boss.n++;
         }
         if (boss.t > 2.4) {
@@ -920,7 +923,7 @@ function updateBoss(game, boss, dt) {
             "shard",
           );
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
         if (boss.t > 0.9 + rings * 0.45 + 0.5) {
           endBossAttack(boss, 1.3);
@@ -974,6 +977,7 @@ function updateBoss(game, boss, dt) {
           boss.ta = (boss.ta || 0) + (phase === 2 ? -0.2 : 0.2);
           for (let k = 0; k < shots; k++)
             game.shoot(boss.x, boss.y, boss.ta + (k / shots) * TAU, 6 + phase * 0.5, shotDmg, { r: 0.26 });
+          bossVolley(game, boss, 0.3);
         }
         if (boss.t > 3) {
           endBossAttack(boss, 1.2);
@@ -991,7 +995,7 @@ function updateBoss(game, boss, dt) {
                 : ["brute", "bulwark", "striker", "mortar"];
           for (let type of types) {
             let spot = game.arena.freePoint(game.rng, player.x, player.y, 7, 1);
-            game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1, type, elite: false, done: false });
+            game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1, type, elite: false, done: false, boss: boss.type });
           }
           game.emit("portal", { x: boss.x, y: boss.y, n: types.length });
         }
@@ -1004,7 +1008,6 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.3 + boss.n * 0.5 && boss.n < 2 + phase) {
           shootRing(game, boss, 18 + phase * 2, 7, shotDmg, (boss.n % 2) * 0.15);
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
         }
         if (boss.t > 0.3 + (2 + phase) * 0.5 + 0.3) {
           endBossAttack(boss, 1.3);
@@ -1032,6 +1035,8 @@ function updateBoss(game, boss, dt) {
               dmg: boss.dmg,
               follow: boss,
               len: 34,
+              // 3.16.0: the Rift Core's beams are ribbons of the rift (the warning stays red)
+              skin: "rift",
             });
           game.emit("beamWarn", { x: boss.x, y: boss.y });
         }
@@ -1039,6 +1044,7 @@ function updateBoss(game, boss, dt) {
         if (phase === 3 && boss.t2 > 0.7) {
           boss.t2 = 0;
           for (let k = -1; k <= 1; k++) game.shoot(boss.x, boss.y, aim + k * 0.2, 8.5, shotDmg);
+          bossVolley(game, boss, 0.3);
         }
         if (boss.t > 4.6) {
           endBossAttack(boss, 1.4);
@@ -1049,7 +1055,7 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.3 + boss.n * 0.35 && boss.n < 3 + phase) {
           for (let k = 0; k < 7; k++) game.shoot(boss.x, boss.y, aim + (k - 3) * 0.13, 9 + phase * 0.5, shotDmg);
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
         if (boss.t > 0.3 + (3 + phase) * 0.35 + 0.4) {
           endBossAttack(boss, 1.2);
@@ -1080,6 +1086,7 @@ function updateBoss(game, boss, dt) {
   }
   endBossAttack(boss, 1);
 }
+const SENTINEL_SKIN = { yard: "laser", void: "rift" };
 /* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
    telegraphed portals around the player: 2 at the first boss, up to 5 later */
 function bossReinforce(game, boss) {
@@ -1090,7 +1097,7 @@ function bossReinforce(game, boss) {
     const spot = game.arena.freePoint(game.rng, game.player.x, game.player.y, 7, 1.2);
     if (!spot) continue;
     const type = game.championType(biome, game.wave, game.rng);
-    game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1.3, type, elite: false, done: false });
+    game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1.3, type, elite: false, done: false, boss: boss.type });
   }
   game.emit("portal", { x: boss.x, y: boss.y, n: count });
 }
@@ -1108,9 +1115,10 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
       boss.vy = 0;
       const grid = (shift, warn) => {
         for (let x = -W + 3 + shift; x < W - 1; x += 6)
-          game.beam({ x, y: -H, a: Math.PI / 2, len: H * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg });
+          // 3.16.0: the security lasers of Blackout City (the warning stays red)
+          game.beam({ x, y: -H, a: Math.PI / 2, len: H * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
         for (let y = -H + 3 + shift; y < H - 1; y += 6)
-          game.beam({ x: -W, y, a: 0, len: W * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg });
+          game.beam({ x: -W, y, a: 0, len: W * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
         game.emit("beamWarn", { x: boss.x, y: boss.y });
       };
       if (boss.n === 0) {
@@ -1185,6 +1193,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
           life: 4,
           r: 0.24,
         });
+        bossVolley(game, boss, 0.25);
         boss.n++;
       }
       if (boss.t > 4.6) endBossAttack(boss, 1.4);
@@ -1219,6 +1228,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
           boss.t2 -= 0.1;
           boss.ta = (boss.ta || 0) + 0.27;
           for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, boss.ta + (k / 5) * TAU, 6.4, shotDmg, { r: 0.26 });
+          bossVolley(game, boss, 0.3);
         }
       if (boss.t > 3.6) endBossAttack(boss, 1.4);
       return;
@@ -1254,6 +1264,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
             dmg: boss.dmg,
             follow: boss,
             len: 34,
+            skin: "rift",
           });
         game.emit("beamWarn", { x: boss.x, y: boss.y });
       }
@@ -1295,7 +1306,17 @@ function moveBoss(game, boss, dt, aim, dist, speedMul = 1) {
 }
 function shootRing(game, boss, count, speed, dmg, start, kind) {
   for (let k = 0; k < count; k++)
-    game.shoot(boss.x, boss.y, start + (k / count) * TAU, speed, dmg, { kind: kind || "orb", r: 0.27 });
+    // 3.16.0: without a kind the boss's own shot (World.shoot, BOSS_SHOT)
+    game.shoot(boss.x, boss.y, start + (k / count) * TAU, speed, dmg, { kind, r: 0.27 });
+  // 3.16.0: every ring sounds (several rings used to fly silently)
+  bossVolley(game, boss);
+}
+/* 3.16.0: the sound of a boss volley (its voice comes from the boss, audio/sound.js BOSS_ESHOT); `gap` keeps a stream
+   of shots (a spiral) to one sound every so often */
+function bossVolley(game, boss, gap = 0) {
+  if (gap && game.time - (boss.volleyAt ?? -9) < gap) return;
+  boss.volleyAt = game.time;
+  game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
 }
 function findOpenSpot(game, x, y, minR, maxR) {
   for (let k = 0; k < 20; k++) {
@@ -1478,6 +1499,8 @@ function updateEnemy(game, enemy, dt) {
           const aim = Math.atan2(player.y - enemy.y, player.x - enemy.x);
           for (const off of [-0.22, 0, 0.22])
             game.shoot(enemy.x, enemy.y, aim + off, 24, enemy.dmg * 0.72, { kind: "weaver", life: 2.6 });
+          // 3.16.0: the volley sounds (it flew silently)
+          game.emit("eshot", { x: enemy.x, y: enemy.y, type: "weaver" });
         }
         enemy.t = 3.4 + game.rng.next() * 1.2;
       }
@@ -1722,6 +1745,8 @@ function updateEnemy(game, enemy, dt) {
           rot: 0.08,
           dmg: enemy.dmg * 1.2,
           color: enemy.def.color,
+          // 3.16.0: the beam of its place where the place has one (the security laser, the rift ribbon)
+          skin: SENTINEL_SKIN[game.arena.biome.id] || null,
         });
         game.emit("beamWarn", { x: enemy.x, y: enemy.y, small: true });
         enemy.st = 2;
@@ -1765,7 +1790,8 @@ function updateEnemy(game, enemy, dt) {
       for (const off of [-0.16, 0, 0.16])
         game.shoot(enemy.x, enemy.y, ang + off, 20, enemy.dmg * 0.72, { kind: "carrier", life: 3.8, homing: 1.2 });
       enemy.t = 2.4 + game.rng.next() * 1.2;
-      game.emit("eshot", { x: enemy.x, y: enemy.y });
+      // 3.16.0: the carrier's pods have a voice of their own (they played the gunner's pok)
+      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "carrier" });
     }
     return;
   }
@@ -1950,7 +1976,7 @@ function updateCrucible(game, boss, dt, aim, dist, shotDmg, rage) {
           game.shoot(mx, my, angle, 5.2 + rage * 0.6, shotDmg, { kind: "slag", r: 0.34, life: 6 });
         }
         boss.n++;
-        game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+        game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
       }
       if (boss.t > 0.6 + waves * 0.5 + 0.4) {
         end(1.6 - rage * 0.3);
@@ -1969,7 +1995,7 @@ function updateCrucible(game, boss, dt, aim, dist, shotDmg, rage) {
           room = Math.max(0, 10 - alive - game.markers.length);
         for (const type of kinds.slice(0, room)) {
           const spot = arena.freePoint(game.rng, player.x, player.y, 7, 1);
-          game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1.1, type, elite: false, done: false });
+          game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1.1, type, elite: false, done: false, boss: boss.type });
         }
         crucibleVents(game, boss, 1.1, boss.dmg * 0.9);
         game.emit("portal", { x: boss.x, y: boss.y, n: Math.min(room, kinds.length) });

@@ -177,7 +177,7 @@ const upgradeList = [
     rarity: 3,
     max: 1,
     icon: "flame",
-    desc: () => "The Singularity's collapse sets enemies on fire",
+    desc: () => "The Singularity's collapse sets enemies on fire and leaves burning ground for 3 s",
   },
   {
     id: "bloodrush",

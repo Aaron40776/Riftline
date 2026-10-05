@@ -76,7 +76,7 @@
    }
   },
   "sim-pulse-t0": {
-   "digest": "0eb49260c9383709",
+   "digest": "d5687574a91a35fa",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -102,7 +102,7 @@
      "blink": 1,
      "blinkWarn": 1,
      "block": 96,
-     "boom": 610,
+     "boom": 613,
      "boss": 2,
      "bossAtk": 12,
      "bossDown": 2,
@@ -118,7 +118,7 @@
      "edash": 9,
      "enrage": 2,
      "erupt": 167,
-     "eshot": 91,
+     "eshot": 133,
      "guardBreak": 8,
      "guardUp": 3,
      "hatch": 18,
@@ -164,7 +164,7 @@
    }
   },
   "sim-scatter-t2": {
-   "digest": "c7b5d62441cfb39a",
+   "digest": "bff696e9bde05da9",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -190,7 +190,7 @@
      "blink": 16,
      "blinkWarn": 8,
      "block": 191,
-     "boom": 3246,
+     "boom": 3248,
      "boss": 2,
      "bossAtk": 9,
      "bossDown": 2,
@@ -205,7 +205,7 @@
      "dmg": 6175,
      "enrage": 2,
      "erupt": 83,
-     "eshot": 121,
+     "eshot": 151,
      "guardBreak": 7,
      "guardUp": 1,
      "hatch": 50,
@@ -252,7 +252,7 @@
    }
   },
   "sim-tesla-t5": {
-   "digest": "e5cf43284ba3212f",
+   "digest": "9d62d28dfb009329",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -278,7 +278,7 @@
      "blink": 25,
      "blinkWarn": 12,
      "block": 102,
-     "boom": 2752,
+     "boom": 2754,
      "boss": 2,
      "bossAtk": 17,
      "bossDown": 2,
@@ -291,7 +291,7 @@
      "dmg": 8440,
      "enrage": 2,
      "erupt": 88,
-     "eshot": 210,
+     "eshot": 264,
      "fuse": 4,
      "guardBreak": 2,
      "hatch": 56,
@@ -339,7 +339,7 @@
    }
   },
   "sim-rail-t0": {
-   "digest": "c83d1f2e47c0e598",
+   "digest": "5769c0725cc250f4",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -364,7 +364,7 @@
      "beamWarn": 2,
      "blink": 4,
      "blinkWarn": 5,
-     "boom": 217,
+     "boom": 220,
      "boss": 2,
      "bossAtk": 5,
      "bossDown": 2,
@@ -378,7 +378,7 @@
      "edash": 2,
      "enrage": 2,
      "erupt": 223,
-     "eshot": 8,
+     "eshot": 11,
      "hatch": 4,
      "heal": 18,
      "kill": 371,
@@ -422,7 +422,7 @@
    }
   },
   "sim-rocket-t2": {
-   "digest": "fea44f5f580ab0d0",
+   "digest": "18ebdfc0eedd2b2b",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -448,7 +448,7 @@
      "blink": 18,
      "blinkWarn": 8,
      "block": 32,
-     "boom": 1744,
+     "boom": 1745,
      "boss": 2,
      "bossAtk": 14,
      "bossDown": 2,
@@ -463,7 +463,7 @@
      "edash": 9,
      "enrage": 2,
      "erupt": 229,
-     "eshot": 104,
+     "eshot": 139,
      "fuse": 2,
      "hatch": 56,
      "heal": 16,
@@ -508,7 +508,7 @@
    }
   },
   "sim-disc-t5": {
-   "digest": "00ae66ca7bf95022",
+   "digest": "47d01807cade749d",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -534,7 +534,7 @@
      "blink": 9,
      "blinkWarn": 2,
      "block": 346,
-     "boom": 271,
+     "boom": 274,
      "boss": 2,
      "bossAtk": 22,
      "bossDown": 2,
@@ -546,7 +546,7 @@
      "dmg": 5140,
      "enrage": 2,
      "erupt": 114,
-     "eshot": 222,
+     "eshot": 266,
      "freeze": 731,
      "fuse": 4,
      "guardBreak": 17,
@@ -594,7 +594,7 @@
    }
   },
   "sim-flame-t2": {
-   "digest": "8a7afd2186503c67",
+   "digest": "bca7662d1faa0d25",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -620,7 +620,7 @@
      "blink": 14,
      "blinkWarn": 5,
      "block": 273,
-     "boom": 165,
+     "boom": 167,
      "boss": 2,
      "bossAtk": 10,
      "bossDown": 2,
@@ -634,7 +634,7 @@
      "dmg": 5953,
      "enrage": 2,
      "erupt": 91,
-     "eshot": 118,
+     "eshot": 149,
      "freeze": 1213,
      "fuse": 1,
      "guardBreak": 13,
@@ -683,7 +683,7 @@
    }
   },
   "sim-pulse-t2-endless": {
-   "digest": "efc823c699faecb3",
+   "digest": "7da38542abcee348",
    "rec": {
     "wave": 22,
     "state": "choose",
@@ -709,7 +709,7 @@
      "blink": 623,
      "blinkWarn": 135,
      "block": 1382,
-     "boom": 1997,
+     "boom": 1998,
      "boss": 4,
      "bossAtk": 74,
      "bossDown": 4,
@@ -726,7 +726,7 @@
      "edash": 141,
      "enrage": 4,
      "erupt": 499,
-     "eshot": 1545,
+     "eshot": 1755,
      "freeze": 1264,
      "fuse": 45,
      "guardBreak": 30,
@@ -794,7 +794,7 @@
    }
   },
   "sim-scatter-t1-resume": {
-   "digest": "586fcc7dc915318d",
+   "digest": "18d4d88e3a0e582b",
    "rec": {
     "wave": 10,
     "state": "choose",
@@ -818,7 +818,7 @@
      "aim": 8,
      "beamWarn": 2,
      "block": 31,
-     "boom": 1032,
+     "boom": 1034,
      "boss": 2,
      "bossAtk": 8,
      "bossDown": 2,
@@ -831,7 +831,7 @@
      "edash": 14,
      "enrage": 2,
      "erupt": 289,
-     "eshot": 57,
+     "eshot": 61,
      "freeze": 322,
      "guardBreak": 2,
      "heal": 31,
@@ -872,7 +872,7 @@
    }
   },
   "sim-rocket-t5-mortal": {
-   "digest": "7c361de071b89e95",
+   "digest": "c5b2ada288e6130f",
    "rec": {
     "wave": 5,
     "state": "dead",
@@ -893,7 +893,7 @@
     "pickups": 1,
     "resumed": null,
     "fx": {
-     "boom": 147,
+     "boom": 149,
      "boss": 1,
      "bossAtk": 3,
      "champion": 1,
@@ -936,7 +936,7 @@
    }
   },
   "repeat-sim-pulse-t0": {
-   "digest": "0eb49260c9383709",
+   "digest": "d5687574a91a35fa",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -962,7 +962,7 @@
      "blink": 1,
      "blinkWarn": 1,
      "block": 96,
-     "boom": 610,
+     "boom": 613,
      "boss": 2,
      "bossAtk": 12,
      "bossDown": 2,
@@ -978,7 +978,7 @@
      "edash": 9,
      "enrage": 2,
      "erupt": 167,
-     "eshot": 91,
+     "eshot": 133,
      "guardBreak": 8,
      "guardUp": 3,
      "hatch": 18,
