@@ -1,3 +1,29 @@
+RIFTLINE v3.17.2 – SOUND NOTES
+Base: v3.17.1 · Build r3172a1005a-r1 · 05.10.2026
+
+Requested (05.10.2026): the Music Lab mixer of an earlier branch was not good; find another way to tune the sound. The
+answer is to tune it by ear with the owner: the game remembers what it played and lets the player say what was wrong.
+
+1) What changed
+   - audio/sound.js: SoundEngine.heard remembers the sounds of the last 30 s (one entry per distinct sound such as
+     step:ice, eshot:warden or place:siren, counted, updated in place, at most 80); musicNow() names the music that plays
+     (it uses the held track while the game is paused).
+   - ui/ui.js, main.js, index.html: a Sound notes button in the pause menu and in the settings of the main menu. A list of
+     what was heard lately (music first, the clicks of the menu left out); a tap on a sound shows the reasons (too loud,
+     too quiet, harsh, muddy, boring, repetitive, doesn't fit, love it); a tap on a reason saves a note with the sound, the
+     reason, the wave, the biome and the music. Copy notes builds one text to send; Clear removes them. Notes live in
+     localStorage riftline.soundNotes (the last 300), not in the save. Back and Esc lead back to where the list was opened.
+     On a landscape phone the list and the reasons stand side by side (two columns) so that both are visible.
+
+2) Results 3.17.2 (headless Chromium, software WebGL; npm run release-check)
+   - All steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, full QA, e2e, world and run audit,
+     screens pc and land, biome shots pc and land, attack shots pc). Time of the chain: 36 min 47 s.
+   - New tests: self-test v3172 (counts, distinct sounds, order, the bound, the music); full QA soundnotes-desktop and
+     soundnotes-phone (flow from the pause menu and from the settings, the saved note, the copied text, Back, Esc, Clear).
+
+3) Open doubts
+   - The sound itself is not judged by a test: the notes are how the owner's ears get into the loop.
+
 RIFTLINE v3.17.1 – LIGHTER START, FASTER TESTS
 Base: v3.17.0 · Build r3171a1005a-r1 · 05.10.2026
 
