@@ -64,6 +64,8 @@ the night (stacked on the repository cleanup).
      skipped while its light flashed and its timer ran on (lightning without thunder); far sounds now wait for a free
      slot (self-test with eight humming portals).
    - MP3 previews of the five biomes (tests/shots/scapes/) sent to the owner.
+   - Later the same night: the furnace and gutter beds reached 0.034 and 0.029 against their limit of 0.031 in some
+     runs (the renders are not seeded); both are softer now (furnace noise 0.012, gutter 0.024).
    - Time of the whole chain: 33 min 11 s. Format check: ok.
 
 7) Open doubts
