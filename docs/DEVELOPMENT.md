@@ -54,5 +54,6 @@ also fails if the service worker would precache a file that does not exist.
 
 For a release: bump `version` and `riftline.build` in `package.json` and run `npm install` (so `package-lock.json`
 follows), add a player-facing entry at the top of `src/data/whatsnew.js` (the News tab; the QA checks that its first
-entry matches the version), add the changes at the top of `changes` in `src/build-info.json`, write a new section at
+entry matches the version), add the changes at the top of `changes` in `src/build-info.json` (the build writes only the identity fields to
+`dist/build-info.json`, which the game fetches at every start, and the history to `dist/changes.json`), write a new section at
 the top of `docs/QA-REPORT.de.txt`, run `npm run release-check` and look at the screenshots in `tests/shots/`.

@@ -1,3 +1,50 @@
+RIFTLINE v3.17.1 – LIGHTER START, FASTER TESTS
+Base: v3.17.0 · Build r3171a1005a-r1 · 05.10.2026
+
+Requested (05.10.2026): useful optimisations that do not change any quality (the game is played on high-end devices) and
+no new features. Measured first, so that the work goes where the cost is.
+
+1) Measured
+   - The simulation costs 0.16 ms a step on average in a busy Endless wave (wave 40, Threat 3, a strong build; the budget
+     of a frame is 16.7 ms); the worst single step 7.7 ms. A frame is 59 to 108 draw calls and 15 to 21 thousand triangles
+     with 70 to 124 geometries. Neither is worth touching.
+   - The bundle is 1.28 MB (384 KB gzipped, already minified): three.js 564 KB, our own code 683 KB, of which the deep
+     self-test is 77 KB.
+   - The game fetches build-info.json at every start (the health check, the update handshake) and reads only the version and
+     the build id from it, but the file was 50 KB: 93 % of it the changelog, four KB more with every release.
+   - The two convolution reverbs add about 25 to 30 % to the cost of rendering the music. NOT changed: it would change the
+     sound.
+
+2) Changed
+   - build.js: dist/build-info.json is the identity file (0.4 KB); the history is in dist/changes.json, which nothing
+     fetches. src/build-info.json stays the one place the release notes are written. About 50 KB less per start.
+   - The five app icons are recompressed losslessly (adaptive filters, deflate level 9): every pixel is identical
+     (checked by decoding both), 383 KB to 333 KB, the two 512 px ones are cached at install.
+   - Tests: the sections of the full QA that only look at state and the DOM no longer let the browser draw the 3D scene:
+     the GPU draw calls (drawElements, drawArrays, the instanced forms) are no-ops, everything else runs (the simulation,
+     the renderer's own code that builds the scene every frame, the shaders, the DOM). P.shot draws for real for two frames
+     around a screenshot; the E2E, the screenshots, the biome and attack pictures and the audits draw all the time;
+     QA_DRAW=1 draws everywhere. Full QA 17 min 12 s to 10 min 23 s (run-desktop 153 s to 42 s); the whole release check
+     45 min 41 s to 35 min 29 s. A new check: build-info.json is small and the history is in changes.json.
+
+3) Considered and not done
+   - Loading the self-test only when it is needed (77 KB, about 20 KB gzipped): the game is one IIFE; this needs ES-module
+     chunks and an asynchronous health check (Settings, Diagnostics and the tests call it synchronously). Too much risk
+     for the gain.
+   - Cheaper reverbs (mono impulses, no short room in Saver): they change the sound.
+   - The garbage collection of the simulation (4.6 % of its time) and the size of three.js: the gain is too small.
+
+4) Results 3.17.1 (headless Chromium, software WebGL; npm run release-check)
+   - npm test steps: green (determinism 15/15 unchanged).
+   - Full QA: all checks passed (404). E2E: 0 failures on the four devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors, 5392 events
+     in 40 kinds, all consumed.
+   - Screens, biome and attack pictures: no page errors; the pictures taken by the full QA looked at (real frames).
+   - Time of the whole chain: 35 min 29 s. Format check: ok.
+
+5) Open doubts
+   - Nothing for players changes: no gameplay, graphics or sound differ from 3.17.0.
+
 RIFTLINE v3.17.0 – THE WALKER
 Base: v3.16.0 · Build r3170a1005a-r1 · 05.10.2026
 

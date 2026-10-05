@@ -92,7 +92,9 @@ Single test scripts run with `node tools/qa.js <script> [args]`; it serves `dist
 `node tools/qa.js full-qa run-desktop` runs one section of the full QA (`QA_TIMES=1` prints the seconds per check).
 
 The browser tests run the game in software WebGL at a few frames per second, so they never run in parallel (each
-browser takes every core), and waits that depend on the game count game time (`tests/lib/wait.mjs`), not real time.
+browser takes every core), and waits that depend on the game count game time (`tests/lib/wait.mjs`), not real time. The full-QA sections that only look
+at state and the DOM skip the GPU draw calls (the biggest cost of a test); the ones that take screenshots, the E2E and the
+picture scripts draw for real, and `QA_DRAW=1` draws everywhere.
 The deep test reuses its sound results while the sound engine is unchanged (`node_modules/.cache/riftline/`); CI and
 `node tools/qa.js deep-test --full` render every sound again.
 
