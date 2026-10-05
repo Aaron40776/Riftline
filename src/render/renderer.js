@@ -54,6 +54,10 @@ import { TrapView } from "./traps-view.js";
 import { HazardView } from "./hazards-view.js";
 import { AttackView, MARK_LOOK } from "./attacks-view.js";
 
+// 3.13.0: the colours of the light of the place (lightning, a passing police siren)
+const LIGHTNING_COLOR = new Color(0xcfe0ff),
+  SIREN_RED = new Color(0xff2a3a),
+  SIREN_BLUE = new Color(0x2a6bff);
 const tmpColor = new Color(),
   InstancePool = class {
     constructor(geo, mat, max, opts = {}) {
@@ -507,6 +511,9 @@ const MAX_PARTICLES = 1400,
       this.bLight = new PointLight(16747069, 0, 12, 2);
       scene.add(this.pLight, this.bLight);
       this.flashes = [];
+      // 3.13.0: the light of far sounds of the place (lightning, a passing siren), see scapeLight
+      this.scapeQueue = [];
+      this.siren = null;
       this.D = [];
       this.corpses = [];
       this.kick = 0;
@@ -711,7 +718,47 @@ const MAX_PARTICLES = 1400,
       }
       this.flashes.push({ x, z, r: radius, i: intensity, col: color, decay });
     }
+    /* 3.13.0: the light that belongs to a far sound of the place (audio/place.js calls it through sound.onScape):
+       lightning lights the whole arena twice in a quick flicker; a siren passes at the side of the view (its side) as
+       red and blue glows that take turns for three seconds. Both use the floor flashes, no new lights (a new light would
+       recompile every material). */
+    scapeLight(kind, pan) {
+      if (kind === "lightning") this.scapeQueue.push({ t: 0, i: 1.1 }, { t: 0.13, i: 0.55 }, { t: 0.32, i: 0.8 });
+      else if (kind === "siren") this.siren = { t: 0, side: pan < 0 ? -1 : 1, n: -1 };
+    }
+    scapeTick(dt, world) {
+      const arena = world && world.arena;
+      if (!arena) return;
+      if (this.scapeQueue.length) {
+        for (const bolt of this.scapeQueue) {
+          bolt.t -= dt;
+          if (bolt.t <= 0) this.flash(0, 0, Math.max(arena.W, arena.H) * 2.2, bolt.i, LIGHTNING_COLOR, 9);
+        }
+        this.scapeQueue = this.scapeQueue.filter((bolt) => bolt.t > 0);
+      }
+      const siren = this.siren;
+      if (siren) {
+        siren.t += dt;
+        const n = Math.floor(siren.t / 0.32);
+        if (n !== siren.n) {
+          siren.n = n;
+          // at the side of the view (about 14 m from the drone on the siren's side), drifting past
+          const fade = Math.sin(Math.PI * Math.min(1, siren.t / 3.2)),
+            player = world.player;
+          this.flash(
+            player.x + siren.side * 14,
+            player.y - 7 + siren.t * 4,
+            11,
+            0.6 * fade,
+            n % 2 ? SIREN_BLUE : SIREN_RED,
+            7,
+          );
+        }
+        if (siren.t > 3.2) this.siren = null;
+      }
+    }
     updateLights(dt, world) {
+      this.scapeTick(dt, world);
       let flashes = this.flashes;
       for (let flash of flashes) flash.i -= flash.i * Math.min(1, flash.decay * dt) + dt * 0.05;
       if (flashes.length && flashes.some((flash) => flash.i <= 0.02)) {

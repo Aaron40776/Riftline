@@ -24,7 +24,7 @@ import {
   attackVoice,
 } from "../audio/sound.js";
 import { lookOf, ATTACK_LOOK } from "../render/attacks-view.js";
-import { PLACE_IDS, BIOME_PLACE, placeTick } from "../audio/place.js";
+import { PLACE_IDS, BIOME_PLACE, SCAPE, placeTick } from "../audio/place.js";
 import {
   RL_RETIRE_NOTE,
   rlMigrateRetired,
@@ -459,6 +459,7 @@ function rlSelfTest() {
   result = selfTestV380(result);
   result = selfTestV390(result);
   result = selfTestV3100(result);
+  result = selfTestV3130(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -2918,4 +2919,82 @@ function selfTestV3100(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3100: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.13.0: the soundscapes (audio/place.js SCAPE): rates, no clutter, thinner in a boss fight, light ---- */
+function selfTestV3130(result) {
+  const fail = [];
+  try {
+    const catalog = rlSoundCatalog();
+    for (const [biome, scape] of Object.entries(SCAPE)) {
+      for (const [id] of scape.bed) if (!PLACE_IDS.includes(id)) fail.push(`bed-unknown:${biome}:${id}`);
+      for (const f of scape.far) if (!PLACE_IDS.includes(f.id)) fail.push(`far-unknown:${biome}:${f.id}`);
+      if (scape.far.length < 7) fail.push(`few-far-sounds:${biome}:${scape.far.length}`);
+    }
+    for (const id of PLACE_IDS)
+      if (!catalog.some((entry) => entry.spec.id === "place" && entry.spec.arg.id === id))
+        fail.push("uncatalogued:" + id);
+    if (typeof OfflineAudioContext !== "undefined") {
+      // 20 minutes of each biome (10 of them in a boss fight): what the scheduler plays, when
+      const listen = (biome, boss, seconds) => {
+        const world = new World({ seed: 0x3130, weapon: "pulse", threat: 0, ws: {} }),
+          index = world.route.indexOf(biome);
+        world.startWave(2 + 5 * Math.max(0, index));
+        world.state = "fight";
+        world.arena.biome = { ...world.arena.biome, id: biome };
+        for (const kind of ["vents", "ice", "acid", "portals"]) world.arena[kind] = [];
+        world.boss = boss ? { type: "warden" } : null;
+        const engine = new SoundEngine();
+        engine.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
+        const heard = [],
+          lights = [];
+        let t = 0;
+        engine.placePlay = (id) => heard.push({ id, t });
+        engine.onScape = (kind) => lights.push({ kind, t });
+        for (; t < seconds; t += 0.1) placeTick(engine, world, 0.1);
+        return { heard, lights };
+      };
+      for (const [biome, scape] of Object.entries(SCAPE)) {
+        const { heard, lights } = listen(biome, false, 1200),
+          farIds = new Set(scape.far.map((f) => f.id)),
+          far = heard.filter((h) => farIds.has(h.id));
+        // every far sound comes, none more often than its rate allows
+        for (const f of scape.far) {
+          const n = far.filter((h) => h.id === f.id).length;
+          if (!n) fail.push(`${biome}-never:${f.id}`);
+          if (n > Math.ceil(1200 / f.every[0]) + 1) fail.push(`${biome}-too-often:${f.id}:${n}`);
+        }
+        // no clutter: 2.5 s between far sounds, never the same twice in a row, big ones 4 s apart
+        const big = new Set(scape.far.filter((f) => f.big).map((f) => f.id));
+        let lastBig = -99;
+        far.forEach((h, i) => {
+          if (i && h.t - far[i - 1].t < 2.45) fail.push(`${biome}-crowded:${far[i - 1].id}/${h.id}`);
+          if (i && h.id === far[i - 1].id) fail.push(`${biome}-repeat:${h.id}`);
+          if (big.has(h.id)) {
+            if (h.t - lastBig < 3.95) fail.push(`${biome}-two-big:${h.id}`);
+            lastBig = h.t;
+          }
+        });
+        // the steady layer keeps going
+        for (const [id, , hi] of scape.bed) {
+          const n = heard.filter((h) => h.id === id).length;
+          if (n < (1200 / hi) * 0.5) fail.push(`${biome}-bed-thin:${id}:${n}`);
+        }
+        // thunder and sirens come with their light (in Blackout City)
+        for (const f of scape.far.filter((f) => f.light)) {
+          const n = far.filter((h) => h.id === f.id).length,
+            m = lights.filter((l) => l.kind === f.light).length;
+          if (n !== m) fail.push(`${biome}-light:${f.id}:${n}/${m}`);
+        }
+        // a boss fight is thinner: about half the far sounds
+        const bossFar = listen(biome, true, 1200).heard.filter((h) => farIds.has(h.id)).length;
+        if (!(bossFar < far.length * 0.7)) fail.push(`${biome}-boss-not-thinner:${bossFar}/${far.length}`);
+      }
+      if (!SCAPE.yard.far.some((f) => f.light === "lightning") || !SCAPE.yard.far.some((f) => f.light === "siren"))
+        fail.push("city-light");
+    }
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3130: { ok: fail.length === 0, fail } };
 }

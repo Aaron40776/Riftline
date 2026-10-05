@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.13.0",
+    title: "Places you can hear",
+    items: [
+      "Every biome has a soft steady sound: light rain in Blackout City, the roar of the furnaces, wind, crickets, a heartbeat in the Void.",
+      "Many more far sounds, each at its own pace: sirens, a helicopter, dogs, drop hammers, a steam whistle, an avalanche, frog choruses, herons and more.",
+      "Thunder in Blackout City comes with lightning, a passing siren lights up red and blue.",
+      "Never two big sounds at once, never the same twice in a row, and quieter in boss fights.",
+    ],
+  },
+  {
     version: "3.12.0",
     title: "The Singularity",
     items: [
