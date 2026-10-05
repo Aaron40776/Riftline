@@ -138,7 +138,17 @@ order"; after a merge and a deleted branch GitHub retargets the next PR to main)
    (a spinning core with a ring), a swirling rift mark on the ground as the warning, a rising pull and a collapse as the
    sound; the three cards keep their ids (gcells, gblast, gfire) with new effects (more charges and faster recharge;
    bigger pull and blast; burning ground), so saves stay valid.
-4. If usage is left: the repository cleanup the owner asked for (README as the landing page with the Play link,
+4. (done, no release: only docs and repository files, branch `claude/repo-cleanup`, stacked on 3.12.0) The repository
+   cleanup the owner asked for. README rewritten as the landing page (icon, Play link, badges of the two workflows,
+   real screenshots from the test runs in `docs/media/`, a short feature list, controls, running it locally,
+   development, structure, deployment); the code history and working rules moved to `docs/DEVELOPMENT.md`; the Pages
+   workflow comment names the real URL; `.gitattributes` (LF), `.gitignore` (editor folders), `homepage` and
+   `repository` in `package.json`. Kept on purpose: this roadmap and the QA report (CLAUDE.md needs them), every
+   test and tool (all in use), no new dependencies or bots. For the owner to do on GitHub (no tool here can): the
+   repository description ("A 3D arena roguelite shooter for the browser: 20 waves, 5 biomes, 5 bosses, Endless"),
+   the website field (https://aaron40776.github.io/Riftline/), topics (game, browser-game, roguelite, threejs,
+   webgl, pwa, javascript), a social preview image (docs/media/void-core.jpg fits), and whether the code gets a
+   license. Was: if usage is left: the repository cleanup the owner asked for (README as the landing page with the Play link,
    stale information, docs, .github), without deleting this roadmap or the QA report (CLAUDE.md needs them).
 5. Then the roadmap below in its order: 3.13.0 soundscapes, 3.14.0 music of the place, boss rewards, the walker.
 

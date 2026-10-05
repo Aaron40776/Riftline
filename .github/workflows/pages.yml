@@ -1,4 +1,4 @@
-# Tests and builds Riftline and publishes it on GitHub Pages: https://<user>.github.io/Riftline/
+# Tests and builds Riftline and publishes it on GitHub Pages: https://aaron40776.github.io/Riftline/
 name: Deploy to GitHub Pages
 
 on:

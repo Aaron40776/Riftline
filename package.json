@@ -3,7 +3,12 @@
   "version": "3.12.0",
   "private": true,
   "type": "module",
-  "description": "Riftline – a 3D arena roguelite shooter with twin-stick touch controls.",
+  "description": "Riftline – a 3D arena roguelite shooter for the browser (three.js, WebAudio), playable on desktop and on phones and tablets in landscape.",
+  "homepage": "https://aaron40776.github.io/Riftline/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aaron40776/Riftline.git"
+  },
   "riftline": {
     "build": "r3120a1005a-r1"
   },
