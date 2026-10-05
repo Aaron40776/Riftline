@@ -460,6 +460,7 @@ function rlSelfTest() {
   result = selfTestV390(result);
   result = selfTestV3100(result);
   result = selfTestV3130(result);
+  result = selfTestV3140(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3006,4 +3007,43 @@ function selfTestV3130(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3130: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.14.0: the music of the place: where the calm theme plays a sound of the place, the bed of that sound steps back ---- */
+function selfTestV3140(result) {
+  const fail = [];
+  try {
+    if (typeof OfflineAudioContext !== "undefined") {
+      const level = (musVol, playKind, biome = "yard", sound = "rainDrop", intensity = 0) => {
+        const world = new World({ seed: 0x3140, weapon: "pulse", threat: 0, ws: {} });
+        world.startWave(2);
+        world.state = "fight";
+        world.arena.biome = { ...world.arena.biome, id: biome };
+        for (const kind of ["vents", "ice", "acid", "portals"]) world.arena[kind] = [];
+        const engine = new SoundEngine();
+        engine.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
+        engine.musVol = musVol;
+        engine.playKind = playKind;
+        engine.intensity = intensity;
+        const drops = [];
+        engine.placePlay = (id, a) => id === sound && drops.push(a.g);
+        for (let t = 0; t < 30; t += 0.1) placeTick(engine, world, 0.1);
+        return drops.length ? Math.max(...drops) : 0;
+      };
+      const alone = level(0.45, "boss"),
+        under = level(0.45, "fight"),
+        silent = level(0, "fight");
+      if (!(alone > 0 && Math.abs(under - alone * 0.5) < 1e-9)) fail.push(`rain-not-halved:${alone}/${under}`);
+      if (silent !== alone) fail.push(`rain-halved-without-music:${silent}/${alone}`);
+      // the calm theme of the Void Core plays its heartbeat only above intensity 0.5: below it the bed stays full
+      const beatAlone = level(0.45, "boss", "void", "heartbeat", 0.3),
+        beatLow = level(0.45, "fight", "void", "heartbeat", 0.3),
+        beatHigh = level(0.45, "fight", "void", "heartbeat", 0.8);
+      if (!(beatAlone > 0 && beatLow === beatAlone && Math.abs(beatHigh - beatAlone * 0.5) < 1e-9))
+        fail.push(`heartbeat:${beatAlone}/${beatLow}/${beatHigh}`);
+    }
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3140: { ok: fail.length === 0, fail } };
 }

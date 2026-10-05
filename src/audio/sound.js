@@ -3858,11 +3858,22 @@ function yardCalm(e, c) {
   calmMotif(k, c, "piano");
   calmPad(k, c, "yard");
   calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
-  // a soft plucked bass on beat 3 when it swells
-  if (L > 0.45 && b === 8) k.p.t(midiToFreq(root - 24 + [0, 7, 3, 7][c.sec]), 0.5, "triangle", 0.07, { lp: 600 });
+  // 3.14.0: noir. As it swells, a walking bass on every beat (root, fifth, third, a step towards the next chord) and
+  // brushes: a soft sweep on 2 and 4, light taps on the eighths
+  if (L > 0.3 && b % 4 === 0) {
+    const walk = [root - 24, chord[2] - 24, chord[1] - 24, root - 22][b >> 2];
+    k.p.t(midiToFreq(walk), 0.42, "triangle", 0.06, { lp: 520, attack: 0.004 });
+  }
+  if (L > 0.25 && (b === 4 || b === 12))
+    k.m.n(0.2, 0.014, { type: "bandpass", f: 3200, to: 2400, q: 0.8, attack: 0.06, pan: 0.2, rev: 0.3 });
+  if (L > 0.4 && b % 2 === 0 && b !== 4 && b !== 12)
+    k.m.n(0.03, 0.005, { type: "highpass", f: 5200, attack: 0.002, pan: -0.2 });
+  // the far siren sings on the chord (up and down a minor third from its root)
   if (bar % 8 === 5 && b === 0) {
-    k.d.t(640, 0.9, "triangle", 0.012, { to: 960, attack: 0.3, opt: true, rev: 0.7, pan: -0.6 });
-    k.d.t(960, 0.9, "triangle", 0.01, { to: 640, at: 0.9, attack: 0.1, opt: true, rev: 0.7, pan: -0.6 });
+    const lo = midiToFreq(chord[0] + 24),
+      hi = midiToFreq(chord[0] + 27);
+    k.d.t(lo, 0.9, "triangle", 0.012, { to: hi, attack: 0.3, opt: true, rev: 0.7, pan: -0.6 });
+    k.d.t(hi, 0.9, "triangle", 0.01, { to: lo, at: 0.9, attack: 0.1, opt: true, rev: 0.7, pan: -0.6 });
   }
   if (bar % 8 === 2 && b === 0)
     k.m.n(2.6, 0.009, { f: 200, to: 50, attack: 0.25, q: 0.7, color: "brown", opt: true, rev: 0.3 });
@@ -3892,6 +3903,7 @@ function yardCalm(e, c) {
     });
 }
 
+const WORKS_PISTON = "X..x..X.x..X..x.";
 /* Ember Works, 66 BPM, D minor (Dm Bb C Am): a sleeping foundry. A motif of struck pipes, a warm dark pad, the sub;
    in the dark a far anvil, a chain, a breath of steam, crackling embers (the furnace is the atmosphere) */
 function worksCalm(e, c) {
@@ -3903,6 +3915,13 @@ function worksCalm(e, c) {
   calmFloor(k, c, { f0: 90, f1: 38, dur: 0.3 });
   if (L > 0.5 && b === 0) k.m.n(0.2, 0.014, { f: 300, to: 80, q: 1.2, color: "brown" });
   if (b === 4 && (bar & 3) === 1) clang(k.m, midiToFreq(chord[0] + 24), 0.04, { rev: 0.8, pan: -0.4 });
+  // 3.14.0: the works keep time as it swells: a piston in a machine groove (3-3-2, accents on the strong hits), a
+  // conveyor that rattles only between them (the off sixteenths), and a hammer answers on 4
+  const piston = pat(WORKS_PISTON)[b];
+  if (L > 0.35 && piston)
+    k.m.n(0.12, 0.016 * piston, { f: 420, to: 120, q: 1, color: "brown", attack: 0.004, pan: -0.15 });
+  if (L > 0.55 && b % 2 === 1) k.m.n(0.02, 0.005, { type: "bandpass", f: 1250, q: 4, attack: 0.001, pan: 0.45 });
+  if (L > 0.6 && b === 12) clang(k.m, midiToFreq(chord[2] + 24), 0.018, { rev: 0.6, pan: 0.3 });
   if (L > 0.45 && c.sec >= 2 && b === 12 && (bar & 1) === 0)
     clang(k.m, midiToFreq(chord[2] + 24), 0.028, { rev: 0.8, pan: 0.5 });
   if (L > 0.3 && b === 6 && R(c, 1) < 0.18)
@@ -3965,10 +3984,11 @@ function vaultCalm(e, c) {
   }
 }
 
+const LOG_DRUM = "x..x..x...x.x...";
 /* Toxin Marsh, 69 BPM, F minor (Fm Ab Eb Cm): a foggy bayou at night. A kalimba motif, a soft wobbling pad, the sub;
    rising bubbles, frog croaks, mud squelches, crickets (the murk is the atmosphere) */
 function marshCalm(e, c) {
-  const { b, bar, L } = c,
+  const { b, bar, L, chord } = c,
     k = kit(e, c);
   calmMotif(k, c, "kalimba");
   calmPad(k, c, "marsh");
@@ -3979,8 +3999,15 @@ function marshCalm(e, c) {
     k.m.t(f, 0.09, "sine", 0.045, { to: f * 1.9, opt: true, pan });
     if (R(c, 7) < 0.25) k.m.t(f * 0.7, 0.07, "sine", 0.03, { to: f * 1.4, at: 0.07, opt: true, pan });
   }
-  if (b % 2 === 1 && R(c, 8) < 0.035) {
-    const f = 95 + R(c, 9) * 30,
+  // 3.14.0: bayou. As it swells, a log drum on the root and fifth in a lazy syncopation, and the frogs croak in time
+  // (on the "and" of 2 and 4) instead of anywhere
+  if (L > 0.3 && pat(LOG_DRUM)[b]) {
+    const f = midiToFreq((b % 8 === 6 ? chord[2] : chord[0]) - 12);
+    k.p.t(f, 0.2, "sine", 0.05, { to: f * 0.86, attack: 0.002 });
+    k.m.n(0.012, 0.012, { type: "bandpass", f: 1400, q: 3, attack: 0.001 });
+  }
+  if ((b === 6 || b === 14) && R(c, 8) < 0.2 + 0.35 * L) {
+    const f = Math.max(90, Math.min(130, midiToFreq(chord[0] - 12))),
       pan = P(c, 10, 0.8);
     k.m.t(f, 0.11, "square", 0.028, { to: f * 1.35, lp: 650, q: 6, opt: true, pan, rev: 0.3 });
     k.m.t(f * 1.1, 0.13, "square", 0.028, { to: f, lp: 650, q: 6, at: 0.15, opt: true, pan, rev: 0.3 });
@@ -4028,6 +4055,17 @@ function voidCalm(e, c) {
       pan: P(c, 8),
     });
   if (b === 11 && L > 0.4) k.p.t(midiToFreq(c.root - 17), 0.3, "sawtooth", 0.07, { lp: 380 });
+  // 3.14.0: a choir swells at the head of every fourth bar as it grows, and glitches stutter in time at the end of
+  // every second bar (three sixteenths on a chord tone, high and short)
+  if (L > 0.3 && (bar & 3) === 0 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec * 2, 0.016);
+  if (L > 0.35 && (bar & 1) === 1 && b === 13)
+    for (let i = 0; i < 3; i++)
+      k.m.t(midiToFreq(chord[i % 3] + 36), 0.025, "square", 0.007, {
+        lp: 3200,
+        at: (i * c.barSec) / 16,
+        opt: true,
+        pan: P(c, 20 + i, 0.7),
+      });
 }
 
 /* ---------- boss tracks ---------- */

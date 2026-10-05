@@ -403,13 +403,15 @@ const PLACE = {
   },
 };
 /* 3.13.0: the soundscape of each biome.
-   bed: the steady layer, one grain every lo..hi s, at level g
+   bed: the steady layer, one grain every lo..hi s, at level g; 3.14.0: a fifth field is the intensity from which the
+        calm theme of the place plays the same sound (rain drops and crickets always, the heartbeat above 0.5), so the
+        bed steps back to half while it does
    far: the far sounds, each on its own timer of lo..hi s; big ones never sound at the same time (one waits a few
         seconds); light: the renderer shows it ("lightning", "siren") */
 const SCAPE = {
   yard: {
     bed: [
-      ["rainDrop", 0.12, 0.3, 0.8],
+      ["rainDrop", 0.12, 0.3, 0.8, 0],
       ["gutter", 1.6, 4, 0.7],
       ["rainMetal", 2.5, 6, 0.6],
     ],
@@ -452,7 +454,7 @@ const SCAPE = {
     ],
   },
   marsh: {
-    bed: [["cricket", 0.4, 1.1, 0.8]],
+    bed: [["cricket", 0.4, 1.1, 0.8, 0]],
     far: [
       { id: "frogChorus", every: [20, 40] },
       { id: "cicada", every: [25, 50] },
@@ -466,7 +468,7 @@ const SCAPE = {
     ],
   },
   void: {
-    bed: [["heartbeat", 1.1, 1.3, 0.7]],
+    bed: [["heartbeat", 1.1, 1.3, 0.7, 0.5]],
     far: [
       { id: "reversed", every: [25, 50] },
       { id: "metal", every: [30, 60] },
@@ -546,8 +548,12 @@ function placeTick(e, world, dt) {
   if (!scape) return;
   const thin = world.boss ? 0.5 : 1,
     t = (st.t = (st.t || 0) + dt);
-  for (const [id, lo, hi, g] of scape.bed)
-    if (due("bed:" + id, lo / thin, hi / thin)) play(id, { g: g * (world.boss ? 0.6 : 1), pan: rand(-0.5, 0.5) });
+  const calm = e.musVol > 0 && e.playKind === "fight";
+  for (const [id, lo, hi, g, inMusic] of scape.bed)
+    if (due("bed:" + id, lo / thin, hi / thin)) {
+      const carried = calm && inMusic != null && (inMusic === 0 || (e.intensity || 0) > inMusic);
+      play(id, { g: g * (world.boss ? 0.6 : 1) * (carried ? 0.5 : 1), pan: rand(-0.5, 0.5) });
+    }
   if (!st.far || st.far.biome !== arena.biome.id) {
     // the first far sounds come soon (2 s up to the shortest rate), then each keeps its own rate
     st.far = { biome: arena.biome.id, next: new Map(), last: null, lastAt: -99, bigUntil: -99 };
