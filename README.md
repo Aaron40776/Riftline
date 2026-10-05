@@ -103,7 +103,7 @@ How the code is organised, its history and the rules for changing it: [`docs/DEV
 ```
 src/
   main.js          entry point: boot, game controller, main loop, wiring
-  core/            simulation and services: world, arena, waves, AI, stats, traps, boss cards, difficulty, save,
+  core/            simulation and services: world, arena, waves, AI, stats, traps, boss cards, walker, difficulty, save,
                    diagnostics (runtime log and monitor), selftest (deep self-test), util
   data/            tables: weapons, enemies, upgrades, progression, biomes, whatsnew (the News tab)
   render/          three.js renderer, models, biome visuals, traps, hazards, attacks, boss cards, 2D overlay

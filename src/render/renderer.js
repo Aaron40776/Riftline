@@ -1649,7 +1649,9 @@ const MAX_PARTICLES = 1400,
         // leans into the movement and banks in turns
         {
           const speed = Math.hypot(player.vx, player.vy),
-            amount = clamp(speed / Math.max(2, world.stats.speed * 0.55), 0, 1),
+            // (the world stands still in the upgrade choice and the victory screen, whatever its velocity says)
+            moving = world.state === "fight" || world.state === "cleared",
+            amount = moving ? clamp(speed / Math.max(2, world.stats.speed * 0.55), 0, 1) : 0,
             jump = player.dashT > 0 ? Math.sin(Math.PI * clamp(1 - player.dashT / DASH_TIME, 0, 1)) : 0,
             turn = angleDiff(drone.faceLast === undefined ? player.face : drone.faceLast, player.face),
             k = dampFactor(10, dt);
