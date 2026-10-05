@@ -1,3 +1,34 @@
+RIFTLINE v3.18.1 – CLEAN MUSIC CHANGES
+Base: v3.18.0 · Build r3181a1005a-r1 · 05.10.2026
+
+Asked by the owner (05.10.2026): "some tracks overlap or am I imagining that? During the boss music isn't there also the
+normal music?" Option C of the three offered (a quick fade-out at the switch) was chosen.
+
+1) The cause
+   - syncTrack cut only the notes that were still to be played (cutScheduled). What was already sounding rang on: the
+     pads and bells of the calm theme (some last several seconds), the echoes of the delay line (feedback 0.32, 0.28 s a
+     round) and the tail of the 2 s room. Under the first bars of a boss, the calm theme was heard, and the boss under the
+     calm theme after it. (The calm motif that the boss tracks carry by design is a second, intended layer; unchanged.)
+
+2) The fix (audio/sound.js, quietOld, called at every track change)
+   - The music voices that sound fade out over 0.25 s (QUIET_FADE) and stop.
+   - The echo line gets no feedback for 0.7 s while it empties.
+   - The music reverb is swapped for a fresh convolver; the old one fades out and is disconnected.
+   - Nothing else about the music changes (levels, mix, the boss impact, the resolve fade-in).
+
+3) Test (deep test, trackSwitch)
+   - Offline renders of four tracks (calm Blackout City, calm Void Core, boss Ember Works, boss Frost Prism) with and
+     without the change; the music stops at 6 s and the level 0.3 to 1.75 s after the change is compared with the level
+     before it: with the cut under 12 % (measured about 1 %), without it 8 to 40 % (the test also fails when the control
+     shows nothing).
+
+4) Results 3.18.1 (headless Chromium, software WebGL; npm run release-check)
+   - RESULTS_PLACEHOLDER
+
+5) Open doubts
+   - The sound itself is judged by ear: the 0.25 s fade is short on purpose (a boss starts with an impact); the Sound
+     notes (3.17.2) are the way to say if it is too abrupt.
+
 RIFTLINE v3.18.0 – ALWAYS LANDSCAPE
 Base: v3.17.2 · Build r3180a1005a-r1 · 05.10.2026
 

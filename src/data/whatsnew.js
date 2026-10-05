@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.18.1",
+    title: "Clean music changes",
+    items: [
+      "When the music changes (the calm theme to a boss track and back), the old track now fades out instead of ringing on under the new one.",
+      "The echoes and the room of the old track are cleared with it, so every track starts clean.",
+    ],
+  },
+  {
     version: "3.18.0",
     title: "Always landscape",
     items: [
