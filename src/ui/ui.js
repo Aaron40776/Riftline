@@ -473,6 +473,17 @@ const getById = (id) => document.getElementById(id),
       requestAnimationFrame(() => window.__riftLayoutAudit?.());
     }
     back() {
+      // 3.17.2: from the sound notes back to where they were opened (the pause menu or the settings)
+      if (this.rlSoundNotes) {
+        const from = this.rlSoundNotes;
+        this.rlSoundNotes = null;
+        getById("sndNotes").hidden = true;
+        if (from === "pause") {
+          getById("pause").hidden = false;
+          this.screen = "pause";
+        } else this._show("settings");
+        return;
+      }
       // 2.4.2: from settings opened in the pause menu back to the pause menu
       if (this.rlFromPause) {
         closePauseSettings(this);
@@ -1424,6 +1435,88 @@ const getById = (id) => document.getElementById(id),
       info.hidden = !own.length;
       info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>';
     }
+    /* 3.17.2: the sound notes. The engine remembers the sounds of the last half minute (SoundEngine.heard); the player
+       pauses right after one bothers or pleases them, taps it and taps what they think of it. The note names the exact
+       sound (`step:ice`, `eshotWarden`, `place:siren`), the wave, the biome and the music, and "Copy notes" puts them all
+       in one text to send. They are kept in localStorage under riftline.soundNotes (the last 300), not in the save. */
+    openSoundNotes(fromPause) {
+      this.rlSoundNotes = fromPause ? "pause" : "settings";
+      this.snSel = null;
+      getById("pause").hidden = true;
+      getById("settings").hidden = true;
+      getById("sndNotes").hidden = false;
+      this.screen = "sndNotes";
+      this.renderSoundNotes();
+    }
+    renderSoundNotes() {
+      const sound = this.g.sound,
+        music = sound.musicNow(),
+        items = [];
+      if (music)
+        items.push({
+          key: `music:${musicLabel(music.kind)}:${music.biome}`,
+          sub: music.paused ? "paused here" : `playing · intensity ${music.intensity.toFixed(1)}`,
+        });
+      for (const s of sound.recentSounds())
+        if (!SOUND_NOTES_SKIP.has(s.key) && items.length < 17)
+          items.push({ key: s.key, sub: `${s.n}\xD7 \xB7 ${s.ago < 1.5 ? "just now" : Math.round(s.ago) + " s ago"}` });
+      getById("snMusic").textContent = items.length
+        ? ""
+        : "Nothing played lately: pause right after you hear something.";
+      getById("snList").innerHTML = items
+        .map(
+          (item) =>
+            `<button type="button" class="sn-item${item.key === this.snSel ? " sel" : ""}" data-key="${escapeHtml(item.key)}"><span>${escapeHtml(item.key)}</span><small>${escapeHtml(item.sub)}</small></button>`,
+        )
+        .join("");
+      const reasons = getById("snReasons");
+      reasons.hidden = !this.snSel;
+      reasons.innerHTML = SOUND_REASONS.map(
+        ([id, label]) => `<button type="button" data-reason="${id}">${escapeHtml(label)}</button>`,
+      ).join("");
+      const count = readSoundNotes().length;
+      getById("snCount").textContent = String(count);
+      getById("sndNotesCount").textContent = count ? String(count) : "";
+    }
+    selectSoundNote(key) {
+      this.snSel = key;
+      this.renderSoundNotes();
+    }
+    saveSoundNote(reason) {
+      if (!this.snSel) return;
+      const world = this.g.world,
+        inRun = this.g.mode !== "menu" && world && world.arena,
+        music = this.g.sound.musicNow(),
+        notes = readSoundNotes();
+      notes.push({
+        at: Date.now(),
+        key: this.snSel,
+        reason,
+        wave: inRun ? world.wave : null,
+        biome: inRun ? world.arena.biome.id : null,
+        music: music ? `${musicLabel(music.kind)} ${music.biome} ${music.intensity.toFixed(1)}` : null,
+      });
+      writeSoundNotes(notes.slice(-300));
+      const label = SOUND_REASONS.find(([id]) => id === reason);
+      this.toast(`Noted: ${this.snSel} \xB7 ${label ? label[1] : reason}`);
+      this.renderSoundNotes();
+      const done = getById("snReasons").querySelector(`[data-reason="${reason}"]`);
+      if (done) done.classList.add("done");
+    }
+    copySoundNotes() {
+      const notes = readSoundNotes();
+      if (!notes.length) {
+        this.toast("No notes yet");
+        return;
+      }
+      this.copy(soundNotesText(notes, this.g.buildId));
+      this.toast(`Copied ${notes.length} notes`);
+    }
+    clearSoundNotes() {
+      writeSoundNotes([]);
+      this.toast("Notes cleared");
+      this.renderSoundNotes();
+    }
     hidePause() {
       // 2.4.2: also closes settings opened from the pause menu
       closePauseSettings(this);
@@ -1702,6 +1795,52 @@ const hudFpsMeter = { frames: 0, since: 0, last: 0, fps: 0, shown: "" };
 // 2.5.0 A: HUD chips of the timed upgrades, managed next to the chips of GameUI.buffs
 const timedBuffChips = ["heat", "slip", "skate"];
 // 2.4.2: closes settings that were opened from the pause menu
+// 3.17.2: the sound notes: what the player can say about a sound, the ones that are not worth a note (the sound of the
+// menu itself), where the notes are kept
+const SOUND_REASONS = [
+    ["loud", "Too loud"],
+    ["quiet", "Too quiet"],
+    ["harsh", "Harsh"],
+    ["muddy", "Muddy"],
+    ["boring", "Boring"],
+    ["repetitive", "Repetitive"],
+    ["wrong", "Doesn't fit"],
+    ["love", "Love it"],
+  ],
+  SOUND_NOTES_SKIP = new Set(["click", "hover", "reroll", "offer"]),
+  SOUND_NOTES_KEY = "riftline.soundNotes";
+// the name of a music track in the notes: the calm theme of a fight, the boss track, the music of the menus
+const musicLabel = (kind) => (kind === "boss" ? "boss" : kind === "fight" ? "calm" : "menu");
+function readSoundNotes() {
+  try {
+    const list = JSON.parse(localStorage.getItem(SOUND_NOTES_KEY) || "[]");
+    return Array.isArray(list) ? list.filter((n) => n && typeof n.key === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function writeSoundNotes(notes) {
+  try {
+    localStorage.setItem(SOUND_NOTES_KEY, JSON.stringify(notes));
+  } catch {}
+}
+function soundNotesText(notes, build) {
+  const label = Object.fromEntries(SOUND_REASONS);
+  return [
+    `Riftline sound notes \xB7 build ${build || "?"} \xB7 ${notes.length} notes`,
+    ...notes.map((n) =>
+      [
+        new Date(n.at).toLocaleString("sv-SE").slice(0, 16),
+        n.wave != null ? `wave ${n.wave} ${n.biome}` : "menu",
+        n.key,
+        label[n.reason] || n.reason,
+        n.music ? `music ${n.music}` : "",
+      ]
+        .filter(Boolean)
+        .join(" | "),
+    ),
+  ].join("\n");
+}
 function closePauseSettings(ui) {
   ui.g.sound.stopPreview();
   ui.rlFromPause = false;

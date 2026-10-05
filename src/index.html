@@ -403,6 +403,27 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 /* 2.8.1: animate from the hidden state, so the cards stay visible when reduced motion turns the animation off */
 @keyframes cardIn { from { opacity: 0; transform: translateY(10px); } }
 .choose-foot { display: flex; gap: 10px; }
+.sn { width: min(600px, 94vw); }
+.sn-music { font: 600 13px/1.3 var(--display); letter-spacing: 0.08em; color: var(--cyan); margin: 2px 0 8px; text-align: center; }
+.sn-list { display: grid; gap: 6px; width: 100%; max-height: 38vh; overflow-y: auto; margin-bottom: 8px; }
+.sn-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; padding: 9px 12px; background: var(--panel2); border: 1px solid var(--line2); color: inherit; font: 600 14px/1.2 var(--display); letter-spacing: 0.03em; }
+.sn-item small { color: var(--dim); font: 500 12px/1 var(--body); white-space: nowrap; }
+.sn-item.sel { border-color: var(--cyan); box-shadow: inset 0 0 0 1px var(--cyan); }
+.sn-reasons { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 8px; }
+.sn-reasons button { padding: 8px 12px; background: var(--panel2); border: 1px solid var(--line2); color: inherit; font: 600 13px/1 var(--display); }
+.sn-reasons button.done { border-color: #5bf29b; color: #5bf29b; }
+/* short screens (a phone held sideways): the list on the left, the reasons and the buttons on the right, no hint text */
+@media (max-height: 560px) {
+  .center-col.sn { width: min(780px, 96vw); max-width: 780px; display: grid; grid-template-columns: 1.15fr 1fr; grid-template-rows: auto auto auto auto 1fr; column-gap: 14px; row-gap: 6px; align-content: center; }
+  .center-col.sn .eyebrow, .center-col.sn .note { display: none; }
+  .center-col.sn h2 { grid-column: 1 / -1; margin: 0; font-size: 20px; }
+  .sn-music { grid-column: 1 / -1; margin: 0; }
+  .sn-list { grid-column: 1; grid-row: 3 / 6; max-height: 70vh; margin: 0; }
+  .sn-reasons { grid-column: 2; grid-row: 3; margin: 0; align-content: flex-start; }
+  .center-col.sn .btn-row { grid-column: 2; grid-row: 4; }
+  #snBack { grid-column: 2; grid-row: 5; align-self: start; }
+  .sn-item { padding: 7px 10px; }
+}
 .build-strip, .build-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 460px; }
 .bi { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; font: 600 12px/1 var(--display); color: var(--text); background: rgba(255, 255, 255, 0.05); border-left: 2px solid var(--rc, var(--r1)); }
 .bi .ico { width: 14px; height: 14px; color: var(--rc, var(--r1)); }
@@ -1609,6 +1630,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div class="set-foot">
         <span class="note">Riftline <span id="verText" class="num"></span> · progress saves automatically<span id="storageWarn" hidden> — <b>storage is blocked in this browser</b></span></span>
         <div class="btn-row">
+          <button id="sndNotesBtn" class="btn ghost small menu-only">Sound notes <span id="sndNotesCount" class="chip"></span></button>
           <button id="logBtn" class="btn ghost small">Diagnostics <span id="logCount" class="chip"></span></button>
           <button id="resetBtn" class="btn danger ghost small menu-only">Reset progress</button>
         </div>
@@ -1641,10 +1663,28 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
         <button id="restartBtn" class="btn">Restart</button>
         <button id="pauseSetBtn" class="btn">Settings</button>
       </div>
+      <button id="pauseSndBtn" class="btn ghost small">Sound notes</button>
       <button id="abandonBtn" class="btn danger ghost">Abandon run</button>
       <div class="section-h">Build</div>
       <div id="pauseBuild" class="build-list"></div>
       <div id="pauseUpInfo" class="up-info" aria-live="polite" hidden></div>
+    </div>
+  </section>
+
+  <!-- ====================================================== SOUND NOTES (3.17.2) -->
+  <section id="sndNotes" class="screen overlay" hidden>
+    <div class="center-col sn">
+      <div class="eyebrow">SOUND NOTES</div>
+      <h2>What did you hear?</h2>
+      <p class="note">Pause right after a sound or a piece of music bothers you (or pleases you), tap it, then tap what you think of it. Copy the notes and send them: they name the exact sound.</p>
+      <div id="snMusic" class="sn-music"></div>
+      <div id="snList" class="sn-list"></div>
+      <div id="snReasons" class="sn-reasons" hidden></div>
+      <div class="btn-row">
+        <button id="snCopy" class="btn">Copy notes <span id="snCount" class="chip">0</span></button>
+        <button id="snClear" class="btn ghost">Clear</button>
+      </div>
+      <button id="snBack" class="btn primary">Back</button>
     </div>
   </section>
 
