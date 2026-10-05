@@ -116,47 +116,31 @@ Plan:
 4. Then the boss rewards, the walker. (Renumbered on 04.10.2026: the owner's later requests come first, as 3.11.0
    landscape only and 3.12.0 the Singularity, so the soundscapes become 3.13.0 and the music 3.14.0.)
 
-### HANDOFF (night of 04/05.10.2026; read this first when the work goes on)
+### HANDOFF (morning of 05.10.2026; read this first when the work goes on)
 
-**State.** 3.12.0 (the Singularity) is finished on branch `claude/singularity-3120`, stacked on 3.11.0 (PR #31).
-3.11.0 (landscape only) is finished on branch `claude/landscape-3110`, stacked on 3.10.0 (PR #30); merge #30, then
-#31, then the Singularity. 3.10.0 is finished on branch `claude/attack-looks-3100` (PR #30 against `main`, not merged yet): the attack
-looks and sounds, plus the faster and steadier release checks the owner asked for (QA report 3.10.0, points 6 and 7:
-release-check green, 432 QA checks, 170 E2E checks, no page errors). The open QA failure of the first runs was a
-timing flake under software WebGL that main had too; the waits that depend on the game now count game time.
+**State.** Six stacked PRs, all with a green release check and green CI, none merged. Merge them in this order (each
+PR targets the branch of the one before; when a merged branch is deleted GitHub retargets the next PR to main):
+1. #30 3.10.0 attack looks + faster and steadier tests (`claude/attack-looks-3100`, against main)
+2. #31 3.11.0 landscape only (`claude/landscape-3110`)
+3. #32 3.12.0 the Singularity replaces the grenade (`claude/singularity-3120`)
+4. #33 repository cleanup, README as the landing page, docs/DEVELOPMENT.md (`claude/repo-cleanup`, no release)
+5. #34 3.13.0 soundscapes (`claude/soundscapes-3130`)
+6. #35 3.14.0 music of the place (`claude/place-music-3140`)
+Details of each are in its PR and in the QA report. Things the owner should listen to or decide: the MP3 previews of
+the soundscapes and the ten tracks (`node tools/qa.js scape-preview` and `... scape-preview music` make them again),
+how the Singularity feels in play, whether tablets stay landscape-only too, and the GitHub settings listed in #33
+(description, website, topics, social preview, a license).
 
-**Order agreed with the owner for the night (04.10.2026), one PR each, stacked because nothing is merged overnight**
-(each later branch starts from the earlier one, each PR targets the earlier branch and says "stacked on #N, merge in
-order"; after a merge and a deleted branch GitHub retargets the next PR to main):
-1. 3.10.0 with the faster tests (done, see above).
-2. 3.11.0 Landscape only (done, QA report 3.11.0): phones open and stay in landscape (manifest orientation landscape, screen.orientation.lock
-   where the browser allows it, a "rotate your phone" screen that pauses a run in portrait; iPhone Safari and browser
-   tabs cannot be locked); the portrait layouts, the portrait layout of the button editor and the portrait tests go
-   (about 9 minutes less in the release checks). PC unchanged.
-3. 3.12.0 The Singularity replaces the grenade (done, QA report 3.12.0; burning ground for Searing Collapse not built): thrown fast and far (to the aim or the biggest group within about
-   14 m), it opens a small rift that pulls enemies together for about 1.5 s, then collapses in a blast. Its own model
-   (a spinning core with a ring), a swirling rift mark on the ground as the warning, a rising pull and a collapse as the
-   sound; the three cards keep their ids (gcells, gblast, gfire) with new effects (more charges and faster recharge;
-   bigger pull and blast; burning ground), so saves stay valid.
-4. (done, no release: only docs and repository files, branch `claude/repo-cleanup`, stacked on 3.12.0) The repository
-   cleanup the owner asked for. README rewritten as the landing page (icon, Play link, badges of the two workflows,
-   real screenshots from the test runs in `docs/media/`, a short feature list, controls, running it locally,
-   development, structure, deployment); the code history and working rules moved to `docs/DEVELOPMENT.md`; the Pages
-   workflow comment names the real URL; `.gitattributes` (LF), `.gitignore` (editor folders), `homepage` and
-   `repository` in `package.json`. Kept on purpose: this roadmap and the QA report (CLAUDE.md needs them), every
-   test and tool (all in use), no new dependencies or bots. For the owner to do on GitHub (no tool here can): the
-   repository description ("A 3D arena roguelite shooter for the browser: 20 waves, 5 biomes, 5 bosses, Endless"),
-   the website field (https://aaron40776.github.io/Riftline/), topics (game, browser-game, roguelite, threejs,
-   webgl, pwa, javascript), a social preview image (docs/media/void-core.jpg fits), and whether the code gets a
-   license. Was: if usage is left: the repository cleanup the owner asked for (README as the landing page with the Play link,
-   stale information, docs, .github), without deleting this roadmap or the QA report (CLAUDE.md needs them).
-5. Then the roadmap below in its order: 3.13.0 soundscapes (done on branch `claude/soundscapes-3130`, stacked on the
-   cleanup; QA report 3.13.0; sounds tied to the props near the drone not done), 3.14.0 music of the place (done on
-   branch `claude/place-music-3140`, stacked on 3.13.0; QA report 3.14.0), boss rewards, the walker.
+**Not built tonight, on purpose:** burning ground for Searing Collapse (3.12.0; needs a new enemy-only zone with a
+look of its own), sounds tied to props near the drone (3.13.0; the props are only drawn), the boss rewards and the
+walker (next on the list, they need decisions first, see below).
 
-Usage rules of the owner: stop at a clean point at about 90 % of the 5-hour window and go on after its reset; stop and
-report at about 85 % of the weekly limit. Before every PR: code review of the diff, the full release check, a look at
-the screenshots, no new page errors or audit warnings, determinism unchanged unless the change means it.
+**Next: the boss rewards (section 1 below) need the owner's answers before building.** Proposal to put to the owner:
+boss offers only from rare and better cards (today the filter only drops common ones), a chance of 30 % for the boss's
+exclusive card that grows by 15 % after each miss, the exclusive card with a boss seal, its own frame and sound, one
+per boss per run (Endless: again after each loop), a codex entry. The Rift Core idea "Singularität" (a pulling nova)
+now clashes with the Singularity gadget: suggest "Event Collapse" (the Nova implodes first) or another mechanic. The
+five ideas each need a model, a sound and tests; plan about one PR.
 
 **Notes for the tests.** `npm run check` while developing (about 2 minutes), `npm run release-check` before a
 release (about 41 to 44 minutes). Never run two browser tests at once (software WebGL takes every core). Waits that

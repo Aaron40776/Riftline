@@ -40,7 +40,14 @@ keep melody and key and rebuild rhythm and instruments per place. Sixth of the s
      themes at -31 to -33 dB mean, the boss tracks at -20 to -23 dB, no clipping (peaks -4 to -17 dB).
 
 4) Results 3.14.0 (headless Chromium, software WebGL; npm run release-check)
-RESULTS_3140
+   - npm test steps: green (deep test with placeMusic and v3140; the music tests: ten tracks, 30 budgets, no failure;
+     determinism 15/15 unchanged).
+   - Full QA: all 403 checks passed. E2E: 136 checks, 0 failures on the four devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     3476 events in 41 kinds, all consumed.
+   - Screens, biome and attack pictures: no page errors.
+   - MP3 previews of the ten tracks (tests/shots/scapes/music-*.mp3) sent to the owner.
+   - Time of the whole chain: 34 min 35 s. Format check: ok.
 
 5) Open doubts
    - Only measured, not heard: whether the new rhythms fit the themes and how they sit under a busy fight (the MP3
