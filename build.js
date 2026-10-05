@@ -76,7 +76,17 @@ async function build() {
   for (const f of ["index.html", "sw.js", "build-info.json"]) {
     fs.writeFileSync(path.join(DIST, f), fill(fs.readFileSync(r("src", f), "utf8"), m, f));
   }
-  JSON.parse(fs.readFileSync(path.join(DIST, "build-info.json"), "utf8")); // must stay valid JSON
+  // 3.17.1: the game fetches build-info.json at every start (the health check, the update handshake) and reads only the
+  // version and the build id from it, but the file carried the whole changelog (93 % of 50 KB, four KB more with every
+  // release). The build writes the small identity file the game needs and the history to changes.json, which nothing
+  // fetches. src/build-info.json stays the one place the release notes are written.
+  const info = JSON.parse(fs.readFileSync(path.join(DIST, "build-info.json"), "utf8")); // must stay valid JSON
+  const { features, changes, ...identity } = info;
+  fs.writeFileSync(path.join(DIST, "build-info.json"), JSON.stringify(identity, null, 1) + "\n");
+  fs.writeFileSync(
+    path.join(DIST, "changes.json"),
+    JSON.stringify({ version: info.version, build_id: info.build_id, features, changes }, null, 1) + "\n",
+  );
 
   // Offline contract: every file the service worker precaches must exist in dist/.
   const sw = fs.readFileSync(path.join(DIST, "sw.js"), "utf8");

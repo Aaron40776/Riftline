@@ -10,6 +10,22 @@ export const WHATS_NEW = [
     ],
   },
   {
+    version: "3.17.2",
+    title: "Sound notes",
+    items: [
+      "New in the pause menu and the settings: Sound notes. Pause right after a sound or a track bothers or pleases you, tap it and tap what you think (too loud, harsh, boring…).",
+      "The notes name the exact sound, the wave, the biome and the music. Copy them and send them to get the sound tuned.",
+    ],
+  },
+  {
+    version: "3.17.1",
+    title: "Lighter start",
+    items: [
+      "The game downloads about 15 KB less every time it starts, and the app icons are smaller, with the same pictures.",
+      "Nothing else changes: no gameplay, graphics or sound differ from 3.17.0.",
+    ],
+  },
+  {
     version: "3.17.0",
     title: "The walker",
     items: [

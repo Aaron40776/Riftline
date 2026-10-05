@@ -35,7 +35,13 @@ const log = (sec, st, name, detail = "") => {
 // 3.10.0: every context a section opens; the section closes what is left when it ends or throws. A section that
 // threw used to leave its page running (software GL at ~300 % CPU) and every later section timed out on page.goto.
 const liveContexts = new Set();
-async function open(profName, { save = null, block = false } = {}) {
+// 3.17.1: most of the time of the QA is the browser drawing the 3D scene in software at a few frames a second. The QA
+// looks at state and the DOM, not at pixels, so the GPU draw calls (drawElements, drawArrays and their instanced forms)
+// are no-ops: everything else runs as before (the simulation, the renderer's own code that builds the scene each frame,
+// the shaders, the DOM). P.shot draws for real around a screenshot, the E2E, the screenshots, the biome and attack
+// pictures and the audits of the release check draw all the time. QA_DRAW=1 draws everywhere.
+const DRAW_ALWAYS = process.env.QA_DRAW === "1";
+async function open(profName, { save = null, block = false, draw = DRAW_ALWAYS } = {}) {
   const prof = PROFILES[profName];
   const ctx = await browser.newContext({
     viewport: prof.viewport,
@@ -62,6 +68,24 @@ async function open(profName, { save = null, block = false } = {}) {
     },
     [KEY, save, block],
   );
+  await ctx.addInitScript((noDraw) => {
+    window.__qaNoDraw = noDraw;
+    for (const proto of [window.WebGL2RenderingContext?.prototype, window.WebGLRenderingContext?.prototype])
+      if (proto)
+        for (const fn of [
+          "drawElements",
+          "drawArrays",
+          "drawElementsInstanced",
+          "drawArraysInstanced",
+          "drawRangeElements",
+        ])
+          if (proto[fn]) {
+            const real = proto[fn];
+            proto[fn] = function (...args) {
+              return window.__qaNoDraw ? undefined : real.apply(this, args);
+            };
+          }
+  }, !draw);
   liveContexts.add(ctx);
   ctx.on("close", () => liveContexts.delete(ctx));
   const page = await ctx.newPage();
@@ -140,6 +164,23 @@ async function open(profName, { save = null, block = false } = {}) {
         return "unparsable";
       }
     }, KEY);
+  // a screenshot of what the game draws now: the draw calls are on for two frames around it
+  P.shot = async (opts) => {
+    if (!draw) {
+      await page.evaluate(() => {
+        window.__qaNoDraw = false;
+      });
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    try {
+      return await page.screenshot(opts);
+    } finally {
+      if (!draw)
+        await page.evaluate(() => {
+          window.__qaNoDraw = true;
+        });
+    }
+  };
   P.close = () => ctx.close();
   return P;
 }
@@ -249,7 +290,16 @@ await section("files", async (L) => {
     b: document.querySelector('meta[name="riftline-build"]')?.content,
     src: [...document.scripts].map((s) => s.getAttribute("src")).filter(Boolean),
   }));
-  const info = await (await P.page.request.get(BASE + "build-info.json")).json();
+  const infoText = await (await P.page.request.get(BASE + "build-info.json")).text(),
+    info = JSON.parse(infoText);
+  // 3.17.1: the game fetches build-info.json at every start: it is the small identity file, the history is changes.json
+  const hist = await (await P.page.request.get(BASE + "changes.json")).json();
+  check(
+    L,
+    "build-info.json is small (no changelog), the history is in changes.json",
+    infoText.length < 2000 && !("changes" in info) && hist.version === info.version && hist.changes.length > 50,
+    `${infoText.length} bytes, ${hist.changes.length} changes`,
+  );
   check(
     L,
     "version identical in index.html / build-info / service worker",
@@ -796,7 +846,7 @@ await section("workshop-merge", async (L) => {
         ]),
       JSON.stringify(pips),
     );
-    await P.page.screenshot({ path: new URL(`./shots/workshop-merge-${profName}.png`, import.meta.url).pathname });
+    await P.shot({ path: new URL(`./shots/workshop-merge-${profName}.png`, import.meta.url).pathname });
     await P.back("workshop");
     check(L, `${profName}: unfinished run offered`, await P.vis("continueBtn"));
     await P.tap("#continueBtn");
@@ -1582,7 +1632,7 @@ await section("visual", async (L) => {
       `fill ${(r.minFill * 100).toFixed(0)} % · card ${r.w}×${r.h}`,
     );
     check(L, `cards ${tag}: reroll below the cards and on screen`, r.reroll);
-    await P.page.screenshot({ path: new URL(`./shots/qa-cards-${w}x${h}-${r.n}.png`, import.meta.url).pathname });
+    await P.shot({ path: new URL(`./shots/qa-cards-${w}x${h}-${r.n}.png`, import.meta.url).pathname });
     await P.close();
   }
 });
@@ -2212,6 +2262,115 @@ await section("qol", async (L) => {
 });
 
 /* ======================= 5. controls: every button is wired and named ======================= */
+/* ======================= sound notes (3.17.2) ======================= */
+for (const profName of ["desktop", "phone"])
+  await section(`soundnotes-${profName}`, async (L) => {
+    const P = await open(profName, { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+    await P.boot();
+    const notes = () => P.ev(() => JSON.parse(localStorage.getItem("riftline.soundNotes") || "[]"));
+    // a run, a few sounds heard lately (the engine's memory of them is filled directly: headless audio may not run)
+    await P.ev(() => {
+      const T = window.__riftTest;
+      T.game.startRun({});
+      T.game.sound.heard("eshot", { type: "boss", boss: "warden" });
+      T.game.sound.heard("step", { ground: "ice" });
+      T.game.sound.heard("step", { ground: "ice" });
+      T.game.sound.heard("place:siren");
+      T.game.sound.heard("click");
+    });
+    await P.page.waitForTimeout(600);
+    await P.ev(() => window.__riftTest.game.pause());
+    await P.page.waitForTimeout(400);
+    check(L, "pause menu has the Sound notes button", await P.vis("pauseSndBtn"));
+    await P.tap("#pauseSndBtn");
+    check(L, "sound notes open", await P.vis("sndNotes"));
+    const list = await P.ev(() =>
+      [...document.querySelectorAll("#snList .sn-item")].map(
+        (e) => e.dataset.key + "|" + e.querySelector("small").textContent,
+      ),
+    );
+    check(
+      L,
+      "the list names the sounds heard lately (distinct, counted), not the menu's own clicks",
+      list.some((x) => x.startsWith("step:ice|2×")) &&
+        list.some((x) => x.startsWith("eshot:warden")) &&
+        list.some((x) => x.startsWith("place:siren")) &&
+        !list.some((x) => x.startsWith("click")),
+      list.join(" ; "),
+    );
+    check(L, "no reasons before a sound is picked", !(await P.vis("snReasons")));
+    await P.tap('#snList [data-key="step:ice"]');
+    check(L, "picking a sound shows the reasons", await P.vis("snReasons"));
+    await P.tap('#snReasons [data-reason="loud"]');
+    await P.tap('#snList [data-key="place:siren"]');
+    await P.tap('#snReasons [data-reason="love"]');
+    const saved = await notes();
+    check(
+      L,
+      "the notes are saved with the exact sound, the reason and where it was",
+      saved.length === 2 &&
+        saved[0].key === "step:ice" &&
+        saved[0].reason === "loud" &&
+        saved[1].key === "place:siren" &&
+        saved[1].reason === "love" &&
+        saved[0].wave >= 1 &&
+        !!saved[0].biome,
+      JSON.stringify(saved),
+    );
+    check(L, "the count shows", (await P.ev(() => document.getElementById("snCount").textContent)) === "2");
+    // the copied text (the clipboard may be blocked: the text is what is built)
+    const text = await P.ev(() => {
+      let copied = null;
+      const g = window.__riftTest.ui;
+      g.copy = (t) => (copied = t);
+      g.copySoundNotes();
+      return copied;
+    });
+    check(
+      L,
+      "copy builds one text with a line per note",
+      !!text &&
+        text.split("\n").length === 3 &&
+        /step:ice \| Too loud/.test(text) &&
+        /place:siren \| Love it/.test(text),
+      String(text).replace(/\n/g, " / "),
+    );
+    // back: the button and the Esc key lead to the pause menu
+    await P.tap("#snBack");
+    check(L, "Back returns to the pause menu", (await P.vis("pause")) && !(await P.vis("sndNotes")));
+    await P.tap("#pauseSndBtn");
+    if (!P.prof.touch) {
+      await P.page.keyboard.press("Escape");
+      await P.page.waitForTimeout(300);
+      check(L, "Esc returns to the pause menu", (await P.vis("pause")) && !(await P.vis("sndNotes")));
+      await P.tap("#pauseSndBtn");
+    }
+    await P.tap("#snClear");
+    check(L, "Clear removes the notes", (await notes()).length === 0);
+    await P.tap("#snBack");
+    check(L, "no page errors in the run", !P.errors.length, P.errors.slice(0, 3).join(" | "));
+    await P.close();
+    // from the settings of the main menu (no run: the notes can be copied and cleared there)
+    const Q = await open(profName, {
+      save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }),
+    });
+    await Q.boot();
+    await Q.nav("settings");
+    check(L, "settings have the Sound notes button in the menu", await Q.vis("sndNotesBtn"));
+    await Q.tap("#sndNotesBtn");
+    check(L, "sound notes open from the settings", await Q.vis("sndNotes"));
+    check(
+      L,
+      "no run: the music of the menu is the one thing to note",
+      (await Q.ev(() => [...document.querySelectorAll("#snList .sn-item")].map((e) => e.dataset.key))).join() ===
+        "music:menu:yard",
+    );
+    await Q.tap("#snBack");
+    check(L, "Back returns to the settings", (await Q.vis("settings")) && !(await Q.vis("sndNotes")));
+    check(L, "no page errors in the menu", !Q.errors.length, Q.errors.slice(0, 3).join(" | "));
+    await Q.close();
+  });
+
 await section("buttons", async (L) => {
   const P = await open("desktop");
   await P.boot();
@@ -2417,7 +2576,7 @@ await section("upgrades250A", async (L) => {
           text: cards.map((x) => x.querySelector("p").textContent),
         };
       });
-      await P.page.screenshot({ path: new URL(`./shots/upgrades250A-${prof}-${i + 1}.png`, import.meta.url).pathname });
+      await P.shot({ path: new URL(`./shots/upgrades250A-${prof}-${i + 1}.png`, import.meta.url).pathname });
       check(
         L,
         `${prof}: new upgrade cards ${offer.join(", ")} fit`,
@@ -2532,7 +2691,7 @@ for (const profName of ["desktop", "phone"])
           { timeout: 15000 },
         )
         .catch(() => {});
-      await P.page.screenshot({
+      await P.shot({
         path: new URL(`./shots/qa-event-${profName}-${want[biome]}-banner.png`, import.meta.url).pathname,
       });
       const r = await P.ev((n) => {
@@ -2609,7 +2768,7 @@ for (const profName of ["desktop", "phone"])
           s.vents.length >= 6 && s.vents.every((v) => v === s.vents[0]),
           s.vents.join(","),
         );
-      await P.page.screenshot({
+      await P.shot({
         path: new URL(`./shots/qa-event-${profName}-${want[biome]}.png`, import.meta.url).pathname,
       });
     }
@@ -2951,7 +3110,7 @@ await section("shell", async (L) => {
   // --- a phone held upright: the game is turned, it plays in landscape, the touches arrive where the buttons are
   {
     PROFILES.upright = { viewport: { width: 390, height: 844 }, touch: true, mobile: true };
-    const P = await open("upright", { save });
+    const P = await open("upright", { save, draw: true });
     await shellOf(P);
     const fr = await frameOf(P);
     const st = await state(P);
@@ -3004,11 +3163,15 @@ await section("shell", async (L) => {
     const dashBefore = await fr.evaluate(() => window.__riftTest.game.world.runStats.dashes);
     const dash = onScreen(st, 390, await rectIn(fr, "#dashBtn"));
     await P.page.touchscreen.tap(dash.x, dash.y);
-    await P.page.waitForTimeout(400);
     check(
       L,
       "a tap on the turned DASH button dashes",
-      (await fr.evaluate(() => window.__riftTest.game.world.runStats.dashes)) > dashBefore,
+      await fr
+        .waitForFunction((n) => window.__riftTest.game.world.runStats.dashes > n, dashBefore, { timeout: 15000 })
+        .then(
+          () => true,
+          () => false,
+        ),
     );
     // the move stick: a finger dragged on the left of the game moves the drone to the right of the game
     const cdp = await P.ctx.newCDPSession(P.page);
@@ -3065,11 +3228,15 @@ await section("shell", async (L) => {
     // the dash of the tap before has to be ready again (game time, not real time: a loaded machine runs the game slowly)
     await fr.waitForFunction(() => window.__riftTest.game.world.player.dashCdT <= 0, null, { timeout: 60000 });
     await P.page.touchscreen.tap(dash2.x, dash2.y);
-    await P.page.waitForTimeout(400);
     check(
       L,
       "in landscape a tap on DASH dashes as well",
-      (await fr.evaluate(() => window.__riftTest.game.world.runStats.dashes)) > d2,
+      await fr
+        .waitForFunction((n) => window.__riftTest.game.world.runStats.dashes > n, d2, { timeout: 15000 })
+        .then(
+          () => true,
+          () => false,
+        ),
     );
     check(L, "no page errors", !P.errors.length, P.errors.slice(0, 3).join(" | "));
     await P.close();

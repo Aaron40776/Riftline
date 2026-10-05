@@ -730,7 +730,7 @@ input.onPause = () => {
     return;
   }
   // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
-  if (ui.rlFromPause) return ui.back();
+  if (ui.rlSoundNotes || ui.rlFromPause) return ui.back();
   if (game.mode === "menu") {
     if (input._rlKey === "escape" && ["workshop", "records", "settings"].includes(ui.screen)) {
       ui.back();
@@ -1590,6 +1590,21 @@ function rlRetireToast() {
 
   // ---- settings from the pause menu
   ui.click(getById("pauseSetBtn"), () => ui.openPauseSettings());
+
+  // ---- 3.17.2: the sound notes (from the pause menu and from the settings)
+  ui.click(getById("pauseSndBtn"), () => ui.openSoundNotes(true));
+  ui.click(getById("sndNotesBtn"), () => ui.openSoundNotes(false));
+  ui.click(getById("snBack"), () => ui.back());
+  ui.click(getById("snCopy"), () => ui.copySoundNotes());
+  ui.click(getById("snClear"), () => ui.clearSoundNotes());
+  getById("snList").addEventListener("click", (ev) => {
+    const item = ev.target.closest && ev.target.closest("[data-key]");
+    if (item) ui.selectSoundNote(item.dataset.key);
+  });
+  getById("snReasons").addEventListener("click", (ev) => {
+    const reason = ev.target.closest && ev.target.closest("[data-reason]");
+    if (reason) ui.saveSoundNote(reason.dataset.reason);
+  });
 
   // ---- the button layout editor
   ui.click(getById("hudEditBtn"), () => hudEditor.open());

@@ -477,6 +477,7 @@ function rlSelfTest() {
   result = selfTestV3150(result);
   result = selfTestV3160(result);
   result = selfTestV3170(result);
+  result = selfTestV3172(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3590,4 +3591,48 @@ function selfTestV3170(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3170: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct
+   sound, counted, most recent first, forgotten after half a minute; the music that plays now ---- */
+function selfTestV3172(result) {
+  const fail = [];
+  try {
+    if (typeof OfflineAudioContext !== "undefined") {
+      const engine = new SoundEngine();
+      engine.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
+      if (engine.recentSounds().length) fail.push("heard-from-the-start");
+      engine.heard("step", { ground: "ice" });
+      engine.heard("step", { ground: "ice" });
+      engine.heard("step", { ground: "mud" });
+      engine.heard("eshot", { type: "boss", boss: "warden" });
+      engine.heard("pick", 6);
+      engine.heard("place:siren");
+      engine.heard("nova");
+      const list = engine.recentSounds(),
+        by = Object.fromEntries(list.map((e) => [e.key, e]));
+      if (by["step:ice"]?.n !== 2 || by["step:mud"]?.n !== 1) fail.push("counts:" + JSON.stringify(by));
+      if (!by["eshot:warden"] || !by["pick:6"] || !by["place:siren"] || !by.nova) fail.push("keys:" + Object.keys(by));
+      if (list.length !== 6) fail.push("distinct:" + list.length);
+      if (list.some((e, i) => i && e.ago < list[i - 1].ago)) fail.push("order");
+      if (engine.recentSounds(0).length > 0 && engine.recentSounds(0).some((e) => e.ago > 0)) fail.push("window");
+      // a flood of different sounds does not grow the memory without bound
+      for (let i = 0; i < 300; i++) engine.heard("flood" + i);
+      if (engine.recent.size > 80) fail.push("unbounded:" + engine.recent.size);
+      if (engine.musicNow() !== null) fail.push("music-off");
+      engine.playKind = "boss";
+      engine.playBiome = "works";
+      engine.intensity = 0.6;
+      const now = engine.musicNow();
+      if (!now || now.kind !== "boss" || now.biome !== "works" || now.paused) fail.push("music-now");
+      // paused in a fight the game plays the menu music but holds the track: that is the one that counts
+      engine.playKind = "menu";
+      engine.held = { kind: "fight", biome: "works" };
+      const held = engine.musicNow();
+      if (!held || held.kind !== "fight" || held.biome !== "works" || !held.paused) fail.push("music-held");
+    }
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3172: { ok: fail.length === 0, fail } };
 }
