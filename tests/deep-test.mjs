@@ -741,6 +741,64 @@ const switched = await page.evaluate(async (under) => {
   }
   return { ...out, fail };
 }, SWITCH_UNDER);
+// 3.19.0: the ambient bloom: every calm theme has single notes that ring out in the ping-pong echo (BLOOM): enough of them
+// to be noticed and few enough to be subtle, at a level under the theme, each biome with a voice and a register of its
+// own, and the whole thing wide (the two channels differ)
+const bloomRes = await page.evaluate(async () => {
+  const E = window.__riftTest.game.sound.constructor,
+    out = {},
+    fail = [],
+    rms = (x) => {
+      let sum = 0;
+      for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
+      return Math.sqrt(sum / x.length);
+    },
+    // how wide: the energy of the difference of the channels against that of their sum
+    width = (l, r) => {
+      let side = 0,
+        mid = 0;
+      for (let i = 0; i < l.length; i++) {
+        side += (l[i] - r[i]) ** 2;
+        mid += (l[i] + r[i]) ** 2;
+      }
+      return Math.sqrt(side / (mid || 1));
+    };
+  for (const biome of ["yard", "works", "vault", "marsh", "void"]) {
+    const info = E.trackInfo("fight", biome),
+      seconds = (8 * 240) / info.bpm,
+      spec = { music: "fight", biome, intensity: 0.2, wav: true, log: true, seed: 11, stereo: true, noBed: true },
+      withB = await E.renderOffline(spec, seconds),
+      without = await E.renderOffline({ ...spec, bloom: false }, seconds),
+      notes = withB.musicLog.filter((n) => n.bus === "b"),
+      onlyPitches = notes.map((n) => n.pitch);
+    const rw = rms(withB.samples),
+      ro = rms(without.samples),
+      share = Math.sqrt(Math.max(0, rw * rw - ro * ro)) / ro,
+      wW = width(withB.samples, withB.samplesR),
+      wO = width(without.samples, without.samplesR);
+    out[biome] = {
+      notes: notes.length,
+      lowHz: Math.round(Math.min(...onlyPitches)),
+      highHz: Math.round(Math.max(...onlyPitches)),
+      share: +share.toFixed(2),
+      widthWith: +wW.toFixed(2),
+      widthWithout: +wO.toFixed(2),
+    };
+    if (notes.length < 3) fail.push(`${biome}: only ${notes.length} bloom notes in 8 bars`);
+    if (notes.length > 20) fail.push(`${biome}: ${notes.length} bloom notes in 8 bars is not subtle`);
+    if (share < 0.08) fail.push(`${biome}: the bloom is not noticeable (${share.toFixed(2)} of the theme)`);
+    if (share > 0.9) fail.push(`${biome}: the bloom is louder than the theme allows (${share.toFixed(2)})`);
+    if (!(wW > wO)) fail.push(`${biome}: the bloom does not widen the sound (${wO.toFixed(2)} -> ${wW.toFixed(2)})`);
+    if (withB.musicSkipped || withB.musicShed) fail.push(`${biome}: notes refused with the bloom`);
+  }
+  // each biome has its own register
+  const centre = (b) => Math.sqrt(out[b].lowHz * out[b].highHz);
+  if (!(centre("vault") > centre("works") * 1.8))
+    fail.push("the glass of the Cryo Vault is not clearly above the pipes of the Ember Works");
+  return { ...out, fail };
+});
+res.bloom = bloomRes;
+if (bloomRes.fail.length) res.ok = false;
 res.trackSwitch = switched;
 if (switched.fail.length) res.ok = false;
 if (ambience.fail.length) res.ok = false;

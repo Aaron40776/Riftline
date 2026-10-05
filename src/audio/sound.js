@@ -628,6 +628,7 @@ const musicChords = {
       this.makeup = null;
       this.musLevel = null;
       this.pump = null;
+      this.ping = null;
       this.choir = null;
       this.verbIn = null;
       this.mbed = null;
@@ -760,6 +761,32 @@ const musicChords = {
       this.delay.connect(this.fb);
       this.fb.connect(this.delay);
       this.delay.connect(this.mus);
+      // 3.19.0: the ping-pong echo of the ambient bloom (BLOOM): two delays that feed each other, one heard on the left
+      // and one on the right, so that every note of the bloom wanders across the room; it ends in the music bus
+      if (ctx.createStereoPanner) {
+        this.ping = ctx.createGain();
+        const dl = ctx.createDelay(1),
+          dr = ctx.createDelay(1),
+          fl = ctx.createGain(),
+          fr = ctx.createGain(),
+          pl = ctx.createStereoPanner(),
+          pr = ctx.createStereoPanner();
+        dl.delayTime.value = 0.43;
+        dr.delayTime.value = 0.43;
+        fl.gain.value = fr.gain.value = 0.42;
+        pl.pan.value = -0.9;
+        pr.pan.value = 0.9;
+        this.ping.connect(this.mus);
+        this.ping.connect(dl);
+        dl.connect(pl);
+        pl.connect(this.mus);
+        dl.connect(fl);
+        fl.connect(dr);
+        dr.connect(pr);
+        pr.connect(this.mus);
+        dr.connect(fr);
+        fr.connect(dl);
+      }
       let len = ctx.sampleRate;
       this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
       let data = this.noiseBuf.getChannelData(0);
@@ -1083,7 +1110,16 @@ const musicChords = {
         pitch,
         vol,
         dur: voice.end - voice.start,
-        bus: dest === this.delay ? "d" : dest === this.pump ? "p" : dest === this.choir ? "c" : "m",
+        bus:
+          dest === this.delay
+            ? "d"
+            : dest === this.pump
+              ? "p"
+              : dest === this.choir
+                ? "c"
+                : dest === this.ping
+                  ? "b"
+                  : "m",
       });
     }
     gate(key, gap) {
@@ -3601,6 +3637,8 @@ const musicChords = {
             half: 30 / track.bpm / 4,
           };
         track.play(this, c);
+        // 3.19.0: the ambient bloom lies on every calm theme (this.bloom = false switches it off for a test)
+        if (kind === "fight" && this.bloom !== false) calmBloom(kit(this, c), c, biome);
         if (kind === "boss" && this.heat > 0) bossHeatLayer(this, c);
       } else if (kind === "menu") {
         let [root, quality] = chords[Math.floor(step / 16)],
@@ -3686,9 +3724,12 @@ const musicChords = {
      starts 0.25 s into the render (like in the game, where the compressors are already running). */
     static async renderOffline(spec, seconds = 2) {
       let Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext,
-        ctx = new Offline(1, Math.ceil(44100 * (seconds + 0.35)), 44100),
+        // 3.19.0 (test): spec.stereo renders two channels (samples is the left one, samplesR the right one); spec.bloom
+        // false leaves out the ambient bloom
+        ctx = new Offline(spec.stereo ? 2 : 1, Math.ceil(44100 * (seconds + 0.35)), 44100),
         engine = new SoundEngine(),
         base = 0;
+      if (spec.bloom === false) engine.bloom = false;
       // with spec.seed the noise of the engine and the sound's own random choices are seeded (see below); spec.room
       // false leaves out the reverbs (the convolver of Chrome renders its tail on another thread, not quite the same
       // every time)
@@ -3810,6 +3851,8 @@ const musicChords = {
         bpm: spec.music ? trackInfo(spec.music, spec.biome).bpm : 0,
         failed: !!engine.failed,
         samples: spec.wav ? Array.from(data.subarray(Math.round(base * 44100))) : null,
+        samplesR:
+          spec.wav && spec.stereo ? Array.from(buffer.getChannelData(1).subarray(Math.round(base * 44100))) : null,
       };
     }
   };
@@ -3880,6 +3923,8 @@ function kit(e, c) {
     p: bus(e.pump),
     d: bus(e.delay),
     c: bus(e.choir),
+    // 3.19.0: the ping-pong bus of the ambient bloom (null where the browser has no stereo panner)
+    g: e.ping ? bus(e.ping) : null,
   };
 }
 /* the pump: the pads, bass, strings, brass and choir dip to `depth` on an accented kick and come back with `rel` */
@@ -4245,6 +4290,87 @@ function calmMotif(k, c, voice, v = 1, lite = false) {
   VOICE[voice](k.d, midiToFreq(n), 0.045 * v * VOICE_GAIN[voice], { pan: P(c, 2, 0.6), bright: sec >= 2, lite });
 }
 /* the pad of a biome, one swell per bar on the first step */
+/* 3.19.0: the ambient bloom (the direction of the owner: "Osmos": a subtle melody and soft effects, noticeable and nice,
+   distinct for each biome, in stereo). On top of every calm theme single notes bloom now and then and ring out for
+   seconds: each biome has its own voice (felt piano, struck pipes, glass, kalimba, inharmonic sine bells), its own
+   notes (the notes of the chord and what colours it in that place), its own register and its own density; every note
+   has its place in the room (a hashed pan) and wanders on through the ping-pong echo and the room. They are most
+   present when it is quiet and step back as the fight swells. */
+const BLOOM = {
+  // Blackout City: a felt piano a little above the electric piano motif, the colour is the ninth and the sixth
+  yard: { voice: "felt", extra: [14, 9], low: 12, span: 1, rate: 0.62, vol: 0.05, len: 3.4, width: 0.85, echo: 0.6 },
+  // Ember Works: struck pipes, low and warm, the colour is the fourth and the ninth
+  works: { voice: "bowl", extra: [5, 14], low: 0, span: 1, rate: 0.5, vol: 0.06, len: 5, width: 0.7, echo: 0.5 },
+  // Cryo Vault: glass, high, the colour is the sharp eleventh (the Lydian fourth) and the ninth
+  vault: { voice: "glass", extra: [18, 14], low: 24, span: 1, rate: 0.7, vol: 0.036, len: 4.8, width: 0.95, echo: 0.8 },
+  // Toxin Marsh: a kalimba, plucked and a little out of tune, the colour is the flat seventh and the fourth
+  marsh: {
+    voice: "kalimba",
+    extra: [10, 5],
+    low: 12,
+    span: 1,
+    rate: 0.75,
+    vol: 0.058,
+    len: 1.8,
+    width: 0.9,
+    echo: 0.55,
+  },
+  // Void Core: sine bells that sing in a fifth and fall away, the colour is the tritone and the major seventh
+  void: { voice: "ether", extra: [6, 11], low: 12, span: 2, rate: 0.45, vol: 0.04, len: 6, width: 1, echo: 0.9 },
+};
+const BLOOM_VOICE = {
+  felt: (g, f, v, len, o) => {
+    g.t(f, len, "sine", v, { attack: 0.012, lp: 2400, ...o });
+    g.t(f * 2, len * 0.5, "triangle", v * 0.22, { attack: 0.01, lp: 1800, ...o });
+    g.t(f * 4.02, 0.16, "sine", v * 0.07, { attack: 0.002, ...o });
+  },
+  bowl: (g, f, v, len, o) => {
+    g.t(f, len, "sine", v, { attack: 0.05, ...o });
+    g.t(f * 2.01, len * 0.7, "sine", v * 0.38, { attack: 0.05, ...o });
+    g.t(f * 2.99, len * 0.45, "sine", v * 0.2, { attack: 0.04, ...o });
+    g.t(f * 4.18, len * 0.25, "sine", v * 0.09, { attack: 0.03, ...o });
+  },
+  glass: (g, f, v, len, o) => {
+    g.t(f, len, "sine", v, { attack: 0.003, ...o });
+    g.t(f * 1.003, len * 0.8, "sine", v * 0.5, { attack: 0.003, ...o });
+    g.t(f * 2.76, len * 0.3, "sine", v * 0.3, { attack: 0.002, ...o });
+    g.t(f * 5.4, len * 0.12, "sine", v * 0.1, { attack: 0.002, ...o });
+  },
+  kalimba: (g, f, v, len, o) => {
+    g.t(f, len, "triangle", v, { attack: 0.004, lp: 3000, ...o });
+    g.t(f * 5.2, 0.12, "sine", v * 0.14, { attack: 0.002, ...o });
+    g.t(f * 0.5, len * 0.6, "sine", v * 0.25, { attack: 0.004, ...o });
+  },
+  ether: (g, f, v, len, o) => {
+    g.t(f, len, "sine", v, { attack: 0.35, to: f * 0.992, ...o });
+    g.t(f * 1.5, len * 0.8, "sine", v * 0.42, { attack: 0.5, detune: 7, to: f * 1.5 * 0.99, ...o });
+    g.t(f * 2.7, len * 0.4, "sine", v * 0.1, { attack: 0.3, ...o });
+  },
+};
+function calmBloom(k, c, biome) {
+  const cfg = BLOOM[biome];
+  if (!cfg || !k.g) return;
+  // the places in the bar where a note may bloom: the first beat, the off-beat before the third and the last sixteenth
+  const slot = c.b === 0 ? 0 : c.b === 6 ? 1 : c.b === 10 ? 2 : c.b === 14 ? 3 : -1;
+  if (slot < 0) return;
+  // most present when quiet, thinner as the fight swells (never silent: it is part of the place)
+  const chance = cfg.rate * (0.55 - 0.3 * c.L) * (slot === 0 ? 1.2 : 0.7);
+  if (R(c, 31 + slot) >= chance) return;
+  const pool = [c.chord[0], c.chord[1], c.chord[2], c.chord[0] + cfg.extra[0], c.chord[0] + cfg.extra[1]],
+    midi =
+      pool[Math.floor(R(c, 35 + slot) * pool.length)] + cfg.low + 12 * Math.floor(R(c, 39 + slot) * (cfg.span + 1));
+  BLOOM_VOICE[cfg.voice](
+    k.g,
+    midiToFreq(midi),
+    cfg.vol * (0.7 + 0.3 * R(c, 43 + slot)),
+    cfg.len * (0.8 + 0.4 * R(c, 47 + slot)),
+    {
+      pan: P(c, 51 + slot, cfg.width),
+      rev: cfg.echo,
+      opt: true,
+    },
+  );
+}
 function calmPad(k, c, biome) {
   if (c.b !== 0) return;
   const cfg = CALM_PAD[biome];
