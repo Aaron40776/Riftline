@@ -473,6 +473,7 @@ function rlSelfTest() {
   result = selfTestV3130(result);
   result = selfTestV3140(result);
   result = selfTestV3150(result);
+  result = selfTestV3160(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3301,4 +3302,60 @@ function selfTestV3150(result) {
     fail.push("collapse-exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3150: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.16.0: every boss attack has a look of its own: the shots of each boss have its shape (none is the generic
+   orb any more), every boss beam has a skin or a colour, and a boss volley names its boss for its sound ---- */
+function selfTestV3160(result) {
+  const fail = [];
+  const WANT = { warden: "siren", queen: "spore", core: "riftorb", prism: "shard", forge: "slag" };
+  try {
+    for (const type of Object.keys(WANT)) {
+      const world = new World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });
+      let wave = 5;
+      while (world.bossFor(wave) !== type && wave < 200) wave += 5;
+      if (world.bossFor(wave) !== type) {
+        fail.push("no-wave:" + type);
+        continue;
+      }
+      world.startWave(wave);
+      world.state = "fight";
+      world.god = true;
+      const kinds = new Set(),
+        bare = new Set(),
+        volleys = [];
+      let boss = null;
+      for (let i = 0; i < 60 * 70; i++) {
+        world.step(1 / 60, { mx: Math.sin(i / 90), my: Math.cos(i / 130), aim: false, fire: false, assist: false });
+        if (!boss && world.boss) {
+          boss = world.boss;
+          // the Overdrive comes first, then the whole pattern
+          boss.odDue = true;
+        }
+        for (const bullet of world.eb) if (bullet.src === type) kinds.add(bullet.kind);
+        for (const beam of world.beams) if (beam.src === type && !beam.skin && !beam.color) bare.add(beam.src);
+        for (const ev of world.fx) if (ev.k === "eshot" && ev.type === "boss") volleys.push(ev.boss);
+        world.fx.length = 0;
+        if (world.state !== "fight") break;
+      }
+      if (!boss) {
+        fail.push("no-boss:" + type);
+        continue;
+      }
+      if (!kinds.size) fail.push("no-shots:" + type);
+      if (kinds.has("orb")) fail.push("orb:" + type);
+      if (!kinds.has(WANT[type])) fail.push(`kind:${type}:${[...kinds].join("/")}`);
+      if (bare.size) fail.push("bare-beam:" + type);
+      if (volleys.some((id) => id !== type)) fail.push("volley-boss:" + type);
+    }
+    // the shots of an ordinary enemy stay what they were
+    const world = new World({ seed: 1, weapon: "pulse", threat: 0, ws: {} });
+    world._src = "gunner";
+    const shot = world.shoot(0, 0, 0, 5, 5);
+    if (!shot || shot.kind !== "orb") fail.push("gunner-shot");
+    world._src = null;
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3160: { ok: fail.length === 0, fail } };
 }

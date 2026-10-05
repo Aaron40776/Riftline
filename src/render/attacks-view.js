@@ -64,7 +64,14 @@ const WHITE = new Color(0xffffff),
     drone: new Color(0xff4f9a),
     weaver: new Color(0xd04dff),
     carrier: new Color(0xff5a6a),
-  };
+    // 3.16.0: the bosses' own shots: the Warden's siren slugs flash red and blue, the Hive Queen's spores are toxic
+    // green, the Rift Core's rings violet
+    siren: new Color(0xff3346),
+    spore: new Color(0xb8f03a),
+    riftorb: new Color(0xb070ff),
+  },
+  SIREN_BLUE = new Color(0x3d7bff),
+  RIFT_RIM_SHOT = new Color(0x7ae8ff);
 
 // the dust of each biome (stomps and cracks throw it), the index of its marks in the shader
 const DUST = {
@@ -389,8 +396,47 @@ const MODELS = {
       box(0xffffff, 0.5, 0.05, 1.0, { x: -0.5 }),
     ],
   }),
+  // 3.16.0: the Warden's slug (a capsule along +x with a dark band, its light from the instance), the Hive Queen's
+  // spore (a ball with short thorns), the Rift Core's ring (a torus standing upright, spinning)
+  slug: () => ({
+    body: [meshPart(new CylinderGeometry(0.5, 0.5, 0.3, 8), 0x1a1d24, { rz: Math.PI / 2 })],
+    glow: [
+      meshPart(new CylinderGeometry(0.42, 0.42, 1.5, 8), 0xffffff, { rz: Math.PI / 2 }),
+      meshPart(new SphereGeometry(0.42, 8, 5), 0xffffff, { x: 0.75 }),
+      meshPart(new SphereGeometry(0.42, 8, 5), 0xffffff, { x: -0.75 }),
+    ],
+  }),
+  spore: () => ({
+    glow: [
+      meshPart(new SphereGeometry(0.62, 8, 6), 0xffffff),
+      ...[0, 1, 2, 3, 4, 5].map((i) =>
+        meshPart(new ConeGeometry(0.16, 0.5, 4), 0xffffff, {
+          x: Math.cos(i * 1.047) * 0.66,
+          y: (i % 2 ? 0.25 : -0.25) * 0.8,
+          z: Math.sin(i * 1.047) * 0.66,
+          rz: -Math.cos(i * 1.047) * 1.3,
+          rx: Math.sin(i * 1.047) * 1.3,
+        }),
+      ),
+    ],
+  }),
+  ringshot: () => ({
+    glow: [meshPart(new TorusGeometry(0.85, 0.2, 6, 16), 0xffffff), meshPart(new SphereGeometry(0.3, 6, 4), 0xffffff)],
+  }),
 };
-const MAX = { zone: 64, mark: 90, mine: 24, charge: 16, shell: 24, spike: 160, crystal: 160, dart: 120 };
+const MAX = {
+  zone: 64,
+  mark: 90,
+  mine: 24,
+  charge: 16,
+  shell: 24,
+  spike: 160,
+  crystal: 160,
+  dart: 120,
+  slug: 120,
+  spore: 120,
+  ringshot: 120,
+};
 
 class AttackView {
   constructor(r, Pool) {
@@ -990,6 +1036,49 @@ class AttackView {
                 spark: true,
               },
             );
+          break;
+        }
+        case "siren": {
+          // the Warden's slug: it flashes red and blue like the lights of a patrol car (each slug on its own beat)
+          const P = this.get("slug"),
+            blue = Math.sin(time * 18 + (shot.x + shot.y) * 0.7) > 0,
+            light = blue ? SIREN_BLUE : color,
+            s = shot.r * 0.9;
+          P.body.y(shot.x, 0.75, shot.y, angle, s);
+          P.glow.col(
+            P.glow.y(shot.x, 0.75, shot.y, angle, s),
+            0.55 + light.r * 0.6,
+            0.55 + light.g * 0.6,
+            0.55 + light.b * 0.6,
+          );
+          r.sprites.colC(r.sprites.bb(shot.x, 0.75, shot.y, shot.r * 7, basis), light, 0.95);
+          continue;
+        }
+        case "spore": {
+          // the Hive Queen's spore: a thorny ball that wobbles and drips toxic motes
+          const P = this.get("spore"),
+            wob = 1 + Math.sin(time * 16 + shot.x * 2) * 0.12,
+            s = shot.r * 1.1;
+          P.glow.col(
+            P.glow.yr(shot.x, 0.75, shot.y, time * 3 + shot.y, s * wob, s / wob, s * wob, time * 2, 0),
+            0.55 + color.r * 0.5,
+            0.6 + color.g * 0.45,
+            0.4 + color.b * 0.4,
+          );
+          if (Math.random() < 0.25) r.emit(shot.x, 0.7, shot.y, 0, -0.4, 0, 0.5, 0.14, ACID_LITE, { grav: 3, drag: 1 });
+          break;
+        }
+        case "riftorb": {
+          // the Rift Core's ring: an upright violet ring that spins around a bright core, a cyan rim of light
+          const P = this.get("ringshot"),
+            s = shot.r * 0.95;
+          P.glow.col(
+            P.glow.yr(shot.x, 0.8, shot.y, angle + Math.PI / 2, s, s, s, 0, time * 7 + shot.x),
+            0.6 + color.r * 0.5,
+            0.55 + color.g * 0.5,
+            0.7 + color.b * 0.3,
+          );
+          r.sprites.colC(r.sprites.bb(shot.x, 0.8, shot.y, shot.r * 4, basis), RIFT_RIM_SHOT, 0.5);
           break;
         }
         default: {

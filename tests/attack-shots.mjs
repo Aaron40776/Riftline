@@ -110,8 +110,10 @@ for (const id of ids) {
       });
       w._src = null;
       // the shots of every kind, slow, in a fan above the drone
-      ["orb", "fast", "turret", "shard", "weaver", "drone", "carrier", "slag"].forEach((kind, j) =>
-        w.shoot(px - 5.6 + j * 1.6, py - 2.6, Math.PI / 2, 0.4, 0, { kind, life: 9, r: kind === "slag" ? 0.34 : 0.26 }),
+      // 3.16.0: and the bosses' own: the Warden's siren slugs, the Hive Queen's spores, the Rift Core's rings
+      ["orb", "fast", "turret", "shard", "weaver", "drone", "carrier", "slag", "siren", "spore", "riftorb"].forEach(
+        (kind, j) =>
+          w.shoot(px - 8 + j * 1.6, py - 2.6, Math.PI / 2, 0.4, 0, { kind, life: 9, r: kind === "slag" ? 0.34 : 0.26 }),
       );
     },
     [id, STAGE[id] || STAGE.yard],

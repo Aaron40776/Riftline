@@ -52,6 +52,14 @@ const RL_DEATH_FAMILY = {
 };
 /* 2.9.0: the shot of an enemy by type (default "eshot", the gunner); the sniper has its own lock-on sound */
 const RL_ESHOT_VOICE = { sniper: "snipe", turret: "eshotTurret", drone: "eshotDrone", boss: "eshotBoss" };
+/* 3.16.0: the shots of each boss sound like what they are (eshotBoss stays for a boss without a voice of its own) */
+const BOSS_ESHOT = {
+  warden: "eshotWarden",
+  queen: "eshotQueen",
+  core: "eshotCore",
+  prism: "eshotPrism",
+  forge: "eshotForge",
+};
 /* wind-up voices of the "charge" event (enemy types and the bosses that charge) */
 const RL_CHARGE_VOICE = {
   brute: "windHeavy",
@@ -300,7 +308,16 @@ const RL_SOUND_EVENTS = {
   die: [{}],
   enrage: [{ id: "warden" }],
   erupt: [{}],
-  eshot: [{ type: "gunner" }, { type: "turret" }, { type: "drone" }, { type: "boss" }, { type: "sniper" }],
+  eshot: [
+    { type: "gunner" },
+    { type: "turret" },
+    { type: "drone" },
+    { type: "boss" },
+    { type: "sniper" },
+    { type: "boss", boss: "warden" },
+    { type: "boss", boss: "queen" },
+    { type: "boss", boss: "core" },
+  ],
   freeze: [{}],
   fuse: [{}],
   guardBreak: [{}],
@@ -1324,6 +1341,50 @@ const musicChords = {
             this.tone(90, 0.25, "sine", 0.22, { to: 45 });
             this.tone(140, 0.2, "sawtooth", 0.05, { to: 70, lp: 500 });
             this.noise(0.18, 0.07, { f: 700, to: 200 });
+          }
+          break;
+        // ---- 3.16.0: the boss shots, each its own (a volley of rings or a fan, so each is one sound per volley) ----
+        case "eshotWarden":
+          // the Warden: a riot gun's hard crack with an electric snap and a short siren chirp up a minor third
+          if (this.gate(id, 0.1)) {
+            this.tone(110, 0.18, "sine", 0.2, { to: 55 });
+            this.noise(0.07, 0.12, { type: "bandpass", f: 1800, q: 1.2 });
+            this.tone(2400, 0.05, "square", 0.02, { lp: 5e3, to: 1200 });
+            this.tone(640, 0.09, "sawtooth", 0.025, { at: 0.03, lp: 2400 });
+            this.tone(760, 0.12, "sawtooth", 0.025, { at: 0.12, lp: 2400 });
+          }
+          break;
+        case "eshotQueen":
+          // the Hive Queen: a wet spit, a gurgle and the buzz of the swarm in it
+          if (this.gate(id, 0.1)) {
+            this.tone(220, 0.16, "sine", 0.14, { to: 90 });
+            this.noise(0.12, 0.1, { type: "bandpass", f: 900, to: 400, q: 2 });
+            this.hum(180, 0.22, "sawtooth", 0.02, { lp: 900, wob: { rate: 70, depth: 25 } });
+          }
+          break;
+        case "eshotCore":
+          // the Rift Core: a hollow glassy pulse that bends down, with a reversed shimmer before it
+          if (this.gate(id, 0.1)) {
+            this.noise(0.1, 0.05, { type: "bandpass", f: 3e3, to: 6e3, q: 3, attack: 0.09 });
+            this.tone(70, 0.3, "sine", 0.18, { at: 0.08, to: 40 });
+            this.tone(880, 0.3, "sine", 0.04, { at: 0.08, to: 620 });
+            this.tone(1320, 0.22, "sine", 0.025, { at: 0.08, to: 930 });
+          }
+          break;
+        case "eshotPrism":
+          // the Frost Prism: a cold crystal chime over a soft thump
+          if (this.gate(id, 0.1)) {
+            this.tone(95, 0.16, "sine", 0.16, { to: 50 });
+            [1, 2.76, 5.4].forEach((m, i) => this.tone(1180 * m, 0.25 - i * 0.05, "sine", 0.035 / (i + 1)));
+            this.noise(0.05, 0.05, { type: "highpass", f: 5e3 });
+          }
+          break;
+        case "eshotForge":
+          // the Crucible: a heavy glob of slag thrown out, a low roar and a hiss
+          if (this.gate(id, 0.1)) {
+            this.tone(75, 0.3, "sine", 0.22, { to: 40 });
+            this.noise(0.22, 0.1, { type: "lowpass", f: 1200, to: 300 });
+            this.noise(0.35, 0.03, { type: "highpass", f: 3e3, at: 0.05, attack: 0.05 });
           }
           break;
         case "snipe":
@@ -2574,7 +2635,7 @@ const musicChords = {
             this.play("heal");
             break;
           case "eshot":
-            this.play(RL_ESHOT_VOICE[ev.type] || "eshot");
+            this.play((ev.type === "boss" && BOSS_ESHOT[ev.boss]) || RL_ESHOT_VOICE[ev.type] || "eshot");
             break;
           case "aim":
             this.play(ev.type === "turret" ? "servo" : "lock");
@@ -4662,6 +4723,11 @@ function rlSoundCatalog() {
     "eshotDrone",
     "eshotTurret",
     "eshotBoss",
+    "eshotWarden",
+    "eshotQueen",
+    "eshotCore",
+    "eshotPrism",
+    "eshotForge",
     "warn",
     "fuse",
     "spawn",
@@ -4773,6 +4839,7 @@ export {
   SoundEngine,
   RL_DEATH_FAMILY,
   RL_ESHOT_VOICE,
+  BOSS_ESHOT,
   RL_CHARGE_VOICE,
   RL_DASH_VOICE,
   RL_BOSS_ATK,

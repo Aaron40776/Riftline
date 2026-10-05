@@ -674,7 +674,7 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.4 + boss.n * gap && boss.n < rings) {
           shootRing(game, boss, 16 + rage * 6, 7 + rage, shotDmg, (boss.n % 2) * (Math.PI / (16 + rage * 6)));
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
         if (boss.t > 0.4 + rings * gap + 0.4) {
           endBossAttack(boss, 2.4 - rage * 0.7);
@@ -755,7 +755,7 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.35 + boss.n * 0.42 && boss.n < 3 + rage) {
           for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, aim + (k - 2) * 0.16, 9.5, shotDmg);
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
         if (boss.t > 2) {
           endBossAttack(boss, 1.3);
@@ -920,7 +920,7 @@ function updateBoss(game, boss, dt) {
             "shard",
           );
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
         if (boss.t > 0.9 + rings * 0.45 + 0.5) {
           endBossAttack(boss, 1.3);
@@ -1004,7 +1004,7 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.3 + boss.n * 0.5 && boss.n < 2 + phase) {
           shootRing(game, boss, 18 + phase * 2, 7, shotDmg, (boss.n % 2) * 0.15);
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
         if (boss.t > 0.3 + (2 + phase) * 0.5 + 0.3) {
           endBossAttack(boss, 1.3);
@@ -1032,6 +1032,8 @@ function updateBoss(game, boss, dt) {
               dmg: boss.dmg,
               follow: boss,
               len: 34,
+              // 3.16.0: the Rift Core's beams are ribbons of the rift (the warning stays red)
+              skin: "rift",
             });
           game.emit("beamWarn", { x: boss.x, y: boss.y });
         }
@@ -1049,7 +1051,7 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.3 + boss.n * 0.35 && boss.n < 3 + phase) {
           for (let k = 0; k < 7; k++) game.shoot(boss.x, boss.y, aim + (k - 3) * 0.13, 9 + phase * 0.5, shotDmg);
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
         if (boss.t > 0.3 + (3 + phase) * 0.35 + 0.4) {
           endBossAttack(boss, 1.2);
@@ -1108,9 +1110,10 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
       boss.vy = 0;
       const grid = (shift, warn) => {
         for (let x = -W + 3 + shift; x < W - 1; x += 6)
-          game.beam({ x, y: -H, a: Math.PI / 2, len: H * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg });
+          // 3.16.0: the security lasers of Blackout City (the warning stays red)
+          game.beam({ x, y: -H, a: Math.PI / 2, len: H * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
         for (let y = -H + 3 + shift; y < H - 1; y += 6)
-          game.beam({ x: -W, y, a: 0, len: W * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg });
+          game.beam({ x: -W, y, a: 0, len: W * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
         game.emit("beamWarn", { x: boss.x, y: boss.y });
       };
       if (boss.n === 0) {
@@ -1254,6 +1257,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
             dmg: boss.dmg,
             follow: boss,
             len: 34,
+            skin: "rift",
           });
         game.emit("beamWarn", { x: boss.x, y: boss.y });
       }
@@ -1295,7 +1299,8 @@ function moveBoss(game, boss, dt, aim, dist, speedMul = 1) {
 }
 function shootRing(game, boss, count, speed, dmg, start, kind) {
   for (let k = 0; k < count; k++)
-    game.shoot(boss.x, boss.y, start + (k / count) * TAU, speed, dmg, { kind: kind || "orb", r: 0.27 });
+    // 3.16.0: without a kind the boss's own shot (World.shoot, BOSS_SHOT)
+    game.shoot(boss.x, boss.y, start + (k / count) * TAU, speed, dmg, { kind, r: 0.27 });
 }
 function findOpenSpot(game, x, y, minR, maxR) {
   for (let k = 0; k < 20; k++) {
@@ -1950,7 +1955,7 @@ function updateCrucible(game, boss, dt, aim, dist, shotDmg, rage) {
           game.shoot(mx, my, angle, 5.2 + rage * 0.6, shotDmg, { kind: "slag", r: 0.34, life: 6 });
         }
         boss.n++;
-        game.emit("eshot", { x: boss.x, y: boss.y, type: "boss" });
+        game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
       }
       if (boss.t > 0.6 + waves * 0.5 + 0.4) {
         end(1.6 - rage * 0.3);
