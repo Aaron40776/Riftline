@@ -36,7 +36,7 @@ move the drone.
 |---|---|
 | Weapons | 7, unlocked with shards: Pulse Blaster, Scattergun, Arc Caster, Railgun, Rocket Pod, Disc Launcher, Ember Jet |
 | Enemies | 25 types with their own models, plus biome champions; enemies and bosses wear a skin of the biome (lava veins, frost, slime, void glow) |
-| Look and sound | Procedural low-poly models with a silhouette of their own for the drone, 25 enemies and 5 bosses, animated per instance; all sounds and music are synthesised with WebAudio (no audio files); every biome has its own calm theme in the style of the Cryo Vault (no beat, a motif on its own instrument, a soft pad) over a soft atmosphere of its place (pink and brown noise and tones, no hiss; drops, crickets, embers and ice are notes of the theme) and a cinematic boss track carrying the same motif (taikos, staccato strings, brass, choir, arpeggios; one style per boss: cyberpunk chase, forge, ice trance, tribal acid, drum and bass) that starts when the boss appears; sounds are panned by where they happen and big blasts ring out in the room of the biome; the hazards sound where they are (lava, manholes, ice, acid, portals) and every biome has rare far sounds of its own, with their own Ambience volume; Settings can preview the music |
+| Look and sound | Procedural low-poly models with a silhouette of their own for the drone, 25 enemies and 5 bosses, animated per instance; all sounds and music are synthesised with WebAudio (no audio files); every biome has its own calm theme in the style of the Cryo Vault (no beat, a motif on its own instrument, a soft pad) over a soft atmosphere of its place (pink and brown noise and tones, no hiss; drops, crickets, embers and ice are notes of the theme) and a cinematic boss track carrying the same motif (taikos, staccato strings, brass, choir, arpeggios; one style per boss: cyberpunk chase, forge, ice trance, tribal acid, drum and bass) that starts when the boss appears; sounds are panned by where they happen and big blasts ring out in the room of the biome; the attacks of enemies and bosses show what they are (cracks, lava, frost, acid, rifts, turning targets, mines and shells with models; ice spikes, pillars of fire and bolts of light when they strike) and sound like it, and leave marks of the place; enemy shots have shapes of their kind; the hazards sound where they are (lava, manholes, ice, acid, portals) and every biome has rare far sounds of its own, with their own Ambience volume; Settings can preview the music |
 | Bosses | 5, one per biome: The Warden (Blackout City), The Crucible (Ember Works), Frost Prism (Cryo Vault), Hive Queen (Toxin Marsh), Rift Core (Void Core); a boss wave brings the boss of its biome, its hull follows the wave (5, 10, 15, 20) and grows by a quarter per boss before it (at most double); every later boss rests less between attacks; enraged, each boss adds its Overdrive attack (Warden: laser lockdown grid, Crucible: expanding lava rings, Prism: three-beam whiteout, Queen: acid plague, Core: collapse), and the Warden, Crucible and Prism call reinforcements of their biome |
 | Biomes | 5, one per boss cycle: waves 1–5 Blackout City, 6–15 two of Ember Works, Cryo Vault and Toxin Marsh in a seeded order, 16–20 Void Core, the third from wave 21 in Endless. Each has its own floor, props, border, particles, light, music, hazard and enemy mix: Blackout City (wet streets in a power cut, live manholes with iron covers that arc, armed gangs; the Neon Yard until 3.4.0), Ember Works (lava craters that erupt in pillars of fire, heavy enemies), Cryo Vault (slick floor and frozen sheets with ice shards, shielded/ranged enemies), Toxin Marsh (bubbling acid pools behind mud banks and fog, swarms), Void Core (swirling portals with rune stones over the abyss, teleporters). A new biome opens with a title card; each biome has one event per visit: Blackout (Blackout City: the lights die, the manholes arc in a chain), Meltdown (Ember Works), Whiteout (Cryo Vault), Spore Bloom (Toxin Marsh), Rift Storm (Void Core) |
 | Upgrades | 55, 13 of them evolutions; each does something of its own (2.5.0–2.8.0 folded the copies and weak ones into the originals and rebalanced them; 3.0.0 added three grenade cards) |
@@ -56,19 +56,29 @@ npm install          # esbuild, playwright, prettier (browsers are preinstalled 
 npm run build        # -> dist/ (the deployable site)
 npm run dev          # build unminified, rebuild on change, serve http://localhost:8124
 npm run serve        # serve dist/ on http://localhost:8124
-npm test             # build + deep self-test + file/PWA contract + data audit + determinism (~1.5 min, also in CI)
-npm run qa           # full QA: saves, settings, workshop, runs on PC and phone, layout, buttons (~10 min)
+npm test             # build + deep self-test + file/PWA contract + data audit + determinism (~2-6 min, also in CI)
+npm run check        # quick check while developing: format + the npm test steps (~2 min with cached sound
+                     # results); name full-QA sections to add them: npm run check -- run-desktop codex
+npm run release-check  # everything a release needs, one step after another, with a time per step (~41-45 min)
+npm run qa           # full QA: saves, settings, workshop, runs on PC and phone, layout, buttons (~17 min)
 npm run e2e          # end-to-end with real pointer/touch input on 5 device sizes
 npm run audit        # world audit (routes, walls, spawns), data audit, bot run to wave 22 + post-run audit
 npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
 npm run format       # Prettier over src/, tests/, tools/ (CI runs npm run format:check)
-npm run screens      # screenshot of every screen and every biome on PC, phone and landscape phone -> tests/shots/
+npm run screens      # screenshot of every screen and every biome on PC, phone and landscape phone, and the
+                     # attacks of enemies and bosses in every biome -> tests/shots/
 ```
 
 Single test scripts run with `node tools/qa.js <script> [args]`. It serves `dist/` on a free port and
 passes the URL to the script, for example `node tools/qa.js full-qa run-desktop` runs one section
-of the full QA. Before a release run
-`npm run qa`, `npm run e2e`, `npm run audit` and `npm run screens`, then look at the screenshots.
+of the full QA (`QA_TIMES=1` prints the seconds each check took). Before a release run `npm run release-check`
+(it runs `npm test`, `npm run qa`, `npm run e2e`, `npm run audit` and `npm run screens` once each), then look at the
+screenshots.
+
+The browser tests run the game in software WebGL at a few frames per second, so they never run in parallel (each
+browser takes every core) and waits that depend on the game count game time (`tests/lib/wait.mjs`), not real time.
+The deep test reuses its sound results while the sound engine's files are unchanged
+(`node_modules/.cache/riftline/`); CI and `node tools/qa.js deep-test --full` render every sound again.
 
 ## Project structure
 

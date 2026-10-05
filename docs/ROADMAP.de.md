@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-As of 03.10.2026, after 3.9.0. New entries are written in English (the owner's wish since 03.10.2026).
+As of 04.10.2026, with 3.10.0. New entries are written in English (the owner's wish since 03.10.2026).
 
 Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
@@ -65,7 +65,104 @@ Order (one PR with a release each, to be merged one after another):
    rumbles before it erupts, manholes hum and crackle, ice cracks under the drone, acid bubbles, portals hum), rare far
    sounds of each biome (thunder and a car alarm, anvils and steam, ice cracking, frogs and birds, deep swells in the
    Void) and a volume of their own, "Ambience" (item B7 of the proposals below).
-4. Then as planned: boss rewards (then 3.10.0), the walker.
+4. Then as planned: boss rewards (then 3.10.0; after the request of 04.10.2026 3.13.0), the walker.
+
+## Requested on 04.10.2026 (after 3.9.0): what the polish missed, music and ambience of the place
+
+The owner's request: look through the project again for things that "missed" the polishing of the last days (biome
+details and enemy skins are there, but some effects are still simple, like the pools that were just coloured circles),
+make the music fit the atmosphere of each place, and add more sounds of the place in reasonable amounts (Blackout City:
+more thunder, light rain, a few sirens; Ember Works: anvils and machinery; the same for every biome), with the volumes
+right.
+
+What the review found (screenshots of every attack in every biome): the zones of the attacks of enemies and bosses
+(`world.hazards`: the Warden's stomp, the Crucible's hammer, slag rings and eruptions, the Frost Prism's nova and
+glaciers, the Hive Queen's plague, the Rift Core's bombardments, mortar shells, minebot mines, sapper charges, burning
+and volatile ground) were all the same red ring around a flat red disc with one generic blast and one `boom` sound;
+every blast and kill left the same black blob in every biome; every enemy shot was a glowing ball. The calm themes share
+one template (motif rhythm, heartbeat, sub); the place is only in the instrument and rare notes. The sounds of the place
+(3.9.0) are one far sound every 5 to 11 s from four or five per biome, nothing tied to the props; no test measures
+ambience against music and effects.
+
+Decisions of the owner (04.10.2026):
+- Order as proposed, each its own PR with a release: visuals first, then the soundscapes, then the music.
+- Calm themes: keep melody and key, rebuild rhythm and instruments per place (option a).
+- Rain in Blackout City: yes, but no constant "white noise" kind of rain (soft patter and single drops).
+- Visual tie-ins where they are logical (a lightning flash in the sky with the thunder, a faint red and blue glow of a
+  passing siren on the skyline).
+
+Plan:
+1. **3.10.0 Attacks with a look and sound of their own** (done, `render/attacks-view.js`): surfaces per attack (cracks,
+   lava cracks, molten pools, frost from the rim, acid, rifts, turning targets with a countdown, smouldering ground);
+   mines, charges and mortar shells with models; blasts of their kind (ice spikes, pillars of fire, bolts of light,
+   splashes) with sounds of their own; marks of the place instead of the black blob; enemy shots with shapes of their
+   kind. The warning ring stays.
+2. **3.11.0 Soundscapes**: per biome a soft steady layer, sounds from the props near the drone and far sounds in
+   variants, with rate limits per sound (for example thunder about every 25 to 50 s, a siren about every 60 to 120 s),
+   never two big sounds at once, no repeats, thinner in boss fights. Blackout City: light rain (patter, gutter drips,
+   rain on metal), thunder with lightning, sirens with their light, a helicopter, a horn, a dog, a buzzing street lamp.
+   Ember Works: anvil series, a drop hammer, conveyors and gears near the conveyors, steam valves and a steam whistle,
+   chain hoists, a molten pour, the roar of the furnaces. Cryo Vault: howling gusts, glacier groans, icicles, a far
+   avalanche, crystals that ring. Toxin Marsh: frog choruses, crickets and cicadas, insects flying past, splashes, an
+   owl, a heron. Void Core: the heartbeat of the core, a gravity hum near the rune stones, reversed sounds, metallic
+   resonances, chirps. Levels measured from offline renders (ambience well below the music, no far sound louder than a
+   shot, hiss under the 3.7.0 limit) and locked in tests; MP3 previews of every biome before the merge.
+3. **3.12.0 Music of the place**: keys and motifs stay, rhythm and instruments come from the place (Ember Works an
+   industrial beat of hammers, pistons and conveyors; Blackout City noir with an electric piano, a walking bass,
+   brushes, rain plinks and a siren on a chord tone; Cryo Vault refined; Toxin Marsh bayou with kalimba, log drum,
+   frog croaks in time and a wobbling drone; Void Core glass, choir, reversed swells, glitches); the boss tracks take
+   the place sounds into their drums; the ambience thins out where the music already carries a sound; MP3 previews of
+   all ten tracks before the merge.
+4. Then the boss rewards, the walker. (Renumbered on 04.10.2026: the owner's later requests come first, as 3.11.0
+   landscape only and 3.12.0 the Singularity, so the soundscapes become 3.13.0 and the music 3.14.0.)
+
+### HANDOFF (night of 04/05.10.2026; read this first when the work goes on)
+
+**State.** 3.10.0 is finished on branch `claude/attack-looks-3100` (PR against `main`, not merged yet): the attack
+looks and sounds, plus the faster and steadier release checks the owner asked for (QA report 3.10.0, points 6 and 7:
+release-check green, 432 QA checks, 170 E2E checks, no page errors). The open QA failure of the first runs was a
+timing flake under software WebGL that main had too; the waits that depend on the game now count game time.
+
+**Order agreed with the owner for the night (04.10.2026), one PR each, stacked because nothing is merged overnight**
+(each later branch starts from the earlier one, each PR targets the earlier branch and says "stacked on #N, merge in
+order"; after a merge and a deleted branch GitHub retargets the next PR to main):
+1. 3.10.0 with the faster tests (done, see above).
+2. 3.11.0 Landscape only: phones open and stay in landscape (manifest orientation landscape, screen.orientation.lock
+   where the browser allows it, a "rotate your phone" screen that pauses a run in portrait; iPhone Safari and browser
+   tabs cannot be locked); the portrait layouts, the portrait layout of the button editor and the portrait tests go
+   (about 9 minutes less in the release checks). PC unchanged.
+3. 3.12.0 The Singularity replaces the grenade: thrown fast and far (to the aim or the biggest group within about
+   14 m), it opens a small rift that pulls enemies together for about 1.5 s, then collapses in a blast. Its own model
+   (a spinning core with a ring), a swirling rift mark on the ground as the warning, a rising pull and a collapse as the
+   sound; the three cards keep their ids (gcells, gblast, gfire) with new effects (more charges and faster recharge;
+   bigger pull and blast; burning ground), so saves stay valid.
+4. If usage is left: the repository cleanup the owner asked for (README as the landing page with the Play link,
+   stale information, docs, .github), without deleting this roadmap or the QA report (CLAUDE.md needs them).
+5. Then the roadmap below in its order: 3.13.0 soundscapes, 3.14.0 music of the place, boss rewards, the walker.
+
+Usage rules of the owner: stop at a clean point at about 90 % of the 5-hour window and go on after its reset; stop and
+report at about 85 % of the weekly limit. Before every PR: code review of the diff, the full release check, a look at
+the screenshots, no new page errors or audit warnings, determinism unchanged unless the change means it.
+
+**Notes for the tests.** `npm run check` while developing (about 2 minutes), `npm run release-check` before a
+release (about 41 to 44 minutes). Never run two browser tests at once (software WebGL takes every core). Waits that
+depend on the game use `tests/lib/wait.mjs` (game time), never a fixed real-time limit. The slowest parts left are the
+real transitions (run-desktop 146 s, the E2E with five devices 7 min) and the screenshots (12 min); what is left is
+the game rendering in software. Ideas not done: one browser shared by several sections, fewer device sizes once
+portrait is gone.
+
+## Requested on 04.10.2026 (later the same day): next ideas of the owner
+
+Planned with the owner on 04.10.2026 (the order and the designs are in the HANDOFF above; faster tests done in
+3.10.0):
+- **Replace the grenade**: "the current grenades just aren't useful, you gotta get so close until they actually fly
+  into the enemies that you'll basically always have defeated them already". Make it another, cooler mechanic that
+  fits the game (with model, sound, telegraph and tests, like everything else).
+- **Landscape only**: "the game is way better at landscape", so on phones it should open in landscape and always stay
+  that way; PC keeps working as it does. (The portrait layouts, the portrait button layout of the editor and the
+  portrait tests would go.)
+- **Faster tests**: the release checks take about 45 minutes; optimize the steps for this project.
+
 
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 

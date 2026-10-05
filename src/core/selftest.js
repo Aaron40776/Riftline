@@ -21,7 +21,9 @@ import {
   MAX_VOICES,
   MUSIC_DUCK,
   BOSS_SOUND,
+  attackVoice,
 } from "../audio/sound.js";
+import { lookOf, ATTACK_LOOK } from "../render/attacks-view.js";
 import { PLACE_IDS, BIOME_PLACE, placeTick } from "../audio/place.js";
 import {
   RL_RETIRE_NOTE,
@@ -456,6 +458,7 @@ function rlSelfTest() {
   result = selfTestV371(result);
   result = selfTestV380(result);
   result = selfTestV390(result);
+  result = selfTestV3100(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -2737,4 +2740,133 @@ function selfTestV390(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v390: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.10.0: the attacks of enemies and bosses look and sound like what they are (render/attacks-view.js) ---- */
+function selfTestV3100(result) {
+  const fail = [];
+  try {
+    // every zone the bosses and enemies really make (kind and maker) has a look, a blast of its own and, where the
+    // kind is shared, the look and voice of its maker
+    const seen = new Map(),
+      watch = (world) => {
+        const hazard = world.hazard.bind(world);
+        world.hazard = (opts) => {
+          const out = hazard(opts);
+          seen.set(out.kind + "|" + (out.src || ""), out);
+          return out;
+        };
+      },
+      input = { mx: 0, my: 0, aim: false, fire: false, auto: false };
+    for (const id of bossOrder) {
+      const world = new World({ seed: 0x3100, weapon: "pulse", threat: 0, ws: {} });
+      world.startWave(bossByWave[5] === id ? 5 : bossByWave[10] === id ? 10 : bossByWave[15] === id ? 15 : 20);
+      world.god = true;
+      watch(world);
+      const boss = world.spawnBoss(id);
+      for (let frame = 0; frame < 2400 && world.boss; frame++) {
+        // the second half enraged, so the Overdrive attacks come too
+        if (frame === 1200) boss.hp = boss.maxHp * 0.2;
+        world.step(1 / 30, input);
+      }
+    }
+    for (const type of ["mortar", "minebot", "sapper", "driller"]) {
+      const world = new World({ seed: 0x3101, weapon: "pulse", threat: 0, ws: {} });
+      world.startWave(12);
+      world.god = true;
+      world.planIdx = world.plan.length;
+      for (const enemy of [...world.enemies]) world.killEnemy(enemy);
+      watch(world);
+      for (let k = 0; k < 3; k++) world.spawnEnemy(type, world.player.x + 7 + k, world.player.y + 2, {});
+      for (let frame = 0; frame < 600; frame++) world.step(1 / 30, input);
+    }
+    for (const want of [
+      "stomp|warden",
+      "stomp|forge",
+      "slag|forge",
+      "rain|forge",
+      "mortar|forge",
+      "frost|prism",
+      "glacier|prism",
+      "rain|queen",
+      "rain|core",
+      "mortar|mortar",
+      "mine|minebot",
+      "sapper|sapper",
+      "drill|driller",
+    ])
+      if (!seen.has(want)) fail.push("never-made:" + want);
+    const own = {
+      "rain|core": [ATTACK_LOOK.rift, "aRift"],
+      "rain|queen": [ATTACK_LOOK.acid, "aAcid"],
+      "rain|forge": [ATTACK_LOOK.molten, "aLava"],
+      "stomp|forge": [ATTACK_LOOK.lavaCrack, "aQuake"],
+      "stomp|warden": [ATTACK_LOOK.crack, "aQuake"],
+      "glacier|prism": [ATTACK_LOOK.frost, "aIce"],
+      "slag|forge": [ATTACK_LOOK.molten, "aLava"],
+    };
+    for (const [key, hazard] of seen) {
+      const look = lookOf(hazard.kind, hazard.src, "yard");
+      if (!Number.isInteger(look)) fail.push("no-look:" + key);
+      if (own[key] && own[key][0] !== look) fail.push(`look:${key}:${look}`);
+      if (own[key] && attackVoice(hazard.kind, hazard.src, "yard") !== own[key][1]) fail.push("voice:" + key);
+      if (renderer && renderer.attackView) {
+        const view = renderer.attackView,
+          before = view.marks.length;
+        if (!view.impact({ x: 0, y: 0, r: hazard.r, kind: hazard.kind, src: hazard.src }, null, 0))
+          fail.push("no-blast:" + key);
+        else if (view.marks.length <= before && view.marks.length < 80) fail.push("no-mark:" + key);
+      }
+    }
+    // every voice of a blast is in the catalog of the offline test
+    const catalog = rlSoundCatalog();
+    for (const id of ["aQuake", "aLava", "aIce", "aAcid", "aRift", "aFire"])
+      if (!catalog.some((entry) => entry.spec.id === id)) fail.push("uncatalogued:" + id);
+    // the zones, models, shells and shots are drawn
+    if (renderer && renderer.attackView) {
+      const view = renderer.attackView,
+        world = new World({ seed: 0x3102, weapon: "pulse", threat: 0, ws: {} });
+      world.startWave(2);
+      const kinds = [
+        "stomp",
+        "drill",
+        "slag",
+        "frost",
+        "glacier",
+        "fire",
+        "volatile",
+        "mortar",
+        "rain",
+        "mine",
+        "sapper",
+      ];
+      kinds.forEach((kind, i) => world.hazard({ x: i * 2 - 10, y: 3, r: 1.4, delay: 1, kind }));
+      world.hazard({ x: 4, y: -4, r: 2, delay: 1.5, kind: "mortar", sx: -6, sy: -6 });
+      for (const hazard of world.hazards) hazard.t = 0.5;
+      for (const kind of ["orb", "fast", "turret", "shard", "weaver", "drone", "carrier", "slag"])
+        world.shoot(0, 0, 0, 1, 1, { kind });
+      for (const pool of renderer.allPools()) pool.begin();
+      view.update(1 / 60, world);
+      view.shots(world);
+      const n = (name, part) => (view.pl[name] && view.pl[name][part] ? view.pl[name][part].n : 0);
+      if (!view.pl.zone || view.pl.zone.n !== world.hazards.length) fail.push("zones-not-drawn");
+      if (!(n("mine", "glow") > 0)) fail.push("mine-not-drawn");
+      if (!(n("charge", "body") > 0)) fail.push("charge-not-drawn");
+      if (!(n("shell", "body") > 0)) fail.push("shell-not-drawn");
+      if (n("crystal", "glow") !== 2) fail.push("crystals:" + n("crystal", "glow"));
+      if (n("dart", "glow") !== 2) fail.push("darts:" + n("dart", "glow"));
+      // a burnt mark instead of the black blob of old
+      const before = view.marks.length;
+      renderer.addScorch(1, 1, 1);
+      if (view.marks.length !== Math.min(before + 1, 86) || view.marks[view.marks.length - 1].look !== 0)
+        fail.push("scorch-not-a-mark");
+      if (renderer.scorch) fail.push("old-scorch-pool");
+      view.marks.length = 0;
+      view.spikes.length = 0;
+      view.pillars.length = 0;
+    }
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3100: { ok: fail.length === 0, fail } };
 }

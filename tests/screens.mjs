@@ -72,7 +72,12 @@ await ev(() => {
   w.bossPending = null;
   w.championPending = null;
   w.markers = [];
-  for (const e of [...w.enemies]) w.killEnemy(e);
+  // 3.10.0: run the world logic to the upgrade choice in one go (waiting for the cleared phase frame by frame
+  // took 15 to 35 s under software GL)
+  for (let k = 0; k < 900 && w.state !== "choose"; k++) {
+    for (const e of [...w.enemies]) w.killEnemy(e);
+    w.step(1 / 60, {});
+  }
 });
 await p.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
 await shot("06-choose");
