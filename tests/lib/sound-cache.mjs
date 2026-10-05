@@ -2,7 +2,8 @@
 // about 200 s and depend only on the sound engine and the data it imports. Their result is kept in
 // node_modules/.cache/riftline/ and reused while none of those inputs changed. The key is a hash of every file the
 // sound engine imports (followed automatically, so a new import counts at once), the deep test itself and the
-// lockfile (browser version). Only a passing result is kept. CI (env CI) and `--full` always render everything.
+// installed Playwright (the browser that renders). Only a passing result is kept. CI (env CI) and `--full` always
+// render everything.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -22,7 +23,11 @@ function soundInputs() {
       walk(path.resolve(path.dirname(file), m[1]));
   };
   walk(path.join(ROOT, "src", "audio", "sound.js"));
-  return [...seen, path.join(ROOT, "tests", "deep-test.mjs"), path.join(ROOT, "package-lock.json")].sort();
+  return [
+    ...seen,
+    path.join(ROOT, "tests", "deep-test.mjs"),
+    path.join(ROOT, "node_modules", "playwright-core", "package.json"),
+  ].sort();
 }
 
 export function soundCache() {

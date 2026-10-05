@@ -10,7 +10,6 @@ const PROFILES = [
   { name: "desktop-1440", viewport: { width: 1440, height: 900 }, touch: false },
   { name: "desktop-1280x640", viewport: { width: 1280, height: 640 }, touch: false },
   { name: "tablet-1024x768", viewport: { width: 1024, height: 768 }, touch: true, mobile: true },
-  { name: "phone-390x844", viewport: { width: 390, height: 844 }, touch: true, mobile: true },
   { name: "phone-844x390", viewport: { width: 844, height: 390 }, touch: true, mobile: true },
 ].filter((p) => !only || p.name.includes(only));
 const browser = await chromium.launch({

@@ -1,15 +1,14 @@
-// Captures every screen/state for manual visual review. Usage: node screens.mjs [url] pc|phone|land
+// Captures every screen/state for manual visual review. Usage: node screens.mjs [url] pc|land
 import { chromium } from "playwright";
 import fs from "fs";
 const URL = /^https?:/.test(process.argv[2] || "") ? process.argv[2] : "http://localhost:8124/index.html";
 const NAME = /^https?:/.test(process.argv[2] || "") ? process.argv[3] : process.argv[2];
 const prof = {
   pc: { viewport: { width: 1920, height: 955 } },
-  phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
   land: { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
 }[NAME];
 if (!prof) {
-  console.error("usage: node screens.mjs [url] pc|phone|land");
+  console.error("usage: node screens.mjs [url] pc|land");
   process.exit(2);
 }
 const OUT = `tests/shots/screens-${NAME}`;

@@ -235,7 +235,6 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .he-row input[type=range] { width: min(150px, 40vw); }
 .he-row output { text-align: right; font: 700 13px/1 var(--display); color: var(--text); }
 .he-row.he-toggle { grid-template-columns: minmax(0, 1fr) auto; }
-body.is-portrait .he-panel { top: calc(var(--st) + 104px); translate: -50% 0; }
 #heNote { margin: 4px 0 8px; min-height: 2.6em; font-size: 13px; line-height: 1.3; color: var(--dim); }
 #heNote.bad { color: #ff9ab0; }
 .he-panel .btn-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -476,9 +475,21 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .nojs { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: #05070d; color: #e6eefc; font: 500 17px/1.45 -apple-system, system-ui, sans-serif; z-index: 100; text-align: center; }
 .nojs-card { max-width: 380px; }
 .nojs-logo { font: 700 38px/1 -apple-system, system-ui, sans-serif; letter-spacing: 0.14em; color: #49f2ff; margin-bottom: 16px; }
+/* 3.11.0: Riftline plays in landscape. A touch phone or tablet held upright gets this screen over everything (the
+   run pauses behind it, see main.js); a desktop window keeps working in any shape. */
+.rotate { display: none; position: fixed; inset: 0; z-index: 90; place-items: center; padding: calc(var(--st) + 24px) calc(var(--sr) + 24px) calc(var(--sb) + 24px) calc(var(--sl) + 24px); background: radial-gradient(120% 80% at 50% 40%, #0d1830 0%, var(--ink) 70%); color: var(--text); text-align: center; touch-action: none; }
+body.needs-rotate .rotate { display: grid; }
+.rotate-card { display: grid; justify-items: center; gap: 14px; max-width: 320px; }
+.rotate-icon { width: 120px; height: 120px; color: var(--cyan); filter: drop-shadow(0 0 14px rgba(73, 242, 255, 0.45)); }
+.rotate-icon .phone { transform-origin: 60px 60px; animation: rlRotate 2.6s cubic-bezier(.6, 0, .25, 1) infinite; }
+.rotate-icon .arc { opacity: 0.55; }
+.rotate-title { font: 700 22px/1.1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; }
+.rotate-note { margin: 0; font: 500 16px/1.4 var(--body); color: var(--dim); }
+@keyframes rlRotate { 0%, 18% { transform: rotate(0deg); } 52%, 82% { transform: rotate(-90deg); } 100% { transform: rotate(0deg); } }
 
 @media (prefers-reduced-motion: reduce) {
   .logo::before { animation: none; }
+  .rotate-icon .phone { animation: none; transform: rotate(-90deg); }
   .bn { animation-duration: 2.2s; animation-name: fadeOnly; }
   @keyframes fadeOnly { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
   .act-btn.nova.ready { animation: none; }
@@ -674,8 +685,6 @@ body.device-touch .cards,
 body.device-touch .center-col,
 body.device-touch .scroll { overscroll-behavior: contain; }
 
-body.device-phone.is-portrait .screen { padding-left: calc(var(--sl) + 12px); padding-right: calc(var(--sr) + 12px); }
-body.device-phone.is-portrait #home .logo { font-size: clamp(42px, 15vw, 72px); }
 
 /* Mobile landscape is a first-class layout, not a squeezed portrait view. */
 body.device-phone.is-landscape .screen {
@@ -734,10 +743,6 @@ body.device-tablet.is-landscape #home .home-grid {
 body.device-tablet.is-landscape #home .logo { font-size: clamp(52px, 9vw, 88px); }
 body.device-tablet.is-landscape #hud .act { bottom: calc(var(--sb) + 14px); }
 body.device-tablet.is-landscape #hud .act-btn { width: 64px; height: 64px; }
-body.device-tablet.is-portrait #home .home-grid { grid-template-columns: minmax(0, 680px); grid-template-rows: 1fr auto; justify-content: center; }
-body.device-tablet.is-portrait #home .brand { text-align: center; }
-body.device-tablet.is-portrait #home .tagline, body.device-tablet.is-portrait #home .best-line { text-align: center; }
-body.device-tablet.is-portrait #home .home-panel { max-width: 520px; }
 
 /* Prevent very short landscape screens from losing the primary buttons. */
 @media (orientation: landscape) and (max-height: 430px) {
@@ -1015,11 +1020,6 @@ html, body { min-width: 0; min-height: 100%; }
 @media (orientation: landscape) and (max-height: 560px) {
   #choose .cards { flex: 0 1 auto; max-height: min(58dvh, 360px); }
 }
-/* 3.6.0: on portrait phones the card list grew to 64 % of the screen whatever it held, so REROLL sat far below the
-   last card. The list is as tall as its cards now (it still scrolls when they do not fit) and the whole choice sits
-   in the middle of the screen. */
-body.device-phone.is-portrait #choose { justify-content: flex-start; justify-content: safe center; }
-body.device-phone.is-portrait #choose .cards { flex: 0 1 auto; }
 
 /* Run summaries: readable without wasting width, and always scrollable when
    a short landscape device cannot fit every metric at once. */
@@ -1066,25 +1066,6 @@ input[type=range] { flex: 0 1 180px; max-width: 45vw; }
   body.device-phone.is-landscape #home .bottom-nav button { padding-block: 4px; font-size: 9px; }
   body.device-phone.is-landscape #home .bottom-nav button .ico { width: 16px; height: 16px; }
 }
-
-/* Portrait phone menu: give the wordmark breathing room while keeping the
-   action stack in the lower half where thumbs naturally land. */
-@media (orientation: portrait) and (max-width: 520px) {
-  body.device-phone.is-portrait #home .home-grid { gap: 8px; }
-  body.device-phone.is-portrait #home .brand { padding-inline: 6px; }
-  body.device-phone.is-portrait #home .logo { letter-spacing: .08em; }
-  body.device-phone.is-portrait #home .home-panel { gap: 8px; }
-  body.device-phone.is-portrait #home .weapon-card { padding: 10px 10px 12px; }
-  body.device-phone.is-portrait #home .threat-row { padding: 5px; }
-  body.device-phone.is-portrait #home .btn.primary { min-height: 54px; }
-  body.device-phone.is-portrait #home .btn.primary.alt { min-height: 48px; }
-  body.device-phone.is-portrait #home .bottom-nav button { min-height: 46px; }
-}
-
-/* Tablet portrait: center the main menu and prevent over-wide text blocks. */
-body.device-tablet.is-portrait #home .home-grid { width: min(680px, 100%); }
-body.device-tablet.is-portrait #home .brand { padding-inline: 20px; }
-body.device-tablet.is-portrait #home .home-panel { width: min(540px, 100%); }
 
 /* Desktop: use a calmer max-width and stronger panel depth; this keeps the
    game looking intentional even in a large 1440p/4K browser window. */
@@ -1146,21 +1127,6 @@ body.device-touch .seg button,
 body.device-touch .toggle,
 body.device-touch .act-btn,
 body.device-touch .card { -webkit-user-select: none; user-select: none; }
-
-/* Menus on very small portrait phones: preserve hierarchy before shrinking
-   typography. The scroll container is the escape hatch for the rare
-   shortest viewport rather than clipping the controls. */
-@media (orientation: portrait) and (max-width: 430px) {
-  body.device-phone.is-portrait #home .home-grid { gap: 6px; }
-  body.device-phone.is-portrait #home .brand { flex: 1 1 0; min-height: 0; }
-  body.device-phone.is-portrait #home .home-panel { max-width: 100%; }
-  body.device-phone.is-portrait #home .tagline { font-size: 12px; letter-spacing: .13em; }
-  body.device-phone.is-portrait #home .best-line { font-size: 11px; }
-  body.device-phone.is-portrait #home .wc-blurb { font-size: 13px; }
-  body.device-phone.is-portrait #home .wc-stats { gap: 6px; }
-  body.device-phone.is-portrait #home .stat .v { font-size: 14px; }
-  body.device-phone.is-portrait #home .bottom-nav { gap: 6px; }
-}
 
 /* Short landscape is particularly sensitive to iOS safe-area + browser
    chrome. Keep every menu section inside the actual dynamic viewport. */
@@ -1333,6 +1299,14 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     if (coarse) body.classList.add('device-touch');
     body.dataset.device = device;
     body.dataset.orientation = w >= h ? 'landscape' : 'portrait';
+    // 3.11.0: phones and tablets play in landscape only (the rotate screen covers the game while held upright).
+    // The screen itself has to be upright too, not only the window: a touch laptop with the browser snapped to half
+    // its screen or an iPad in Split View has a tall window on a landscape screen, and turning would not help there.
+    const so = screen.orientation && screen.orientation.type;
+    const screenUpright = so ? so.startsWith('portrait')
+      : typeof window.orientation === 'number' ? window.orientation % 180 === 0
+      : screen.height > screen.width;
+    body.classList.toggle('needs-rotate', device !== 'desktop' && h > w && screenUpright);
     root.style.setProperty('--vw', `${w}px`);
     root.style.setProperty('--vh', `${h}px`);
   }
@@ -1407,13 +1381,6 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
 @keyframes tcName { from { opacity: 0; letter-spacing: 0.4em; } to { opacity: 1; } }
 @keyframes tcLine { from { transform: scaleX(0); } to { transform: none; } }
 @keyframes tcBar { from { transform: scaleY(0); } to { transform: none; } }
-body.device-phone.is-portrait .tcard.biome { top: max(21%, calc(var(--st) + 146px)); } /* below the tutorial card */
-/* portrait phones: under DASH/NOVA, the boss itself is in the middle of the screen */
-body.device-phone.is-portrait .tcard.boss { bottom: calc(var(--sb) + 14px); }
-body.device-phone.is-portrait .tc-panel { padding: 10px 14px 12px 20px; }
-body.device-phone.is-portrait .tcard.boss .tc-name { margin-top: 6px; font-size: clamp(30px, 9vw, 44px); }
-body.device-phone.is-portrait .tc-line { margin: 8px 0 6px; }
-body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em; }
 @media (orientation: landscape) and (max-height: 560px) {
   .tcard.biome { top: 30%; }
   .tc-band { gap: 5px; padding-block: 9px 10px; }
@@ -1495,7 +1462,7 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
     <div id="heRings" aria-hidden="true"></div>
     <div id="heStick" class="he-stick" aria-hidden="true"><i></i><b id="heStickLabel">MOVE STICK</b></div>
     <div id="hePanel" class="he-panel panel">
-      <div id="heGrab" class="he-head"><span>Button layout</span><span id="heOrient" class="chip">Portrait</span><button id="heFold" class="he-fold" aria-label="Fold the panel">&ndash;</button></div>
+      <div id="heGrab" class="he-head"><span>Button layout</span><button id="heFold" class="he-fold" aria-label="Fold the panel">&ndash;</button></div>
       <label class="he-row"><span><b id="heWhat">DASH</b> size</span><input type="range" id="heSize" min="0.6" max="1.6" step="0.05" aria-label="Size of the picked button"><output id="heSizeV" class="num">100%</output></label>
       <label class="he-row"><span>Opacity</span><input type="range" id="heAlpha" min="0.3" max="1" step="0.05" aria-label="Opacity of the buttons"><output id="heAlphaV" class="num">100%</output></label>
       <label class="he-row"><span>Stick size</span><input type="range" id="heStickSize" min="0.7" max="1.5" step="0.05" aria-label="Size of the sticks"><output id="heStickV" class="num">100%</output></label>
@@ -1714,6 +1681,17 @@ body.device-phone.is-portrait .tc-title { font-size: 12px; letter-spacing: 0.2em
     </div>
   </div>
   <div id="toasts" aria-live="polite"></div>
+</div>
+<div id="rotate" class="rotate" role="alert" aria-live="assertive">
+  <div class="rotate-card">
+    <svg class="rotate-icon" viewBox="0 0 120 120" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <path class="arc" d="M20 40a44 44 0 0 1 34-26M100 80a44 44 0 0 1-34 26"/>
+      <path class="arc" d="M47 9l7 5-6 7M73 111l-7-5 6-7"/>
+      <g class="phone"><rect x="42" y="22" width="36" height="76" rx="7"/><path d="M55 30h10"/><circle cx="60" cy="89" r="2.5" fill="currentColor" stroke="none"/></g>
+    </svg>
+    <div class="rotate-title">Turn your device</div>
+    <p class="rotate-note">Riftline plays in landscape. A run waits paused until you turn it back.</p>
+  </div>
 </div>
 <div id="nojs" class="nojs">
   <div class="nojs-card">

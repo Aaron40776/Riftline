@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.11.0",
+    title: "Landscape only",
+    items: [
+      "On phones and tablets Riftline now plays in landscape only; the installed app opens sideways.",
+      "Held upright, the screen asks you to turn the device, and a run waits paused until you do.",
+      "The button layout editor keeps one layout, for landscape.",
+    ],
+  },
+  {
     version: "3.10.0",
     title: "Attacks you can read",
     items: [

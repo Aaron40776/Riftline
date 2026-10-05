@@ -33,8 +33,8 @@ if (release)
     ["e2e", qa("e2e")],
     ["world audit", qa("world-audit")],
     ["run audit", qa("run-audit")],
-    ...["pc", "phone", "land"].map((p) => [`screens ${p}`, qa("screens", p)]),
-    ...["pc", "phone", "land"].map((p) => [`biome shots ${p}`, qa("biome-shots", p)]),
+    ...["pc", "land"].map((p) => [`screens ${p}`, qa("screens", p)]),
+    ...["pc", "land"].map((p) => [`biome shots ${p}`, qa("biome-shots", p)]),
     ["attack shots pc", qa("attack-shots", "pc")],
   );
 
