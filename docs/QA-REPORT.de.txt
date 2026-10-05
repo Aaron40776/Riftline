@@ -1,3 +1,75 @@
+RIFTLINE v3.16.0 – BOSSES, PLACES AND MUSIC, FINISHED
+Base: v3.15.0 · Build r3160a1005a-r1 · 05.10.2026
+
+Requested (05.10.2026): "check the project again to make sure you implemented all the things we talked about, because
+at least the Warden boss still had the same old attacks", then: integrate what was missed now, not in a later
+release. Every promise of the requests since 03.10.2026 (roadmap, QA reports 3.10.0 to 3.15.0, What's new) was checked
+against the code.
+
+1) Finding (what the releases had promised and left out)
+   - 3.10.0 (attacks with a look and sound of their own): the Warden, Hive Queen and Rift Core still fired the generic
+     orb; the Warden's laser grid (Overdrive) and the Rift Core's turning beams were the generic red beam; all bosses
+     shared one shot sound and many volleys were silent (rings, spirals, the shards of the Frost Prism, the slag rings of
+     the Crucible's hammer); the Warden's charge hit a wall with a generic thud; the weaver's volley was silent and the
+     carrier played the gunner's sound; the portals a boss calls open and the sentinel's beam were generic. Of the
+     Warden's four attacks only the stomp had its new look.
+   - 3.12.0: Searing Collapse had no burning ground.
+   - 3.13.0: the sounds of the props near the drone (a buzzing street lamp, gears near the machines, a gravity hum at
+     the rune stones) were not built; no test held the ambience below the music.
+   - 3.14.0: the Cryo Vault theme was not refined, and only the Warden's and the Crucible's boss tracks had their place
+     in the drums.
+
+2) Boss attacks
+   - Shots: World.shoot gives a boss's shots its kind (BOSS_SHOT): the Warden's siren slugs (a capsule that flashes red
+     and blue like a patrol car), the Hive Queen's spores (a thorny ball that wobbles and drips), the Rift Core's rings
+     (an upright violet ring spinning around a bright core). The Frost Prism (shards) and the Crucible (slag) had theirs.
+   - Beams: the Warden's laser grid is the security laser of Blackout City, the Rift Core's beams the rift ribbon (the
+     warnings stay red); the sentinel's beam takes the skin of its place where there is one (Blackout City, Void Core).
+   - Sounds: every ring and volley sounds (bossVolley; a spiral once every 0.3 s), with a voice per boss: the Warden a
+     riot gun's crack with a siren chirp, the Hive Queen a wet spit with a buzz, the Rift Core a glassy pulse after a
+     reversed shimmer, the Frost Prism a crystal chime, the Crucible a glob of slag. The weaver (three glassy zips) and
+     the carrier (pods leaving their tubes) have voices of their own.
+   - The Warden's charge cracks the wall it hits (the look and sound of its stomp, no damage).
+   - The portals a boss calls open (summons, reinforcements, the Crucible's furnace) wear the boss's colours with a
+     second ring and a turning sigil of three spokes (the Warden's flash red and blue).
+   - Searing Collapse leaves burning ground for 3 s (scorched, flames licking up) that keeps the enemies in it alight.
+   - Kept on purpose: the Crucible's hammer keeps the quake voice of 3.10.0 (its self-test pins it); the Hive Queen's
+     eggs and summons hatch with the shared burst (never promised).
+
+3) The places
+   - Props near the drone (audio/place.js nearestProp, heard within 7 m): the street lamps along the edges of Blackout
+     City buzz on the mains; the machine blocks of the Ember Works carry a turning gear (new model) whose teeth are
+     heard over the whir of its motor; the obelisks of the Void Core hum (two low tones that beat).
+   - Music: the Cryo Vault theme keeps time with its place as it swells (icicles on the off-beats on the chord, the ice
+     creaks on 2 and 4, a gust over every fourth bar). The Frost Prism's boss track has an ice crack on the clap and
+     icicles falling at the end of every second bar; the Hive Queen's frogs croak on the hand drums and bubbles pop on
+     the ghost notes; the Rift Core's glitches stutter at the end of every second bar and a reversed swell pulls into
+     every fourth.
+
+4) Tests
+   - Self-test v3160: every boss through 70 s of its fight, Overdrive first: no orb among its shots, its own kind among
+     them, no beam without skin or colour, every volley names its boss; a gunner still fires orbs; the burning ground of
+     Searing Collapse; the props sound near them and not far away (three biomes); the Rift Core's summon portals name
+     it; the sentinel's beam is the security laser in Blackout City.
+   - Deep test placeMusic: the Cryo Vault rhythm comes in (3 -> 19); the boss drums hold their place (icicles 6, frogs
+     and bubbles 10, glitches 6 in 8 s; 0 before).
+   - Deep test ambience (new): 20 s of each biome's soundscape against 20 s of its calm theme at the default volumes:
+     the ambience must stay below 60 % of the music's level; measured 5 % (Blackout City, Toxin Marsh), 7 % (Cryo
+     Vault), 27 % (Ember Works), 33 % (Void Core).
+   - Attack shots: the fan of enemy shots shows the three new kinds.
+   - Determinism: updated on purpose (only the event counts changed: more shot sounds, the wall cracks).
+
+5) Results 3.16.0 (headless Chromium, software WebGL; npm run release-check)
+   - npm test steps: green (deep test with v3160, placeMusic and ambience; determinism 15/15 after the update).
+   - Full QA: all checks passed. E2E: 0 failures on the four devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     2747 events in 41 kinds, all consumed.
+   - Screens, biome and attack pictures: no page errors; the boss shots and the gears looked at.
+   - Time of the whole chain: 35 min 41 s. Format check: ok.
+
+6) Open doubts
+   - Only measured, not heard: the new shot voices, the prop sounds and the place in the boss drums.
+
 RIFTLINE v3.15.0 – BOSS REWARDS
 Base: v3.14.0 · Build r3150a1005a-r1 · 05.10.2026
 
