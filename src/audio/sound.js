@@ -3731,25 +3731,29 @@ const musicChords = {
             first = (spec.fromBar || 0) * 16;
           engine.fade.gain.value = musicTrack(spec.music, spec.biome).gain;
           engine.mixFor(spec.music);
-          if (!spec.noBed) engine.startMusicBed(spec.music, spec.biome, 0.05);
-          if (spec.impact) musicImpact(engine, spec.biome, 0);
-          // 3.18.1 (test): the track ends at spec.musicEnd s and spec.quietAt s is the moment of a track change
-          for (
-            let n = 0, t = 0;
-            t < Math.min(seconds - 0.25, spec.musicEnd != null ? spec.musicEnd : 1e9);
-            n++, t += len
-          ) {
-            engine.simT = base + t;
-            engine.cycle = Math.floor((first + n) / info.steps);
-            engine.note((first + n) % info.steps, base + t);
-            // 2.9.0: a flood of sounds in every step; the music notes must all be scheduled anyway
-            if (spec.flood)
-              for (let k = 0; k < 30; k++) {
-                engine.last = Object.create(null);
-                let flood = RL_FLOOD[(n * 7 + k) % RL_FLOOD.length];
-                engine.play(flood[0], flood[1]);
-              }
-          }
+          // 3.18.1: with spec.seed the random choices of the music (its notes, its atmosphere) are seeded as well, so that
+          // the numbers of the deep test do not change from run to run
+          seeded(() => {
+            if (!spec.noBed) engine.startMusicBed(spec.music, spec.biome, 0.05);
+            if (spec.impact) musicImpact(engine, spec.biome, 0);
+            // 3.18.1 (test): the track ends at spec.musicEnd s and spec.quietAt s is the moment of a track change
+            for (
+              let n = 0, t = 0;
+              t < Math.min(seconds - 0.25, spec.musicEnd != null ? spec.musicEnd : 1e9);
+              n++, t += len
+            ) {
+              engine.simT = base + t;
+              engine.cycle = Math.floor((first + n) / info.steps);
+              engine.note((first + n) % info.steps, base + t);
+              // 2.9.0: a flood of sounds in every step; the music notes must all be scheduled anyway
+              if (spec.flood)
+                for (let k = 0; k < 30; k++) {
+                  engine.last = Object.create(null);
+                  let flood = RL_FLOOD[(n * 7 + k) % RL_FLOOD.length];
+                  engine.play(flood[0], flood[1]);
+                }
+            }
+          });
           engine.simT = null;
         } else if (spec.burst) {
           // 2.9.2: continuous fire of one sound: the first shot now, the others at times registered

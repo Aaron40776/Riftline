@@ -512,7 +512,7 @@ const music = cached
           const info = E.trackInfo(kind, biome),
             seconds = (6 * 240) / info.bpm,
             r = await E.renderOffline(
-              { music: kind, biome, fromBar: kind === "fight" ? 4 : 0, intensity: 0.9, wav: true, log: true },
+              { music: kind, biome, fromBar: kind === "fight" ? 4 : 0, intensity: 0.9, wav: true, log: true, seed: 7 },
               seconds,
             ),
             d = describe(r.samples, info.bpm, r.musicLog.length),
@@ -534,7 +534,7 @@ const music = cached
           if (d.flat > FLAT_MAX) fail.push(`${name}: noisy (flatness ${d.flat.toFixed(3)} over ${FLAT_MAX})`);
           if (kind === "fight") {
             const bare = await E.renderOffline(
-                { music: kind, biome, fromBar: 4, intensity: 0.9, wav: true, noBed: true },
+                { music: kind, biome, fromBar: 4, intensity: 0.9, wav: true, noBed: true, seed: 7 },
                 seconds,
               ),
               db = describe(bare.samples, info.bpm, 0),
