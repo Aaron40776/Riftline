@@ -682,6 +682,45 @@ const ambience = await page.evaluate(async (under) => {
   return { ...out, fail };
 }, AMB_UNDER);
 res.ambience = ambience;
+// 3.18.1: a track change silences the old track: the notes still sounding, the echoes and the room are gone shortly
+// after the change (the calm theme used to ring on under the first bars of a boss)
+const SWITCH_UNDER = 0.12;
+const switched = await page.evaluate(async (under) => {
+  const E = window.__riftTest.game.sound.constructor,
+    out = {},
+    fail = [],
+    rms = (x, a, b) => {
+      let sum = 0;
+      const i0 = Math.floor(a * 44100),
+        i1 = Math.floor(b * 44100);
+      for (let i = i0; i < i1; i++) sum += x[i] * x[i];
+      return Math.sqrt(sum / (i1 - i0));
+    };
+  for (const [music, biome] of [
+    ["fight", "yard"],
+    ["fight", "void"],
+    ["boss", "works"],
+    ["boss", "vault"],
+  ]) {
+    const spec = { music, biome, intensity: 0.9, heat: 0.5, wav: true, seed: 5, musicEnd: 6 },
+      kept = (await E.renderOffline(spec, 10)).samples,
+      cut = (await E.renderOffline({ ...spec, quietAt: 6 }, 10)).samples,
+      // the music plays 0.25 s into the render: 4 to 6 s of the music is the level before the change; 0.45 to 3 s after it
+      before = rms(cut, 4.25, 6.25),
+      after = rms(cut, 6.7, 9.25),
+      ringing = rms(kept, 6.7, 9.25);
+    out[`${music}:${biome}`] = { before: +before.toFixed(4), after: +after.toFixed(4), ringing: +ringing.toFixed(4) };
+    if (!(after < before * under))
+      fail.push(`${music}:${biome}: ${(after / before).toFixed(2)} of the level is still heard after the change`);
+    if (!(ringing > after * 2))
+      fail.push(
+        `${music}:${biome}: the test shows nothing (without the cut ${ringing.toFixed(4)}, with it ${after.toFixed(4)})`,
+      );
+  }
+  return { ...out, fail };
+}, SWITCH_UNDER);
+res.trackSwitch = switched;
+if (switched.fail.length) res.ok = false;
 if (ambience.fail.length) res.ok = false;
 if (placeMusic.fail.length) res.ok = false;
 lap("place music");

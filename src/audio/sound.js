@@ -231,6 +231,8 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   // also carry the motif and the pad of the calm theme
   MAX_MUSIC_VOICES = 44,
   MUSIC_RESERVE = 8,
+  // 3.18.1: how long the notes of the old track take to fade out when the track changes (SoundEngine.quietOld)
+  QUIET_FADE = 0.25,
   /* sounds that are never dropped in favour of others when the voice limit is reached */
   KEY_SOUNDS = new Set([
     "mutator",
@@ -733,6 +735,9 @@ const musicChords = {
         this.verbIn.connect(verb);
         verb.connect(verbOut);
         verbOut.connect(this.mus);
+        // 3.18.1: kept so that a track change can swap the room for a fresh one (quietOld)
+        this.verb = verb;
+        this.verbOut = verbOut;
         // 3.2.0: the room of the big sounds (a shorter impulse); its level follows the biome (setMusic)
         this.sfxVerbIn = ctx.createGain();
         let sfxVerb = ctx.createConvolver();
@@ -3057,6 +3062,7 @@ const musicChords = {
         let now = ctx.currentTime,
           gain = track ? track.gain : 1;
         this.cutScheduled(now);
+        this.quietOld(now);
         this.nextT = now + 0.03;
         this.fade.gain.cancelScheduledValues(now);
         this.mixFor(kind);
@@ -3099,6 +3105,65 @@ const musicChords = {
           list[i] = list[list.length - 1];
           list.pop();
         }
+      }
+    }
+    /* 3.18.1: the old track does not ring on under the new one. A track change used to cut only the notes that were still
+     to come: the pads and bells already sounding (some for several seconds), the echoes of the delay and the tail of the
+     room played on, so the calm theme was heard under the first bars of a boss and the boss under the calm theme after it.
+     Now the sounding notes fade out over QUIET_FADE, the echo line is emptied and the room is swapped for a fresh one
+     (the old one fades out and goes). */
+    quietOld(now) {
+      let ctx = this.ctx,
+        end = now + QUIET_FADE,
+        list = this.musicVoiceList;
+      for (let voice of list) {
+        if (!voice.node || voice.start > now + 0.005 || voice.end <= now + 0.01) continue;
+        try {
+          let gain = voice.amp.gain;
+          if (gain.cancelAndHoldAtTime) gain.cancelAndHoldAtTime(now);
+          else {
+            let at = gain.value;
+            gain.cancelScheduledValues(now);
+            gain.setValueAtTime(at, now);
+          }
+          gain.linearRampToValueAtTime(0, end);
+          voice.node.stop(end + 0.01);
+          voice.end = end;
+        } catch {}
+      }
+      try {
+        // the echo line: nothing is fed back while it empties (0.28 s a round), then it works again
+        this.fb.gain.cancelScheduledValues(now);
+        this.fb.gain.setValueAtTime(0, now);
+        this.fb.gain.setValueAtTime(0.32, now + 0.7);
+        if (this.verbIn && this.verb) {
+          let fresh = ctx.createConvolver(),
+            freshOut = ctx.createGain(),
+            old = this.verb,
+            oldOut = this.verbOut;
+          fresh.buffer = old.buffer;
+          freshOut.gain.value = oldOut.gain.value;
+          this.verbIn.disconnect(old);
+          this.verbIn.connect(fresh);
+          fresh.connect(freshOut);
+          freshOut.connect(this.mus);
+          oldOut.gain.cancelScheduledValues(now);
+          oldOut.gain.setValueAtTime(oldOut.gain.value, now);
+          oldOut.gain.linearRampToValueAtTime(0, end);
+          this.verb = fresh;
+          this.verbOut = freshOut;
+          setTimeout(
+            () => {
+              try {
+                old.disconnect();
+                oldOut.disconnect();
+              } catch {}
+            },
+            (QUIET_FADE + 0.2) * 1000,
+          );
+        }
+      } catch (err) {
+        this.fail(err);
       }
     }
     /* Called every frame of a running world: `speed` (0..1, null: no engine hum) drives the drone
@@ -3640,6 +3705,11 @@ const musicChords = {
             engine.play(spec.burst.id, spec.burst.arg);
             ctx.resume();
           });
+      if (spec.quietAt != null)
+        ctx.suspend(0.25 + spec.quietAt).then(() => {
+          engine.quietOld(ctx.currentTime);
+          ctx.resume();
+        });
       ctx.suspend(0.25).then(() => {
         base = ctx.currentTime;
         if (spec.bed) {
@@ -3663,7 +3733,12 @@ const musicChords = {
           engine.mixFor(spec.music);
           if (!spec.noBed) engine.startMusicBed(spec.music, spec.biome, 0.05);
           if (spec.impact) musicImpact(engine, spec.biome, 0);
-          for (let n = 0, t = 0; t < seconds - 0.25; n++, t += len) {
+          // 3.18.1 (test): the track ends at spec.musicEnd s and spec.quietAt s is the moment of a track change
+          for (
+            let n = 0, t = 0;
+            t < Math.min(seconds - 0.25, spec.musicEnd != null ? spec.musicEnd : 1e9);
+            n++, t += len
+          ) {
             engine.simT = base + t;
             engine.cycle = Math.floor((first + n) / info.steps);
             engine.note((first + n) % info.steps, base + t);
