@@ -240,6 +240,38 @@ await ev(() => {
 });
 await p.waitForTimeout(1500);
 await p.screenshot({ path: `${OUT}/bosscards-5-choice.png` });
+// 3.17.0: the walker, close up (the camera zoomed in): standing, mid-stride and in the air of a dash
+await ev(() => {
+  const T = window.__riftTest,
+    w = T.game.world;
+  w.startWave(w.wave);
+  T.game.intro = null;
+  w.planIdx = w.plan.length;
+  w.markers = [];
+  w.bossPending = null;
+  w.championPending = null;
+  for (const e of [...w.enemies]) w.killEnemy(e);
+  const keep = w.spawnEnemy("grunt", w.arena.W - 2, w.arena.H - 2, {});
+  keep.speed = 0;
+  keep.maxHp = keep.hp = 1e9;
+  document.getElementById("choose").hidden = true;
+  T.ui.coverHud(false);
+  w.god = true;
+  w.hazards.length = 0;
+  T.renderer.zoom = 0.28;
+});
+await p.waitForTimeout(700);
+await p.screenshot({ path: `${OUT}/walker-1-stand.png` });
+await p.keyboard.down("d");
+await p.waitForFunction(() => window.__riftTest.game.world.player.stride > 2.4, null, { timeout: 60000 });
+await p.screenshot({ path: `${OUT}/walker-2-stride.png` });
+await p.keyboard.press("Space");
+await p.waitForFunction(() => window.__riftTest.game.world.player.dashT > 0.06, null, { timeout: 60000 });
+await p.screenshot({ path: `${OUT}/walker-3-jump.png` });
+await p.keyboard.up("d");
+await ev(() => {
+  window.__riftTest.renderer.zoom = 1;
+});
 console.log(errs.length ? "ERRORS:\n" + errs.join("\n") : "no errors");
 await b.close();
 process.exit(errs.length ? 1 : 0);

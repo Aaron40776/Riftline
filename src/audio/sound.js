@@ -335,6 +335,11 @@ const RL_SOUND_EVENTS = {
   hatch: [{}, { big: true }],
   heal: [{}],
   maxed: [{ heal: 30, shards: 12 }],
+  step: [
+    { ground: "asphalt", foot: 0, v: 6 },
+    { ground: "ice", foot: 1, v: 6 },
+  ],
+  land: [{ ground: "grate" }],
   lockdown: [{ r: 3.2 }],
   lockOn: [{ r: 3.2, n: 3 }],
   hammerReady: [{}],
@@ -1303,6 +1308,63 @@ const musicChords = {
         case "dash":
           this.noise(0.18, 0.12, { type: "bandpass", f: 700, to: 3200, q: 1.5 });
           break;
+        // ---- 3.17.0: the walker. A footstep of the ground it comes down on (arg.ground), short and quiet (they come up to
+        // six a second), a faint servo whine in each; the landing after a dash is the same, heavier, with a thump ----
+        case "step":
+        case "land": {
+          const land = id === "land",
+            g = (arg && arg.ground) || "asphalt",
+            pan = land ? 0 : arg && arg.foot ? 0.12 : -0.12,
+            k = land ? 2.2 : 1;
+          if (!this.gate(id, land ? 0.15 : 0.11)) break;
+          const n = (dur, vol, o) => this.noise(dur, vol * k, { pan, ...o }),
+            t = (f, dur, wave, vol, o) => this.tone(f * pitch, dur, wave, vol * k, { pan, ...o });
+          switch (g) {
+            case "grate":
+              // a steel foot on a grating: a clank with an inharmonic ring
+              t(210, 0.06, "square", 0.03, { lp: 1800, to: 150 });
+              t(590, 0.07, "sine", 0.012);
+              n(0.03, 0.03, { type: "bandpass", f: 2400, q: 4 });
+              break;
+            case "frost":
+              // frozen ground and snow: a crunch of three short grains and a dull thud
+              [0, 0.018, 0.04].forEach((at) => n(0.022, 0.035, { type: "bandpass", f: 2800 + at * 4e3, q: 1.2, at }));
+              t(110, 0.07, "sine", 0.05, { to: 70 });
+              break;
+            case "ice":
+              // a sheet of ice: a glassy scrape that slides and a tick
+              n(0.1, 0.03, { type: "bandpass", f: 4200, to: 2600, q: 2, color: "pink" });
+              t(1800, 0.025, "sine", 0.015, { to: 1300 });
+              t(95, 0.06, "sine", 0.03, { to: 65 });
+              break;
+            case "mud":
+              // the marsh: a wet squelch and a bubble
+              n(0.09, 0.05, { type: "bandpass", f: 500, to: 260, q: 3, color: "brown" });
+              t(120, 0.08, "sine", 0.038, { to: 70 });
+              t(300, 0.04, "sine", 0.015, { at: 0.05, to: 600 });
+              break;
+            case "glass":
+              // the Void Core: a glassy tick over a low hum
+              t(1700, 0.035, "sine", 0.024, { to: 1100, rev: 0.3 });
+              t(2600, 0.02, "sine", 0.012, { at: 0.004 });
+              n(0.015, 0.02, { type: "highpass", f: 6e3 });
+              break;
+            case "acid":
+              // in an acid pool: a splash with a sizzle
+              n(0.15, 0.04, { type: "bandpass", f: 2600, to: 1400, q: 1.2, color: "pink" });
+              t(220, 0.07, "sine", 0.035, { to: 120 });
+              break;
+            default:
+              // wet asphalt: a soft slap, now and then a splash
+              n(0.05, 0.03, { type: "bandpass", f: 900, to: 500, q: 1, color: "pink" });
+              t(140, 0.05, "sine", 0.034, { to: 90 });
+              if (Math.random() < 0.35) n(0.06, 0.012, { type: "highpass", f: 3500 });
+          }
+          // the servo of the leg
+          n(0.05, 0.012, { type: "bandpass", f: 1500, to: 2500, q: 5, at: 0.02 });
+          if (land) t(70, 0.18, "sine", 0.14, { to: 38 });
+          break;
+        }
         case "nova":
           this.tone(70, 0.9, "sine", 0.45, { to: 28 });
           this.noise(0.9, 0.3, { f: 3e3, to: 150 });
@@ -1701,6 +1763,8 @@ const musicChords = {
           break;
         case "hatch":
           if (this.gate(id, 0.08)) {
+            // 3.17.0: the shell cracks first
+            this.noise(0.03, 0.06, { type: "bandpass", f: 3000, q: 3 });
             this.tone(320 * pitch, 0.12, "sine", 0.08, { to: 120 });
             this.noise(0.12, 0.05, { type: "bandpass", f: 600, to: 250, q: 4 });
             if (arg) {
@@ -2647,6 +2711,13 @@ const musicChords = {
             break;
           case "dash":
             this.play("dash");
+            break;
+          // 3.17.0: the walker: a foot comes down on the ground of the biome (or on ice or acid), the landing after a dash
+          case "step":
+            this.play("step", { ground: ev.ground, foot: ev.foot, v: ev.v });
+            break;
+          case "land":
+            this.play("land", { ground: ev.ground });
             break;
           case "edash":
             this.play(RL_DASH_VOICE[ev.type] || "blink");
@@ -4900,6 +4971,10 @@ function rlSoundCatalog() {
       ids([id], boss);
   }
   for (const rarity of [1, 2, 3, 4, 5, 6]) ids(["pick"], rarity);
+  // 3.17.0: the walker: a footstep on every ground, the landing after a dash
+  for (const ground of ["asphalt", "grate", "frost", "ice", "mud", "glass", "acid"])
+    add("step:" + ground, { id: "step", arg: { ground } });
+  add("land:grate", { id: "land", arg: { ground: "grate" } });
   // 3.15.0: the boss cards
   ids(["bcCage", "bcLock", "bcHammer", "bcReady", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
   for (const id of ["elite", "rain", "blackout", "meltdown", "whiteout", "bloom", "riftstorm"]) ids(["event"], id);

@@ -22,6 +22,7 @@ import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHaz
 import { computeStats, DASH_CD_MIN } from "./stats.js";
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 import { rlPlanTraps, rlUpdateTraps } from "./traps.js";
+import { walkStep } from "./walk.js";
 import {
   bossCardOffer,
   bossCardKill,
@@ -241,6 +242,9 @@ const rlStep = 1 / 60,
         chipAcc: 0,
         // 3.15.0: the larvae of Brood (boss-cards.js)
         brood: [],
+        // 3.17.0: metres walked (the stride of the walker, core/walk.js) and whether the dash has it in the air
+        stride: 0,
+        air: false,
       };
       if (snap) {
         this.player.hp = clamp(snap.hp, 1, this.stats.maxHp);
@@ -1112,9 +1116,13 @@ const rlStep = 1 / 60,
         player.vx += (mx * speed - player.vx) * grip;
         player.vy += (my * speed - player.vy) * grip;
       }
+      const x0 = player.x,
+        y0 = player.y;
       player.x += player.vx * dt;
       player.y += player.vy * dt;
       this.arena.resolve(player, player.r);
+      // 3.17.0: the walker: footsteps and the landing after a dash
+      walkStep(this, x0, y0, dt);
       if (player.moving && player.dashT <= 0) {
         player.face = turnToward(player.face, Math.atan2(my, mx), 14 * dt);
       }

@@ -34,8 +34,7 @@ import {
  and asymmetric, machines keep hard forms with panels, vents and lights. Budget: about 400
  triangles per type (body + glow), the footprint stays in the size class of enemyDefs[type].r.
  ========================================================================== */
-const tmpFlameColor = new Color(),
-  PI = Math.PI,
+const PI = Math.PI,
   TAU_M = Math.PI * 2,
   RL_PALE_WHITE = new Color(16777215),
   limbUp = new Vector3(0, 1, 0),
@@ -1251,84 +1250,123 @@ function debrisGeometry() {
   return new BoxGeometry(1, 1, 1);
 }
 function buildPlayerModel(weapon, color) {
-  // 2.7.0: a gunship instead of a hex puck: an arrow-shaped hull with a cockpit canopy, swept wings with glowing
-  // strips, twin thruster nozzles whose flame follows the speed (setThrust), and the weapon mount on top.
-  // The footprint (about 0.65 around the centre) and the hull colours are the same as before.
+  // 3.17.0: a walker instead of a gunship: a two-legged robot. A squat torso with a glowing visor and a back pack on a
+  // pelvis, two legs (a thigh, a shin, a flat foot) that swing, bend and plant as the drone walks (setWalk), and the
+  // weapon mount on top. The footprint (about 0.65 around the centre), the hull colours and the weapon colour on the
+  // glowing parts are the same as before; `base` is still the part that turns with the drone, `turret` aims.
   const hullMat = new MeshLambertMaterial({ color: 2898514, emissive: 0, flatShading: true }),
     trimMat = new MeshLambertMaterial({ color: 9348036, emissive: 0, flatShading: true }),
     glowMat = new MeshBasicMaterial({ color, toneMapped: false }),
-    canopyMat = new MeshLambertMaterial({ color: 7454463, emissive: 1058362, flatShading: true }),
-    flameMat = new MeshBasicMaterial({
-      color: tmpFlameColor.set(color).lerp(RL_PALE_WHITE, 0.45).getHex(),
-      transparent: true,
-      opacity: 0.8,
-      blending: AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    }),
+    visorMat = new MeshLambertMaterial({ color: 7454463, emissive: 1058362, flatShading: true }),
     group = new Group(),
     base = new Group(),
-    hull = [
-      ball(2898514, 0.5, 8, 5, { x: -0.02, y: 0.5, sx: 1.3, sy: 0.5, sz: 0.78 }),
-      spike(2898514, 0.19, 5, [0.5, 0.5, 0], [0.92, 0.46, 0]),
-      ...both((s) => [
-        bar(2898514, 0.42, [0.2, 0.47, s * 0.3], [-0.42, 0.4, s * 0.78], 0.05),
-        box(2898514, 0.3, 0.24, 0.05, { x: -0.45, y: 0.52, z: s * 0.8, ry: s * -0.3 }),
-        box(2898514, 0.52, 0.14, 0.16, { x: -0.16, y: 0.4, z: s * 0.4 }),
-      ]),
-    ],
-    trim = [
-      box(9348036, 0.7, 0.06, 0.18, { x: -0.15, y: 0.74 }),
-      ...both((s) => [
-        pipe(9348036, 0.15, 0.13, 6, [-0.5, 0.5, s * 0.2], [-0.78, 0.5, s * 0.2]),
-        bar(9348036, 0.06, [0.24, 0.5, s * 0.32], [-0.36, 0.44, s * 0.74], 0.06),
-      ]),
-      spike(9348036, 0.06, 4, [0.78, 0.47, 0], [1.02, 0.44, 0]),
-      box(9348036, 0.7, 0.05, 0.42, { x: 0.02, y: 0.25 }),
-    ],
-    glowParts = [
-      ...both((s) => [
-        bar(color, 0.05, [0.06, 0.505, s * 0.4], [-0.4, 0.44, s * 0.76], 0.05),
-        ball(color, 0.05, 5, 3, { x: -0.8, y: 0.5, z: s * 0.2 }),
-        box(color, 0.08, 0.05, 0.16, { x: 0.3, y: 0.6, z: s * 0.2, ry: s * -0.4 }),
-      ]),
-      box(color, 0.22, 0.03, 0.05, { x: 0.28, y: 0.7 }),
-      pipe(color, 0.3, 0.3, 10, [-0.02, 0.2, 0], [-0.02, 0.22, 0]),
-    ],
+    torso = new Group(),
+    HIP = 0.6,
+    THIGH = 0.28,
+    SHIN = 0.28,
     addPart = (parts, material, parent) => {
       const mesh = new Mesh(mergeParts(parts), material);
       parent.add(mesh);
       return mesh;
-    };
-  addPart(hull, hullMat, base);
-  addPart(trim, trimMat, base);
-  addPart(glowParts, glowMat, base);
-  const canopy = new Mesh(new SphereGeometry(0.24, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), canopyMat);
-  canopy.scale.set(1.4, 0.8, 0.85);
-  canopy.position.set(-0.12, 0.6, 0);
-  base.add(canopy);
-  // exhaust flames: cones pointing backwards from the two nozzles, scaled by setThrust
-  const flames = [];
-  for (const s of [1, -1]) {
-    const flameGeo = new ConeGeometry(0.1, 0.5, 6);
-    flameGeo.translate(0, 0.25, 0);
-    const flame = new Mesh(flameGeo, flameMat);
-    flame.rotation.z = Math.PI / 2;
-    flame.position.set(-0.78, 0.5, s * 0.2);
-    base.add(flame);
-    flames.push(flame);
+    },
+    // the torso: a pelvis box, a chest that is wider at the shoulders, a back pack with a glowing vent, a visor
+    hull = [
+      box(2898514, 0.34, 0.14, 0.5, { x: 0, y: HIP + 0.02 }),
+      ball(2898514, 0.4, 8, 5, { x: -0.02, y: HIP + 0.3, sx: 1.05, sy: 0.7, sz: 0.95 }),
+      ...both((s) => [
+        // shoulders and upper arms, short and blocky (the weapon is on the back, the arms hold the sides)
+        box(2898514, 0.2, 0.26, 0.16, { x: 0, y: HIP + 0.34, z: s * 0.44 }),
+        bar(2898514, 0.1, [0.02, HIP + 0.26, s * 0.5], [0.16, HIP + 0.04, s * 0.5], 0.1),
+      ]),
+      box(2898514, 0.3, 0.32, 0.42, { x: -0.3, y: HIP + 0.36 }),
+    ],
+    trim = [
+      box(9348036, 0.38, 0.05, 0.54, { x: 0, y: HIP + 0.1 }),
+      ...both((s) => [
+        pipe(9348036, 0.07, 0.07, 6, [-0.42, HIP + 0.5, s * 0.14], [-0.5, HIP + 0.14, s * 0.14]),
+        box(9348036, 0.12, 0.1, 0.14, { x: 0.18, y: HIP + 0.02, z: s * 0.2 }),
+      ]),
+      box(9348036, 0.16, 0.05, 0.3, { x: 0.3, y: HIP + 0.52 }),
+    ],
+    glowParts = [
+      box(color, 0.04, 0.05, 0.36, { x: 0.38, y: HIP + 0.34 }),
+      ...both((s) => [
+        box(color, 0.2, 0.03, 0.04, { x: -0.3, y: HIP + 0.46, z: s * 0.12 }),
+        ball(color, 0.04, 5, 3, { x: 0.12, y: HIP + 0.04, z: s * 0.5 }),
+      ]),
+    ];
+  addPart(hull, hullMat, torso);
+  addPart(trim, trimMat, torso);
+  addPart(glowParts, glowMat, torso);
+  const visor = new Mesh(new BoxGeometry(0.1, 0.14, 0.34), visorMat);
+  visor.position.set(0.34, HIP + 0.36, 0);
+  torso.add(visor);
+  base.add(torso);
+  // the legs: a group at the hip (pitch about z: positive swings the foot forward), a knee group below it
+  const legs = [];
+  for (const side of [-1, 1]) {
+    const hip = new Group(),
+      knee = new Group(),
+      ankle = new Group();
+    hip.position.set(0, HIP, side * 0.2);
+    hip.add(
+      new Mesh(
+        mergeParts([bar(2898514, 0.12, [0, 0, 0], [0.02, -THIGH, 0], 0.14), ball(9348036, 0.09, 6, 4)]),
+        hullMat,
+      ),
+    );
+    knee.position.set(0.02, -THIGH, 0);
+    knee.add(
+      new Mesh(
+        mergeParts([bar(9348036, 0.1, [0, 0, 0], [-0.02, -SHIN, 0], 0.12), ball(2898514, 0.075, 6, 4)]),
+        trimMat,
+      ),
+    );
+    ankle.position.set(-0.02, -SHIN, 0);
+    ankle.add(new Mesh(mergeParts([box(2898514, 0.3, 0.07, 0.17, { x: 0.07, y: 0.0 })]), hullMat));
+    ankle.add(new Mesh(mergeParts([box(color, 0.04, 0.03, 0.14, { x: 0.22, y: 0.0 })]), glowMat));
+    // the glow of the weapon colour on the knee and the outer side of the shin (the dark legs read against the floor)
+    knee.add(
+      new Mesh(
+        mergeParts([
+          ball(color, 0.055, 5, 3, { x: 0.03, z: side * 0.03 }),
+          bar(color, 0.035, [0.02, -0.05, side * 0.075], [-0.01, -SHIN + 0.06, side * 0.075], 0.03),
+        ]),
+        glowMat,
+      ),
+    );
+    knee.add(ankle);
+    hip.add(knee);
+    base.add(hip);
+    legs.push({ hip, knee, ankle, side });
   }
   base.rotation.order = "YZX";
   group.add(base);
-  const setThrust = (thrust, time) => {
-    const flicker = Math.sin(time * 47) * 0.06 + Math.sin(time * 71) * 0.04;
-    for (const flame of flames) {
-      flame.scale.set(1 + thrust * 0.2, 0.35 + thrust * 1.15 + flicker, 1 + thrust * 0.2);
+  /* the walk cycle: `phase` (radians, one cycle is two steps; core/walk.js: a foot comes down every metre), `amount`
+     how much the drone walks (0 standing, 1 at full speed), `air` 0..1 how far a dash has it up (the legs tuck).
+     The thigh swings, the knee bends while the leg swings forward, the torso turns against the hips and the body
+     bobs; standing still the body breathes. Returns the height of the body above the ground. */
+  const setWalk = (phase, amount, air, time) => {
+    let bob = 0;
+    for (const leg of legs) {
+      const p = phase + (leg.side > 0 ? 0 : Math.PI),
+        swing = Math.sin(p) * 0.85 * amount,
+        bend = Math.max(0, Math.cos(p)) * 1.0 * amount;
+      // in the air both legs tuck: knees up, feet under the body
+      leg.hip.rotation.z = swing * (1 - air) + 0.55 * air;
+      leg.knee.rotation.z = -bend * (1 - air) - 1.1 * air;
+      leg.ankle.rotation.z = (bend * 0.5 - swing * 0.3) * (1 - air) + 0.5 * air;
     }
-    flameMat.opacity = 0.45 + Math.min(1, thrust) * 0.45;
+    torso.rotation.y = Math.sin(phase) * 0.12 * amount;
+    torso.rotation.z = Math.sin(phase * 2) * 0.02 * amount;
+    bob = -Math.abs(Math.sin(phase)) * 0.07 * amount;
+    // breathing while it stands
+    bob += Math.sin(time * 2.2) * 0.012 * (1 - amount);
+    return bob;
   };
   let turret = new Group();
-  turret.position.y = 0.78;
+  turret.position.y = HIP + 0.62;
+  turret.position.x = -0.05;
   let dome = new Mesh(new SphereGeometry(0.21, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), trimMat);
   turret.add(dome);
   let sight = new Mesh(new BoxGeometry(0.08, 0.08, 0.3), glowMat);
@@ -1396,9 +1434,10 @@ function buildPlayerModel(weapon, color) {
       toneMapped: false,
     }),
   );
-  shield.position.y = 0.6;
+  shield.position.y = 0.8;
+  shield.scale.setScalar(1.1);
   group.add(shield);
-  return { group, base, turret, shield, mats: [hullMat, trimMat], glowMat, setThrust, lean: 0, bank: 0 };
+  return { group, base, turret, shield, mats: [hullMat, trimMat], glowMat, setWalk, legs, lean: 0, bank: 0 };
 }
 function buildBossModel(type, color) {
   let group = new Group(),

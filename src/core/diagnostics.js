@@ -435,6 +435,9 @@ function rlRunAudit(world, outcome, abandoned) {
  emitted while a boss is alive — enemy code once reused "phase"/"dash". ---- */
 const RL_EVENT_KINDS = new Set([
   "mutator",
+  // 3.17.0: the walker: a foot comes down, the landing after a dash
+  "step",
+  "land",
   // 3.15.0: the boss cards
   "lockdown",
   "lockOn",
