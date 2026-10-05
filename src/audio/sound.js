@@ -430,7 +430,10 @@ function roomImpulse(ctx, seconds) {
   // the same impulse serves every context of a sample rate (the tests build hundreds of engines)
   let key = ctx.sampleRate + ":" + seconds;
   if (impulseCache[key]) return impulseCache[key];
+  // 3.18.1: its own seeded noise (it was made from Math.random at the first use, so every run had another room and the
+  // numbers of the deep test moved a little from run to run); the same kind of noise, the same for everyone
   let len = Math.round(ctx.sampleRate * seconds),
+    random = makeSeeded(0x2b00 + Math.round(seconds * 100)),
     buf = (impulseCache[key] = ctx.createBuffer(2, len, ctx.sampleRate));
   for (let ch = 0; ch < 2; ch++) {
     let data = buf.getChannelData(ch),
@@ -438,7 +441,7 @@ function roomImpulse(ctx, seconds) {
     for (let i = 0; i < len; i++) {
       let t = i / len,
         a = 0.55 + 0.42 * t;
-      lp = lp * a + (Math.random() * 2 - 1) * (1 - a);
+      lp = lp * a + (random() * 2 - 1) * (1 - a);
       data[i] = lp * Math.pow(1 - t, 2.4) * (i < 90 ? i / 90 : 1) * 2.2;
     }
   }
@@ -453,9 +456,11 @@ const colorCache = Object.create(null);
 function colorNoise(ctx, color) {
   const key = color + ":" + ctx.sampleRate;
   if (colorCache[key]) return colorCache[key];
+  // 3.18.1: seeded for the same reason as the room (roomImpulse)
   const len = Math.round(ctx.sampleRate * 6),
     fadeN = Math.round(ctx.sampleRate * 0.05),
-    raw = new Float32Array(len + fadeN);
+    raw = new Float32Array(len + fadeN),
+    random = makeSeeded(color === "brown" ? 0xb2057 : 0x91c4);
   let b0 = 0,
     b1 = 0,
     b2 = 0,
@@ -466,7 +471,7 @@ function colorNoise(ctx, color) {
     last = 0,
     sum = 0;
   for (let i = 0; i < raw.length; i++) {
-    const w = Math.random() * 2 - 1;
+    const w = random() * 2 - 1;
     if (color === "brown") {
       // leaky integration: the leak keeps it free of drift (no DC)
       last = (last + 0.02 * w) / 1.02;
