@@ -1,3 +1,68 @@
+RIFTLINE v3.15.0 – BOSS REWARDS
+Base: v3.14.0 · Build r3150a1005a-r1 · 05.10.2026
+
+Requested (03.10.2026, roadmap section 1): every boss gives only strong upgrades, and each of the five bosses has a
+chance for an exclusive card of its own. Decisions of the owner (05.10.2026): 30 % that grows by 15 % after each miss,
+the Rift Core's card is Event Collapse (the planned "Singularity" clashed with the gadget), each card at most once per
+run, also in Endless.
+
+1) The offer (core/boss-cards.js, World.beginChoice and makeOffer)
+   - After a boss wave the boss's card comes with a chance of 30 % (rolled on its own random stream, seed and wave, so
+     every other roll of the run stays where it was); each boss offer without a card adds 15 % (any boss), a card that
+     comes sets it back to 30 %. An owned card never comes again; a card not taken can come at a later kill of the
+     same boss (Endless).
+   - The card takes the first place and stays there through a reroll; the other places are rare, epic and legendary
+     cards as before. Boss cards never come in a normal offer (also not from a forged save).
+   - The chance is saved with the run (snapshot and the save cleaner; found while testing: the cleaner keeps only the
+     fields it knows, so a resumed run would have started again at 30 %).
+   - The card: rarity 6 "Boss", crimson with a gold rim, the name of its boss in gold ("THE WARDEN · BOSS CARD") and a
+     pulsing seal; its own pick sound (a war drum, a minor brass chord that opens to major, a gold shimmer). Codex:
+     "Only from the Warden" etc. Run summary: damage sources Lockdown Grid, Crucible Hammer, Shard Field, Brood.
+
+2) The five cards (mechanics in core/boss-cards.js, looks in render/boss-cards-view.js; all in the player's own
+   colours, never the red of a warning)
+   - Lockdown Grid (Warden): every 8 s a cage drops on the densest group within 13 m (at least two enemies): six steel
+     pylons fall in 0.45 s, gold laser beams light between them at two heights; the enemies inside cannot leave for
+     3 s (bosses are burned but not held) and take 26 damage per second in two hits a second. Sounds: four pylons
+     hitting the floor with a servo whine, a laser buzz with a zap.
+   - Crucible Hammer (Crucible): every 6 s the next dash ends in a slam (3.4 m, 75 damage, sets enemies on fire) and
+     leaves molten ground for 3 s that keeps them burning. An ember glow on the drone shows it is ready. Sounds: an
+     anvil clang over a deep thump and the hiss of slag; a small ting when it is ready.
+   - Shard Field (Frost Prism): a kill shatters into five ice splinters (16 damage each, 1.5 s chill), at most one
+     shatter per 0.08 s. Sound: breaking glass and crystal pings.
+   - Brood (Hive Queen): every 10th kill hatches a larva (up to 4) that circles the drone, then hunts the nearest enemy
+     and bursts (1.7 m, 45 damage, poison for 3 s). Model: three body segments, beating wings, green eyes. Sounds: a
+     wet crack and a chirp, a wet pop with a fizz.
+   - Event Collapse (Rift Core): the Nova first pulls everything within 1.4 times its radius towards the drone for
+     0.35 s (bosses barely, heavy enemies slower), then blasts 40 % harder; the shots around are cleared at once and the
+     drone stays safe through the pull. Look: violet rings and sparks drawn in; sound: a reversed swell into the Nova.
+
+3) Tests
+   - Self-test v3150: the five cards (one per boss, rarity 6); none in 400 normal offers; the first boss offer of 600
+     seeds has the card in about 30 % of them, always first, always kept by a reroll; the chance grows by 15 % per miss
+     and resets on a hit; an owned card is never offered; the chance survives a snapshot and the save cleaner, a boss
+     card in a normal offer of a save is dropped. Lockdown: the cage drops on the group and not on the lone enemy,
+     holds all three, a held enemy pulled out stays inside, damage as expected, the cage ends. Hammer: a slam with
+     damage, fire and molten ground, not on the next dash, the ground ends. Shard Field: five splinters, the neighbour
+     is hit and chilled. Brood: four larvae from 50 kills, a larva bursts on an enemy and poisons it. Event Collapse:
+     no damage before the pull ends, the far enemy is pulled, the blast is 1.4 times a plain Nova.
+   - Data audit: rarity 6 only for a card that names its boss. Self-test count of upgrades 55 -> 60.
+   - Attack shots: bosscards-1-cage (with larvae and the hammer glow), -2-slam, -3-shatter, -4-implode, -5-choice.
+   - Determinism: updated on purpose (data tables and stats with the new cards; the simulated runs meet boss cards in
+     their boss offers, the resumed run keeps the chance).
+
+4) Results 3.15.0 (headless Chromium, software WebGL; npm run release-check)
+   - npm test steps: green (deep test with every sound rendered again and v3150; determinism 15/15 after the update).
+   - Full QA: all checks passed. E2E: 0 failures on the four devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     3266 events in 39 kinds, all consumed.
+   - Screens, biome and attack pictures: no page errors; the boss card pictures looked at.
+   - Time of the whole chain: 38 min 39 s. Format check: ok.
+
+5) Open doubts
+   - Only played by tests: whether the five cards feel strong enough for a boss reward and fit the run (the numbers are
+     at the top of core/boss-cards.js).
+
 RIFTLINE v3.14.0 – MUSIC OF THE PLACE
 Base: v3.13.0 · Build r3140a1005a-r1 · 05.10.2026
 
