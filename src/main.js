@@ -65,6 +65,7 @@ import { computeStats, weaponRange } from "./core/stats.js";
 import { Renderer } from "./render/renderer.js";
 import "./render/biome-visuals.js";
 import { Overlay } from "./render/overlay.js";
+import { SCAPE } from "./audio/place.js";
 
 const RL_INTRO = { queue: [], last: 0 };
 function rlIntroEvents(world) {
@@ -221,6 +222,8 @@ try {
   // 3.6.0: Saver draws without edge smoothing (multisampling is fixed when the WebGL context is made, so a change of
   // the setting takes effect at the next start)
   renderer = new Renderer(elementById("gl"), { dpr: 1.5, antialias: store.data.settings.quality !== "battery" });
+  // 3.13.0: thunder and sirens of the place come with their light
+  sound.onScape = (kind, pan) => renderer.scapeLight(kind, pan);
   let gl = renderer.renderer.getContext(),
     debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
   setLogContext({ gpu: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "n/a" });
@@ -1706,6 +1709,8 @@ window.__riftTest = {
   biomesById,
   upgradesById,
   workshopModules,
+  // 3.13.0: the soundscapes (tests/scape-preview.mjs renders them)
+  scape: SCAPE,
   get RL_HEALTH() {
     return RL_HEALTH;
   },

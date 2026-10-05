@@ -10,6 +10,10 @@
 //                 chains, a steam valve, a conveyor (Ember Works); an ice crack with a boom, falling icicles, a gust, the
 //                 groan of the glacier (Cryo Vault); frogs, a bird, an owl, mud (Toxin Marsh); a deep swell, a glass
 //                 shimmer, a breath, a glitch (Void Core)
+// 3.13.0: soundscapes. Every biome also has a soft steady layer (rain drops and gutters, the roar of the furnaces, wind,
+// crickets, the heartbeat of the core) and more far sounds in variants, each with its own rate (thunder every 25 to 50 s,
+// a siren every 60 to 120 s …): two big ones never at once, none twice in a row, fewer in a boss fight. Thunder and
+// sirens come with their light (renderer.scapeLight through engine.onScape).
 // They go to the ambience bus of the engine (its own volume in Settings) as voices of low priority: every effect of the
 // fight takes their place when the voices run out. The noise is pink or brown (no white hiss), most of it is tonal.
 // Nothing here touches the simulation: the timers use Math.random, like the rest of the sound effects.
@@ -204,15 +208,278 @@ const PLACE = {
   glitch(e, a) {
     for (let i = 0; i < 5; i++) T(e, a, rand(200, 2200), 0.03, "square", 0.02, { at: i * 0.045, lp: 3000 });
   },
+  // ---- 3.13.0: the steady layers (soft grains, many of them) ----
+  // Blackout City: light rain as single drops (no hiss), sometimes a gutter, sometimes rain on metal
+  rainDrop(e, a) {
+    for (let i = 0; i < 3; i++) {
+      const f = rand(1800, 4200);
+      T(e, a, f, 0.05, "sine", 0.012, { to: f * 0.6, at: rand(0, 0.25), dp: rand(-0.6, 0.6), rev: 0.35 });
+    }
+  },
+  gutter(e, a) {
+    const f = rand(520, 820);
+    T(e, a, f, 0.16, "sine", 0.024, { to: f * 1.5, attack: 0.005, rev: 0.45 });
+    T(e, a, f * 0.5, 0.12, "sine", 0.016, { to: f * 0.8, at: 0.02 });
+  },
+  rainMetal(e, a) {
+    for (let i = 0; i < 5; i++)
+      T(e, a, rand(2600, 5200), 0.04, "triangle", 0.01, { at: rand(0, 0.4), dp: rand(-0.4, 0.4), rev: 0.3 });
+  },
+  // Ember Works: the furnaces roar low (brown noise, nothing above 400 Hz) and the machines tick
+  furnace(e, a) {
+    N(e, a, 1.8, 0.012, { f: 160, to: 260, color: "brown", attack: 0.6, hold: 0.6, rev: 0.4 });
+    T(e, a, 48, 1.8, "sine", 0.005, { attack: 0.6, hold: 0.6 });
+  },
+  // Cryo Vault: wind that rises and falls through a narrow band (a whistle more than a hiss)
+  wind(e, a) {
+    const f = rand(380, 620);
+    N(e, a, 1.8, 0.035, {
+      type: "bandpass",
+      f,
+      to: f * rand(0.8, 1.3),
+      q: 6,
+      attack: 0.8,
+      rev: 0.4,
+      dp: rand(-0.5, 0.5),
+    });
+  },
+  // Toxin Marsh: crickets (short trains of high chirps)
+  cricket(e, a) {
+    const f = rand(4200, 5200),
+      n = 3 + Math.floor(Math.random() * 3),
+      dp = rand(-0.7, 0.7);
+    for (let i = 0; i < n; i++) T(e, a, f, 0.03, "sine", 0.012, { at: i * 0.06, dp });
+  },
+  // Void Core: the heartbeat of the core, two low beats
+  heartbeat(e, a) {
+    T(e, a, 52, 0.18, "sine", 0.03, { to: 40 });
+    T(e, a, 48, 0.22, "sine", 0.022, { to: 36, at: 0.28 });
+  },
+  // ---- 3.13.0: more far sounds ----
+  // Blackout City: a siren passes (two tones, falling a little as it goes), a helicopter, a horn, a dog
+  siren(e, a) {
+    for (let i = 0; i < 4; i++) {
+      const fall = 1 - i * 0.02;
+      T(e, a, 588 * fall, 0.22, "square", 0.012, {
+        lp: 1600,
+        at: i * 0.45,
+        attack: 0.02,
+        rev: 0.6,
+        dp: -0.2 + i * 0.12,
+      });
+      T(e, a, 440 * fall, 0.22, "square", 0.012, {
+        lp: 1600,
+        at: i * 0.45 + 0.22,
+        attack: 0.02,
+        rev: 0.6,
+        dp: -0.15 + i * 0.12,
+      });
+    }
+  },
+  helicopter(e, a) {
+    for (let i = 0; i < 22; i++)
+      N(e, a, 0.05, 0.05 * Math.sin((Math.PI * (i + 1)) / 23), {
+        f: 420,
+        color: "brown",
+        at: i * 0.08,
+        rev: 0.3,
+        dp: -0.4 + i * 0.035,
+      });
+    T(e, a, 95, 1.8, "sawtooth", 0.01, { lp: 400, attack: 0.6, hold: 0.6, dp: 0.2 });
+  },
+  horn(e, a) {
+    const twice = Math.random() < 0.5;
+    for (let i = 0; i < (twice ? 2 : 1); i++) {
+      T(e, a, 415, 0.34, "square", 0.012, { lp: 1400, at: i * 0.45, attack: 0.01, rev: 0.6 });
+      T(e, a, 523, 0.34, "square", 0.01, { lp: 1400, at: i * 0.45, attack: 0.01, rev: 0.6 });
+    }
+  },
+  dog(e, a) {
+    const n = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n; i++) {
+      const at = i * rand(0.28, 0.4);
+      T(e, a, rand(380, 480), 0.11, "sawtooth", 0.018, { to: 260, lp: 1300, at, attack: 0.005, rev: 0.6 });
+      N(e, a, 0.08, 0.03, { type: "bandpass", f: 900, q: 2, at, rev: 0.6 });
+    }
+  },
+  // Ember Works: a series of anvil strikes, a drop hammer, a conveyor, a steam whistle, a chain hoist, a molten pour
+  anvilSeries(e, a) {
+    const n = 3 + Math.floor(Math.random() * 2),
+      f = rand(300, 380);
+    for (let i = 0; i < n; i++) {
+      T(e, a, f, 0.7, "sine", 0.035, { at: i * 0.42, rev: 0.7 });
+      T(e, a, f * 2.68, 0.45, "sine", 0.016, { at: i * 0.42, rev: 0.7 });
+      N(e, a, 0.02, 0.04, { type: "bandpass", f: 2400, q: 2, at: i * 0.42 });
+    }
+  },
+  dropHammer(e, a) {
+    T(e, a, 58, 0.6, "sine", 0.1, { to: 34 });
+    N(e, a, 0.3, 0.07, { f: 500, to: 120, color: "brown", attack: 0.002 });
+    T(e, a, 640, 0.5, "sine", 0.018, { at: 0.01, rev: 0.7 });
+  },
+  conveyor(e, a) {
+    for (let i = 0; i < 14; i++) N(e, a, 0.03, 0.03, { type: "bandpass", f: rand(900, 1400), q: 4, at: i * 0.11 });
+    T(e, a, 72, 1.6, "sawtooth", 0.01, { lp: 260, attack: 0.3, hold: 0.9 });
+  },
+  whistle(e, a) {
+    T(e, a, 880, 1.2, "sine", 0.02, { to: 860, attack: 0.08, rev: 0.6 });
+    T(e, a, 1320, 1.2, "sine", 0.012, { to: 1290, attack: 0.08, rev: 0.6 });
+    N(e, a, 1.2, 0.03, { type: "bandpass", f: 1100, q: 4, attack: 0.08, rev: 0.6 });
+  },
+  hoist(e, a) {
+    for (let i = 0; i < 10; i++) T(e, a, rand(1500, 2600), 0.06, "triangle", 0.014, { at: i * 0.09, rev: 0.4 });
+    T(e, a, 140, 1.0, "sawtooth", 0.012, { to: 180, lp: 500, attack: 0.1 });
+  },
+  pour(e, a) {
+    N(e, a, 1.6, 0.06, { f: 260, to: 420, color: "brown", attack: 0.3, rev: 0.5 });
+    for (let i = 0; i < 4; i++) T(e, a, rand(80, 140), 0.2, "sine", 0.04, { to: 240, at: 0.3 + i * rand(0.2, 0.3) });
+  },
+  // Cryo Vault: a howling gust, a far avalanche, ringing crystals
+  howl(e, a) {
+    N(e, a, 1.8, 0.05, { type: "bandpass", f: 520, to: 980, q: 9, attack: 0.7, rev: 0.5 });
+    T(e, a, 520, 1.8, "sine", 0.008, { to: 900, attack: 0.8, rev: 0.5 });
+  },
+  avalanche(e, a) {
+    N(e, a, 1.9, 0.11, { f: 140, to: 60, color: "brown", attack: 0.5, rev: 0.7 });
+    for (let i = 0; i < 6; i++) N(e, a, 0.06, 0.03, { f: 600, color: "brown", at: 0.3 + i * 0.2 });
+  },
+  crystals(e, a) {
+    const base = rand(880, 1180);
+    for (const [k, v] of [
+      [1, 0.016],
+      [2.76, 0.009],
+      [5.4, 0.005],
+    ])
+      T(e, a, base * k, 1.4, "sine", v, { rev: 0.8, dp: rand(-0.2, 0.2) });
+  },
+  // Toxin Marsh: a chorus of frogs, cicadas, an insect flying past, a splash, a heron
+  frogChorus(e, a) {
+    for (let i = 0; i < 9; i++) {
+      const f = rand(90, 150);
+      T(e, a, f, 0.12, "square", 0.016, {
+        to: f * 1.3,
+        lp: 650,
+        q: 6,
+        at: rand(0, 1.5),
+        dp: rand(-0.5, 0.5),
+        rev: 0.3,
+      });
+    }
+  },
+  cicada(e, a) {
+    for (let i = 0; i < 24; i++) T(e, a, 6200, 0.04, "sawtooth", 0.006, { lp: 7000, at: i * 0.06, rev: 0.3 });
+  },
+  insect(e, a) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    T(e, a, 230, 1.0, "sawtooth", 0.012, { to: 205, lp: 900, attack: 0.4, dp: -0.8 * side, rev: 0.2 });
+    T(e, a, 232, 1.0, "sawtooth", 0.012, { to: 207, lp: 900, attack: 0.4, at: 0.25, dp: 0.8 * side, rev: 0.2 });
+  },
+  splash(e, a) {
+    N(e, a, 0.25, 0.07, { f: 1200, to: 400, color: "pink", attack: 0.005, rev: 0.4 });
+    for (let i = 0; i < 3; i++) T(e, a, rand(300, 600), 0.06, "sine", 0.025, { to: 900, at: 0.1 + i * 0.08 });
+  },
+  heron(e, a) {
+    T(e, a, 320, 0.35, "sawtooth", 0.02, { to: 230, lp: 1200, q: 4, attack: 0.01, rev: 0.6 });
+  },
+  // Void Core: a reversed swell, a metallic resonance, chirps
+  reversed(e, a) {
+    N(e, a, 1.2, 0.07, { type: "bandpass", f: 400, to: 1800, q: 3, attack: 1.15, rev: 0.2 });
+    T(e, a, 220, 1.2, "triangle", 0.025, { to: 330, attack: 1.15, lp: 1200 });
+  },
+  metal(e, a) {
+    for (const [f, v] of [
+      [311, 0.02],
+      [742, 0.012],
+      [1189, 0.008],
+      [1871, 0.005],
+    ])
+      T(e, a, f, 1.6, "sine", v, { rev: 0.8 });
+  },
+  chirp(e, a) {
+    for (let i = 0; i < 3; i++) {
+      const f = rand(900, 1500);
+      T(e, a, f, 0.07, "sine", 0.018, { to: f * 2.4, at: i * 0.11, dp: rand(-0.3, 0.3), rev: 0.5 });
+    }
+  },
 };
-// the far sounds of each biome
-const BIOME_PLACE = {
-  yard: ["thunder", "carAlarm", "carPass", "radio", "sparks"],
-  works: ["anvil", "chains", "steam", "clunk"],
-  vault: ["bigCrack", "icicles", "gust", "groan"],
-  marsh: ["frogs", "bird", "owl", "mud"],
-  void: ["swell", "shimmer", "breath", "glitch"],
+/* 3.13.0: the soundscape of each biome.
+   bed: the steady layer, one grain every lo..hi s, at level g
+   far: the far sounds, each on its own timer of lo..hi s; big ones never sound at the same time (one waits a few
+        seconds); light: the renderer shows it ("lightning", "siren") */
+const SCAPE = {
+  yard: {
+    bed: [
+      ["rainDrop", 0.12, 0.3, 0.8],
+      ["gutter", 1.6, 4, 0.7],
+      ["rainMetal", 2.5, 6, 0.6],
+    ],
+    far: [
+      { id: "thunder", every: [25, 50], big: true, light: "lightning" },
+      { id: "siren", every: [60, 120], big: true, light: "siren" },
+      { id: "helicopter", every: [70, 140], big: true },
+      { id: "horn", every: [30, 70] },
+      { id: "dog", every: [30, 60] },
+      { id: "carAlarm", every: [50, 100] },
+      { id: "carPass", every: [20, 45] },
+      { id: "radio", every: [35, 80] },
+      { id: "sparks", every: [25, 55] },
+    ],
+  },
+  works: {
+    bed: [["furnace", 1.4, 1.8, 0.8]],
+    far: [
+      { id: "anvilSeries", every: [20, 40] },
+      { id: "dropHammer", every: [15, 35], big: true },
+      { id: "conveyor", every: [25, 50] },
+      { id: "whistle", every: [50, 100], big: true },
+      { id: "hoist", every: [30, 60] },
+      { id: "pour", every: [40, 80], big: true },
+      { id: "steam", every: [20, 45] },
+      { id: "chains", every: [25, 50] },
+      { id: "anvil", every: [18, 40] },
+    ],
+  },
+  vault: {
+    bed: [["wind", 1.5, 2.6, 0.7]],
+    far: [
+      { id: "howl", every: [25, 50] },
+      { id: "groan", every: [30, 60] },
+      { id: "icicles", every: [20, 45] },
+      { id: "avalanche", every: [80, 160], big: true },
+      { id: "crystals", every: [25, 50] },
+      { id: "bigCrack", every: [35, 70], big: true },
+      { id: "gust", every: [20, 40] },
+    ],
+  },
+  marsh: {
+    bed: [["cricket", 0.4, 1.1, 0.8]],
+    far: [
+      { id: "frogChorus", every: [20, 40] },
+      { id: "cicada", every: [25, 50] },
+      { id: "insect", every: [20, 45] },
+      { id: "splash", every: [25, 50] },
+      { id: "owl", every: [40, 80] },
+      { id: "heron", every: [45, 90], big: true },
+      { id: "frogs", every: [15, 35] },
+      { id: "bird", every: [25, 50] },
+      { id: "mud", every: [20, 40] },
+    ],
+  },
+  void: {
+    bed: [["heartbeat", 1.1, 1.3, 0.7]],
+    far: [
+      { id: "reversed", every: [25, 50] },
+      { id: "metal", every: [30, 60] },
+      { id: "chirp", every: [20, 40] },
+      { id: "swell", every: [30, 60], big: true },
+      { id: "shimmer", every: [25, 50] },
+      { id: "breath", every: [30, 55] },
+      { id: "glitch", every: [20, 45] },
+    ],
+  },
 };
+// the far sounds of each biome (3.9.0; since 3.13.0 taken from SCAPE)
+const BIOME_PLACE = Object.fromEntries(Object.entries(SCAPE).map(([biome, sc]) => [biome, sc.far.map((f) => f.id)]));
 const PLACE_IDS = Object.keys(PLACE);
 
 /* One step of the sounds of the place (main.js calls it every frame of a running fight). st keeps the timers of each
@@ -221,7 +488,7 @@ function placeTick(e, world, dt) {
   const arena = world.arena,
     player = world.player;
   let st = e.placeSt;
-  if (!st || st.arena !== arena) st = e.placeSt = { arena, timers: new Map(), vents: new Map(), far: rand(3, 7) };
+  if (!st || st.arena !== arena) st = e.placeSt = { arena, timers: new Map(), vents: new Map(), far: null };
   const fight = world.state === "fight",
     budget = { n: 3 },
     play = (id, a) => {
@@ -274,16 +541,39 @@ function placeTick(e, world, dt) {
     const portal = arena.portals[Math.floor(Math.random() * arena.portals.length)];
     play("portalWhisper", at(portal.ax, portal.ay));
   }
-  // far away: a sound of the biome every 5 to 11 s (less often in a boss fight), on one side
-  st.far -= dt;
-  if (st.far <= 0) {
-    st.far = (world.boss ? 10 : 5) + rand(0, 6);
-    const list = BIOME_PLACE[arena.biome.id];
-    if (list) {
-      const side = Math.random() < 0.5 ? -1 : 1;
-      play(list[Math.floor(Math.random() * list.length)], { g: rand(0.55, 1), pan: side * rand(0.35, 0.9) });
+  // 3.13.0: the soundscape of the biome; a boss fight thins it out (its timers run at half speed, the bed is softer)
+  const scape = SCAPE[arena.biome.id];
+  if (!scape) return;
+  const thin = world.boss ? 0.5 : 1,
+    t = (st.t = (st.t || 0) + dt);
+  for (const [id, lo, hi, g] of scape.bed)
+    if (due("bed:" + id, lo / thin, hi / thin)) play(id, { g: g * (world.boss ? 0.6 : 1), pan: rand(-0.5, 0.5) });
+  if (!st.far || st.far.biome !== arena.biome.id) {
+    // the first far sounds come soon (2 s up to the shortest rate), then each keeps its own rate
+    st.far = { biome: arena.biome.id, next: new Map(), last: null, lastAt: -99, bigUntil: -99 };
+    for (const f of scape.far) st.far.next.set(f.id, t + rand(2, f.every[0]));
+  }
+  const far = st.far;
+  for (const f of scape.far) {
+    // no free voice slot in this frame (the hazards took them): the far sounds wait for the next frame, so a light
+    // never comes without its sound and no sound loses its turn
+    if (budget.n <= 0) break;
+    const next = far.next.get(f.id);
+    if (t < next) continue;
+    // never two far sounds within 2.5 s, never the same twice in a row, never two big ones at once: try again soon
+    if (t - far.lastAt < 2.5 || far.last === f.id || (f.big && t < far.bigUntil)) {
+      far.next.set(f.id, t + rand(2, 6));
+      continue;
     }
+    far.next.set(f.id, t + rand(f.every[0], f.every[1]) / thin);
+    far.last = f.id;
+    far.lastAt = t;
+    if (f.big) far.bigUntil = t + 4;
+    const pan = (Math.random() < 0.5 ? -1 : 1) * rand(0.35, 0.9);
+    play(f.id, { g: rand(0.55, 1), pan });
+    if (f.light && e.onScape) e.onScape(f.light, pan);
+    break;
   }
 }
 
-export { PLACE, PLACE_IDS, BIOME_PLACE, placeTick, near as placeNear };
+export { PLACE, PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, near as placeNear };

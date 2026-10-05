@@ -37,6 +37,7 @@ const res = await page.evaluate(() => {
     v380: r.v380?.fail,
     v390: r.v390?.fail,
     v3100: r.v3100?.fail,
+    v3130: r.v3130?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
@@ -50,11 +51,13 @@ const sound = cached
       const engine = window.__riftTest.game.sound.constructor,
         fail = [],
         catalog = engine.catalog();
+      const peaks = {};
       let maxPeak = 0,
         longest = 0;
       for (const { name, spec } of catalog) {
         try {
           const r = await engine.renderOffline(spec);
+          peaks[name] = r.peak;
           maxPeak = Math.max(maxPeak, r.peak);
           longest = Math.max(longest, r.lastAudible);
           if (!r.finite) fail.push(name + ": non-finite samples");
@@ -90,7 +93,37 @@ const sound = cached
       if (!(mean > 0.003)) fail.push(`flame fire is silent (mean level ${mean})`);
       if (!(flameCv < FLAME_CV_MAX))
         fail.push(`flame fire pulses: loudness spread ${flameCv.toFixed(2)} (max ${FLAME_CV_MAX})`);
-      return { count: catalog.length, maxPeak, longest, flameCv, fail };
+      // 3.13.0: the sounds of the place sit under the fight. At full level the steady layers (they play all the time)
+      // stay under 60 % of a Pulse Blaster shot, every other sound of the place under a Scattergun shot.
+      const BEDS = ["rainDrop", "gutter", "rainMetal", "furnace", "wind", "cricket", "heartbeat"],
+        bedLimit = peaks.pulse * 0.6,
+        farLimit = peaks.scatter,
+        placeKeys = Object.keys(peaks).filter((key) => key.startsWith("place:"));
+      for (const key of placeKeys) {
+        const bed = BEDS.includes(key.slice(6)),
+          limit = bed ? bedLimit : farLimit;
+        if (!(peaks[key] < limit))
+          fail.push(
+            `${key} (peak ${peaks[key].toFixed(3)}) is louder than ${bed ? "60 % of a Pulse shot" : "a Scattergun shot"} (${limit.toFixed(3)})`,
+          );
+      }
+      const loudPlace = placeKeys.sort((a, b) => peaks[b] - peaks[a])[0],
+        loudBed = placeKeys.filter((key) => BEDS.includes(key.slice(6))).sort((a, b) => peaks[b] - peaks[a])[0];
+      return {
+        count: catalog.length,
+        maxPeak,
+        longest,
+        flameCv,
+        placePeak: {
+          loudest: loudPlace,
+          peak: peaks[loudPlace],
+          farLimit,
+          loudestBed: loudBed,
+          bedPeak: peaks[loudBed],
+          bedLimit,
+        },
+        fail,
+      };
     }, 0.3);
 res.soundRender = sound;
 // 2.9.0: the sounds must differ from each other. Every weapon shot (strict), every death family and every boss

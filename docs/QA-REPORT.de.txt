@@ -1,3 +1,77 @@
+RIFTLINE v3.13.0 – SOUNDSCAPES: EVERY PLACE SOUNDS LIKE ITSELF
+Base: v3.12.0 · Build r3130a1005a-r1 · 05.10.2026
+
+Requested (04.10.2026, after 3.9.0): more sounds of the place in reasonable amounts (Blackout City more thunder, light
+rain, a few sirens; Ember Works anvils and machinery; the same for every biome), with the volumes right. Decisions:
+rain yes, but no white-noise rain (soft patter and single drops); visual tie-ins where logical (lightning with the
+thunder, the red and blue of a passing siren). Planned in the roadmap as the soundscapes; fifth of the stacked PRs of
+the night (stacked on the repository cleanup).
+
+1) Finding
+   - 3.9.0 played one far sound of the biome every 5 to 11 s from four or five per biome, all on one shared timer:
+     the same few sounds came back often, and there was nothing between them.
+
+2) Soundscapes (audio/place.js SCAPE)
+   - A steady layer per biome, as soft grains (no constant noise): Blackout City rain as single drops (three tiny
+     falling pings at a time), gutters and rain on metal; Ember Works the low roar of the furnaces (brown noise under
+     260 Hz); Cryo Vault wind through a narrow band; Toxin Marsh crickets; Void Core the heartbeat of the core.
+   - Far sounds per biome (7 to 9), each on its own timer with its own rate: Blackout City thunder 25-50 s, a siren
+     60-120 s, a helicopter 70-140 s, a horn, a dog, a car alarm, a passing car, police radio, sparks; Ember Works an
+     anvil series, a drop hammer, a conveyor, a steam whistle, a chain hoist, a molten pour, steam, chains, a single
+     anvil; Cryo Vault a howling gust, the glacier's groan, icicles, a far avalanche (80-160 s), ringing crystals, a
+     big crack, a gust; Toxin Marsh a frog chorus, cicadas, an insect flying past, a splash, an owl, a heron, frogs, a
+     bird, mud; Void Core a reversed swell, a metallic resonance, chirps, a deep swell, a shimmer, a breath, a glitch.
+     21 new sounds, all with random variants (pitch, count, spacing, side).
+   - No clutter: never two far sounds within 2.5 s, never the same twice in a row, two big ones (thunder, siren,
+     helicopter, drop hammer, whistle, pour, avalanche, big crack, heron, swell) at least 4 s apart; the first ones
+     come within a few seconds of a new place. A boss fight halves the rates and softens the bed.
+   - The hazards of 3.9.0 (lava, manholes, ice, acid, portals) sound as before.
+
+3) Light that belongs to the sound (render/renderer.js scapeLight)
+   - Thunder: the whole arena flickers in a cold white light three times within 0.3 s.
+   - A siren: red and blue glows take turns every 0.32 s at the side of the view on the siren's side for 3.2 s,
+     drifting past. Both use the floor flashes of the arena shader (no new light: a new light would recompile every
+     material); sound.onScape tells the renderer.
+
+4) Levels (measured from offline renders, mono, at full level)
+   - The furnace bed (0.088) and the heartbeat (0.058) were louder than a Pulse Blaster shot (0.052) in the first
+     draft; they are softer now. Locked in the deep test: every steady layer under 60 % of a Pulse shot (loudest: the
+     gutter, 0.027 against 0.031), every other sound of the place under a Scattergun shot (loudest: the thunder of
+     3.9.0, 0.21 against 0.35). Previews: the 30 s of a biome peak at -18 to -27 dB (ambience at 0.8, no music).
+
+5) Tests
+   - Self-test v3130: every bed and far sound exists and is in the catalog of the offline test; 20 minutes of each
+     biome: every far sound comes, none more often than its rate allows, never two within 2.45 s, never the same
+     twice in a row, big ones 3.95 s apart, the bed keeps going, every thunder and siren comes with its light; 20
+     minutes in a boss fight bring less than 70 % of the far sounds.
+   - Deep test: the level rules above (placePeak in its output), every new sound rendered offline (not silent, no
+     clipping, every voice ends).
+   - New script tests/scape-preview.mjs (node tools/qa.js scape-preview [biome]): each biome as WAV and MP3 (30 s of
+     the real scheduler, then every far sound once) in tests/shots/scapes/.
+   - Screenshots: tests/shots/attacks-pc/scape-lightning.png and scape-siren.png (under software WebGL at 2 fps the
+     flashes are mostly gone by the time of the picture; they are short by design).
+   - Not done from the plan: sounds tied to the props near the drone (conveyors, street lamps); the props are drawn
+     by the renderer only, the simulation does not know where they are.
+
+6) Results 3.13.0 (headless Chromium, software WebGL; npm run release-check)
+   - npm test steps: green (deep test with v3130 and the level rules; determinism 15/15 unchanged: the soundscapes
+     are not part of the simulation).
+   - Full QA: all 403 checks passed. E2E: 136 checks, 0 failures on the four devices.
+   - Audit: world and data without findings; bot run: victory at wave 20, Endless to wave 22, no runtime errors,
+     4301 events in 37 kinds, all consumed.
+   - Screens, biome and attack pictures: no page errors.
+   - Found in the code review and fixed: with the voice slots of a frame taken by hazards, a due far sound was
+     skipped while its light flashed and its timer ran on (lightning without thunder); far sounds now wait for a free
+     slot (self-test with eight humming portals).
+   - MP3 previews of the five biomes (tests/shots/scapes/) sent to the owner.
+   - Later the same night: the furnace and gutter beds reached 0.034 and 0.029 against their limit of 0.031 in some
+     runs (the renders are not seeded); both are softer now (furnace noise 0.012, gutter 0.024).
+   - Time of the whole chain: 33 min 11 s. Format check: ok.
+
+7) Open doubts
+   - Only measured, not heard: whether the layers are pleasant over a long run, and whether the rates are right
+     (the MP3 previews are for that).
+
 RIFTLINE v3.12.0 – THE SINGULARITY REPLACES THE GRENADE
 Base: v3.11.0 · Build r3120a1005a-r1 · 05.10.2026
 

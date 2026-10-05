@@ -97,7 +97,7 @@ Plan:
    mines, charges and mortar shells with models; blasts of their kind (ice spikes, pillars of fire, bolts of light,
    splashes) with sounds of their own; marks of the place instead of the black blob; enemy shots with shapes of their
    kind. The warning ring stays.
-2. **3.11.0 Soundscapes**: per biome a soft steady layer, sounds from the props near the drone and far sounds in
+2. **3.11.0 Soundscapes** (done as 3.13.0, see the HANDOFF): per biome a soft steady layer, sounds from the props near the drone and far sounds in
    variants, with rate limits per sound (for example thunder about every 25 to 50 s, a siren about every 60 to 120 s),
    never two big sounds at once, no repeats, thinner in boss fights. Blackout City: light rain (patter, gutter drips,
    rain on metal), thunder with lightning, sirens with their light, a helicopter, a horn, a dog, a buzzing street lamp.
@@ -150,7 +150,9 @@ order"; after a merge and a deleted branch GitHub retargets the next PR to main)
    webgl, pwa, javascript), a social preview image (docs/media/void-core.jpg fits), and whether the code gets a
    license. Was: if usage is left: the repository cleanup the owner asked for (README as the landing page with the Play link,
    stale information, docs, .github), without deleting this roadmap or the QA report (CLAUDE.md needs them).
-5. Then the roadmap below in its order: 3.13.0 soundscapes, 3.14.0 music of the place, boss rewards, the walker.
+5. Then the roadmap below in its order: 3.13.0 soundscapes (done on branch `claude/soundscapes-3130`, stacked on the
+   cleanup; QA report 3.13.0; sounds tied to the props near the drone not done), 3.14.0 music of the place, boss
+   rewards, the walker.
 
 Usage rules of the owner: stop at a clean point at about 90 % of the 5-hour window and go on after its reset; stop and
 report at about 85 % of the weekly limit. Before every PR: code review of the diff, the full release check, a look at

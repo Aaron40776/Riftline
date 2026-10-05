@@ -148,6 +148,13 @@ await p.waitForFunction(() => (window.__riftTest.game.world.singularities[0]?.pu
 await p.screenshot({ path: `${OUT}/singularity-1-pull.png` });
 await p.waitForFunction(() => !window.__riftTest.game.world.singularities.length, null, { timeout: 60000 });
 await p.screenshot({ path: `${OUT}/singularity-2-collapse.png` });
+// 3.13.0: the light of the place: a lightning strike lights the arena, a passing siren glows red and blue at the edge
+await ev(() => window.__riftTest.renderer.scapeLight("lightning", 0));
+await ev(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+await p.screenshot({ path: `${OUT}/scape-lightning.png` });
+await ev(() => window.__riftTest.renderer.scapeLight("siren", 0.6));
+await ev(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+await p.screenshot({ path: `${OUT}/scape-siren.png` });
 console.log(errs.length ? "ERRORS:\n" + errs.join("\n") : "no errors");
 await b.close();
 process.exit(errs.length ? 1 : 0);
