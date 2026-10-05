@@ -2262,6 +2262,114 @@ await section("qol", async (L) => {
 });
 
 /* ======================= 5. controls: every button is wired and named ======================= */
+/* ======================= sound notes (3.17.2) ======================= */
+for (const profName of ["desktop", "phone"])
+  await section(`soundnotes-${profName}`, async (L) => {
+    const P = await open(profName, { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+    await P.boot();
+    const notes = () => P.ev(() => JSON.parse(localStorage.getItem("riftline.soundNotes") || "[]"));
+    // a run, a few sounds heard lately (the engine's memory of them is filled directly: headless audio may not run)
+    await P.ev(() => {
+      const T = window.__riftTest;
+      T.game.startRun({});
+      T.game.sound.heard("eshot", { type: "boss", boss: "warden" });
+      T.game.sound.heard("step", { ground: "ice" });
+      T.game.sound.heard("step", { ground: "ice" });
+      T.game.sound.heard("place:siren");
+      T.game.sound.heard("click");
+    });
+    await P.page.waitForTimeout(600);
+    await P.ev(() => window.__riftTest.game.pause());
+    await P.page.waitForTimeout(400);
+    check(L, "pause menu has the Sound notes button", await P.vis("pauseSndBtn"));
+    await P.tap("#pauseSndBtn");
+    check(L, "sound notes open", await P.vis("sndNotes"));
+    const list = await P.ev(() =>
+      [...document.querySelectorAll("#snList .sn-item")].map(
+        (e) => e.dataset.key + "|" + e.querySelector("small").textContent,
+      ),
+    );
+    check(
+      L,
+      "the list names the sounds heard lately (distinct, counted), not the menu's own clicks",
+      list.some((x) => x.startsWith("step:ice|2×")) &&
+        list.some((x) => x.startsWith("eshot:warden")) &&
+        list.some((x) => x.startsWith("place:siren")) &&
+        !list.some((x) => x.startsWith("click")),
+      list.join(" ; "),
+    );
+    check(L, "no reasons before a sound is picked", !(await P.vis("snReasons")));
+    await P.tap('#snList [data-key="step:ice"]');
+    check(L, "picking a sound shows the reasons", await P.vis("snReasons"));
+    await P.tap('#snReasons [data-reason="loud"]');
+    await P.tap('#snList [data-key="place:siren"]');
+    await P.tap('#snReasons [data-reason="love"]');
+    const saved = await notes();
+    check(
+      L,
+      "the notes are saved with the exact sound, the reason and where it was",
+      saved.length === 2 &&
+        saved[0].key === "step:ice" &&
+        saved[0].reason === "loud" &&
+        saved[1].key === "place:siren" &&
+        saved[1].reason === "love" &&
+        saved[0].wave >= 1 &&
+        !!saved[0].biome,
+      JSON.stringify(saved),
+    );
+    check(L, "the count shows", (await P.ev(() => document.getElementById("snCount").textContent)) === "2");
+    // the copied text (the clipboard may be blocked: the text is what is built)
+    const text = await P.ev(() => {
+      let copied = null;
+      const g = window.__riftTest.ui;
+      g.copy = (t) => (copied = t);
+      g.copySoundNotes();
+      return copied;
+    });
+    check(
+      L,
+      "copy builds one text with a line per note",
+      !!text &&
+        text.split("\n").length === 3 &&
+        /step:ice \| Too loud/.test(text) &&
+        /place:siren \| Love it/.test(text),
+      String(text).replace(/\n/g, " / "),
+    );
+    // back: the button and the Esc key lead to the pause menu
+    await P.tap("#snBack");
+    check(L, "Back returns to the pause menu", (await P.vis("pause")) && !(await P.vis("sndNotes")));
+    await P.tap("#pauseSndBtn");
+    if (!P.prof.touch) {
+      await P.page.keyboard.press("Escape");
+      await P.page.waitForTimeout(300);
+      check(L, "Esc returns to the pause menu", (await P.vis("pause")) && !(await P.vis("sndNotes")));
+      await P.tap("#pauseSndBtn");
+    }
+    await P.tap("#snClear");
+    check(L, "Clear removes the notes", (await notes()).length === 0);
+    await P.tap("#snBack");
+    check(L, "no page errors in the run", !P.errors.length, P.errors.slice(0, 3).join(" | "));
+    await P.close();
+    // from the settings of the main menu (no run: the notes can be copied and cleared there)
+    const Q = await open(profName, {
+      save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }),
+    });
+    await Q.boot();
+    await Q.nav("settings");
+    check(L, "settings have the Sound notes button in the menu", await Q.vis("sndNotesBtn"));
+    await Q.tap("#sndNotesBtn");
+    check(L, "sound notes open from the settings", await Q.vis("sndNotes"));
+    check(
+      L,
+      "no run: it says nothing played lately",
+      /Nothing played lately/.test(await Q.ev(() => document.getElementById("snMusic").textContent)),
+    );
+    await Q.tap("#snBack");
+    check(L, "Back returns to the settings", (await Q.vis("settings")) && !(await Q.vis("sndNotes")));
+    check(L, "no page errors in the menu", !Q.errors.length, Q.errors.slice(0, 3).join(" | "));
+    await Q.close();
+  });
+
 await section("buttons", async (L) => {
   const P = await open("desktop");
   await P.boot();

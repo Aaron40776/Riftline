@@ -51,6 +51,8 @@ const RL_DEATH_FAMILY = {
   beacon: "dShatter",
 };
 /* 2.9.0: the shot of an enemy by type (default "eshot", the gunner); the sniper has its own lock-on sound */
+// 3.17.2: how long the sound notes remember a sound (seconds)
+const HEARD_WINDOW = 30;
 const RL_ESHOT_VOICE = {
   sniper: "snipe",
   turret: "eshotTurret",
@@ -824,6 +826,7 @@ const musicChords = {
     /* 3.9.0: one sound of the place (audio/place.js) at level a.g and pan a.pan, on the ambience bus */
     placePlay(id, a) {
       if (!this.live() || this.ambVol <= 0 || !PLACE[id]) return;
+      this.heard("place:" + id);
       try {
         PLACE[id](this, a);
       } catch (err) {
@@ -1081,6 +1084,7 @@ const musicChords = {
     }
     play(id, arg) {
       if (!this.live() || this.sfxVol <= 0) return;
+      this.heard(id, arg);
       this.curPri = KEY_SOUNDS.has(id) ? 2 : 1;
       this.curRev = SFX_ROOM[id] || 0;
       try {
@@ -1092,6 +1096,42 @@ const musicChords = {
         this.curPri = 1;
         this.curRev = 0;
       }
+    }
+    /* 3.17.2: what the player heard lately (the sound notes in the pause menu): per sound (its id with the thing that makes
+       it a different sound, `step:ice`, `eshotWarden`) how often in the last half minute and when it was last played.
+       One small entry per distinct sound, updated in place, so it costs nothing to keep. */
+    heard(id, arg) {
+      let key = id;
+      if (arg != null) {
+        const part = typeof arg === "object" ? arg.ground || arg.id || arg.kind || arg.boss || arg.type : arg;
+        if (part != null && part !== "" && typeof part !== "object" && typeof part !== "boolean") key = id + ":" + part;
+      }
+      const now = performance.now() / 1000,
+        map = this.recent || (this.recent = new Map());
+      let entry = map.get(key);
+      if (!entry) {
+        if (map.size >= 80) for (const [k, e] of map) if (now - e.t > HEARD_WINDOW) map.delete(k);
+        if (map.size >= 80) return;
+        entry = { key, n: 0, t: now };
+        map.set(key, entry);
+      }
+      if (now - entry.t > HEARD_WINDOW) entry.n = 0;
+      entry.n++;
+      entry.t = now;
+    }
+    /* the sounds of the last `window` seconds, the most recent first: [{ key, n, ago }] */
+    recentSounds(window = HEARD_WINDOW) {
+      const now = performance.now() / 1000,
+        out = [];
+      if (this.recent)
+        for (const e of this.recent.values()) if (now - e.t <= window) out.push({ key: e.key, n: e.n, ago: now - e.t });
+      return out.sort((a, b) => a.ago - b.ago);
+    }
+    /* the music that plays now (null: none): the track and the intensity of the fight */
+    musicNow() {
+      return this.playKind && this.playKind !== "off"
+        ? { kind: this.playKind, biome: this.playBiome || this.biome, intensity: this.intensity || 0 }
+        : null;
     }
     /* 2.9.0: a light sidechain: the music gain dips by `depth` (at most 15 %) for about 80 ms and comes back
      (time constant 70 ms), so that a big hit is heard over the music. Nothing is stopped or skipped. */
