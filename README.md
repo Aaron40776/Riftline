@@ -53,8 +53,9 @@ on in Endless, which keeps getting harder. Shards from every run, won or lost, b
 | Back in menus | `Esc` | back button |
 
 Keys are read by their position, so on AZERTY and other layouts the same physical keys move the drone. *Settings →
-Button layout* moves and resizes the touch buttons. Phones and tablets play in landscape only; held upright they
-show a "turn your device" screen and a run waits paused.
+Button layout* moves and resizes the touch buttons. Phones and tablets always play in landscape: held upright, the
+game turns itself (a small shell in `index.html` runs it in a frame turned by 90°), so there is no "turn your device"
+screen. `?shell=0` switches the shell off, `?shell=1` forces it.
 
 ## Running it locally
 
@@ -109,7 +110,7 @@ src/
   render/          three.js renderer, models, biome visuals, traps, hazards, attacks, boss cards, 2D overlay
   audio/           sound effects, music and the sounds of the place
   ui/              DOM UI (screens, HUD, dialogs), input and the button layout editor
-  index.html       page shell, all CSS, device detection, rotate screen, layout audit
+  index.html       page shell, all CSS, device detection, landscape shell, layout audit
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)
 public/            icons, fonts, web manifest, third-party licenses (copied to dist/ unchanged)

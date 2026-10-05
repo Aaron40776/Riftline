@@ -176,6 +176,16 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
 - **Faster tests**: the release checks take about 45 minutes; optimize the steps for this project.
 
 
+## Requested on 05.10.2026: always landscape, and the sound of Osmos
+
+- **Always landscape** (done in 3.18.0): "remove the turn phone thing and make the game simply always landscape, like
+  Clash of Clans / Brawl Stars": the shell in `index.html` turns the game when the phone is held upright. Open: the
+  behaviour of touches in the turned frame on a real iPhone (Safari) could not be tested without a device.
+- **Sound direction** (the owner likes the mobile game *Osmos*): high quality stereo ambience, a nice subtle melody and
+  ambient effect sounds, noticeable and pleasant, distinct for each biome. To plan (not built yet): wider stereo (slow
+  auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
+  (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
+
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
 ### 1. Boss-Belohnungen
