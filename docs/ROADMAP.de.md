@@ -181,6 +181,8 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
 - **Always landscape** (done in 3.18.0): "remove the turn phone thing and make the game simply always landscape, like
   Clash of Clans / Brawl Stars": the shell in `index.html` turns the game when the phone is held upright. Open: the
   behaviour of touches in the turned frame on a real iPhone (Safari) could not be tested without a device.
+  **Reversed on 06.10.2026** (owner: "the always landscape thing is kinda weird, maybe just keep the turn phone thing"):
+  3.28.1 removes the shell and brings back the rotate screen of 3.11.0 (held upright: "Turn your device", a run waits).
 - **A more professional look** (owner, 05.10.2026: "it's all looking like a kids game, we need more professional
   style"). Looked at the current pictures first. What reads as toy-like: flat, evenly lit low-poly shapes without
   material (no metal or roughness, no wear, no ambient occlusion, soft blob shadows), saturated flat colours in the
@@ -216,20 +218,21 @@ each is based on the one before, so merge them in this order and, after each mer
 | #51 | 3.25.0 | Banish Protocol (workshop module; banish a card in the upgrade choice) |
 | #52 | 3.26.0 | Daily Rift (date seed, weapon and threat; best of the day, streak) |
 | #53 | 3.27.0 | Pacts (up to two optional risks for more shards) |
-| #54 | 3.28.0 | Codex part Rift events (mutators, Overdrive attacks) |
+| #54 | 3.28.0 | Codex part Rift events (mutators, Overdrive attacks) (#54 carried the whole stack and was merged on 06.10.2026) |
+| next | 3.28.1 | checkup fixes; the rotate screen is back instead of the turning shell (owner, 06.10.2026: "the always landscape thing is kinda weird, maybe just keep the turn phone thing") |
 
 State of the tests: the complete release check ran on 3.18.1, 3.18.2, 3.19.0 (all ok), 3.20.0 (ok after one test fix), 3.23.0
 (covers 3.21 to 3.23; ok after the determinism fixture update). 3.24.0 had `npm test` and its own sections.
 
 Owner's decisions of 05.10.2026: the overlap of music is fixed by a fade (done); the sound goes on by synthesis first (he will send
-reference clips: Osmos is the direction); the professional look is an opt-in Ultra preset; tablets are landscape-only (the shell
-does it); the recommended order goes on; a repo description, topics and a licence are prepared (`docs/GITHUB.md`: the licence
+reference clips: Osmos is the direction); the professional look is an opt-in Ultra preset; tablets are landscape-only (since 3.28.1 by the rotate
+screen again); the recommended order goes on; a repo description, topics and a licence are prepared (`docs/GITHUB.md`: the licence
 needs his choice).
 
 A4 (a short introduction to the Singularity and traps) turned out to exist already: a tip in wave 4 for the Singularity and one at the first trap warning
 (`showTipOnce` in `main.js`). NOT done, still wanted: Cloudflare (when he says go), the second step of the sound direction (slow evolving
 pads with auto-panning; reference clips), a pass on the models for the professional look (hard-surface shapes, bloom, ambient
-occlusion; a reference picture), and the real-hardware tests (a gamepad, a phone: Safari and Chrome with the landscape shell, the
+occlusion; a reference picture), and the real-hardware tests (a gamepad, a phone: Safari and Chrome with the rotate screen, the
 vibration, Ultra on a real device).
 
 Tools of the night: `npm run soak | fuzz | balance` (see README), `RL_NO_MINIFY=1 node build.js`, `SHOT_QUALITY=ultra node tools/qa.js

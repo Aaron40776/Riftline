@@ -4,67 +4,6 @@
 <meta charset="utf-8">
 <meta name="riftline-version" content="__RL_VERSION__">
 <meta name="riftline-build" content="__RL_BUILD__">
-<script>
-  /* 3.18.0: the game is always landscape. A phone or tablet held upright cannot be told to turn on the web (iPhones ignore
-   every request for it), so this page then turns itself into a thin shell: the real game (this same file, with ?frame=1)
-   runs in a frame the shape of the screen turned on its side, and the shell turns that frame a quarter so that it fills
-   the upright screen. The game inside sees an ordinary landscape window (its layouts, its touch coordinates and its safe
-   areas are all those of a landscape phone) and never knows. Turned to landscape the frame is simply upright again, the
-   game goes on without a reload. Desktop, automated tests (navigator.webdriver) and ?shell=0 run the game directly;
-   ?shell=1 forces the shell. Any trouble before the page is replaced leaves the game as it is. */
-  (() => {
-    let html = null;
-    try {
-      const q = new URLSearchParams(location.search),
-        mode = q.get("shell");
-      if (window.top !== window || q.has("frame") || mode === "0" || (navigator.webdriver && mode !== "1")) return;
-      const coarse =
-        matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0 || "ontouchstart" in window;
-      if (mode !== "1" && (!coarse || Math.max(screen.width, screen.height) > 1400)) return;
-      const src = new URL(location.href);
-      src.searchParams.set("frame", "1");
-      html =
-        '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Riftline</title>' +
-        '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">' +
-        '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">' +
-        '<meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="Riftline">' +
-        '<meta name="theme-color" content="#05070d"><link rel="manifest" href="manifest.webmanifest">' +
-        '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">' +
-        "<style>html,body{margin:0;height:100%;background:#05070d;overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none}" +
-        "#rl{position:fixed;left:0;top:0;border:0;background:#05070d;transform-origin:0 0}" +
-        "#probe{position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}</style></head>" +
-        '<body><div id="probe"></div><iframe id="rl" title="Riftline" allow="autoplay; fullscreen"></iframe><script>' +
-        "(function(){var f=document.getElementById('rl'),probe=document.getElementById('probe'),n=0;" +
-        "function px(v){return parseFloat(v)||0}" +
-        "function fit(){var vv=window.visualViewport,W=Math.round(vv?vv.width:innerWidth),H=Math.round(vv?vv.height:innerHeight),so=screen.orientation&&screen.orientation.type," +
-        "up=so?so.indexOf('portrait')===0:typeof orientation==='number'?orientation%180===0:screen.height>screen.width," +
-        "s=getComputedStyle(probe),e={t:px(s.paddingTop),r:px(s.paddingRight),b:px(s.paddingBottom),l:px(s.paddingLeft)},st=f.style,i=e;" +
-        // a tall window on an upright screen: the frame is H wide and W high and turned a quarter, so that its top is the right
-        // edge of the screen; the notch at the top of the phone is the left of the game, the bottom edge its right
-        "if(H>W&&up){st.width=H+'px';st.height=W+'px';st.transform='translateX('+W+'px) rotate(90deg)';i={t:e.r,r:e.b,b:e.l,l:e.t}}" +
-        "else{st.width=W+'px';st.height=H+'px';st.transform='none'}" +
-        "try{var r=f.contentDocument&&f.contentDocument.documentElement;if(r){r.style.setProperty('--st',i.t+'px');r.style.setProperty('--sr',i.r+'px');r.style.setProperty('--sb',i.b+'px');r.style.setProperty('--sl',i.l+'px')}}catch(x){}" +
-        "window.__rlShell={turned:H>W&&up,w:W,h:H}}" +
-        "function again(){fit();clearTimeout(n);n=setTimeout(fit,150);setTimeout(fit,450)}" +
-        "addEventListener('resize',again);addEventListener('orientationchange',again);if(window.visualViewport)visualViewport.addEventListener('resize',again);" +
-        "f.addEventListener('load',function(){fit();try{f.contentWindow.focus()}catch(x){}});" +
-        "fit();f.src=" +
-        JSON.stringify(src.href) +
-        "})()<\/script></body></html>";
-    } catch (err) {
-      html = null;
-    }
-    if (html) {
-      // document.open() does nothing while a script of the page being parsed runs (the written markup would be merged into
-      // the game's own page); in a task of its own it replaces the document and aborts the parser, so the game below never runs
-      setTimeout(() => {
-        document.open();
-        document.write(html);
-        document.close();
-      }, 0);
-    }
-  })();
-</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover, interactive-widget=overlays-content">
 <title>Riftline</title>
 <meta name="description" content="Riftline – a 3D arena roguelite shooter with twin-stick touch controls.">
@@ -608,9 +547,19 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .nojs-logo { font: 700 38px/1 -apple-system, system-ui, sans-serif; letter-spacing: 0.14em; color: #49f2ff; margin-bottom: 16px; }
 /* 3.11.0: Riftline plays in landscape. A touch phone or tablet held upright gets this screen over everything (the
    run pauses behind it, see main.js); a desktop window keeps working in any shape. */
+.rotate { display: none; position: fixed; inset: 0; z-index: 90; place-items: center; padding: calc(var(--st) + 24px) calc(var(--sr) + 24px) calc(var(--sb) + 24px) calc(var(--sl) + 24px); background: radial-gradient(120% 80% at 50% 40%, #0d1830 0%, var(--ink) 70%); color: var(--text); text-align: center; touch-action: none; }
+body.needs-rotate .rotate { display: grid; }
+.rotate-card { display: grid; justify-items: center; gap: 14px; max-width: 320px; }
+.rotate-icon { width: 120px; height: 120px; color: var(--cyan); filter: drop-shadow(0 0 14px rgba(73, 242, 255, 0.45)); }
+.rotate-icon .phone { transform-origin: 60px 60px; animation: rlRotate 2.6s cubic-bezier(.6, 0, .25, 1) infinite; }
+.rotate-icon .arc { opacity: 0.55; }
+.rotate-title { font: 700 22px/1.1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; }
+.rotate-note { margin: 0; font: 500 16px/1.4 var(--body); color: var(--dim); }
+@keyframes rlRotate { 0%, 18% { transform: rotate(0deg); } 52%, 82% { transform: rotate(-90deg); } 100% { transform: rotate(0deg); } }
 
 @media (prefers-reduced-motion: reduce) {
   .logo::before { animation: none; }
+  .rotate-icon .phone { animation: none; transform: rotate(-90deg); }
   .bn { animation-duration: 2.2s; animation-name: fadeOnly; }
   @keyframes fadeOnly { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
   .act-btn.nova.ready { animation: none; }
@@ -1420,7 +1369,14 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     if (coarse) body.classList.add('device-touch');
     body.dataset.device = device;
     body.dataset.orientation = w >= h ? 'landscape' : 'portrait';
-    // 3.18.0: no rotate screen; the shell at the top of this file keeps a phone held upright in landscape
+    // 3.11.0: phones and tablets play in landscape only (the rotate screen covers the game while held upright).
+    // The screen itself has to be upright too, not only the window: a touch laptop with the browser snapped to half
+    // its screen or an iPad in Split View has a tall window on a landscape screen, and turning would not help there.
+    const so = screen.orientation && screen.orientation.type;
+    const screenUpright = so ? so.startsWith('portrait')
+      : typeof window.orientation === 'number' ? window.orientation % 180 === 0
+      : screen.height > screen.width;
+    body.classList.toggle('needs-rotate', device !== 'desktop' && h > w && screenUpright);
     root.style.setProperty('--vw', `${w}px`);
     root.style.setProperty('--vh', `${h}px`);
   }
@@ -1437,7 +1393,8 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     window.__riftLayoutAuditResult = null;
     window.__riftLayoutAudit = () => {
       try {
-        const all=[...document.querySelectorAll('.screen:not([hidden]) button:not([disabled]), #hud:not(.editing) button:not([hidden]):not([disabled]), #hudEdit:not([hidden]) button:not([disabled])')];
+        // 3.28.1: the rotate screen covers everything on purpose (a phone held upright): nothing under it is "covered"
+        const all=document.body.classList.contains('needs-rotate')?[]:[...document.querySelectorAll('.screen:not([hidden]) button:not([disabled]), #hud:not(.editing) button:not([hidden]):not([disabled]), #hudEdit:not([hidden]) button:not([disabled])')];
         const findings=[];let scrolled=0;
         const scrollParent=el=>{for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement){const s=getComputedStyle(p);if(/(auto|scroll)/.test(s.overflowY+' '+s.overflowX)&&(p.scrollHeight>p.clientHeight+1||p.scrollWidth>p.clientWidth+1))return p}return null};
         for(const b of all){
@@ -1685,7 +1642,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
     <div class="scroll settings-body daily-body">
-      <p class="page-intro">One Rift a day, the same for every pilot: the waves, the offers and the hazards come from the date. The workshop does not count, so everyone flies the same drone. A new Rift opens at midnight UTC.</p>
+      <p class="page-intro">One Rift a day, the same for every pilot: the waves, the offers and the hazards come from the date. Your workshop modules and pacts do not change the drone, so everyone flies the same one (shard bonuses still pay out). A new Rift opens at midnight UTC.</p>
       <div id="dailyCard" class="panel daily-card"></div>
       <button id="dailyStart" class="btn primary">START TODAY'S RIFT</button>
       <div id="dailyStats" class="stat-grid"></div>
@@ -1858,6 +1815,17 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     </div>
   </div>
   <div id="toasts" aria-live="polite"></div>
+</div>
+<div id="rotate" class="rotate" role="alert" aria-live="assertive">
+  <div class="rotate-card">
+    <svg class="rotate-icon" viewBox="0 0 120 120" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <path class="arc" d="M20 40a44 44 0 0 1 34-26M100 80a44 44 0 0 1-34 26"/>
+      <path class="arc" d="M47 9l7 5-6 7M73 111l-7-5 6-7"/>
+      <g class="phone"><rect x="42" y="22" width="36" height="76" rx="7"/><path d="M55 30h10"/><circle cx="60" cy="89" r="2.5" fill="currentColor" stroke="none"/></g>
+    </svg>
+    <div class="rotate-title">Turn your device</div>
+    <p class="rotate-note">Riftline plays in landscape. A run waits paused until you turn it back.</p>
+  </div>
 </div>
 <div id="nojs" class="nojs">
   <div class="nojs-card">

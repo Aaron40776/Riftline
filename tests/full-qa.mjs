@@ -2727,7 +2727,13 @@ for (const profName of ["desktop", "phone"])
         const w = window.__riftTest.game.world;
         while (w.waveT < 4.7) w.step(1 / 60, { mx: 0, my: 0 });
       });
-      await P.page.waitForTimeout(biome === "vault" ? 1600 : 400);
+      await P.page.waitForTimeout(400);
+      // 3.28.1: the Whiteout fades in over about a second of frame time, and a frame of software rendering counts at most
+      // 0.1 s: wait until it is fully in instead of a fixed time (a busy machine once measured it 76 % in)
+      if (biome === "vault")
+        await P.page
+          .waitForFunction(() => (window.__riftTest.renderer.rlWhiteK || 0) >= 0.99, null, { timeout: 20000 })
+          .catch(() => {});
       const s = await P.ev(() => {
         const w = window.__riftTest.game.world,
           A = w.arena;
@@ -3073,7 +3079,7 @@ await section("tabs", async (L) => {
 
 /* ======================= 3.6.0: the button layout editor ======================= */
 /* ======================= 3.11.0: landscape only ======================= */
-await section("shell", async (L) => {
+await section("rotate", async (L) => {
   const save = JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } });
   // the installed app asks for landscape
   {
@@ -3082,239 +3088,82 @@ await section("shell", async (L) => {
     check(L, "manifest: orientation landscape", manifest.orientation === "landscape", manifest.orientation);
     await P.close();
   }
-  // 3.18.0: there is no rotate screen; on a phone or tablet the shell (index.html) runs the game in a frame and turns it.
-  // Automated browsers run the game directly (navigator.webdriver), so the shell is asked for with ?shell=1.
-  const shellOf = async (P, query = "?shell=1") => {
-    await P.page.goto(BASE + "index.html" + query);
-    await P.page.waitForTimeout(600);
-  };
-  const frameOf = async (P) => {
-    await P.page.waitForFunction(() => !!document.getElementById("rl"), null, { timeout: 15000 });
-    const fr = await (await P.page.$("#rl")).contentFrame();
-    await fr.waitForFunction(
-      () =>
-        window.__riftTest && window.__riftTest.game && window.__riftTest.ui && window.__riftTest.RL_HEALTH.length > 5,
-      null,
-      { timeout: 90000 },
-    );
-    return fr;
-  };
-  const state = (P) =>
-    P.ev(() => ({ ...window.__rlShell, style: document.getElementById("rl").getAttribute("style") }));
-  // a game point (in the frame's own coordinates) as a point on the screen: turned, the frame's x runs down the screen and
-  // its y towards the left
-  const onScreen = (st, W, p) => (st.turned ? { x: W - p.y, y: p.x } : p);
-  const rectIn = (fr, sel) =>
-    fr.evaluate((sel) => {
-      const r = document.querySelector(sel).getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-    }, sel);
-
-  // --- a phone held upright: the game is turned, it plays in landscape, the touches arrive where the buttons are
-  {
-    PROFILES.upright = { viewport: { width: 390, height: 844 }, touch: true, mobile: true };
-    const P = await open("upright", { save, draw: true });
-    await shellOf(P);
-    const fr = await frameOf(P);
-    const st = await state(P);
-    check(
-      L,
-      "upright phone: the shell turns the frame a quarter (the frame is landscape: 844 x 390)",
-      st.turned === true &&
-        /width: 844px/.test(st.style) &&
-        /height: 390px/.test(st.style) &&
-        /rotate\(90deg\)/.test(st.style),
-      JSON.stringify(st),
-    );
-    const inner = await fr.evaluate(() => ({
-      w: innerWidth,
-      h: innerHeight,
-      orient: document.body.dataset.orientation,
-      device: document.body.dataset.device,
-      rotate: !!document.getElementById("rotate"),
-      home: !document.getElementById("home").hidden,
-    }));
-    check(
-      L,
-      "the game inside sees a landscape phone and shows no rotate screen",
-      inner.w === 844 &&
-        inner.h === 390 &&
-        inner.orient === "landscape" &&
-        inner.device === "phone" &&
-        !inner.rotate &&
-        inner.home,
-      JSON.stringify(inner),
-    );
-    await P.page.screenshot({ path: new URL("./shots/qa-shell-upright.png", import.meta.url).pathname });
-    // a tap on the screen where the play button is turned to starts a run
-    const play = onScreen(st, 390, await rectIn(fr, "#playBtn"));
-    await P.page.touchscreen.tap(play.x, play.y);
-    const started = await fr
-      .waitForFunction(() => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight", null, {
-        timeout: 20000,
-      })
-      .then(
-        () => true,
-        () => false,
-      );
-    check(L, "a tap on the turned PLAY button starts a run", started);
-    // the DASH button, turned
-    await fr.evaluate(() => {
-      window.__riftTest.game.world.god = true;
-    });
-    await P.page.waitForTimeout(500);
-    const dashBefore = await fr.evaluate(() => window.__riftTest.game.world.runStats.dashes);
-    const dash = onScreen(st, 390, await rectIn(fr, "#dashBtn"));
-    await P.page.touchscreen.tap(dash.x, dash.y);
-    check(
-      L,
-      "a tap on the turned DASH button dashes",
-      await fr
-        .waitForFunction((n) => window.__riftTest.game.world.runStats.dashes > n, dashBefore, { timeout: 15000 })
-        .then(
-          () => true,
-          () => false,
-        ),
-    );
-    // the move stick: a finger dragged on the left of the game moves the drone to the right of the game
-    const cdp = await P.ctx.newCDPSession(P.page);
-    const x0 = (await fr.evaluate(() => innerWidth)) * 0.22,
-      y0 = (await fr.evaluate(() => innerHeight)) * 0.62,
-      at = (dx) => onScreen(st, 390, { x: x0 + dx, y: y0 });
-    const px0 = await fr.evaluate(() => window.__riftTest.game.world.player.x);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ ...at(0), id: 1 }] });
-    for (let i = 1; i <= 8; i++) {
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...at((70 * i) / 8), id: 1 }] });
-      await P.page.waitForTimeout(40);
-    }
-    await P.page.waitForTimeout(1500);
-    const px1 = await fr.evaluate(() => window.__riftTest.game.world.player.x);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    check(
-      L,
-      "a finger dragged along the screen moves the drone to the right of the game",
-      px1 > px0 + 0.5,
-      `${px0.toFixed(2)} -> ${px1.toFixed(2)}`,
-    );
-    // turned to landscape: the same game goes on, upright, without a reload
-    await fr.evaluate(() => {
-      window.__qaMark = 42;
-    });
-    await P.page.setViewportSize({ width: 844, height: 390 });
-    // (the window reports its new size a moment after its new orientation; the shell fits again after each)
-    await P.page.waitForFunction(
-      () => window.__rlShell && window.__rlShell.turned === false && window.__rlShell.w === 844,
-      null,
-      {
-        timeout: 5000,
-      },
-    );
-    const st2 = await state(P);
-    const same = await fr.evaluate(() => ({
-      mark: window.__qaMark,
-      w: innerWidth,
-      h: innerHeight,
-      fight: window.__riftTest.game.world.state,
-    }));
-    check(
-      L,
-      "turned to landscape: the frame is upright and the run goes on (no reload)",
-      /transform: none/.test(st2.style) &&
-        same.mark === 42 &&
-        same.w === 844 &&
-        same.h === 390 &&
-        same.fight !== undefined,
-      JSON.stringify({ st2, same }),
-    );
-    const dash2 = onScreen(st2, 844, await rectIn(fr, "#dashBtn"));
-    const d2 = await fr.evaluate(() => window.__riftTest.game.world.runStats.dashes);
-    // the dash of the tap before has to be ready again (game time, not real time: a loaded machine runs the game slowly)
-    await fr.waitForFunction(() => window.__riftTest.game.world.player.dashCdT <= 0, null, { timeout: 60000 });
-    await P.page.touchscreen.tap(dash2.x, dash2.y);
-    check(
-      L,
-      "in landscape a tap on DASH dashes as well",
-      await fr
-        .waitForFunction((n) => window.__riftTest.game.world.runStats.dashes > n, d2, { timeout: 15000 })
-        .then(
-          () => true,
-          () => false,
-        ),
-    );
-    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 3).join(" | "));
-    await P.close();
-  }
-  // --- a phone held sideways: the shell is there, nothing is turned
-  {
-    PROFILES.sideways = { viewport: { width: 844, height: 390 }, touch: true, mobile: true };
-    const P = await open("sideways", { save });
-    await shellOf(P);
-    const fr = await frameOf(P);
-    const st = await state(P);
-    const inner = await fr.evaluate(() => ({
-      w: innerWidth,
-      h: innerHeight,
-      home: !document.getElementById("home").hidden,
-    }));
-    check(
-      L,
-      "sideways phone: the frame fills the screen, not turned",
-      st.turned === false && /transform: none/.test(st.style) && inner.w === 844 && inner.h === 390 && inner.home,
-      JSON.stringify({ st, inner }),
-    );
-    await P.close();
-  }
-  // --- no shell where it must not turn: a desktop window of any shape, ?shell=0, a touch laptop with a snapped window
+  // a desktop window of any shape keeps working (no rotate screen in a tall, narrow window)
   {
     PROFILES.tall = { viewport: { width: 600, height: 900 }, touch: false };
     const P = await open("tall", { save });
-    await P.page.goto(BASE + "index.html?shell=1");
-    const r = await P.ev(() => ({
-      frame: !!document.getElementById("rl"),
-      turned: window.__rlShell && window.__rlShell.turned,
-    }));
-    // ?shell=1 forces the shell even here, but a tall window on a landscape screen is not turned
+    await P.boot();
     check(
       L,
-      "desktop window, tall: the shell (forced) does not turn it",
-      r.frame && r.turned === false,
-      JSON.stringify(r),
-    );
-    await P.page.goto(BASE + "index.html");
-    await P.page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
-    check(
-      L,
-      "desktop window, tall: the game runs directly, no frame, no rotate screen",
-      (await P.ev(() => !document.getElementById("rl") && !document.getElementById("rotate"))) && (await P.vis("home")),
+      "desktop: a tall window shows the game, not the rotate screen",
+      !(await P.vis("rotate")) && (await P.vis("home")),
     );
     await P.close();
   }
+  // a touch laptop with the browser snapped to half of its landscape screen: a tall window, but turning would not
+  // help, so no rotate screen (found in the code review of 3.11.0)
   {
     PROFILES.snapped = { viewport: { width: 683, height: 768 }, screen: { width: 1366, height: 768 }, touch: true };
     const P = await open("snapped", { save });
-    await shellOf(P);
-    const fr = await frameOf(P);
-    const st = await state(P);
+    await P.boot();
+    const r = await P.ev(() => ({ device: document.body.dataset.device, type: screen.orientation?.type }));
     check(
       L,
-      "touch laptop, window snapped to half the screen: the shell does not turn it",
-      st.turned === false,
-      JSON.stringify(st),
+      "touch laptop, window snapped to half the screen: no rotate screen",
+      r.device !== "desktop" && !(await P.vis("rotate")) && (await P.vis("home")),
+      JSON.stringify(r),
     );
     await P.close();
   }
-  {
-    PROFILES.upright2 = { viewport: { width: 390, height: 844 }, touch: true, mobile: true };
-    const P = await open("upright2", { save });
-    await P.page.goto(BASE + "index.html?shell=0");
-    await P.page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
-    check(
-      L,
-      "?shell=0: the game runs directly (no frame) even upright",
-      await P.ev(() => !document.getElementById("rl")),
-    );
-    await P.close();
-  }
+  const P = await open("phone", { save });
+  await P.boot();
+  const { page } = P,
+    upright = () => page.setViewportSize({ width: 390, height: 844 }),
+    sideways = () => page.setViewportSize({ width: 844, height: 390 }),
+    rotated = (on) =>
+      page
+        .waitForFunction((on) => document.body.classList.contains("needs-rotate") === on, on, { timeout: 5000 })
+        .then(
+          () => true,
+          () => false,
+        );
+  check(L, "phone sideways: no rotate screen", !(await P.vis("rotate")) && (await P.vis("home")));
+  // upright in the menu: the rotate screen covers everything, nothing under it can be tapped
+  await upright();
+  const covered =
+    (await rotated(true)) &&
+    (await P.vis("rotate")) &&
+    (await P.ev(() => {
+      const el = document.elementFromPoint(innerWidth / 2, innerHeight * 0.8);
+      return !!el && !!el.closest("#rotate");
+    }));
+  check(L, "phone upright in the menu: the rotate screen covers everything", covered);
+  await P.shot({ path: new URL("./shots/qa-rotate-phone.png", import.meta.url).pathname });
+  await sideways();
+  check(L, "turned back: the menu is there again", (await rotated(false)) && (await P.vis("home")));
+  // upright during a run: the run pauses behind the rotate screen and stays paused until the player resumes it
+  await P.tap("#playBtn");
+  await page.waitForFunction(() => window.__riftTest.game.world?.state === "fight", null, { timeout: 20000 });
+  await upright();
+  const paused =
+    (await rotated(true)) &&
+    (await page
+      .waitForFunction(() => window.__riftTest.game.paused, null, { timeout: 10000 })
+      .then(
+        () => true,
+        () => false,
+      ));
+  const t0 = await P.ev(() => window.__riftTest.game.world.time);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(600);
+  const still = await P.ev((t0) => window.__riftTest.game.paused && window.__riftTest.game.world.time === t0, t0);
+  check(L, "phone upright in a run: the run pauses and Esc does not resume it there", paused && still);
+  await sideways();
+  check(L, "turned back: the pause menu waits, Resume goes on", (await rotated(false)) && (await P.vis("pause")));
+  await P.tap("#resumeBtn");
+  check(L, "Resume after turning back", !(await P.ev(() => window.__riftTest.game.paused)));
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 3).join(" | "));
+  await P.close();
 });
 
 await section("layout360", async (L) => {
@@ -3534,15 +3383,23 @@ await section("layout360", async (L) => {
     window.__riftTest.store.data.settings.hudLayout = JSON.parse(json);
     window.__riftTest.game.settingsChanged(true);
   }, kept);
-  // 3.18.0: turning the phone no longer pauses (the shell keeps the game landscape); the own layout stays in use
+  // 3.11.0: turned upright, the phone shows the rotate screen and the run waits; turned back, the own layout is there
   await page.setViewportSize({ width: H, height: W });
+  await page.waitForFunction(() => document.body.classList.contains("needs-rotate"), null, { timeout: 5000 });
+  check(
+    L,
+    "upright: the rotate screen covers the run and the run is paused",
+    (await P.vis("rotate")) && (await P.ev(() => window.__riftTest.game.paused)),
+  );
   await page.setViewportSize({ width: W, height: H });
+  await page.waitForFunction(() => !document.body.classList.contains("needs-rotate"), null, { timeout: 5000 });
   await page.waitForTimeout(700);
   check(
     L,
-    "turned and back: the own layout is still in use",
+    "turned back: the own layout is still in use",
     await P.ev(() => document.getElementById("hud").classList.contains("custom")),
   );
+  await P.tap("#resumeBtn");
   // the editor from the pause menu gives the HUD back to the pause menu
   await P.ev(() => window.__riftTest.game.pause());
   await P.tap("#pauseSetBtn");
@@ -4486,6 +4343,165 @@ await section("codex-events", async (L) => {
       /\?\?\?/.test(cx.collapse) &&
       cx.head.some((h) => /^Rift events 3\/11/.test(h)),
     JSON.stringify(cx),
+  );
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.28.1: fixes of the checkup of 06.10.2026 (a review of the code of 3.18.1 to 3.28.0)
+await section("gamepad-dialog", async (L) => {
+  const P = await open("desktop", {
+    save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true }, pacts: ["glass"] }),
+  });
+  await P.boot();
+  await P.ev(() => {
+    const pad = {
+      id: "Test Pad (STANDARD GAMEPAD)",
+      connected: true,
+      axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })),
+    };
+    window.__pad = pad;
+    navigator.getGamepads = () => [pad];
+  });
+  const frames = (n = 3) =>
+    P.ev(
+      (n) =>
+        new Promise((resolve) => {
+          let left = n;
+          const tick = () => (--left <= 0 ? resolve() : requestAnimationFrame(tick));
+          requestAnimationFrame(tick);
+        }),
+      n,
+    );
+  const hold = async (button, n = 4) => {
+    await P.ev((b) => ((window.__pad.buttons[b].pressed = true), (window.__pad.buttons[b].value = 1)), button);
+    await frames(n);
+    await P.ev((b) => ((window.__pad.buttons[b].pressed = false), (window.__pad.buttons[b].value = 0)), button);
+    await frames(2);
+  };
+  const ring = (sel) =>
+    P.ev((sel) => {
+      for (const el of document.querySelectorAll(".pad-focus")) el.classList.remove("pad-focus");
+      const el = document.querySelector(sel);
+      el.classList.add("pad-focus");
+      el.focus();
+    }, sel);
+  await frames(3);
+  // the Pacts page: A opens it, a second A must not unsign the signed pact (the ring was left on the hidden home button)
+  await ring("#pactsBtn");
+  await hold(0);
+  await P.page.waitForTimeout(400);
+  check(L, "A on the Pacts link opens the page", await P.vis("pacts"));
+  await hold(0);
+  await P.page.waitForTimeout(300);
+  check(
+    L,
+    "a second A does not unsign a pact",
+    await P.ev(() => window.__riftTest.store.data.pacts.join() === "glass"),
+    await P.ev(() => window.__riftTest.store.data.pacts.join()),
+  );
+  await hold(1); // B back
+  await P.page.waitForTimeout(300);
+  // the pause menu: Abandon, then A confirms the dialog (it pressed Resume behind the dialog before)
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    { timeout: 30000 },
+  );
+  await P.ev(() => (window.__riftTest.game.world.god = true));
+  await hold(9); // Start
+  await P.page.waitForTimeout(400);
+  check(L, "Start pauses", await P.vis("pause"));
+  await ring("#abandonBtn");
+  await hold(0);
+  await P.page.waitForTimeout(400);
+  check(L, "A on Abandon opens the confirm dialog", await P.ev(() => !document.getElementById("dialog").hidden));
+  await hold(0);
+  await P.page.waitForTimeout(800);
+  const after = await P.ev(() => ({
+    dialog: !document.getElementById("dialog").hidden,
+    over: !document.getElementById("over").hidden,
+    paused: window.__riftTest.game.paused,
+    run: !!window.__riftTest.store.data.run,
+  }));
+  check(
+    L,
+    "A confirms the dialog: the run ends (no Resume behind the dialog)",
+    !after.dialog && after.over && !after.run,
+    JSON.stringify(after),
+  );
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+await section("checkup-3281", async (L) => {
+  const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const P = await open("desktop", {
+    save: JSON.stringify({
+      v: 1,
+      game: "riftline",
+      seen: { tutorial: true },
+      stats: { daily: { key: yesterday, wave: 12, kills: 300, streak: 3, days: 3, bestWave: 12 } },
+    }),
+  });
+  await P.boot();
+  const fight = () =>
+    P.page.waitForFunction(() => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight", null, {
+      timeout: 30000,
+    });
+  // a Daily abandoned at wave 1 is not counted, and the end screen does not show yesterday's record as today's
+  await P.ev(() => window.__riftTest.game.startRun({ daily: true }));
+  await fight();
+  await P.ev(() => window.__riftTest.game.abandon());
+  await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 30000 });
+  const chip = await P.ev(() => document.getElementById("overDaily").textContent);
+  check(L, "an uncounted Daily says so on the end screen", /not counted/.test(chip) && !/wave 12/.test(chip), chip);
+  // an abandoned run stays gone: it no longer runs on behind the end screen and saves itself again at its next wave
+  await P.page.waitForTimeout(4000);
+  check(
+    L,
+    "an abandoned run is not saved again behind the end screen",
+    await P.ev(() => !window.__riftTest.store.data.run),
+  );
+  // a cleared Daily unlocks no threat level and counts as no weapon's clear
+  await P.ev(() => window.__riftTest.game.startRun({ daily: true, dailyKey: "2026-10-07" }));
+  await fight();
+  const clear = await P.ev(() => {
+    const T = window.__riftTest,
+      w = T.game.world,
+      d = T.store.data;
+    const before = { max: d.threatMax, by: JSON.stringify(d.stats.clearsBy), clears: d.stats.clears };
+    w.state = "victory";
+    T.game.endRun(true, false, true);
+    return { before, max: d.threatMax, by: JSON.stringify(d.stats.clearsBy), clears: d.stats.clears, threat: w.threat };
+  });
+  check(
+    L,
+    "a Daily clear counts as a clear but unlocks no threat and no weapon clear",
+    clear.max === clear.before.max && clear.by === clear.before.by && clear.clears === clear.before.clears + 1,
+    JSON.stringify(clear),
+  );
+  // Endless: the recap starts empty
+  await P.ev(() => window.__riftTest.game.goHome());
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await fight();
+  const endless = await P.ev(() => {
+    const T = window.__riftTest,
+      w = T.game.world;
+    w.god = true;
+    w.hitLog.push({ t: 5, wave: 3, src: "grunt", dmg: 10, tick: false });
+    w.takenBy.grunt = 10;
+    w.state = "victory";
+    T.game.overShown = true;
+    T.game.endless();
+    return { log: w.hitLog.length, taken: Object.keys(w.takenBy).length };
+  });
+  check(
+    L,
+    "Endless starts with an empty death recap",
+    endless.log === 0 && endless.taken === 0,
+    JSON.stringify(endless),
   );
   check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
   await P.close();

@@ -2,6 +2,18 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.28.1",
+    title: "Turn your device, and fixes",
+    items: [
+      'Held upright, a phone or tablet shows the "Turn your device" screen again and a run waits paused; the game no longer turns itself.',
+      "Gamepad: A in a confirm dialog (Abandon, Restart, New run) now presses the dialog's button, not the one behind it.",
+      "Boss medals: the par time follows the boss's own health, so the Iron Hide pact no longer makes medals easier.",
+      "An abandoned run no longer comes back as Continue (it kept running behind the end screen and saved itself again).",
+      "Endless: the death recap shows only the hits of the Endless part.",
+      "Daily Rift: a clear unlocks no threat level and counts for no weapon; an early abandon says it was not counted.",
+    ],
+  },
+  {
     version: "3.28.0",
     title: "Codex: rift events",
     items: [

@@ -174,14 +174,23 @@ function setFocus(el) {
 function clearFocus() {
   for (const old of document.querySelectorAll(".pad-focus")) old.classList.remove("pad-focus");
 }
-/* A: presses the button in focus (a checkbox toggles) */
+/* A: presses the button in focus (a checkbox toggles). 3.28.1: the ring can be left on a button of a screen that is gone
+   or under a dialog (opening a dialog moves the browser's focus, not the ring), so the element that really has the focus
+   is tried too, and only what is in the top layer counts */
 function pressFocus() {
-  const el = document.querySelector(".pad-focus") || document.activeElement;
-  if (el && el !== document.body && candidates().includes(el)) {
-    el.click();
-    return true;
-  }
+  const list = candidates();
+  for (const el of [document.querySelector(".pad-focus"), document.activeElement])
+    if (el && el !== document.body && list.includes(el)) {
+      el.click();
+      return true;
+    }
   return false;
+}
+/* the main button of the top layer, for A when nothing is in focus (never a toggle such as a pact) */
+function mainButton() {
+  return [...topLayer().querySelectorAll(".btn.primary")].find(
+    (b) => !b.disabled && b.offsetWidth && !b.hasAttribute("aria-pressed"),
+  );
 }
 
 /* ---- rumble: the controller's motors, or the vibration of a phone ---- */
@@ -223,4 +232,4 @@ function rumble(kind, enabled = true) {
   return done;
 }
 
-export { GamepadReader, stick, moveFocus, setFocus, clearFocus, pressFocus, rumble, candidates, DEAD, BTN };
+export { GamepadReader, stick, moveFocus, setFocus, clearFocus, pressFocus, mainButton, rumble, candidates, DEAD, BTN };

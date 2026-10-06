@@ -4,7 +4,7 @@ import { RL_RT } from "../core/diagnostics.js";
 import { clamp } from "../core/util.js";
 import { game } from "../main.js";
 import { getById } from "./ui.js";
-import { GamepadReader, moveFocus, pressFocus, clearFocus } from "./gamepad.js";
+import { GamepadReader, moveFocus, pressFocus, clearFocus, mainButton } from "./gamepad.js";
 
 // 2.3.4: the input the player is using right now, so hints can say "W A S D" or "drag".
 // Starts from the primary pointer (coarse = touch screen) and follows the last real input.
@@ -36,11 +36,8 @@ const Input = class {
   bind() {
     let layer = this.layer;
     layer.addEventListener("pointerdown", (ev) => this.down(ev));
-    // 3.18.0: in the frame of the landscape shell the raw updates come without the turn of the frame (the stick would move
-    // the wrong way); pointermove carries the newest sample too and the game reads it once a frame anyway
-    layer.addEventListener(
-      "onpointerrawupdate" in window && window.top === window ? "pointerrawupdate" : "pointermove",
-      (ev) => this.moveEv(ev),
+    layer.addEventListener("onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove", (ev) =>
+      this.moveEv(ev),
     );
     layer.addEventListener("pointerup", (ev) => this.up(ev));
     layer.addEventListener("pointercancel", (ev) => this.cancel(ev));
@@ -128,13 +125,13 @@ const Input = class {
       RL_INPUT.touch = false;
       return;
     }
-    // 3.18.0: the position of the event itself (the newest sample, the same as the last coalesced one). The coalesced events
-    // of a frame the landscape shell has turned come without the turn, so the stick moved the wrong way there.
-    let x = ev.clientX,
-      y = ev.clientY;
+    let coalesced = ev.getCoalescedEvents ? ev.getCoalescedEvents() : null,
+      last = coalesced && coalesced.length ? coalesced[coalesced.length - 1] : ev,
+      x = Number.isFinite(last.clientX) ? last.clientX : ev.clientX,
+      y = Number.isFinite(last.clientY) ? last.clientY : ev.clientY;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     for (let stick of [this.move, this.aim]) {
-      if (!stick.active || stick.id !== ev.pointerId) continue;
+      if (!stick.active || stick.id !== last.pointerId) continue;
       stick.lastEv = performance.now();
       stick.x = x;
       stick.y = y;
@@ -267,10 +264,8 @@ const Input = class {
     // menus, the pause screen, the upgrade choice, the end screen
     for (const dir of ["up", "down", "left", "right"]) if (e[dir] || pad.repeat[dir]) moveFocus(dir);
     if (e.a && !pressFocus()) {
-      // nothing in focus yet: the main button of the screen
-      const main = [...document.querySelectorAll(".screen:not([hidden]) .btn.primary")].find(
-        (b) => !b.disabled && b.offsetWidth,
-      );
+      // nothing in focus yet: the main button of the top layer (3.28.1: not of a screen under a dialog)
+      const main = mainButton();
       if (main) main.click();
     }
     if (e.y && !getById("choose").hidden) {
