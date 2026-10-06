@@ -12,7 +12,6 @@ if (!prof) {
   console.error("usage: node biome-shots.mjs [url] pc|land");
   process.exit(2);
 }
-// 3.20.0: SHOT_QUALITY=ultra shows the Ultra look (pictures in tests/shots/biomes-<profile>-ultra)
 const QUALITY = process.env.SHOT_QUALITY || "high";
 const OUT = `tests/shots/biomes-${NAME}${QUALITY === "high" ? "" : "-" + QUALITY}`;
 fs.rmSync(OUT, { recursive: true, force: true });

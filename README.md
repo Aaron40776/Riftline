@@ -35,7 +35,7 @@ on in Endless, which keeps getting harder. Shards from every run, won or lost, b
   best of the day and a streak. **Pacts**: up to two optional risks before a run for more shards.
 - **Boss medals** (Bronze, Silver, Gold for a kill without damage and on time), a **death recap** on the end screen,
   the numbers of your build in the pause menu and a look at the next wave in the upgrade choice.
-- **Gamepad** support (menus included) and an optional **Ultra** graphics setting with real shadows and a filmic grade.
+- **Gamepad** support (menus included) and vibration on hits (phone and controller).
 - Everything you see and hear is made in code: low-poly models, WebAudio sounds and music, no image or audio files.
 
 | | |
@@ -121,8 +121,7 @@ src/
                    mutators, medals, daily (the Daily Rift), save, diagnostics (runtime log and monitor), selftest
                    (deep self-test), util
   data/            tables: weapons, enemies, upgrades, progression, pacts, biomes, hud, whatsnew (the News tab)
-  render/          three.js renderer, look (the Ultra grade), models, biome visuals, traps, hazards, attacks, boss
-                   cards, 2D overlay
+  render/          three.js renderer, models, biome visuals, traps, hazards, attacks, boss cards, 2D overlay
   audio/           sound effects, music and the sounds of the place
   ui/              DOM UI (screens, HUD, dialogs), input, gamepad and the button layout editor
   index.html       page shell, all CSS, device detection, rotate screen, layout audit

@@ -1,3 +1,31 @@
+RIFTLINE v3.28.2 – ULTRA REMOVED, CLEANUP
+Base: v3.28.1 · Build r3282a1005a-r1 · 06.10.2026
+
+The owner, 06.10.2026, after trying 3.28.x on his phone: "ultra graphics just make my phone hot and fps low while looking kind of
+the same as high ... I don't even really see any shadows and the colors actually look worse most of the time ... look through such
+things" and "fix and clean up everything thoroughly".
+
+1) Ultra (3.20.0) is removed
+   - Looked at again with the pictures of the biome tool (High against Ultra, Blackout City): the owner is right. The grade
+     washes the colours out (less saturation, a cool haze, a paler floor), the shadow of the sun on the shadow catcher is
+     barely visible, and nothing looks better than High. It cost a second pass over the scene for the shadow map, a 4x
+     multisampled half-float target at the full device resolution and a full-screen pass: that is what heated the phone.
+   - render/look.js, the hooks in renderer.js and main.js, the preset, the Settings button and its text are gone. A saved
+     quality "ultra" is read as "high". The full QA section ultra became no-ultra (a saved Ultra plays on High, no button, no tone
+     curve, no shadow map, no grade pass).
+   - Lesson (also in the roadmap): I judged the look from pictures of a software renderer and never saw it on a phone. A better
+     look has to come from lights, colours and models of the normal setting, tested on a device.
+
+2) The other additions of 3.18 to 3.28, looked through once more for cost and value
+   - The controller: the game asked the browser for gamepads every frame (a list is allocated on a phone for nothing); it now
+     asks once a second while none is connected, and at once when the browser announces a controller (gamepadconnected).
+   - Per frame otherwise: the Codex marks (a loop over at most six mutators), the end-screen guard. Nothing else runs each frame.
+   - Not judged by me and for the owner's ears and fingers: the ambient bloom and its echo, the rumble and the buzz of the
+     phone, the sizes of the new links on the home screen.
+
+3) Tests and results
+   - See the release-check line of the handoff in docs/ROADMAP.de.md (CURRENT STATE).
+
 RIFTLINE v3.28.1 – CHECKUP; THE ROTATE SCREEN IS BACK
 Base: v3.28.0 · Build r3281a1005a-r1 · 06.10.2026
 

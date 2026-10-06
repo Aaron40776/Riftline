@@ -2,6 +2,13 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.28.2",
+    title: "Ultra graphics removed",
+    items: [
+      "The Ultra graphics setting is gone: it made phones hot and slow without looking better than High. A save that had Ultra plays on High.",
+    ],
+  },
+  {
     version: "3.28.1",
     title: "Turn your device, and fixes",
     items: [
