@@ -225,8 +225,8 @@ reference clips: Osmos is the direction); the professional look is an opt-in Ult
 does it); the recommended order goes on; a repo description, topics and a licence are prepared (`docs/GITHUB.md`: the licence
 needs his choice).
 
-NOT done, still wanted: a short
-introduction to the Singularity and traps (A4), Cloudflare (when he says go), the second step of the sound direction (slow evolving
+A4 (a short introduction to the Singularity and traps) turned out to exist already: a tip in wave 4 for the Singularity and one at the first trap warning
+(`showTipOnce` in `main.js`). NOT done, still wanted: codex entries for the Endless mutators and overdrive attacks, Cloudflare (when he says go), the second step of the sound direction (slow evolving
 pads with auto-panning; reference clips), a pass on the models for the professional look (hard-surface shapes, bloom, ambient
 occlusion; a reference picture), and the real-hardware tests (a gamepad, a phone: Safari and Chrome with the landscape shell, the
 vibration, Ultra on a real device).

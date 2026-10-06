@@ -4367,7 +4367,7 @@ for (const profName of ["desktop", "phone"]) {
       const w = window.__riftTest.game.world;
       return {
         pacts: w.pacts.join(),
-        hp: w.player.maxHp,
+        hp: w.stats.maxHp,
         budget: w.tm.budget,
         toast: /Pacts: Glass Cannon, Swarm Pact \(\+40% shards\)/.test(document.getElementById("toasts").textContent),
       };
@@ -4390,7 +4390,7 @@ for (const profName of ["desktop", "phone"]) {
       w.hurtPlayer(500, null, null, "turret");
     });
     await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 });
-    await P.page.waitForTimeout(400);
+    await P.page.waitForTimeout(3500); // the total counts up
     const pay = await P.ev(() => ({
       rows: document.getElementById("payRows").textContent,
       total: document.getElementById("payTotal").textContent,
@@ -4412,7 +4412,7 @@ for (const profName of ["desktop", "phone"]) {
       L,
       "the Daily Rift has no pacts",
       await P.ev(
-        () => window.__riftTest.game.world.pacts.length === 0 && window.__riftTest.game.world.player.maxHp === 100,
+        () => window.__riftTest.game.world.pacts.length === 0 && window.__riftTest.game.world.stats.maxHp === 100,
       ),
     );
     check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));

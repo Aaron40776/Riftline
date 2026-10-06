@@ -810,7 +810,7 @@
    }
   },
   "sim-scatter-t1-resume": {
-   "digest": "4298ff3dc25af2dc",
+   "digest": "1dfdd7d50fbdfe07",
    "rec": {
     "wave": 10,
     "state": "choose",
@@ -829,7 +829,7 @@
     "breaks": 0,
     "enemies": 0,
     "pickups": 0,
-    "resumed": "6e3bd524cf853e8a",
+    "resumed": "ba29f543c3b0c45b",
     "fx": {
      "aim": 8,
      "beamWarn": 2,
