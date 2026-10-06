@@ -13,16 +13,20 @@ Roadmap, proposal C11 of 03.10.2026: "Boss-Medaillen: ohne Treffer und auf Zeit,
      seconds and the damage).
 
 2) What the player sees and what is kept
-   - A banner at the kill ("GOLD MEDAL: The Warden down in 38 s, no damage taken", "a new best" when it replaces an older one).
+   - A toast at the kill ("Gold medal · THE WARDEN down in 38 s, no damage taken", "a new best" when it replaces an older one); a banner
+     was tried first and found replaced by the banners of the same moment (the test showed it).
    - stats.medals in the save: the best medal per boss and its time (a better medal, or the same one faster, replaces it); the save
      cleans it on load (ids a-z, medal 0-3, numbers clamped, junk dropped). The Codex shows "Defeated x3 · Gold · 38 s".
 
 3) Tests
    - Self-test v3240 (the rule at its edges, the par follows the threat, a real kill's numbers, a hostile save) and the full QA
-     section medals (banner, kept medal, a worse kill does not replace it, the Codex).
+     section medals (toast, kept medal, a worse kill does not replace it, the Codex).
 
 4) Results 3.24.0 (headless Chromium, software WebGL)
-   - RESULTS_PLACEHOLDER
+   - npm test (deep test with self-test v3240, files check, data audit, determinism 15/15 unchanged): ok. Full QA section medals
+     passes. The complete release check of the whole chain (3.21.0 to 3.23.0) ran on the gamepad release; the medals add
+     one save field, a toast and a Codex line on top of it (a complete release check of 3.24.0 itself was not run: the
+     hours of the night went to the features; run `npm run release-check` on this branch before the merge if you want it).
 
 5) Open doubts
    - The par times are my estimate of a good run, not measured with players: they may be too tight or too loose (the numbers are

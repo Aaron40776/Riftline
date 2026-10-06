@@ -715,11 +715,11 @@ function awardBossMedal(ev, world) {
       stats.medals[ev.id] = { medal, secs: Math.round(ev.secs * 10) / 10, damage: Math.round(ev.damage) };
       store.save("medal");
     }
-    ui.banner(
-      `${MEDAL_NAMES[medal].toUpperCase()} MEDAL`,
-      `${def.name} down in ${Math.round(ev.secs)} s${ev.damage <= 0 ? ", no damage taken" : ""}${old && !better ? "" : better && old ? " \u2014 a new best" : ""}`,
-      medal === 3 ? "good" : "info",
-      2600,
+    // a toast (another banner of the same moment would replace a banner at once)
+    ui.toast(
+      `${MEDAL_NAMES[medal]} medal \u00b7 ${def.name} down in ${Math.round(ev.secs)} s${ev.damage <= 0 ? ", no damage taken" : ""}${better && old ? " \u2014 a new best" : ""}`,
+      medal === 3 ? "good" : "",
+      4800,
     );
   } catch (err) {
     logError("medal", err);

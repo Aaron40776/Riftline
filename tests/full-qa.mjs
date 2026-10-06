@@ -4004,12 +4004,12 @@ await section("medals", async (L) => {
       },
       [secs, damage],
     );
-  const banner = () => P.ev(() => document.getElementById("banner").textContent);
+  const banner = () => P.ev(() => document.getElementById("toasts").textContent);
   await kill(30, 0);
-  await P.page.waitForFunction(() => /MEDAL/.test(document.getElementById("banner").textContent), null, {
+  await P.page.waitForFunction(() => /medal/i.test(document.getElementById("toasts").textContent), null, {
     timeout: 15000,
   });
-  check(L, "a hitless kill in 30 s earns Gold and says so", /GOLD MEDAL/i.test(await banner()), await banner());
+  check(L, "a hitless kill in 30 s earns Gold and says so", /Gold medal/i.test(await banner()), await banner());
   const stored = () => P.ev(() => window.__riftTest.store.data.stats.medals.warden);
   check(
     L,

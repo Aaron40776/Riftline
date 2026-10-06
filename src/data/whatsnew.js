@@ -6,7 +6,7 @@ export const WHATS_NEW = [
     title: "Boss medals",
     items: [
       "Every boss kill earns a medal: Bronze for the kill, Silver for no damage taken (or a fast kill with few hits), Gold for no damage and under the par time.",
-      "A banner tells you what you earned; the best medal and time of each boss are kept in the Codex.",
+      "A message tells you what you earned; the best medal and time of each boss are kept in the Codex.",
     ],
   },
   {
