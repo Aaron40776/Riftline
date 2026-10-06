@@ -28,7 +28,11 @@ Gamepad API; tested with a faked controller, not with real hardware.
      a hit buzzes, with the setting off it stays still.
 
 5) Results 3.23.0 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+   - npm run release-check (covers 3.21.0 to 3.23.0, which were built one on the other): all steps ok except the determinism
+     step, which reported one changed hash, "data-tables": the table of default settings is part of it and the new Vibration
+     setting changed it (key "Oh": fc675a28... -> a00c1356...). That is meant: the fixture was updated with --update; all fifteen
+     other cases (every simulation, the statistics, the layouts, the planner) are unchanged. Time of the chain: 32 min 15 s.
+     (Earlier in the night the full QA also caught the missing import of rumble, see 3.)
 
 6) Open doubts
    - Not tested on real hardware: an Xbox or PlayStation pad, the buttons of non-standard pads (the browser maps most pads to the
