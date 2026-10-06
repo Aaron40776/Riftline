@@ -23,10 +23,9 @@ Roadmap, proposal C11 of 03.10.2026: "Boss-Medaillen: ohne Treffer und auf Zeit,
      section medals (toast, kept medal, a worse kill does not replace it, the Codex).
 
 4) Results 3.24.0 (headless Chromium, software WebGL)
-   - npm test (deep test with self-test v3240, files check, data audit, determinism 15/15 unchanged): ok. Full QA section medals
-     passes. The complete release check of the whole chain (3.21.0 to 3.23.0) ran on the gamepad release; the medals add
-     one save field, a toast and a Codex line on top of it (a complete release check of 3.24.0 itself was not run: the
-     hours of the night went to the features; run `npm run release-check` on this branch before the merge if you want it).
+   - npm run release-check on the top of the whole stack (3.24.0, which contains 3.18.1 to 3.23.0 below it): ALL steps ok (format,
+     build, deep test with the self-tests v3210, v3220 and v3240, data audit, determinism 15/15, full QA, e2e, world and run
+     audit, screens pc and land, biome shots pc and land, attack shots pc), 34 min 11 s. The full QA section medals passes.
 
 5) Open doubts
    - The par times are my estimate of a good run, not measured with players: they may be too tight or too loose (the numbers are
