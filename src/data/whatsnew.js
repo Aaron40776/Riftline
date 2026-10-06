@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.22.0",
+    title: "See what you are building",
+    items: [
+      "The pause menu now lists the numbers of your build: hull, damage, fire rate, damage per second, crits, range, speed, dash cooldown, armor, regeneration and more, each with how far it is from the plain weapon.",
+      "The upgrade choice shows what the next wave brings: its number, a new biome, a boss, a wave event, a new Endless mutator, traps on the floor.",
+    ],
+  },
+  {
     version: "3.21.0",
     title: "What hit you",
     items: [

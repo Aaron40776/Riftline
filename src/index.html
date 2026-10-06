@@ -427,6 +427,13 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 #choose { justify-content: flex-start; padding-top: calc(var(--st) + 22px); gap: 14px; }
 .choose-head { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .choose-head h2 { font-size: 24px; }
+/* 3.22.0: a look at the next wave under the title of the upgrade choice */
+.next-wave { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; min-height: 22px; }
+.next-wave .nw { font: 600 11px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); padding: 5px 9px; border: 1px solid rgba(147, 162, 191, 0.28); background: rgba(9, 14, 26, 0.55); clip-path: var(--notch); --n: 5px; }
+.next-wave .nw.boss { color: #ffb0c2; border-color: rgba(255, 90, 130, 0.55); background: rgba(255, 61, 127, 0.12); }
+.next-wave .nw.biome { color: var(--cyan); border-color: rgba(73, 242, 255, 0.4); }
+.next-wave .nw.event { color: #ffe08a; border-color: rgba(255, 216, 74, 0.45); }
+.next-wave .nw.mut { color: #ffc89a; border-color: rgba(255, 130, 60, 0.45); }
 .choose-hp { display: flex; align-items: center; gap: 8px; width: min(260px, 70vw); }
 .choose-hp .bar { flex: 1; }
 .choose-hp .num { font-size: 13px; color: var(--dim); }
@@ -542,6 +549,14 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .dmg-row .num { color: var(--dim); font-size: 12px; }
 .dmg-row .db { grid-column: 1 / -1; height: 4px; background: rgba(255, 255, 255, 0.07); }
 /* 3.21.0: the recap of a lost run: the last hits, the final blow in red */
+/* 3.22.0: the numbers of the build in the pause menu */
+.stat-rows { display: grid; grid-template-columns: 1fr auto auto; gap: 3px 12px; width: 100%; text-align: left; font-size: 13px; }
+.stat-rows .sr-k { color: var(--dim); }
+.stat-rows .sr-v { font: 700 13px/1.2 var(--display); color: var(--text); text-align: right; }
+.stat-rows .sr-d { min-width: 4.2em; text-align: right; font-size: 12px; color: var(--dim); }
+.stat-rows .sr-d.up { color: #6dffb0; }
+.stat-rows .sr-d.down { color: #6dffb0; }
+.stat-rows .sr-d.worse { color: #ff9ab0; }
 .recap .hits { display: flex; flex-direction: column; gap: 3px; }
 .recap .hit { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text); }
 .recap .hit .hd { font: 700 13px/1 var(--display); color: #ff7a92; min-width: 3.2em; }
@@ -1700,6 +1715,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <div class="choose-head">
       <div id="chooseEyebrow" class="eyebrow">WAVE 1 CLEARED</div>
       <h2 id="chooseTitle">Choose an upgrade</h2>
+      <div id="nextWave" class="next-wave" aria-live="polite"></div>
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
     </div>
     <div id="cards" class="cards"></div>
@@ -1722,6 +1738,8 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       </div>
       <button id="pauseSndBtn" class="btn ghost small">Sound notes</button>
       <button id="abandonBtn" class="btn danger ghost">Abandon run</button>
+      <div class="section-h">Stats</div>
+      <div id="pauseStatRows" class="stat-rows"></div>
       <div class="section-h">Build</div>
       <div id="pauseBuild" class="build-list"></div>
       <div id="pauseUpInfo" class="up-info" aria-live="polite" hidden></div>

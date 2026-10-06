@@ -1,3 +1,36 @@
+RIFTLINE v3.22.0 – SEE WHAT YOU ARE BUILDING
+Base: v3.21.0 · Build r3220a1005a-r1 · 06.10.2026
+
+Roadmap, proposals A2 and A3 of 03.10.2026 ("Learning and overview"): the numbers behind the build in the pause menu and a look at
+the next wave in the upgrade choice. Neither changes a rule of the game.
+
+1) The stats (pause menu, Stats)
+   - buildStatRows (core/stats.js) gives, for the weapon and the run's upgrades, 13 rows: hull (left over maximum), damage per
+     hit, shots per second, damage per second (estimate: damage x rate x shots (pellets and extra shots) x (1 + crit chance x
+     (crit damage - 1)), all hits landing), critical chance and damage, range, move speed, dash cooldown, armor, regeneration, pickup
+     radius, Nova strength. Each with the change against the plain weapon (workshop modules are in the base): +36 % in green,
+     -8 % of the dash cooldown in green (less is better), red when something got worse.
+
+2) The next wave (upgrade choice, under the title)
+   - World.previewWave(n) (no state changed): the biome and whether it is new, the boss, the wave event, the mutator that joins
+     in Endless, traps (from wave 6, not on boss waves). Chips: Wave N, Entering <biome>, Boss, Elite Surge or Shard Rain, New
+     mutator, Traps on the floor.
+
+3) Tests
+   - Self-test v3220: rows finite, equal to the base without upgrades, the numbers of two levels of Overclock and one of Servo
+     Thrusters, the workshop in the base, all seven weapons; the preview matches the real wave (boss, event, biome) for waves 2 to
+     40 of three seeds (234 waves), is stable, changes nothing.
+   - Full QA stats-desktop, stats-phone and nextwave (pictures tests/shots/qa-stats-phone.png, qa-nextwave.png: looked at).
+
+4) Results 3.22.0 (headless Chromium, software WebGL; npm run release-check)
+   - RESULTS_PLACEHOLDER
+
+5) Open doubts
+   - The damage per second is an estimate: it ignores misses, chain lightning, burn and the like (the weapons differ in how
+     much they depend on them); it is there to compare builds, not to promise a number.
+   - Not built from the package: the short introduction to the Singularity and traps in waves 1-6, codex entries for mutators and
+     overdrive attacks.
+
 RIFTLINE v3.21.0 – WHAT HIT YOU
 Base: v3.20.0 · Build r3210a1005a-r1 · 06.10.2026
 

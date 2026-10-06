@@ -66,7 +66,7 @@ import { upgradeList, upgradesById, RL_RETIRED_UPGRADES } from "../data/upgrades
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 import { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount, rlUpdateTraps } from "./traps.js";
 import { hitsObstacle, buildLayout, isConnected, RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
-import { computeStats } from "./stats.js";
+import { computeStats, buildStatRows } from "./stats.js";
 import {
   RL_EVENT_KINDS,
   RL_BOSS_EVENTS,
@@ -479,6 +479,7 @@ function rlSelfTest() {
   result = selfTestV3170(result);
   result = selfTestV3172(result);
   result = selfTestV3210(result);
+  result = selfTestV3220(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3637,6 +3638,65 @@ function selfTestV3210(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3210: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.22.0: the numbers behind the build (the stats of the pause menu) ---- */
+function selfTestV3220(result) {
+  const fail = [];
+  try {
+    const by = (rows) => Object.fromEntries(rows.map((r) => [r.label, r]));
+    const plain = by(buildStatRows("pulse", {}, {}, 100));
+    for (const [label, r] of Object.entries(plain)) {
+      if (!Number.isFinite(r.now) || !Number.isFinite(r.base)) fail.push("finite:" + label);
+      if (Math.abs(r.now - r.base) > 1e-9) fail.push("plain-differs:" + label);
+    }
+    if (Object.keys(plain).length < 12) fail.push("rows:" + Object.keys(plain).length);
+    if (plain.Hull.hp !== 100) fail.push("hull-now");
+    // upgrades move the numbers the way their cards say
+    const up = by(buildStatRows("pulse", { dmg: 2, speed: 1, crit: 1, hp: 2 }, {}, 100));
+    if (Math.abs(up["Damage per hit"].now - up["Damage per hit"].base * 1.36) > 1e-6) fail.push("dmg-x1.36");
+    if (!(up["Damage per second"].now > up["Damage per second"].base * 1.36)) fail.push("dps-includes-crit");
+    if (!(up["Dash cooldown"].now < up["Dash cooldown"].base && up["Dash cooldown"].better === "down"))
+      fail.push("dash-cd");
+    if (Math.abs(up["Move speed"].now - up["Move speed"].base * 1.1) > 1e-6) fail.push("speed");
+    if (up.Hull.now !== up.Hull.base + 50) fail.push("hull:" + up.Hull.now);
+    // the workshop belongs to the base: a module does not show as a change of the run
+    const shop = by(buildStatRows("pulse", {}, { armorCore: 5, hull: 3 }, 130));
+    if (Math.abs(shop.Armor.now - 20) > 1e-6 || shop.Armor.now !== shop.Armor.base) fail.push("workshop-in-base");
+    // every weapon has numbers
+    for (const id of Object.keys(weaponDefs)) {
+      const rows = buildStatRows(id, { multishot: 1 }, {}, 100);
+      if (rows.some((r) => !Number.isFinite(r.now) || r.now < 0)) fail.push("weapon:" + id);
+      if (!(by(rows)["Damage per second"].now > 0)) fail.push("dps:" + id);
+    }
+    // the look at the next wave says what the wave then brings, and changes nothing
+    const seen = { boss: 0, event: 0, newBiome: 0, mutator: 0 };
+    for (const seed of [0x3220, 7, 99]) {
+      const ahead = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
+      ahead.endless = true;
+      for (let n = 2; n <= 40; n++) {
+        const pv = ahead.previewWave(n),
+          again = ahead.previewWave(n);
+        if (JSON.stringify(pv) !== JSON.stringify(again)) fail.push("preview-stable:" + n);
+        const real = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
+        real.endless = true;
+        real.startWave(n);
+        if ((real.bossPending || null) !== pv.boss)
+          fail.push(`preview-boss:${seed}:${n}:${real.bossPending}/${pv.boss}`);
+        if ((real.event || null) !== pv.event) fail.push(`preview-event:${seed}:${n}:${real.event}/${pv.event}`);
+        if (real.arena.biome.id !== pv.biome) fail.push(`preview-biome:${seed}:${n}`);
+        seen.boss += pv.boss ? 1 : 0;
+        seen.event += pv.event ? 1 : 0;
+        seen.newBiome += pv.newBiome ? 1 : 0;
+        seen.mutator += pv.mutator ? 1 : 0;
+      }
+    }
+    if (!(seen.boss > 10 && seen.event > 3 && seen.newBiome > 10 && seen.mutator > 0))
+      fail.push("preview-coverage:" + JSON.stringify(seen));
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3220: { ok: fail.length === 0, fail } };
 }
 
 /* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct

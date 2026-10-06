@@ -510,6 +510,22 @@ const rlStep = 1 / 60,
       rng.next();
       return ["elite", "rain"][Math.floor(rng.next() * 2)];
     }
+    /* 3.22.0: what the next wave brings (a look ahead for the upgrade choice; it changes nothing): the biome and whether
+       it is a new one, the boss, the wave event, the mutator that joins in Endless, and whether traps are on the floor */
+    previewWave(n) {
+      const biome = this.biomeFor(n),
+        boss = this.bossFor(n),
+        mutators = rlMutatorsFor(this.seed, n);
+      return {
+        wave: n,
+        biome: biome.id,
+        newBiome: n > 1 && this.biomeFor(n - 1).id !== biome.id,
+        boss: boss || null,
+        event: boss ? null : this.eventFor(n),
+        mutator: mutators.gained || null,
+        traps: n >= 6 && !boss,
+      };
+    }
     biomeFor(wave) {
       const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
       return biomesById[this.route[cycle % this.route.length]] || biomeList[0];

@@ -3707,6 +3707,112 @@ for (const profName of ["desktop", "phone"]) {
   });
 }
 
+// 3.22.0: the numbers behind the build in the pause menu: the value now and how far it is from the plain weapon
+for (const profName of ["desktop", "phone"]) {
+  await section(`stats-${profName}`, async (L) => {
+    const P = await open(profName, { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+    await P.boot();
+    await P.ev(() => {
+      const T = window.__riftTest;
+      T.game.startRun({});
+    });
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      {
+        timeout: 30000,
+      },
+    );
+    await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      w.up.dmg = 2;
+      w.up.speed = 1;
+      w.stats = window.__riftTest.computeStats(w.weapon, w.up, w.ws);
+      window.__riftTest.game.pause();
+    });
+    await P.page.waitForTimeout(500);
+    const rows = await P.ev(() => {
+      const box = document.getElementById("pauseStatRows"),
+        cells = [...box.children].map((c) => c.textContent.trim()),
+        out = {};
+      for (let i = 0; i + 2 < cells.length; i += 3) out[cells[i]] = { v: cells[i + 1], d: cells[i + 2] };
+      const r = box.getBoundingClientRect();
+      return { out, count: cells.length / 3, inView: r.right <= innerWidth + 1 };
+    });
+    check(L, "the pause menu lists the numbers of the build", rows.count >= 12, String(rows.count));
+    check(
+      L,
+      "damage per hit is up 36 % (two levels of Overclock), the dash cooldown down",
+      rows.out["Damage per hit"]?.d === "+36%" && /^\u2212\d+%$/.test(rows.out["Dash cooldown"]?.d || ""),
+      JSON.stringify([rows.out["Damage per hit"], rows.out["Dash cooldown"]]),
+    );
+    check(
+      L,
+      "the hull shows what is left over what there is",
+      /^\d+ \/ \d+$/.test(rows.out.Hull?.v || ""),
+      rows.out.Hull?.v,
+    );
+    check(L, "unchanged numbers show no change", rows.out["Armor"]?.d === "", JSON.stringify(rows.out["Armor"]));
+    await P.shot({ path: new URL(`./shots/qa-stats-${profName}.png`, import.meta.url).pathname });
+    check(L, "it fits the screen", rows.inView);
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+
+// 3.22.0: a look at the next wave under the title of the upgrade choice
+await section("nextwave", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  const chips = async (cleared) => {
+    await P.ev((n) => {
+      const g = window.__riftTest.game,
+        w = g.world;
+      g.chooseShown = false;
+      w.god = true;
+      w.wave = n;
+      for (const e of [...w.enemies]) w.killEnemy(e);
+      w.beginChoice();
+    }, cleared);
+    await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
+    await P.page.waitForTimeout(300);
+    return P.ev(() => [...document.querySelectorAll("#nextWave .nw")].map((c) => c.textContent.trim()));
+  };
+  // after wave 4 the boss of wave 5 comes (Blackout City: the Warden); after wave 5 the second biome starts
+  const beforeBoss = await chips(4);
+  check(
+    L,
+    "after wave 4 it announces wave 5 and its boss",
+    beforeBoss[0] === "Wave 5" && beforeBoss.some((c) => /^Boss/.test(c)),
+    beforeBoss.join(" | "),
+  );
+  const newBiome = await chips(5);
+  check(
+    L,
+    "after wave 5 it announces the new biome",
+    newBiome.some((c) => /^Entering /.test(c)),
+    newBiome.join(" | "),
+  );
+  const traps = await chips(7);
+  check(
+    L,
+    "from wave 6 on it says that traps are on the floor",
+    traps.includes("Traps on the floor"),
+    traps.join(" | "),
+  );
+  await P.shot({ path: new URL("./shots/qa-nextwave.png", import.meta.url).pathname });
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));

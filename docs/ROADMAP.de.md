@@ -290,9 +290,9 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
 1. (Done in 3.21.0: "What hit you" on the end screen of a lost run.) Tod-Rückblick am Run-Ende: die letzten Treffer (wer, welcher Angriff, wie viel), der tödliche Treffer hervorgehoben,
    dazu Schaden je eigener Quelle (Waffe, Klingen, Granate, Surge, Fallen) und je Gegnertyp. Lernt man am meisten,
    wenn das Spiel schwer ist.
-2. Werte-Übersicht im Pausenmenü: alle aktuellen Werte (Schaden, Feuerrate, Krit, Tempo, Dash, Hülle, Panzerung,
+2. (Done in 3.22.0.) Werte-Übersicht im Pausenmenü: alle aktuellen Werte (Schaden, Feuerrate, Krit, Tempo, Dash, Hülle, Panzerung,
    Regeneration, Aufsammelradius, Granaten) mit Grund- und Bonuswert.
-3. Vorschau auf die nächste Welle in der Upgrade-Wahl (Boss, Ereignis, Mutator, ab wann Fallen kommen): man wählt
+3. (Done in 3.22.0.) Vorschau auf die nächste Welle in der Upgrade-Wahl (Boss, Ereignis, Mutator, ab wann Fallen kommen): man wählt
    passend, statt blind.
 4. Kurze Einführung für Granate und Fallen in den Wellen 1–6, Codex-Einträge für Mutatoren und Overdrive-Angriffe.
 

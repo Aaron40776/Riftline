@@ -18,7 +18,7 @@ import { weaponOrder, weaponDefs } from "../data/weapons.js";
 import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, rlRetired, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
-import { computeStats, weaponRange } from "../core/stats.js";
+import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
 import { RL_INPUT } from "./input.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
@@ -1287,9 +1287,25 @@ const getById = (id) => document.getElementById(id),
       let hpFrac = clamp(world.player.hp / world.stats.maxHp, 0, 1);
       getById("chooseHp").style.transform = `scaleX(${hpFrac})`;
       getById("chooseHpNum").textContent = `${Math.ceil(world.player.hp)}/${world.stats.maxHp}`;
+      this.renderNextWave(world);
       this.renderCards(world);
       this.coverHud(true);
       getById("choose").hidden = false;
+    }
+    /* 3.22.0: what the next wave brings, as chips under the title: the biome (when it is a new one), the boss, the wave
+       event, the mutator that joins in Endless, traps */
+    renderNextWave(world) {
+      const box = getById("nextWave");
+      if (!box) return;
+      const next = world.previewWave(world.wave + 1),
+        chips = [[`Wave ${next.wave}`, ""]];
+      if (next.newBiome) chips.push([`Entering ${biomesById[next.biome].name}`, "biome"]);
+      if (next.boss) chips.push([`Boss \u00b7 ${bossDefs[next.boss] ? bossDefs[next.boss].name : next.boss}`, "boss"]);
+      if (next.event && waveEvents[next.event]) chips.push([waveEvents[next.event].name, "event"]);
+      if (next.mutator && MUTATORS[next.mutator])
+        chips.push([`New mutator \u00b7 ${MUTATORS[next.mutator].name}`, "mut"]);
+      if (next.traps) chips.push(["Traps on the floor", ""]);
+      box.innerHTML = chips.map(([text, cls]) => `<span class="nw ${cls}">${escapeHtml(text)}</span>`).join("");
     }
     renderCards(world) {
       // 2.4.2: the reroll label survives a re-render (reroll), so drop its old key hint first
@@ -1418,6 +1434,7 @@ const getById = (id) => document.getElementById(id),
       getById("pauseStats").innerHTML =
         `<span>${formatTime(world.time)}</span><span>${formatCount(world.kills)} KILLS</span><span>${formatCount(world.shards)} SHARDS</span>`;
       getById("pauseBuild").innerHTML = this.buildHtml(world);
+      this.renderStatRows(world);
       this.coverHud(true);
       getById("pause").hidden = false;
       this.screen = "pause";
@@ -1434,6 +1451,28 @@ const getById = (id) => document.getElementById(id),
       }
       info.hidden = !own.length;
       info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>';
+    }
+    /* 3.22.0: the numbers behind the build: the value now and, next to it, how far it is from what the weapon has without the
+       upgrades of the run (green: better, red: worse) */
+    renderStatRows(world) {
+      const box = getById("pauseStatRows");
+      if (!box) return;
+      const rows = buildStatRows(world.weapon, world.up || {}, world.ws || {}, world.player.hp),
+        num = (v, digits) => (Math.round(v * 10 ** digits) / 10 ** digits).toFixed(digits).replace(/\.0+$/, "");
+      box.innerHTML = rows
+        .map((r) => {
+          const value = r.hp != null ? `${Math.ceil(r.hp)} / ${num(r.now, r.digits)}` : num(r.now, r.digits) + r.unit,
+            change = r.base ? (r.now - r.base) / r.base : 0;
+          let delta = "",
+            cls = "";
+          if (Math.abs(change) >= 0.005) {
+            const better = r.better === "up" ? change > 0 : change < 0;
+            delta = `${change > 0 ? "+" : "\u2212"}${Math.round(Math.abs(change) * 100)}%`;
+            cls = better ? "up" : "worse";
+          }
+          return `<span class="sr-k">${escapeHtml(r.label)}</span><span class="sr-v num">${escapeHtml(value)}</span><span class="sr-d ${cls}">${delta}</span>`;
+        })
+        .join("");
     }
     /* 3.17.2: the sound notes. The engine remembers the sounds of the last half minute (SoundEngine.heard); the player
        pauses right after one bothers or pleases them, taps it and taps what they think of it. The note names the exact
