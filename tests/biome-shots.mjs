@@ -12,7 +12,9 @@ if (!prof) {
   console.error("usage: node biome-shots.mjs [url] pc|land");
   process.exit(2);
 }
-const OUT = `tests/shots/biomes-${NAME}`;
+// 3.20.0: SHOT_QUALITY=ultra shows the Ultra look (pictures in tests/shots/biomes-<profile>-ultra)
+const QUALITY = process.env.SHOT_QUALITY || "high";
+const OUT = `tests/shots/biomes-${NAME}${QUALITY === "high" ? "" : "-" + QUALITY}`;
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({
@@ -27,12 +29,13 @@ p.on("console", (m) => m.type() === "error" && errs.push(m.text().slice(0, 300))
 await p.goto(URL);
 await p.waitForFunction(() => window.__riftTest && window.__riftTest.ui, null, { timeout: 90000 });
 const ev = (f, a) => p.evaluate(f, a);
-await ev(() => {
+await ev((quality) => {
   const T = window.__riftTest;
   T.store.data.seen.tutorial = true;
   for (const k of Object.keys(T.store.data.seen)) T.store.data.seen[k] = true;
-  T.store.data.settings.quality = "high";
-});
+  T.store.data.settings.quality = quality;
+  T.game.settingsChanged(true);
+}, QUALITY);
 await ev(() => window.__riftTest.game.startRun({}));
 await p.waitForTimeout(800);
 const ids = await ev(() => window.__riftTest.game.world.route.slice());

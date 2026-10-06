@@ -1,3 +1,44 @@
+RIFTLINE v3.20.0 – ULTRA LOOK
+Base: v3.19.0 · Build r3200a1005a-r1 · 06.10.2026
+
+Asked by the owner (05.10.2026): "it's all looking like a kids game, we need more professional style"; answered with
+"ultra sure": an opt-in Ultra preset. The pictures of 3.19.0 were looked at first: flat even light, saturated colours, a soft
+blob under everything, no material. Ultra changes the light and the picture, not the models (a pass on the models comes
+later, with a reference from the owner).
+
+1) What Ultra does (render/look.js; Settings, Graphics: Auto, High, Ultra, Saver)
+   - A filmic tone curve (ACES) with an exposure per biome, so that the dark places stay readable and the Cryo Vault does
+     not burn out (yard 2.2, works 1.9, vault 1.25, marsh 1.9, void 2.1).
+   - Real shadows: the sun casts a soft 2048 px shadow map over the arena. The floor is a custom shader and cannot receive
+     shadows, so they fall on a plane that draws only shadows (ShadowMaterial) just above it. The walker, the enemies and
+     the props cast; glows, rings, sprites and beams do not. The blob shadows are not drawn.
+   - The scene goes into a 4x multisampled half-float target and through one grading pass: 10 % less saturation, cool
+     shadows and warm lights, the tone curve and display transform, a vignette and a fine moving film grain. The HUD (a
+     2D overlay) is not graded.
+   - Only with Ultra: Auto, High and Saver draw exactly as before (checked in the test below).
+
+2) Looked at (tests/shots/biomes-pc-ultra against tests/shots/biomes-pc)
+   - Blackout City: first attempt olive-brown and washed out (exposure 1.18 not applied: the exposure of the renderer
+     did not reach the pass; moved into the pass as a uniform); with 2.2 a moody noir, the hexagons of the floor visible,
+     hard soft-edged shadows under the pillars, a vignette. Ember Works and Cryo Vault: filmic, contrast and colour kept.
+   - Found while testing: a pass written with ShaderMaterial must not include the tone-mapping chunks itself (three adds
+     them: "toneMappingExposure redefinition"); the blob shadow pool shows its mesh again every frame, so Ultra hides it
+     in the pass.
+
+3) Tests
+   - Full QA section `ultra`: the Ultra button; saving; the look is on (tone curve, shadow map, sun, catcher, no blobs); 190
+     solids cast; no shader or GL error; back on High nothing is left; no page errors. biome-shots can show Ultra
+     (SHOT_QUALITY=ultra).
+
+4) Results 3.20.0 (headless Chromium, software WebGL; npm run release-check)
+   - RESULTS_PLACEHOLDER
+
+5) Open doubts
+   - I judge pictures, not taste: whether this is the "professional" look the owner means needs his eyes (and a reference
+     game or picture). Not done: bloom of the glows, a colour grade per biome beyond the exposure, ambient occlusion, hard-
+     surface models. Performance on a real device is not measured here (software GL): Ultra costs a shadow pass and a
+     multisampled target; it is for strong devices and Auto never picks it.
+
 RIFTLINE v3.19.0 – AMBIENT BLOOM
 Base: v3.18.2 · Build r3190a1005a-r1 · 06.10.2026
 

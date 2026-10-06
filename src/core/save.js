@@ -398,7 +398,7 @@ function cleanSave(input) {
       if (typeof def == "number") {
         save.settings[key] = rlSettingNum(key, rawSettings[key], def);
       } else {
-        save.settings[key] = ["auto", "high", "battery"].includes(rawSettings[key]) ? rawSettings[key] : def;
+        save.settings[key] = ["auto", "high", "ultra", "battery"].includes(rawSettings[key]) ? rawSettings[key] : def;
       }
     }
   }

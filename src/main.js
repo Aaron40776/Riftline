@@ -213,6 +213,8 @@ let qualityPresets = {
     high: { dpr: 2, particles: 1400, fps: 0 },
     battery: { dpr: 1, particles: 500, fps: 30 },
     auto: { dpr: 1.5, particles: 1400, fps: 0 },
+    // 3.20.0: High, with the Ultra look (look.js)
+    ultra: { dpr: 2, particles: 1800, fps: 0 },
   },
   store = new SaveStore(),
   sound = new SoundEngine(),
@@ -688,7 +690,9 @@ game.qualityNote = () => {
       ? `Adapts to your device (now ${dpr}\xD7)`
       : settings.quality === "battery"
         ? "Lower resolution, 30 fps, no edge smoothing"
-        : `Sharpest (${dpr}\xD7)`) + restart
+        : settings.quality === "ultra"
+          ? `Sharpest with the cinematic look: real shadows, film tone and grade (${dpr}\xD7); for strong devices`
+          : `Sharpest (${dpr}\xD7)`) + restart
   );
 };
 function afterProgressReset(message) {
@@ -762,6 +766,7 @@ function applySettings() {
     renderer.zoom = settings.zoom || 1;
     let dpr = settings.quality === "auto" ? autoDpr : qualityPreset.dpr;
     renderer.setQuality(dpr, qualityPreset.particles);
+    renderer.setLook(settings.quality === "ultra");
   }
 }
 let loopFrameId = 0,

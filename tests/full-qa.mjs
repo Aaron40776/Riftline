@@ -3563,6 +3563,82 @@ await section("layout360", async (L) => {
   await P.close();
 });
 
+// 3.20.0: the Ultra look (Settings, Graphics: Ultra): the button is there and saves, the look turns on (a filmic tone curve,
+// real shadows, the graded pass) and off again without a trace, and no shader fails to compile
+await section("ultra", async (L) => {
+  const P = await open("desktop", {
+    save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }),
+    draw: true,
+  });
+  const glErrors = [];
+  P.page.on("console", (m) => m.type() === "error" && glErrors.push(m.text().slice(0, 200)));
+  await P.boot();
+  await P.tap('[data-go="settings"]');
+  check(
+    L,
+    "the Graphics setting has an Ultra button",
+    await P.ev(() => !!document.querySelector('#setQuality [data-v="ultra"]')),
+  );
+  await P.tap('#setQuality [data-v="ultra"]');
+  await P.page.waitForTimeout(400);
+  check(L, "tapping it saves the setting", (await P.stored()).settings.quality === "ultra");
+  const look = () =>
+    P.ev(() => {
+      const r = window.__riftTest.renderer;
+      return {
+        on: r.look.on,
+        tone: r.renderer.toneMapping,
+        shadows: r.renderer.shadowMap.enabled,
+        sun: r.sun.castShadow,
+        catcher: r.look.catcher.visible,
+        blob: r.shadows.mesh.visible,
+      };
+    });
+  const on = await look();
+  check(
+    L,
+    "the look is on: tone curve, shadow map, the catcher; the blob shadows are off",
+    on.on && on.tone !== 0 && on.shadows && on.sun && on.catcher && !on.blob,
+    JSON.stringify(on),
+  );
+  await P.ev(() => {
+    window.__riftTest.game.startRun({});
+  });
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  await P.page.waitForTimeout(2500);
+  const solids = await P.ev(() => {
+    let cast = 0;
+    window.__riftTest.renderer.scene.traverse((o) => o.isMesh && o.castShadow && cast++);
+    return cast;
+  });
+  check(L, "the solids of the scene cast shadows", solids > 20, String(solids));
+  await P.shot({ path: new URL("./shots/qa-ultra.png", import.meta.url).pathname });
+  check(L, "no shader or GL errors in the console", !glErrors.length, glErrors.slice(0, 2).join(" | "));
+  // back to High: nothing of the look is left
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.store.data.settings.quality = "high";
+    T.game.settingsChanged(true);
+  });
+  await P.page.waitForTimeout(1500);
+  const off = await look();
+  check(
+    L,
+    "back on High the look is off: no tone curve, no shadow map, the blob shadows are back",
+    !off.on && off.tone === 0 && !off.shadows && !off.sun && !off.catcher && off.blob,
+    JSON.stringify(off),
+  );
+  check(L, "no shader or GL errors after switching back", !glErrors.length, glErrors.slice(0, 2).join(" | "));
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));
