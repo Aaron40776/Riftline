@@ -32,7 +32,9 @@ first step: a quiet generative melody on every calm theme, in stereo, with a voi
      Cryo Vault's glass clearly above that of the Ember Works' pipes.
 
 4) Results 3.19.0 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+   - All steps ok (format, build, deep test with the new bloom block, data audit, determinism 15/15 unchanged, full QA,
+     e2e, world and run audit, screens pc and land, biome shots pc and land, attack shots pc), 35 min 17 s.
+   - Stereo previews of the five calm themes (quiet, 40 s) were rendered and sent to the owner to listen to.
 
 5) Open doubts
    - I cannot hear it. The numbers say present, subtle and wide; whether it is beautiful is for the owner's ears (the
