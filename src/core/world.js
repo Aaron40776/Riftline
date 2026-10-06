@@ -183,6 +183,9 @@ const rlStep = 1 / 60,
         dashes: (snap && snap.runStats && Number(snap.runStats.dashes)) || 0,
         critHits: (snap && snap.runStats && Number(snap.runStats.critHits)) || 0,
       };
+      // 3.21.0: what hit the drone (the death recap): the last hits, and the damage taken by source over the run
+      this.hitLog = [];
+      this.takenBy = {};
       this.dmgSrc = {};
       if (snap && snap.dmgSrc && typeof snap.dmgSrc == "object")
         for (let src in snap.dmgSrc) {
@@ -1471,6 +1474,22 @@ const rlStep = 1 / 60,
         this.emit("novaReady");
       }
     }
+    /* 3.21.0: the last twelve hits of the run for the recap on the end screen; the ticks of a hazard (acid, lava) that
+       follow each other within 1.5 s are one entry */
+    logHit(src, dmg, chip) {
+      const key = src || "?",
+        log = this.hitLog,
+        last = log[log.length - 1];
+      this.takenBy[key] = (this.takenBy[key] || 0) + dmg;
+      if (chip && last && last.chip && last.src === key && this.time - last.t < 1.5) {
+        last.dmg += dmg;
+        last.t = this.time;
+        last.n++;
+        return;
+      }
+      log.push({ t: this.time, wave: this.wave, src: key, dmg, chip: !!chip, n: 1 });
+      if (log.length > 12) log.shift();
+    }
     hurtPlayer(dmg, srcX, srcY, src, chip = false) {
       // 2.5.0 B: no damage while the Emergency Shield barrier is up
       if (this.barrierT > 0 && this.player.alive && this.state === "fight") return false;
@@ -1501,6 +1520,7 @@ const rlStep = 1 / 60,
         player.hp -= dmg;
         this.runStats.dmgTaken += Math.min(dmg, hpBefore);
         this.lastHit = src || null;
+        this.logHit(src, dmg, chip);
         if (this.dmgBy) {
           this.dmgBy[src || "?"] = (this.dmgBy[src || "?"] || 0) + dmg;
         }

@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.21.0",
+    title: "What hit you",
+    items: [
+      "When a run is lost, the end screen now shows the last hits: who hit you, for how much and how long before the end, with the final blow marked in red.",
+      "Below it: where most of the damage of the run came from, so you can see what to dodge or what to build against.",
+    ],
+  },
+  {
     version: "3.20.0",
     title: "Ultra look",
     items: [

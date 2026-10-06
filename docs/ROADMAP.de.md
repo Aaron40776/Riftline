@@ -287,7 +287,7 @@ Gewünscht: sinnvolle Verbesserungen (Komfort usw.), die Spieler gern hätten, o
 Punkt mit seiner Wirkung auf die Schwierigkeit.
 
 **A. Lernen und Überblick (neutral: erklärt, was passiert, nimmt nichts ab)**
-1. Tod-Rückblick am Run-Ende: die letzten Treffer (wer, welcher Angriff, wie viel), der tödliche Treffer hervorgehoben,
+1. (Done in 3.21.0: "What hit you" on the end screen of a lost run.) Tod-Rückblick am Run-Ende: die letzten Treffer (wer, welcher Angriff, wie viel), der tödliche Treffer hervorgehoben,
    dazu Schaden je eigener Quelle (Waffe, Klingen, Granate, Surge, Fallen) und je Gegnertyp. Lernt man am meisten,
    wenn das Spiel schwer ist.
 2. Werte-Übersicht im Pausenmenü: alle aktuellen Werte (Schaden, Feuerrate, Krit, Tempo, Dash, Hülle, Panzerung,

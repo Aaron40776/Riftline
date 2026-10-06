@@ -1558,6 +1558,7 @@ const getById = (id) => document.getElementById(id),
           }
         }
       }
+      this.renderRecap(result);
       getById("overStats").innerHTML = [
         ["Wave", result.wave],
         ["Time", formatTime(result.time)],
@@ -1611,6 +1612,40 @@ const getById = (id) => document.getElementById(id),
           )
           .join("") +
         "</div>";
+    }
+    /* 3.21.0: the recap of a lost run: who hit the drone last, with what and how long before the end, and where most of the
+       damage of the run came from */
+    renderRecap(result) {
+      const box = getById("overRecap"),
+        hits = (result.lastHits || []).slice(-6);
+      box.hidden = !hits.length;
+      if (box.hidden) return;
+      const name = (src) =>
+          (enemyDefs[src] && enemyDefs[src].name) ||
+          (bossDefs[src] && bossDefs[src].name) ||
+          { lava: "Lava vent", shock: "Live manhole", acid: "Acid", trap: "A trap" }[src] ||
+          "Unknown",
+        ago = (s) => (s < 0.15 ? "the end" : `${s.toFixed(1)} s before`);
+      const taken = Object.entries(result.taken || {})
+          .filter(([, dmg]) => dmg >= 1)
+          .sort((a, b) => b[1] - a[1]),
+        total = taken.reduce((sum, [, dmg]) => sum + dmg, 0);
+      box.innerHTML =
+        '<div class="dh">What hit you</div><div class="hits">' +
+        hits
+          .map((h, i) => {
+            const final = i === hits.length - 1,
+              ticks = h.n > 1 ? ` \xD7${h.n}` : "";
+            return `<div class="hit${final ? " final" : ""}"><span class="hd">\u2212${formatCount(Math.round(h.dmg))}</span><span>${escapeHtml(name(h.src))}${ticks}${final ? " \u2014 final blow" : ""}</span><span class="hw">${ago(h.ago)}</span></div>`;
+          })
+          .join("") +
+        "</div>" +
+        (taken.length && total >= 20
+          ? `<div class="rt">Most damage taken from: ${taken
+              .slice(0, 3)
+              .map(([src, dmg]) => `${escapeHtml(name(src))} (${Math.round((dmg / total) * 100)}%)`)
+              .join(", ")}</div>`
+          : "");
     }
     renderDamage(result) {
       let box = getById("overDmg"),

@@ -3639,6 +3639,74 @@ await section("ultra", async (L) => {
   await P.close();
 });
 
+// 3.21.0: the recap of a lost run on the end screen: the last hits, the final blow, the damage taken by source
+for (const profName of ["desktop", "phone"]) {
+  await section(`recap-${profName}`, async (L) => {
+    const P = await open(profName, { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+    await P.boot();
+    await P.ev(() => {
+      const T = window.__riftTest;
+      T.game.startRun({});
+    });
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      {
+        timeout: 30000,
+      },
+    );
+    // three hits from three sources, the last one kills
+    await P.ev(() => {
+      const w = window.__riftTest.game.world,
+        p = w.player;
+      w.god = false;
+      p.hp = p.maxHp = 400;
+      const hit = (dmg, src) => {
+        p.iT = 0;
+        p.dashT = 0;
+        p.shield = false;
+        w.time += 1.5;
+        w.hurtPlayer(dmg, null, null, src);
+      };
+      hit(12, "grunt");
+      hit(30, "brute");
+      p.hp = 20;
+      hit(200, "turret");
+    });
+    await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 });
+    await P.page.waitForTimeout(500);
+    const rec = await P.ev(() => {
+      const box = document.getElementById("overRecap");
+      return {
+        hidden: box.hidden,
+        rows: [...box.querySelectorAll(".hit")].map((r) => r.textContent.replace(/\s+/g, " ").trim()),
+        final: [...box.querySelectorAll(".hit.final")].length,
+        text: box.textContent,
+        fits: (() => {
+          const r = box.getBoundingClientRect();
+          return r.right <= innerWidth + 1 && r.left >= -1;
+        })(),
+      };
+    });
+    check(L, "the recap is shown on the end screen", !rec.hidden && rec.rows.length === 3, JSON.stringify(rec.rows));
+    check(
+      L,
+      "it names who hit (the last one marked as the final blow), with the damage",
+      rec.final === 1 &&
+        /grunt|Grunt/i.test(rec.rows[0]) &&
+        /final blow/.test(rec.rows[2]) &&
+        /\u2212/.test(rec.rows[2]),
+      rec.rows.join(" | "),
+    );
+    check(L, "it lists where most damage came from", /Most damage taken from/.test(rec.text), rec.text.slice(-120));
+    await P.shot({ path: new URL(`./shots/qa-recap-${profName}.png`, import.meta.url).pathname });
+    check(L, "it fits the screen", rec.fits);
+    // a won run has no recap
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));

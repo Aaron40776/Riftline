@@ -525,6 +525,7 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
   #over .payout { grid-column: 2; }
   #over .center-col > .chip.best { justify-self: center; }
   #over .dmg-panel { grid-column: 1; }
+  #over .recap { grid-column: 2; }
   #over .ms-unlocked { grid-column: 1; grid-row: span 3; }
   #over .center-col > .btn { grid-column: 2; }
 }
@@ -540,6 +541,14 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .dmg-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 13px; color: var(--text); }
 .dmg-row .num { color: var(--dim); font-size: 12px; }
 .dmg-row .db { grid-column: 1 / -1; height: 4px; background: rgba(255, 255, 255, 0.07); }
+/* 3.21.0: the recap of a lost run: the last hits, the final blow in red */
+.recap .hits { display: flex; flex-direction: column; gap: 3px; }
+.recap .hit { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text); }
+.recap .hit .hd { font: 700 13px/1 var(--display); color: #ff7a92; min-width: 3.2em; }
+.recap .hit .hw { color: var(--dim); font-size: 12px; }
+.recap .hit.final { padding: 3px 6px; margin: 2px -6px; background: rgba(255, 61, 127, 0.14); border-left: 3px solid #ff3d7f; }
+.recap .hit.final .hw { color: #ffb0c2; }
+.recap .rt { margin-top: 6px; font-size: 12px; color: var(--dim); }
 .dmg-row .db i { display: block; height: 100%; background: var(--dc, var(--cyan)); transform-origin: left; }
 .ms-unlocked { display: flex; flex-direction: column; gap: 6px; }
 .ms-unlocked .chip { justify-content: center; color: var(--amber); border-color: rgba(255, 200, 74, 0.45); padding: 6px; }
@@ -1748,6 +1757,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
         <div id="payRows"></div>
         <div class="pay-total"><span>Shards earned</span><span class="shard-chip"><span class="shard-ico"></span><span id="payTotal" class="num">0</span></span></div>
       </div>
+      <div id="overRecap" class="dmg-panel panel recap" hidden></div>
       <div id="overDmg" class="dmg-panel panel" hidden></div>
       <div id="overExtra" class="run-extra panel" hidden></div>
       <div id="overMs" class="ms-unlocked"></div>

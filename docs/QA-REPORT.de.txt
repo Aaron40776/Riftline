@@ -1,3 +1,30 @@
+RIFTLINE v3.21.0 – WHAT HIT YOU
+Base: v3.20.0 · Build r3210a1005a-r1 · 06.10.2026
+
+Roadmap, proposal A1 of 03.10.2026 ("Learning and overview"), recommended next after the boss rewards: a recap on the end
+screen of a lost run, "the last hits (who, which attack, how much), the final blow marked, the damage by source".
+
+1) What it is
+   - World.hitLog: the last twelve hits (time, wave, source, damage); the ticks of a hazard within 1.5 s are one entry that
+     adds up (acid, lava, manholes would otherwise flood it). World.takenBy: the damage taken by source over the run.
+   - The end screen of a lost run has a panel "What hit you": the last six hits with the damage, the name (enemy, boss or
+     hazard: lava vent, live manhole, acid, a trap), how long before the end, the final blow marked in red; underneath the
+     three sources that took most of the run's damage, in per cent. A won or abandoned run shows nothing.
+   - No effect on the game itself (no random numbers, no change of any rule; determinism fixtures unchanged).
+
+2) Tests
+   - Self-test v3210 and the full QA sections recap-desktop and recap-phone (panel, names, final blow, totals, fits the
+     screen); pictures tests/shots/qa-recap-desktop.png and -phone.png (looked at: the phone landscape layout shows it
+     under the statistics, the final blow in red).
+
+3) Results 3.21.0 (headless Chromium, software WebGL; npm run release-check)
+   - RESULTS_PLACEHOLDER
+
+4) Open doubts
+   - Hits of the old attacks are named by their source (enemy or boss), not by the attack ("Warden" and not "laser grid"):
+     the attacks of bosses share one source. A name per attack would need a source tag per attack (open).
+   - The stats overview of the pause menu and the wave preview of the upgrade choice (A2, A3) are not built yet.
+
 RIFTLINE v3.20.0 – ULTRA LOOK
 Base: v3.19.0 · Build r3200a1005a-r1 · 06.10.2026
 

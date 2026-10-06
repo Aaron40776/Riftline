@@ -478,6 +478,7 @@ function rlSelfTest() {
   result = selfTestV3160(result);
   result = selfTestV3170(result);
   result = selfTestV3172(result);
+  result = selfTestV3210(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3591,6 +3592,51 @@ function selfTestV3170(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3170: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.21.0: the recap of a lost run: the last twelve hits with their source, the ticks of a hazard in one entry, the
+   damage taken by source ---- */
+function selfTestV3210(result) {
+  const fail = [];
+  try {
+    const world = new World({ seed: 0x3210, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(2);
+    world.state = "fight";
+    const p = world.player;
+    p.hp = p.maxHp = 100000;
+    if (world.hitLog.length || Object.keys(world.takenBy).length) fail.push("starts-empty");
+    const hit = (dmg, src, chip) => {
+      p.iT = 0;
+      p.dashT = 0;
+      p.shield = false;
+      world.time += 2;
+      world.hurtPlayer(dmg, null, null, src, chip);
+    };
+    hit(10, "grunt");
+    hit(20, "brute");
+    if (world.hitLog.length !== 2 || world.hitLog[1].src !== "brute" || world.hitLog[1].dmg < 15) fail.push("two-hits");
+    // the ticks of a hazard that follow each other are one entry (and add up)
+    for (let i = 0; i < 4; i++) {
+      p.iT = 0;
+      world.time += 0.3;
+      world.hurtPlayer(3, null, null, "acid", true);
+    }
+    const acid = world.hitLog.filter((h) => h.src === "acid");
+    if (acid.length !== 1 || acid[0].n < 2) fail.push("ticks-merge:" + JSON.stringify(acid));
+    // only the last twelve are kept; the totals are for the whole run
+    for (let i = 0; i < 30; i++) hit(5, "spitter");
+    if (world.hitLog.length !== 12) fail.push("keeps-twelve:" + world.hitLog.length);
+    if (!(world.takenBy.spitter >= 140 && world.takenBy.grunt >= 8 && world.takenBy.brute >= 15))
+      fail.push("taken-by:" + JSON.stringify(world.takenBy));
+    if (world.hitLog.some((h, i) => i && h.t < world.hitLog[i - 1].t)) fail.push("order");
+    // the final blow is the last entry
+    p.hp = 5;
+    hit(50, "turret");
+    if (world.state !== "dead" || world.hitLog[world.hitLog.length - 1].src !== "turret") fail.push("final-blow");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3210: { ok: fail.length === 0, fail } };
 }
 
 /* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct
