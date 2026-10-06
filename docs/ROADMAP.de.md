@@ -196,34 +196,43 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
   (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
 
-### HANDOFF (05.10.2026 night, after 3.18.1; read this first when the work goes on)
+### HANDOFF (06.10.2026, after the night of autonomous work; read this first when the work goes on)
 
-State of the PRs: #40 (3.17.1), #41 (3.17.2) and #42 (3.18.0) are merged. #43 (3.18.1: clean music changes and the
-deterministic deep test) waits for the owner; its `test` job passed on GitHub after a re-run. The branch
-`claude/checkups-3182` stands on top of #43 (soak test, UI fuzz test, a 24992 Hz tone removed from the Blackout City
-piano); merge #43 first.
+The owner slept and said: continue on your own until about 95 % of the limit, with the necessary and recommended things and
+thorough checks in between. Never merge, never push to main. Everything below is built, tested and in open pull requests, STACKED:
+each is based on the one before, so merge them in this order and, after each merge, switch the base of the next one to `main`
+(GitHub shows the diff against its base):
 
-Decisions of the owner (05.10.2026, evening): the overlap of music is fixed by a fade at the track switch (option C, done
-in 3.18.1); sound: try synthesis first, he will send reference clips later (Osmos is the direction); the professional look
-comes as an opt-in "Ultra" preset; tablets are landscape-only like phones (the shell already does it); the recommended
-order of the roadmap items goes on; a repo description, topics and a licence are prepared (needs the owner's choice of
-licence).
+| PR | Version | What |
+|---|---|---|
+| #43 | 3.18.1 | the old track fades out when the music changes; the deep test no longer flips (seeded noise): this is also why the deploy of #41 was red |
+| #44 | 3.18.2 | the checkups as tools (soak, fuzz, balance) and a 24992 Hz tone removed |
+| #45 | 3.19.0 | the ambient bloom (stereo, a voice per biome, ping-pong echo): the Osmos direction, first step |
+| #46 | 3.20.0 | the Ultra look (tone curve, real shadows, grade pass): the "professional style" answer |
+| #47 | 3.21.0 | the death recap ("What hit you"), docs/GITHUB.md |
+| #48 | 3.22.0 | build stats in the pause menu, a look at the next wave |
+| #49 | 3.23.0 | gamepad, vibration (determinism fixture updated for the new setting) |
+| #50 | 3.24.0 | boss medals |
 
-Plan for the night (autonomous): (1) the checkups: Endless soak, UI fuzz, balance sim (3.18.2); (2) the sound pass
-(stereo ambience, a subtle melody per biome); (3) the Ultra look; (4) death recap, gamepad, boss medals, banish, daily
-challenge, pacts; (5) the GitHub text. Each step is its own branch, stacked on the one before (merge in this order).
+State of the tests: the complete release check ran on 3.18.1, 3.18.2, 3.19.0 (all ok), 3.20.0 (ok after one test fix), 3.23.0
+(covers 3.21 to 3.23; ok after the determinism fixture update). 3.24.0 had `npm test` and its own sections.
 
-Tools new in 3.18.2: `node tools/qa.js soak [weapon] [waves]` (an Endless run of 90 waves with a bot: heap, geometries,
-textures, programs, scene objects, lists; fails when something keeps growing, when the page hangs (the debugger prints
-the stack) or crashes) and `node tools/qa.js fuzz [seed] [steps]` (a monkey over five window sizes). `RL_NO_MINIFY=1 node
-build.js` builds a bundle with readable names.
+Owner's decisions of 05.10.2026: the overlap of music is fixed by a fade (done); the sound goes on by synthesis first (he will send
+reference clips: Osmos is the direction); the professional look is an opt-in Ultra preset; tablets are landscape-only (the shell
+does it); the recommended order goes on; a repo description, topics and a licence are prepared (`docs/GITHUB.md`: the licence
+needs his choice).
 
-Known: the headless Chromium of this sandbox crashes now and then in long runs of the soak (the browser's own log shows
-errors of its GPU process, "non-existent mailbox"; the game's heap is flat at 11 MB over 120 waves, so it is the browser's
-software GL, not the game). GitHub Actions sometimes does not start a job for 15 minutes and then cancels it (seen at the
-deploy of #42 and the checks of #43); a re-run starts normally. The first deploy after the merges of #40 to #42 failed or
-was cancelled, so the live game stayed at 3.17.0 for a while: a manual run of "Deploy to GitHub Pages" on main was
-started at 22:30 UTC.
+NOT done, still wanted: pacts before a run (C9), the daily challenge (C10), "banish" in the upgrade choice (D13), a short
+introduction to the Singularity and traps (A4), Cloudflare (when he says go), the second step of the sound direction (slow evolving
+pads with auto-panning; reference clips), a pass on the models for the professional look (hard-surface shapes, bloom, ambient
+occlusion; a reference picture), and the real-hardware tests (a gamepad, a phone: Safari and Chrome with the landscape shell, the
+vibration, Ultra on a real device).
+
+Tools of the night: `npm run soak | fuzz | balance` (see README), `RL_NO_MINIFY=1 node build.js`, `SHOT_QUALITY=ultra node tools/qa.js
+biome-shots pc`, `node tools/qa.js scape-preview music` (stereo MP3s in tests/shots/scapes).
+
+Known and not ours: the headless Chromium of the test machine crashes now and then in long runs (its GPU process logs errors; the
+game's heap is flat), and GitHub Actions sometimes does not start a job for 15 minutes and cancels it (a re-run works).
 
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
