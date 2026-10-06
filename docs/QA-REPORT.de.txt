@@ -42,7 +42,14 @@ continuing and checking everything". Three tools for what a normal test run does
      for tones from 15 Hz to 20 kHz (found with a scan of all of them: this was the only one).
 
 5) Results 3.18.2 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+   - npm run release-check: all steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, full QA,
+     e2e, world audit, screens pc and land, biome shots pc and land, attack shots pc) except the run audit, which died after
+     13 s with "Target crashed" (the same browser crash as in the soak, see 1; the page crashed in its first evaluate, no
+     game code involved). The run audit alone, five times in a row: 5 of 5 ok. Time of the chain: 29 min 55 s.
+   - Soak: pulse 75 waves, flame 120 waves and all seven weapons to 60: no growth. Fuzz: seeds 1 to 7, about 6500 steps,
+     no finding after the audit fix. Deep test (uncached, with the new tone check): ok.
+   - The browser crash shows up about once in twenty browser sessions on the test machine this evening (12 traps in the
+     kernel log, always at the same place of the browser); it did not appear in the earlier release checks of the day.
 
 6) Open doubts
    - The soak crash of the browser (see 1) could hide a problem of the game that only shows in the GPU process; the heap and
