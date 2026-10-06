@@ -41,16 +41,19 @@ on in Endless, which keeps getting harder. Shards from every run, won or lost, b
 
 ## Controls
 
-| | Keyboard and mouse | Touch |
-|---|---|---|
-| Move | `W` `A` `S` `D` or arrow keys | drag on the left half |
-| Aim and fire | hold the left mouse button (auto-fire shoots the nearest enemy otherwise) | drag on the right half |
-| Dash | `Space` or `Shift` | `DASH` button |
-| Nova | `E` (also `Q`, `F`) | `NOVA` button |
-| Singularity | `G` | `GADGET` button (aimed with the aim stick) |
-| Pause | `Esc` or `P` | pause button |
-| Pick an upgrade | `1`–`4`, `R` rerolls | tap a card |
-| Back in menus | `Esc` | back button |
+| | Keyboard and mouse | Touch | Gamepad |
+|---|---|---|---|
+| Move | `W` `A` `S` `D` or arrow keys | drag on the left half | left stick |
+| Aim and fire | hold the left mouse button (auto-fire shoots the nearest enemy otherwise) | drag on the right half | right stick (fires), right trigger or bumper |
+| Dash | `Space` or `Shift` | `DASH` button | `A` or left bumper |
+| Nova | `E` (also `Q`, `F`) | `NOVA` button | `X` |
+| Singularity | `G` | `GADGET` button (aimed with the aim stick) | `Y` |
+| Pause | `Esc` or `P` | pause button | `Start` |
+| Pick an upgrade | `1`–`4`, `R` rerolls | tap a card | D-pad or left stick, `A`; `Y` rerolls |
+| Back in menus | `Esc` | back button | `B` |
+
+A controller works in the menus too: the D-pad or left stick moves a ring of focus to the nearest button, `A` presses it, `B`
+goes back. *Settings → Vibration* switches the rumble of a controller and the buzz of a phone (hits, dashes, the end of a run).
 
 Keys are read by their position, so on AZERTY and other layouts the same physical keys move the drone. *Settings →
 Button layout* moves and resizes the touch buttons. Phones and tablets always play in landscape: held upright, the

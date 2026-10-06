@@ -297,8 +297,8 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
 4. Kurze Einführung für Granate und Fallen in den Wellen 1–6, Codex-Einträge für Mutatoren und Overdrive-Angriffe.
 
 **B. Bedienung (neutral)**
-5. Gamepad (Sticks, Schultertasten, Start für Pause; Menüs zuerst weiter mit Maus/Touch) und Tastenbelegung am PC.
-6. Vibration am Handy bei Treffern, Dash und Boss-Schlägen (nur Android, abschaltbar).
+5. (Done in 3.23.0, tested with a faked controller only.) Gamepad (Sticks, Schultertasten, Start für Pause; Menüs zuerst weiter mit Maus/Touch) und Tastenbelegung am PC.
+6. (Done in 3.23.0.) Vibration am Handy bei Treffern, Dash und Boss-Schlägen (nur Android, abschaltbar).
 7. Getrennte Regler für Musik, Effekte und Atmosphäre (die Atmosphären sind seit 3.7.0 ein eigener Teil).
    Done in 3.9.0: the "Ambience" volume (atmospheres, event beds and the sounds of the place).
 8. Kompakte Schadenszahlen (pro Gegner zusammengezählt) gegen das Gewimmel im Endless; Farbenblind-Paletten für

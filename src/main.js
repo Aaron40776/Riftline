@@ -3,6 +3,7 @@
 // service worker, wake lock, save export/import). Imports every other module, so their code runs
 // in the original order.
 
+import { rumble } from "./ui/gamepad.js";
 import {
   RL_EVENT_KINDS,
   RL_HEALTH,

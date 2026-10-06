@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.23.0",
+    title: "Gamepad and vibration",
+    items: [
+      "Plug in or pair a controller and play: left stick moves, right stick aims and fires, A or the left bumper dashes, X is the Nova, Y the Singularity, Start pauses.",
+      "In the menus the D-pad or left stick moves a glowing ring from button to button, A presses, B goes back, Y rerolls the upgrades.",
+      "Rumble on a controller and a short buzz on a phone when you are hit, dash or fall. Settings, Vibration switches it off.",
+    ],
+  },
+  {
     version: "3.22.0",
     title: "See what you are building",
     items: [

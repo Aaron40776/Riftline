@@ -1,3 +1,40 @@
+RIFTLINE v3.23.0 – GAMEPAD AND VIBRATION
+Base: v3.22.0 · Build r3230a1005a-r1 · 06.10.2026
+
+Roadmap, proposals B5 and B6 of 03.10.2026: a gamepad (sticks, shoulder buttons, Start for pause, the menus first with mouse
+and touch, then the controller) and vibration on hits, dashes and boss blows (Android, switchable). Built from the browser's
+Gamepad API; tested with a faked controller, not with real hardware.
+
+1) The controller (ui/gamepad.js, Input.updatePad)
+   - Left stick moves; right stick aims and fires (like the aim stick on a touch screen), the right trigger or bumper fires; A or
+     the left bumper dashes; X the Nova; Y the Singularity; Start pauses and resumes. The dead zone (0.2) is cut out of the middle
+     of a stick so that it does not jump from 0 to 0.2.
+   - Menus, pause, the upgrade choice and the end screen: the D-pad or the left stick moves a ring of focus to the nearest button
+     in that direction (the top layer only: an open dialog, else the last visible screen); a held direction repeats after 0.4
+     s; A presses what is in focus; B goes back (the Esc path); Y rerolls the upgrades. The ring is removed while a run is played.
+   - Nothing runs while no controller is connected.
+
+2) Vibration (Settings, Vibration; default on)
+   - A hit, a dash and the end of a run: the controller's motors (dual-rumble, or pulse where that is all there is) and, where
+     the screen is touched (Android Chrome), a buzz of the phone (30, 14 and 120 ms; navigator.vibrate). Never on a desktop.
+
+3) Found by the first test run
+   - The import of rumble was missing in main.js: the frame loop reported a ReferenceError ("a hit makes the controller rumble",
+     "Start pauses the run" failed). Fixed.
+
+4) Tests
+   - Full QA gamepad (a faked controller): the ring of focus, A and B in the menus, the left stick moves the drone, the right
+     stick aims up and fires, A dashes, a hit rumbles, Start pauses and resumes, no controller leaves no ring; vibration-phone:
+     a hit buzzes, with the setting off it stays still.
+
+5) Results 3.23.0 (headless Chromium, software WebGL; npm run release-check)
+   - RESULTS_PLACEHOLDER
+
+6) Open doubts
+   - Not tested on real hardware: an Xbox or PlayStation pad, the buttons of non-standard pads (the browser maps most pads to the
+     standard layout), the vibration of a real phone, a pad in Safari. The focus ring has no explanation on screen (no "press A"
+     hints); the touch buttons of a phone stay visible when a pad is used.
+
 RIFTLINE v3.22.0 – SEE WHAT YOU ARE BUILDING
 Base: v3.21.0 · Build r3220a1005a-r1 · 06.10.2026
 

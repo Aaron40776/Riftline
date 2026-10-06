@@ -3887,6 +3887,23 @@ await section("gamepad", async (L) => {
   await P.ev(() => (window.__pad.axes[0] = 0));
   const x1 = await P.ev(() => window.__riftTest.game.world.player.x);
   check(L, "the left stick moves the drone to the right", x1 > x0 + 0.5, `${x0.toFixed(2)} -> ${x1.toFixed(2)}`);
+  // the right stick aims (up) and fires
+  await P.ev(() => {
+    window.__riftTest.game.world.pb.length = 0;
+    window.__pad.axes[3] = -1;
+  });
+  await frames(12);
+  const aim = await P.ev(() => ({
+    aim: window.__riftTest.game.world.player.aim,
+    shots: window.__riftTest.game.world.pb.length,
+  }));
+  await P.ev(() => (window.__pad.axes[3] = 0));
+  check(
+    L,
+    "the right stick aims up and fires",
+    Math.abs(aim.aim + Math.PI / 2) < 0.35 && aim.shots > 0,
+    JSON.stringify(aim),
+  );
   const d0 = await P.ev(() => window.__riftTest.game.world.runStats.dashes);
   await P.ev(() => (window.__riftTest.game.world.player.dashCdT = 0));
   await hold(0);
@@ -3910,6 +3927,53 @@ await section("gamepad", async (L) => {
   await P.ev(() => (navigator.getGamepads = () => []));
   await frames(3);
   check(L, "no controller: no ring of focus in the way", !(await P.ev(() => !!document.querySelector(".pad-focus"))));
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.23.0: a phone buzzes on a hit and on the end of a run (Android: navigator.vibrate), and not when the setting is off
+await section("vibration-phone", async (L) => {
+  const P = await open("phone", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => {
+    window.__buzz = [];
+    navigator.vibrate = (pattern) => (window.__buzz.push(pattern), true);
+    window.__riftTest.game.startRun({});
+  });
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  const hurt = () =>
+    P.ev(() => {
+      const w = window.__riftTest.game.world;
+      w.god = false;
+      w.player.hp = w.player.maxHp = 500;
+      w.player.iT = 0;
+      w.player.dashT = 0;
+      w.player.shield = false;
+      w.hurtPlayer(4, null, null, "grunt");
+    });
+  await hurt();
+  await P.page.waitForTimeout(800);
+  check(
+    L,
+    "a hit buzzes the phone",
+    (await P.ev(() => window.__buzz.length)) >= 1,
+    await P.ev(() => JSON.stringify(window.__buzz)),
+  );
+  await P.ev(() => {
+    window.__buzz.length = 0;
+    const T = window.__riftTest;
+    T.store.data.settings.vibration = false;
+    T.game.settingsChanged(true);
+  });
+  await hurt();
+  await P.page.waitForTimeout(800);
+  check(L, "with Vibration off it stays still", (await P.ev(() => window.__buzz.length)) === 0);
   check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
   await P.close();
 });
