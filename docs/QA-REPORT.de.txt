@@ -23,7 +23,9 @@ the next wave in the upgrade choice. Neither changes a rule of the game.
    - Full QA stats-desktop, stats-phone and nextwave (pictures tests/shots/qa-stats-phone.png, qa-nextwave.png: looked at).
 
 4) Results 3.22.0 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+   - npm test (deep test with self-tests v3210 and v3220, files check, data audit, determinism 15/15 unchanged): ok. The full QA
+     sections stats-desktop, stats-phone and nextwave pass. As for 3.21.0, the complete release check is the one of the
+     topmost release of the chain (3.23.0).
 
 5) Open doubts
    - The damage per second is an estimate: it ignores misses, chain lightning, burn and the like (the weapons differ in how
