@@ -725,6 +725,8 @@ await section("workshop", async (L) => {
     dv.player.shield = false;
     dv.hurtPlayer(99999, null, null, "grunt", true);
     res.revive = rv.player.alive && rv.player.hp === Math.round(rv.stats.maxHp * 0.5) && !dv.player.alive;
+    // 3.25.0: Banish Protocol — one banish per level for the run (the card rule is tested in the banish sections)
+    res.banish = W({ banish: 2 }).banishes === 2 && W({ banish: 1 }).banishes === 1 && W({}).banishes === 0;
     res.salvage = true; // payout formula is verified by the post-run audit ("payout") after every run
     const untested = T.workshopModules.map((a) => a.id).filter((id) => !(id in res));
     return { res, untested };
