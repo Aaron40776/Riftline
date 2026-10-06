@@ -1342,13 +1342,26 @@ const getById = (id) => document.getElementById(id),
       for (let card of cards.querySelectorAll("[data-pick]")) {
         card.addEventListener("click", () => {
           if (!cards.classList.contains("locked")) {
-            this.g.choose(card.dataset.pick);
+            // 3.25.0: with Banish armed the card is banished instead of taken
+            if (this.banishMode) this.g.banish(card.dataset.pick);
+            else this.g.choose(card.dataset.pick);
           }
         });
         // 2.7.0: a soft tick when the mouse moves over a card (touch has no hover)
         card.addEventListener("pointerenter", (ev) => {
           if (ev.pointerType === "mouse" && !cards.classList.contains("locked")) this.g.sound.play("hover");
         });
+      }
+      // 3.25.0: Banish Protocol: shown when the module is owned (or a banish is left in a resumed run)
+      {
+        const btn = getById("banishBtn"),
+          has = (world.ws.banish || 0) > 0 || world.banishes > 0;
+        btn.hidden = !has;
+        if (world.banishes <= 0 || world.offer.length < 2) this.banishMode = false;
+        btn.disabled = world.banishes <= 0 || world.offer.length < 2;
+        btn.classList.toggle("on", !!this.banishMode);
+        getById("banishTxt").textContent = `Banish (${world.banishes})`;
+        cards.classList.toggle("banishing", !!this.banishMode);
       }
       getById("rerollTxt").textContent = `Reroll (${world.rerolls})`;
       getById("rerollBtn").disabled = world.rerolls <= 0;

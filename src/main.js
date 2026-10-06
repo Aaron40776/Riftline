@@ -416,6 +416,17 @@ const overlay = new Overlay(elementById("ov")),
         input.reset();
       }
     },
+    /* 3.25.0: Banish Protocol: the card is replaced and the upgrade never comes again in this run */
+    banish(id) {
+      const world = this.world;
+      if (world && world.banish(id)) {
+        ui.banishMode = false;
+        ui.renderCards(world);
+        ui.toast(`Banished: ${upgradesById[id] ? upgradesById[id].name : id}`, "", 2600);
+        store.data.run = world.snapshot();
+        store.save("banish");
+      }
+    },
     reroll() {
       let world = this.world;
       if (world && world.reroll()) {
@@ -1632,6 +1643,10 @@ function rlRetireToast() {
   ui.click(getById("pauseSetBtn"), () => ui.openPauseSettings());
 
   // ---- 3.17.2: the sound notes (from the pause menu and from the settings)
+  ui.click(getById("banishBtn"), () => {
+    ui.banishMode = !ui.banishMode;
+    ui.renderCards(game.world);
+  });
   ui.click(getById("pauseSndBtn"), () => ui.openSoundNotes(true));
   ui.click(getById("sndNotesBtn"), () => ui.openSoundNotes(false));
   ui.click(getById("snBack"), () => ui.back());

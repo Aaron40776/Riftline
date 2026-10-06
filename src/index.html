@@ -559,6 +559,10 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .stat-rows .sr-d.worse { color: #ff9ab0; }
 /* 3.23.0: the ring of focus a controller moves through the menus */
 .pad-focus { outline: 2px solid var(--cyan); outline-offset: 3px; box-shadow: 0 0 16px rgba(73, 242, 255, 0.55); }
+/* 3.25.0: Banish Protocol: a card to be banished */
+.cards.banishing .card { outline: 2px dashed #ff5a82; outline-offset: -4px; cursor: crosshair; }
+.cards.banishing .card::after { content: "TAP TO BANISH"; position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 700 11px/1 var(--display); letter-spacing: 0.2em; color: #ff8aa6; }
+#banishBtn.on { border-color: #ff5a82; color: #ff8aa6; }
 .recap .hits { display: flex; flex-direction: column; gap: 3px; }
 .recap .hit { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text); }
 .recap .hit .hd { font: 700 13px/1 var(--display); color: #ff7a92; min-width: 3.2em; }
@@ -1724,6 +1728,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <div id="cards" class="cards"></div>
     <div class="choose-foot">
       <button id="rerollBtn" class="btn ghost"><span data-icon="reroll"></span><span id="rerollTxt">Reroll</span></button>
+      <button id="banishBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="banishTxt">Banish</span></button>
     </div>
     <div id="buildStrip" class="build-strip"></div>
   </section>

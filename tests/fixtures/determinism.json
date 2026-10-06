@@ -2,12 +2,12 @@
  "note": "Golden records of tests/determinism.mjs. Regenerate with `node tools/qa.js determinism --update` only for intended behaviour changes.",
  "cases": {
   "data-tables": {
-   "digest": "aa87cead1c927482",
+   "digest": "552f2f0c77c77b77",
    "rec": {
     "ue": "b45826cf7b0e6307",
     "Ae": "3bc4c55b9acbcfb2",
     "ri": "f77cb880a591fa33",
-    "ai": "c54b383ea3c079ce",
+    "ai": "494491095300e0db",
     "ii": "b31fd1be02259927",
     "Zi": "657a700d34b75573",
     "En": "2f7ac45b52607a46",
@@ -810,7 +810,7 @@
    }
   },
   "sim-scatter-t1-resume": {
-   "digest": "9d8f3d8a1184c0e2",
+   "digest": "9de5bbb66bd2b207",
    "rec": {
     "wave": 10,
     "state": "choose",
@@ -829,7 +829,7 @@
     "breaks": 0,
     "enemies": 0,
     "pickups": 0,
-    "resumed": "a3e35e6625ba9b46",
+    "resumed": "b43f1c1779016667",
     "fx": {
      "aim": 8,
      "beamWarn": 2,

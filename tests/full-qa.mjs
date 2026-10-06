@@ -4043,6 +4043,109 @@ await section("medals", async (L) => {
   await P.close();
 });
 
+// 3.25.0: Banish Protocol (a workshop module): a card out of the pool for the rest of the run
+for (const profName of ["desktop", "phone"]) {
+  await section(`banish-${profName}`, async (L) => {
+    const P = await open(profName, {
+      save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true }, workshop: { banish: 1 } }),
+    });
+    await P.boot();
+    await P.ev(() => window.__riftTest.game.startRun({}));
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      {
+        timeout: 30000,
+      },
+    );
+    await P.ev(() => {
+      const g = window.__riftTest.game,
+        w = g.world;
+      w.god = true;
+      for (const e of [...w.enemies]) w.killEnemy(e);
+      w.beginChoice();
+    });
+    await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
+    await P.page.waitForTimeout(900);
+    const ids = () => P.ev(() => [...document.querySelectorAll("#cards [data-pick]")].map((c) => c.dataset.pick));
+    const btn = () =>
+      P.ev(() => {
+        const b = document.getElementById("banishBtn");
+        return { hidden: b.hidden, disabled: b.disabled, text: b.textContent.trim(), on: b.classList.contains("on") };
+      });
+    const before = await ids();
+    const b0 = await btn();
+    check(
+      L,
+      "the Banish button shows with one banish",
+      !b0.hidden && !b0.disabled && /Banish \(1\)/.test(b0.text),
+      JSON.stringify(b0),
+    );
+    await P.tap("#banishBtn");
+    check(
+      L,
+      "tapping it arms Banish: the cards are marked",
+      await P.ev(() => document.getElementById("cards").classList.contains("banishing")),
+    );
+    await P.page.waitForTimeout(800);
+    await P.shot({ path: new URL(`./shots/qa-banish-${profName}.png`, import.meta.url).pathname });
+    const target = before[0];
+    await P.tap(`#cards [data-pick="${target}"]`);
+    await P.page.waitForTimeout(500);
+    const after = await ids();
+    const b1 = await btn();
+    check(
+      L,
+      "the card is replaced and the choice is still open",
+      !after.includes(target) && after.length === before.length && (await P.vis("choose")),
+      JSON.stringify([before, after]),
+    );
+    check(
+      L,
+      "no banish left: the button says so and is disabled",
+      b1.disabled && /Banish \(0\)/.test(b1.text) && !b1.on,
+      JSON.stringify(b1),
+    );
+    check(
+      L,
+      "a toast says what was banished",
+      await P.ev(() => /Banished:/.test(document.getElementById("toasts").textContent)),
+    );
+    check(
+      L,
+      "the run keeps it (saved)",
+      await P.ev((id) => (window.__riftTest.store.data.run?.banished || []).includes(id), target),
+    );
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+// without the module there is no button
+await section("banish-without", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    for (const e of [...w.enemies]) w.killEnemy(e);
+    w.beginChoice();
+  });
+  await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
+  check(
+    L,
+    "without the module the choice has no Banish button",
+    await P.ev(() => document.getElementById("banishBtn").hidden),
+  );
+  await P.close();
+});
+
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));

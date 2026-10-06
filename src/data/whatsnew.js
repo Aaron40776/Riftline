@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.25.0",
+    title: "Banish Protocol",
+    items: [
+      "New workshop module, Banish Protocol: when you choose an upgrade, press Banish (or B) and then a card to remove it for the rest of the run. A fresh card takes its place.",
+      "Level 1 gives one banish per run, level 2 gives two. The boss's own card cannot be banished.",
+    ],
+  },
+  {
     version: "3.24.0",
     title: "Boss medals",
     items: [

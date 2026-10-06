@@ -280,6 +280,9 @@ function cleanRun(raw) {
     kills: Math.floor(cleanNumber(raw.kills, 0, 0, 1e9)),
     time: cleanNumber(raw.time, 0, 0, 1e8),
     rerolls: Math.floor(cleanNumber(raw.rerolls, 0, 0, 99)),
+    // 3.25.0: Banish Protocol: the upgrades banished in this run and the banishes left
+    banished: [],
+    banishes: Math.floor(cleanNumber(raw.banishes, 0, 0, 9)),
     revived: !!raw.revived,
     nova: Math.floor(cleanNumber(raw.nova, 0, 0, 100)),
     bossKills: [],
@@ -293,6 +296,9 @@ function cleanRun(raw) {
     runStats: { dmgTaken: 0, dashes: 0, critHits: 0 },
     dmgSrc: {},
   };
+  for (const id of Array.isArray(raw.banished) ? raw.banished : [])
+    if (typeof id === "string" && upgradesById[id] && !run.banished.includes(id) && run.banished.length < 6)
+      run.banished.push(id);
   const rawUp = asObject(raw.up);
   for (const upgrade of upgradeList) {
     const level = Math.floor(cleanNumber(rawUp[upgrade.id], 0, 0, upgrade.max));

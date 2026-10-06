@@ -167,6 +167,10 @@ const rlStep = 1 / 60,
       this.kills = (snap && snap.kills) || 0;
       this.shards = (snap && snap.shards) || 0;
       this.rerolls = snap && snap.rerolls != null ? snap.rerolls | 0 : 1 + (this.ws.reroll || 0);
+      // 3.25.0: the upgrades banished in this run (never offered again) and the banishes that are left
+      this.banished =
+        snap && Array.isArray(snap.banished) ? snap.banished.filter((id) => typeof id === "string").slice(0, 6) : [];
+      this.banishes = snap && snap.banishes != null ? snap.banishes | 0 : this.ws.banish || 0;
       this.revived = snap ? !!snap.revived : false;
       this.bossKills = snap ? [...(snap.bossKills || [])] : [];
       this.flawless = (snap && snap.flawless) || 0;
@@ -568,6 +572,8 @@ const rlStep = 1 / 60,
         kills: this.kills,
         time: this.time,
         rerolls: this.rerolls,
+        banished: [...this.banished],
+        banishes: this.banishes,
         revived: this.revived,
         nova: Math.round(this.player.nova),
         bossKills: [...this.bossKills],
@@ -626,6 +632,21 @@ const rlStep = 1 / 60,
       this.emit("reroll");
       return true;
     }
+    /* 3.25.0: banishes a card of the offer for the rest of the run (Banish Protocol): it is replaced by another card and the
+       upgrade is never offered again. Not the boss card, not the last card of an offer. */
+    banish(id) {
+      const offer = this.offer;
+      if (this.state !== "choose" || this.banishes <= 0 || !offer || !offer.includes(id)) return false;
+      if (offer.length < 2 || (this.offerBoss && id === this.offerExclusive) || !upgradesById[id]) return false;
+      this.banishes--;
+      this.banished.push(id);
+      const at = offer.indexOf(id),
+        fresh = this.makeOffer([...offer]).find((card) => !offer.includes(card));
+      if (fresh) offer[at] = fresh;
+      else offer.splice(at, 1);
+      this.emit("banish", { id });
+      return true;
+    }
     makeOffer(exclude = []) {
       let count = 3 + ((this.ws.insight || 0) > 0 ? 1 : 0);
       // 3.15.0: the boss card holds the first place, also through a reroll
@@ -637,7 +658,7 @@ const rlStep = 1 / 60,
         this.player.hp / this.stats.maxHp,
         count - (exclusive ? 1 : 0),
         this.offerBoss,
-        exclude,
+        [...exclude, ...this.banished],
         this.weapon,
       );
       return exclusive ? [exclusive, ...picks] : picks;

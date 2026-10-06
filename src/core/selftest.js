@@ -482,6 +482,7 @@ function rlSelfTest() {
   result = selfTestV3210(result);
   result = selfTestV3220(result);
   result = selfTestV3240(result);
+  result = selfTestV3250(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3749,6 +3750,70 @@ function selfTestV3240(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3240: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.25.0: Banish Protocol: a card out of the pool for the rest of the run ---- */
+function selfTestV3250(result) {
+  const fail = [];
+  try {
+    const mod = workshopModules.find((m) => m.id === "banish");
+    if (!mod || mod.costs.length !== 2) fail.push("module");
+    const make = (level) => {
+      const w = new World({ seed: 0x3250, weapon: "pulse", threat: 0, ws: level ? { banish: level } : {} });
+      w.startWave(2);
+      w.state = "fight";
+      w.beginChoice();
+      return w;
+    };
+    const none = make(0);
+    if (none.banishes !== 0 || none.banish(none.offer[0])) fail.push("no-module-no-banish");
+    const w = make(2);
+    if (w.banishes !== 2 || w.state !== "choose") fail.push("start:" + w.banishes + w.state);
+    const first = w.offer[0],
+      size = w.offer.length;
+    if (!w.banish(first)) fail.push("banish-fails");
+    if (w.offer.includes(first) || w.offer.length !== size || w.banishes !== 1 || !w.banished.includes(first))
+      fail.push("after:" + JSON.stringify(w.offer));
+    if (w.banish("nonsense") || w.banish(first)) fail.push("only-offered-cards");
+    // never offered again, however often it is rolled
+    for (let i = 0; i < 60; i++) {
+      w.rerolls = 5;
+      w.reroll();
+      if (w.offer.includes(first)) {
+        fail.push("offered-again");
+        break;
+      }
+    }
+    // a second one, then none left
+    if (!w.banish(w.offer[1]) || w.banishes !== 0 || w.banish(w.offer[0])) fail.push("limit");
+    // the snapshot keeps them; a hostile one is cleaned
+    const snap = JSON.parse(JSON.stringify(w.snapshot()));
+    if (snap.banishes !== 0 || snap.banished.length !== 2) fail.push("snapshot");
+    const restored = new World({ seed: 0x3250, weapon: "pulse", threat: 0, ws: { banish: 2 }, snap });
+    if (restored.banishes !== 0 || restored.banished.length !== 2) fail.push("restore");
+    const raw = {
+      ...snap,
+      banished: [first, first, "nonsense", 42, "dmg", "hp", "rate", "crit", "speed", "regen"],
+      banishes: 99,
+    };
+    const cleaned = cleanRun(raw);
+    if (
+      !cleaned ||
+      cleaned.banishes !== 9 ||
+      cleaned.banished.includes("nonsense") ||
+      cleaned.banished.length > 6 ||
+      new Set(cleaned.banished).size !== cleaned.banished.length
+    )
+      fail.push("clean:" + JSON.stringify(cleaned && [cleaned.banishes, cleaned.banished]));
+    // the boss card stays: it cannot be banished
+    const boss = make(1);
+    boss.offerBoss = true;
+    boss.offerExclusive = boss.offer[0];
+    if (boss.banish(boss.offer[0])) fail.push("boss-card-banished");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3250: { ok: fail.length === 0, fail } };
 }
 
 /* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct

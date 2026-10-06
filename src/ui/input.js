@@ -431,8 +431,16 @@ function chooseKey(code, key) {
   if (match) {
     const card = getById("cards").querySelectorAll("[data-pick]")[+match[1] - 1];
     if (card && !getById("cards").classList.contains("locked")) {
-      game.choose(card.dataset.pick);
+      // 3.25.0: with Banish armed (the cards are marked) the key banishes the card
+      if (getById("cards").classList.contains("banishing")) game.banish(card.dataset.pick);
+      else game.choose(card.dataset.pick);
     }
+    return true;
+  }
+  // 3.25.0: B arms and disarms Banish
+  if (key === "b") {
+    const btn = getById("banishBtn");
+    if (btn && !btn.hidden && !btn.disabled) btn.click();
     return true;
   }
   if (key === "r") {

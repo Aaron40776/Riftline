@@ -1,3 +1,26 @@
+RIFTLINE v3.25.0 – BANISH PROTOCOL
+Base: v3.24.0 · Build r3250a1005a-r1 · 06.10.2026
+
+Roadmap, proposal D13 of 03.10.2026: "Banish in der Upgrade-Auswahl".
+
+1) The rule
+   - Workshop module Banish Protocol (700 / 1400 shards): 1 or 2 banishes per run (World.banishes). In the upgrade choice the
+     Banish button (or B) arms the mode; the next card picked is removed from the offer and from the pool for the rest of the run
+     (World.banished), and a fresh card takes its place. Not possible: outside the choice, the boss's exclusive card, the last card
+     of an offer, a card that is not on offer.
+   - Run saves keep banished and banishes; the save cleans them on load.
+
+2) Tests
+   - Self-test v3250 (the rule at its edges, banished cards never come back over many offers, snapshot and restore) and the full QA
+     sections banish-desktop, banish-phone (fits, button, arming, toast) and banish-without (no module, no button).
+
+3) Results 3.25.0 (headless Chromium, software WebGL)
+   - Self-test v3250 ok; full QA banish sections pass ("FULL QA: all checks passed"). The complete release-check follows on the top
+     of the stack (see the handoff table of docs/ROADMAP.de.md).
+
+4) Open doubts
+   - The prices (700 / 1400) and the limit of 2 per run are my estimate. The effect of banishing on the balance is not measured.
+
 RIFTLINE v3.24.0 – BOSS MEDALS
 Base: v3.23.0 · Build r3240a1005a-r1 · 06.10.2026
 
