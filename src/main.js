@@ -3,6 +3,10 @@
 // service worker, wake lock, save export/import). Imports every other module, so their code runs
 // in the original order.
 
+import { rumble } from "./ui/gamepad.js";
+import { dailySpec, recordDaily } from "./core/daily.js";
+import { pactsById } from "./data/pacts.js";
+import { bossMedal, MEDAL_NAMES } from "./core/medals.js";
 import {
   RL_EVENT_KINDS,
   RL_HEALTH,
@@ -52,7 +56,7 @@ import {
   bossByWave,
 } from "./data/enemies.js";
 import { BUILD_ID, GAME_VERSION, formatCount } from "./core/util.js";
-import { RL_KITERS, updateEnemy } from "./core/ai.js";
+import { RL_KITERS, updateEnemy, OVERDRIVE } from "./core/ai.js";
 import { RL_BIOME_HAZARD, biomesById, biomeList, rlApplyBiomeFixes } from "./data/biomes.js";
 import { weaponOrder, weaponDefs } from "./data/weapons.js";
 import { waveEvents, spawnWeights, heavyEnemies } from "./core/waves.js";
@@ -69,6 +73,18 @@ import { SCAPE } from "./audio/place.js";
 
 const RL_INTRO = { queue: [], last: 0 };
 function rlIntroEvents(world) {
+  // 3.28.0: the first Overdrive of a boss goes into the Codex
+  const boss = world.boss;
+  if (boss && OVERDRIVE[boss.type] && boss.st === OVERDRIVE[boss.type] && !store.data.seen["od_" + boss.type]) {
+    store.data.seen["od_" + boss.type] = true;
+    store.save("codex");
+  }
+  // ... and so does each Endless mutator that is in play
+  for (const id of Object.keys(world.mods || {}))
+    if (MUTATORS[id] && !store.data.seen["mut_" + id]) {
+      store.data.seen["mut_" + id] = true;
+      store.save("codex");
+    }
   if (game.tut) return; // the tutorial coach owns the screen on the first run
   for (const ev of world.fx) {
     if (
@@ -213,6 +229,8 @@ let qualityPresets = {
     high: { dpr: 2, particles: 1400, fps: 0 },
     battery: { dpr: 1, particles: 500, fps: 30 },
     auto: { dpr: 1.5, particles: 1400, fps: 0 },
+    // 3.20.0: High, with the Ultra look (look.js)
+    ultra: { dpr: 2, particles: 1800, fps: 0 },
   },
   store = new SaveStore(),
   sound = new SoundEngine(),
@@ -337,13 +355,19 @@ const overlay = new Overlay(elementById("ov")),
       }
       let started = true;
       try {
+        // 3.26.0: the Daily Rift: seed, weapon and threat come from the date and the workshop does not count; a saved
+        // daily run is resumed the same way
+        const spec = !snap && options.daily ? dailySpec(options.dailyKey) : null;
         this.world = new World({
-          seed: (Math.random() * 4294967296) >>> 0,
+          seed: spec ? spec.seed : (Math.random() * 4294967296) >>> 0,
           // 2.8.1: Restart / Run Again keep the weapon and threat of the run that just ended (a resumed run
           // may differ from what the home carousel shows)
-          weapon: options.weapon || save.weapon,
-          threat: options.threat ?? save.threat,
-          ws: save.workshop,
+          weapon: spec ? spec.weapon : options.weapon || save.weapon,
+          threat: spec ? spec.threat : (options.threat ?? save.threat),
+          ws: spec || (snap && snap.daily) ? {} : save.workshop,
+          daily: spec ? spec.key : "",
+          // 3.27.0: the pacts signed on the home screen (not in the Daily Rift: the same drone for everyone)
+          pacts: spec ? [] : save.pacts,
           snap: snap,
         });
       } catch (err) {
@@ -376,6 +400,12 @@ const overlay = new Overlay(elementById("ov")),
         ui.hidePause();
         ui.hideCrash();
         ui.showHud(true);
+        // 3.27.0: the pacts of a fresh run are named at the start
+        if (this.world.pacts.length && !resume)
+          ui.toast(
+            `Pacts: ${this.world.pacts.map((id) => pactsById[id].name).join(", ")} (+${Math.round(this.world.pactBonus() * 100)}% shards)`,
+            "gold",
+          );
         placeHud();
         input.reset();
         input.enabled = true;
@@ -410,6 +440,17 @@ const overlay = new Overlay(elementById("ov")),
         this.chooseShown = false;
         ui.hideChoose();
         input.reset();
+      }
+    },
+    /* 3.25.0: Banish Protocol: the card is replaced and the upgrade never comes again in this run */
+    banish(id) {
+      const world = this.world;
+      if (world && world.banish(id)) {
+        ui.banishMode = false;
+        ui.renderCards(world);
+        ui.toast(`Banished: ${upgradesById[id] ? upgradesById[id].name : id}`, "", 2600);
+        store.data.run = world.snapshot();
+        store.save("banish");
       }
     },
     reroll() {
@@ -461,7 +502,7 @@ const overlay = new Overlay(elementById("ov")),
     // a new run with the weapon and threat of the current (ended) run
     retry() {
       const world = this.world;
-      this.startRun(world ? { weapon: world.weapon, threat: world.threat } : {});
+      this.startRun(world ? (world.daily ? { daily: true } : { weapon: world.weapon, threat: world.threat }) : {});
     },
     abandon() {
       ui.hidePause();
@@ -564,13 +605,17 @@ const overlay = new Overlay(elementById("ov")),
         salvage = 1 + 0.1 * (save.workshop.salvage || 0),
         collected = world.shards,
         bonus = win ? Math.round(collected * 0.25) : 0,
-        total = Math.round((collected + bonus) * mods.shards * salvage),
+        pacts = world.pactBonus(),
+        total = Math.round((collected + bonus) * mods.shards * salvage * (1 + pacts)),
         rows = [["Collected", collected]];
       if (bonus) {
         rows.push(["Clear bonus +25%", "+" + bonus]);
       }
       if (world.threat > 0) {
         rows.push([`${threatLevels[world.threat].name} \xD7${mods.shards.toFixed(2)}`, "\xD7"]);
+      }
+      if (pacts > 0) {
+        rows.push([`Pacts +${Math.round(pacts * 100)}%`, "\xD7"]);
       }
       if (salvage > 1) {
         rows.push([`Shard Refinery \xD7${salvage.toFixed(1)}`, "\xD7"]);
@@ -585,6 +630,9 @@ const overlay = new Overlay(elementById("ov")),
         stats.bestTime = world.time;
       }
       stats.bestBy[world.weapon] = Math.max(stats.bestBy[world.weapon] || 0, wave);
+      // 3.26.0: the Daily Rift: the best of the day and the streak (an abandoned run before wave 2 does not count)
+      let dailyBest = false;
+      if (world.daily && !(abandoned && wave < 2)) dailyBest = recordDaily(stats.daily, world.daily, wave, world.kills);
       stats.kills += world.kills;
       stats.playTime += world.time;
       stats.shardsEarned += total;
@@ -636,9 +684,15 @@ const overlay = new Overlay(elementById("ov")),
           unlocks: unlocks,
           canEndless: win && !world.endless,
           killer: win || abandoned ? null : world.lastHit,
+          // 3.21.0: the recap of a lost run: the last hits (seconds before the end, the final one last) and the damage taken
+          lastHits: win || abandoned ? [] : world.hitLog.map((h) => ({ ...h, ago: Math.max(0, world.time - h.t) })),
+          taken: win || abandoned ? {} : world.takenBy,
           dmgSrc: world.dmgSrc,
           weaponName: weaponDefs[world.weapon].name,
           fastest: fastest,
+          daily: world.daily,
+          dailyBest: dailyBest,
+          dailyStats: world.daily ? { ...stats.daily } : null,
         });
         sound.setMusic("menu");
         setWakeLock(false);
@@ -688,9 +742,36 @@ game.qualityNote = () => {
       ? `Adapts to your device (now ${dpr}\xD7)`
       : settings.quality === "battery"
         ? "Lower resolution, 30 fps, no edge smoothing"
-        : `Sharpest (${dpr}\xD7)`) + restart
+        : settings.quality === "ultra"
+          ? `Sharpest with the cinematic look: real shadows, film tone and grade (${dpr}\xD7); for strong devices`
+          : `Sharpest (${dpr}\xD7)`) + restart
   );
 };
+/* 3.24.0: the medal of a boss kill (core/medals.js): the best one per boss is kept; a banner says what was earned */
+function awardBossMedal(ev, world) {
+  try {
+    const def = bossDefs[ev.id];
+    if (!def) return;
+    const medal = bossMedal(ev.id, ev.secs, ev.damage, world.stats.maxHp, (world.tm && world.tm.hp) || 1),
+      stats = store.data.stats;
+    if (!medal) return;
+    stats.medals = stats.medals || {};
+    const old = stats.medals[ev.id],
+      better = !old || medal > old.medal || (medal === old.medal && ev.secs < old.secs);
+    if (better) {
+      stats.medals[ev.id] = { medal, secs: Math.round(ev.secs * 10) / 10, damage: Math.round(ev.damage) };
+      store.save("medal");
+    }
+    // a toast (another banner of the same moment would replace a banner at once)
+    ui.toast(
+      `${MEDAL_NAMES[medal]} medal \u00b7 ${def.name} down in ${Math.round(ev.secs)} s${ev.damage <= 0 ? ", no damage taken" : ""}${better && old ? " \u2014 a new best" : ""}`,
+      medal === 3 ? "good" : "",
+      4800,
+    );
+  } catch (err) {
+    logError("medal", err);
+  }
+}
 function afterProgressReset(message) {
   ui.homeInit = false;
   applySettings();
@@ -732,7 +813,10 @@ input.onPause = () => {
   // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
   if (ui.rlSoundNotes || ui.rlFromPause) return ui.back();
   if (game.mode === "menu") {
-    if (input._rlKey === "escape" && ["workshop", "records", "settings"].includes(ui.screen)) {
+    if (
+      input._rlKey === "escape" &&
+      ["workshop", "records", "daily", "pacts", "news", "settings"].includes(ui.screen)
+    ) {
       ui.back();
     }
     return;
@@ -762,6 +846,7 @@ function applySettings() {
     renderer.zoom = settings.zoom || 1;
     let dpr = settings.quality === "auto" ? autoDpr : qualityPreset.dpr;
     renderer.setQuality(dpr, qualityPreset.particles);
+    renderer.setLook(settings.quality === "ultra");
   }
 }
 let loopFrameId = 0,
@@ -796,6 +881,7 @@ function loopTick(now) {
     dt = Math.min(0.1, Math.max(0, dt));
     try {
       const frameStart = performance.now();
+      input.updatePad(dt);
       runFrame(dt);
       frameErrorCount = 0;
       if (RL_MON)
@@ -1071,6 +1157,7 @@ function handleWorldEvents(world) {
         break;
       case "hurt":
         if (!ev.chip) {
+          rumble("hurt", store.data.settings.vibration !== false);
           ui.hurtFlash();
           overlay.addHurt(world, ev.sx, ev.sy);
           hitStop(0.06);
@@ -1127,6 +1214,7 @@ function handleWorldEvents(world) {
         }
         break;
       case "dash":
+        rumble("dash", store.data.settings.vibration !== false);
         if (game.tut) {
           game.tut.dashed = true;
         }
@@ -1145,11 +1233,13 @@ function handleWorldEvents(world) {
         break;
       case "bossDown":
         game.slowMo = 1.1;
+        awardBossMedal(ev, world);
         break;
       case "revive":
         ui.banner("SECOND LIFE", "Hull restored", "good", 1600);
         break;
       case "die":
+        rumble("die", store.data.settings.vibration !== false);
         sound.setMusic("off");
         break;
       case "victory":
@@ -1592,6 +1682,10 @@ function rlRetireToast() {
   ui.click(getById("pauseSetBtn"), () => ui.openPauseSettings());
 
   // ---- 3.17.2: the sound notes (from the pause menu and from the settings)
+  ui.click(getById("banishBtn"), () => {
+    ui.banishMode = !ui.banishMode;
+    ui.renderCards(game.world);
+  });
   ui.click(getById("pauseSndBtn"), () => ui.openSoundNotes(true));
   ui.click(getById("sndNotesBtn"), () => ui.openSoundNotes(false));
   ui.click(getById("snBack"), () => ui.back());

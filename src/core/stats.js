@@ -76,6 +76,15 @@ function computeStats(weaponId, run, workshop) {
     hellfire: has("hellfire"),
     range: weaponRange(weapon) * (has("dragon") ? 1.3 : 1),
   };
+  // 3.27.0: the drone's side of the pacts (data/pacts.js; the World sets the ws keys pact_<id>)
+  if (moduleLevel("pact_glass")) {
+    stats.maxHp = Math.round(stats.maxHp * 0.6);
+    stats.dmgMul *= 1.3;
+  }
+  if (moduleLevel("pact_sluggish")) {
+    stats.speed *= 0.9;
+    stats.dashCd *= 1.4;
+  }
   stats.maxHp = Math.max(25, stats.maxHp);
   stats.eliteMul = 1 + 0.15 * level("hunter");
   stats.supply = level("supply");
@@ -151,4 +160,41 @@ function weaponRange(weapon) {
 /* v2.2 stat integration: its upgrades and modules were copies and are retired since 2.5.0 (Salvager
  Core moved into computeStats above). */
 
-export { computeStats, weaponRange, DASH_CD_MIN };
+/* 3.22.0: the numbers behind the build, for the pause menu. Each row has the value now, the value the weapon has without the
+   upgrades of the run (the modules of the workshop stay in the base) and what is better (up: more is better, down: less is
+   better), so that the menu can show "+36 %" or "-20 %" next to it. */
+function buildStatRows(weaponId, run, workshop, hp) {
+  const weapon = weaponDefs[weaponId] || weaponDefs.pulse,
+    now = computeStats(weaponId, run, workshop),
+    base = computeStats(weaponId, {}, workshop),
+    shots = (s) => (weapon.count || 1) + (s.extra || 0),
+    perHit = (s) => weapon.dmg * s.dmgMul,
+    perSecond = (s) => perHit(s) * s.rateMul * weapon.rate * shots(s) * (1 + s.crit * (s.critMul - 1)),
+    row = (label, f, unit, better = "up", digits = 1) => ({
+      label,
+      now: f(now),
+      base: f(base),
+      unit,
+      better,
+      digits,
+    });
+  const rows = [
+    row("Hull", (s) => s.maxHp, "", "up", 0),
+    row("Damage per hit", perHit, "", "up", 1),
+    row("Shots per second", (s) => weapon.rate * s.rateMul, "/s", "up", 1),
+    row("Damage per second", perSecond, "", "up", 0),
+    row("Critical chance", (s) => s.crit * 100, "%", "up", 0),
+    row("Critical damage", (s) => s.critMul, "\u00d7", "up", 2),
+    row("Range", (s) => s.range, " m", "up", 1),
+    row("Move speed", (s) => s.speed, " m/s", "up", 1),
+    row("Dash cooldown", (s) => s.dashCd, " s", "down", 2),
+    row("Armor", (s) => s.armor * 100, "%", "up", 0),
+    row("Regeneration", (s) => s.regen, "/s", "up", 1),
+    row("Pickup radius", (s) => s.magnet, " m", "up", 1),
+    row("Nova strength", (s) => s.novaMul, "\u00d7", "up", 2),
+  ];
+  rows[0].hp = hp;
+  return rows;
+}
+
+export { computeStats, weaponRange, buildStatRows, DASH_CD_MIN };

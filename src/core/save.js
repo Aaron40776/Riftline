@@ -8,6 +8,8 @@ import { weaponDefs } from "../data/weapons.js";
 import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rlRetired } from "../data/progression.js";
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
 import { BOSS_CARD_CHANCE } from "./boss-cards.js";
+import { DAILY_KEY } from "./daily.js";
+import { cleanPacts } from "../data/pacts.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
@@ -166,6 +168,8 @@ const SAVE_KEY = "riftline.save.v1",
     ambience: 0.8,
     autoFire: true,
     assist: true,
+    // 3.23.0: the rumble of a controller and the vibration of a phone on hits, dashes and the end of a run
+    vibration: true,
     shake: true,
     numbers: true,
     quality: "auto",
@@ -228,6 +232,10 @@ function newSave() {
       clears: 0,
       deaths: 0,
       bosses: {},
+      // 3.24.0: the best medal per boss: { medal: 1-3, secs: its time, damage: what it cost }
+      medals: {},
+      // 3.26.0: the Daily Rift: the last day played, its best wave and kills, the streak of days, the days played, the best wave ever
+      daily: { key: "", wave: 0, kills: 0, streak: 0, days: 0, bestWave: 0 },
       clearsBy: {},
       bestBy: {},
       legendaries: 0,
@@ -239,6 +247,8 @@ function newSave() {
       evolved: 0,
       bestCombo: 0,
     },
+    // 3.27.0: the pacts signed for the next run (ids, at most two)
+    pacts: [],
     settings: { ...defaultSettings },
     run: null,
     history: [],
@@ -276,6 +286,13 @@ function cleanRun(raw) {
     kills: Math.floor(cleanNumber(raw.kills, 0, 0, 1e9)),
     time: cleanNumber(raw.time, 0, 0, 1e8),
     rerolls: Math.floor(cleanNumber(raw.rerolls, 0, 0, 99)),
+    // 3.25.0: Banish Protocol: the upgrades banished in this run and the banishes left
+    banished: [],
+    banishes: Math.floor(cleanNumber(raw.banishes, 0, 0, 9)),
+    // 3.26.0: the day of a Daily Rift run (empty for a normal run)
+    daily: typeof raw.daily === "string" && DAILY_KEY.test(raw.daily) ? raw.daily : "",
+    // 3.27.0: the pacts of the run
+    pacts: cleanPacts(raw.pacts),
     revived: !!raw.revived,
     nova: Math.floor(cleanNumber(raw.nova, 0, 0, 100)),
     bossKills: [],
@@ -289,6 +306,9 @@ function cleanRun(raw) {
     runStats: { dmgTaken: 0, dashes: 0, critHits: 0 },
     dmgSrc: {},
   };
+  for (const id of Array.isArray(raw.banished) ? raw.banished : [])
+    if (typeof id === "string" && upgradesById[id] && !run.banished.includes(id) && run.banished.length < 6)
+      run.banished.push(id);
   const rawUp = asObject(raw.up);
   for (const upgrade of upgradeList) {
     const level = Math.floor(cleanNumber(rawUp[upgrade.id], 0, 0, upgrade.max));
@@ -374,6 +394,30 @@ function cleanSave(input) {
       }
     }
   }
+  // 3.24.0: the best medal of every boss
+  {
+    const rawMedals = asObject(rawStats.medals);
+    for (const id in rawMedals) {
+      if (!/^[a-z]{2,12}$/.test(id)) continue;
+      const m = asObject(rawMedals[id]),
+        medal = Math.floor(cleanNumber(m.medal, 0, 0, 3));
+      if (medal >= 1)
+        stats.medals[id] = { medal, secs: cleanNumber(m.secs, 0, 0, 1e5), damage: cleanNumber(m.damage, 0, 0, 1e9) };
+    }
+  }
+  // 3.26.0: the Daily Rift record
+  {
+    const d = asObject(rawStats.daily);
+    stats.daily = {
+      key: typeof d.key === "string" && DAILY_KEY.test(d.key) ? d.key : "",
+      wave: Math.floor(cleanNumber(d.wave, 0, 0, 999)),
+      kills: Math.floor(cleanNumber(d.kills, 0, 0, 1e9)),
+      streak: Math.floor(cleanNumber(d.streak, 0, 0, 9999)),
+      days: Math.floor(cleanNumber(d.days, 0, 0, 9999)),
+      bestWave: Math.floor(cleanNumber(d.bestWave, 0, 0, 999)),
+    };
+    if (!stats.daily.key) Object.assign(stats.daily, { wave: 0, kills: 0, streak: 0 });
+  }
   // 2.8.1: per-weapon records of retired weapons count for the weapon that took them over (clears are
   // added, the best wave is the higher one), so "clear with every weapon" sees an old Ion Repeater clear
   for (const id in RL_RETIRED_WEAPONS) {
@@ -398,10 +442,11 @@ function cleanSave(input) {
       if (typeof def == "number") {
         save.settings[key] = rlSettingNum(key, rawSettings[key], def);
       } else {
-        save.settings[key] = ["auto", "high", "battery"].includes(rawSettings[key]) ? rawSettings[key] : def;
+        save.settings[key] = ["auto", "high", "ultra", "battery"].includes(rawSettings[key]) ? rawSettings[key] : def;
       }
     }
   }
+  save.pacts = cleanPacts(raw.pacts);
   save.run = cleanRun(raw.run);
   save.history = rlSanitizeHistory(raw.history);
   let rawSeen = asObject(raw.seen);

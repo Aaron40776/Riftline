@@ -4,6 +4,7 @@ import { RL_RT } from "../core/diagnostics.js";
 import { clamp } from "../core/util.js";
 import { game } from "../main.js";
 import { getById } from "./ui.js";
+import { GamepadReader, moveFocus, pressFocus, clearFocus } from "./gamepad.js";
 
 // 2.3.4: the input the player is using right now, so hints can say "W A S D" or "drag".
 // Starts from the primary pointer (coarse = touch screen) and follows the last real input.
@@ -17,6 +18,9 @@ const Input = class {
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, down: false, active: false, t: 0 };
     this.pending = { dash: false, nova: false, gadget: false };
+    // 3.23.0: the controller (ui/gamepad.js): read once a frame by updatePad, used by sample() and by the menus
+    this.gamepad = new GamepadReader();
+    this.padState = null;
     this.R = 56;
     // the stick size of the player (times the default radius) and, with a fixed move stick, where it sits
     // (a function that returns its centre in px, see ui/hud-layout.js; null: the stick starts where the thumb does)
@@ -238,6 +242,46 @@ const Input = class {
       }
     }
   }
+  /* 3.23.0: once a frame, in the menus too. The controller's buttons become the presses of the keyboard (dash, Nova, the
+     Singularity, pause); in the menus the D-pad and the left stick move the ring of focus, A presses, B goes back. */
+  updatePad(dt) {
+    const pad = (this.padState = this.gamepad.read(dt));
+    if (!pad) return;
+    const e = pad.edge;
+    if (e.a || e.b || e.x || e.y || e.start || e.lb || pad.move.len > 0.3 || pad.aim.len > 0.3) RL_INPUT.touch = false;
+    if (e.start) {
+      this._rlKey = "p";
+      if (this.onPause) this.onPause();
+      return;
+    }
+    const playing = this.isPlaying && this.isPlaying();
+    if (playing) {
+      clearFocus();
+      if (this.enabled) {
+        if (e.a || e.lb) this.pending.dash = true;
+        if (e.x) this.pending.nova = true;
+        if (e.y) this.pending.gadget = true;
+      }
+      return;
+    }
+    // menus, the pause screen, the upgrade choice, the end screen
+    for (const dir of ["up", "down", "left", "right"]) if (e[dir] || pad.repeat[dir]) moveFocus(dir);
+    if (e.a && !pressFocus()) {
+      // nothing in focus yet: the main button of the screen
+      const main = [...document.querySelectorAll(".screen:not([hidden]) .btn.primary")].find(
+        (b) => !b.disabled && b.offsetWidth,
+      );
+      if (main) main.click();
+    }
+    if (e.y && !getById("choose").hidden) {
+      const reroll = getById("rerollBtn");
+      if (reroll && !reroll.disabled) reroll.click();
+    }
+    if (e.b && this.onPause) {
+      this._rlKey = "escape";
+      this.onPause();
+    }
+  }
   press(action) {
     if (this.enabled) {
       this.pending[action] = true;
@@ -322,6 +366,22 @@ const Input = class {
         this.usedAim = true;
       }
     }
+    // 3.23.0: the controller: the left stick moves, the right stick aims and fires, the right trigger or bumper fires
+    const pad = this.padState;
+    if (pad) {
+      if (pad.move.len > 0) {
+        mx += pad.move.x;
+        my += pad.move.y;
+        this.usedMove = true;
+      }
+      if (pad.aim.len > 0.3) {
+        ax = pad.aim.x / pad.aim.len;
+        ay = pad.aim.y / pad.aim.len;
+        aim = true;
+        this.usedAim = true;
+      }
+      if (pad.fire) fire = true;
+    }
     let mouseRecent = performance.now() - this.mouse.t < 2500;
     if (
       !aim &&
@@ -371,8 +431,16 @@ function chooseKey(code, key) {
   if (match) {
     const card = getById("cards").querySelectorAll("[data-pick]")[+match[1] - 1];
     if (card && !getById("cards").classList.contains("locked")) {
-      game.choose(card.dataset.pick);
+      // 3.25.0: with Banish armed (the cards are marked) the key banishes the card
+      if (getById("cards").classList.contains("banishing")) game.banish(card.dataset.pick);
+      else game.choose(card.dataset.pick);
     }
+    return true;
+  }
+  // 3.25.0: B arms and disarms Banish
+  if (key === "b") {
+    const btn = getById("banishBtn");
+    if (btn && !btn.hidden && !btn.disabled) btn.click();
     return true;
   }
   if (key === "r") {

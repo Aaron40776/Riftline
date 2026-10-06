@@ -196,6 +196,48 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
   (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
 
+### HANDOFF (06.10.2026, after the night of autonomous work; read this first when the work goes on)
+
+The owner slept and said: continue on your own until about 95 % of the limit, with the necessary and recommended things and
+thorough checks in between. Never merge, never push to main. Everything below is built, tested and in open pull requests, STACKED:
+each is based on the one before, so merge them in this order and, after each merge, switch the base of the next one to `main`
+(GitHub shows the diff against its base):
+
+| PR | Version | What |
+|---|---|---|
+| #43 | 3.18.1 | the old track fades out when the music changes; the deep test no longer flips (seeded noise): this is also why the deploy of #41 was red |
+| #44 | 3.18.2 | the checkups as tools (soak, fuzz, balance) and a 24992 Hz tone removed |
+| #45 | 3.19.0 | the ambient bloom (stereo, a voice per biome, ping-pong echo): the Osmos direction, first step |
+| #46 | 3.20.0 | the Ultra look (tone curve, real shadows, grade pass): the "professional style" answer |
+| #47 | 3.21.0 | the death recap ("What hit you"), docs/GITHUB.md |
+| #48 | 3.22.0 | build stats in the pause menu, a look at the next wave |
+| #49 | 3.23.0 | gamepad, vibration (determinism fixture updated for the new setting) |
+| #50 | 3.24.0 | boss medals |
+| #51 | 3.25.0 | Banish Protocol (workshop module; banish a card in the upgrade choice) |
+| #52 | 3.26.0 | Daily Rift (date seed, weapon and threat; best of the day, streak) |
+| #53 | 3.27.0 | Pacts (up to two optional risks for more shards) |
+| #54 | 3.28.0 | Codex part Rift events (mutators, Overdrive attacks) |
+
+State of the tests: the complete release check ran on 3.18.1, 3.18.2, 3.19.0 (all ok), 3.20.0 (ok after one test fix), 3.23.0
+(covers 3.21 to 3.23; ok after the determinism fixture update). 3.24.0 had `npm test` and its own sections.
+
+Owner's decisions of 05.10.2026: the overlap of music is fixed by a fade (done); the sound goes on by synthesis first (he will send
+reference clips: Osmos is the direction); the professional look is an opt-in Ultra preset; tablets are landscape-only (the shell
+does it); the recommended order goes on; a repo description, topics and a licence are prepared (`docs/GITHUB.md`: the licence
+needs his choice).
+
+A4 (a short introduction to the Singularity and traps) turned out to exist already: a tip in wave 4 for the Singularity and one at the first trap warning
+(`showTipOnce` in `main.js`). NOT done, still wanted: Cloudflare (when he says go), the second step of the sound direction (slow evolving
+pads with auto-panning; reference clips), a pass on the models for the professional look (hard-surface shapes, bloom, ambient
+occlusion; a reference picture), and the real-hardware tests (a gamepad, a phone: Safari and Chrome with the landscape shell, the
+vibration, Ultra on a real device).
+
+Tools of the night: `npm run soak | fuzz | balance` (see README), `RL_NO_MINIFY=1 node build.js`, `SHOT_QUALITY=ultra node tools/qa.js
+biome-shots pc`, `node tools/qa.js scape-preview music` (stereo MP3s in tests/shots/scapes).
+
+Known and not ours: the headless Chromium of the test machine crashes now and then in long runs (its GPU process logs errors; the
+game's heap is flat), and GitHub Actions sometimes does not start a job for 15 minutes and cancels it (a re-run works).
+
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
 ### 1. Boss-Belohnungen
@@ -258,18 +300,18 @@ Gewünscht: sinnvolle Verbesserungen (Komfort usw.), die Spieler gern hätten, o
 Punkt mit seiner Wirkung auf die Schwierigkeit.
 
 **A. Lernen und Überblick (neutral: erklärt, was passiert, nimmt nichts ab)**
-1. Tod-Rückblick am Run-Ende: die letzten Treffer (wer, welcher Angriff, wie viel), der tödliche Treffer hervorgehoben,
+1. (Done in 3.21.0: "What hit you" on the end screen of a lost run.) Tod-Rückblick am Run-Ende: die letzten Treffer (wer, welcher Angriff, wie viel), der tödliche Treffer hervorgehoben,
    dazu Schaden je eigener Quelle (Waffe, Klingen, Granate, Surge, Fallen) und je Gegnertyp. Lernt man am meisten,
    wenn das Spiel schwer ist.
-2. Werte-Übersicht im Pausenmenü: alle aktuellen Werte (Schaden, Feuerrate, Krit, Tempo, Dash, Hülle, Panzerung,
+2. (Done in 3.22.0.) Werte-Übersicht im Pausenmenü: alle aktuellen Werte (Schaden, Feuerrate, Krit, Tempo, Dash, Hülle, Panzerung,
    Regeneration, Aufsammelradius, Granaten) mit Grund- und Bonuswert.
-3. Vorschau auf die nächste Welle in der Upgrade-Wahl (Boss, Ereignis, Mutator, ab wann Fallen kommen): man wählt
+3. (Done in 3.22.0.) Vorschau auf die nächste Welle in der Upgrade-Wahl (Boss, Ereignis, Mutator, ab wann Fallen kommen): man wählt
    passend, statt blind.
 4. Kurze Einführung für Granate und Fallen in den Wellen 1–6, Codex-Einträge für Mutatoren und Overdrive-Angriffe.
 
 **B. Bedienung (neutral)**
-5. Gamepad (Sticks, Schultertasten, Start für Pause; Menüs zuerst weiter mit Maus/Touch) und Tastenbelegung am PC.
-6. Vibration am Handy bei Treffern, Dash und Boss-Schlägen (nur Android, abschaltbar).
+5. (Done in 3.23.0, tested with a faked controller only.) Gamepad (Sticks, Schultertasten, Start für Pause; Menüs zuerst weiter mit Maus/Touch) und Tastenbelegung am PC.
+6. (Done in 3.23.0.) Vibration am Handy bei Treffern, Dash und Boss-Schlägen (nur Android, abschaltbar).
 7. Getrennte Regler für Musik, Effekte und Atmosphäre (die Atmosphären sind seit 3.7.0 ein eigener Teil).
    Done in 3.9.0: the "Ambience" volume (atmospheres, event beds and the sounds of the place).
 8. Kompakte Schadenszahlen (pro Gegner zusammengezählt) gegen das Gewimmel im Endless; Farbenblind-Paletten für
@@ -280,7 +322,7 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
    für mehr Shards und ein Abzeichen in der Run-Historie; Meilensteine für Siege mit Pakten.
 10. Tägliche Herausforderung: fester Seed, feste Waffe und feste Mutatoren für alle; eigener Bestwert (später die
     Cloudflare-Bestenliste).
-11. Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex.
+11. (Done in 3.24.0.) Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex.
 12. Training gegen bereits besiegte Bosse (keine Belohnung): üben, ohne den Run leichter zu machen.
 
 **D. Mit Vorsicht (macht es etwas leichter, nur begrenzt)**

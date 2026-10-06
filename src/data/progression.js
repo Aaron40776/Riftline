@@ -54,6 +54,14 @@ const workshopModules = [
     costs: [1200],
   },
   { id: "revive", name: "Second Life", icon: "heart", desc: "Revive once per run at 50% HP", costs: [900] },
+  // 3.25.0: take an upgrade card out of the pool for the rest of the run (once per level, at most twice a run)
+  {
+    id: "banish",
+    name: "Banish Protocol",
+    icon: "skull",
+    desc: "Banish an upgrade card for the rest of the run (once per level)",
+    costs: [700, 1400],
+  },
 ];
 let modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
 const milestones = [

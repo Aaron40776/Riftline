@@ -1,7 +1,7 @@
 // The deep self-test (rlSelfTest: the base test plus one part per release) and its palette checks.
 // Used by the tests (window.__riftTest) and the "Deep test" button of the diagnostics dialog.
 
-import { GameUI, rlCodexEntries, rlBiomeCardInfo } from "../ui/ui.js";
+import { GameUI, rlCodexEntries, rlBiomeCardInfo, iconPaths } from "../ui/ui.js";
 import { Input } from "../ui/input.js";
 import {
   musicChords,
@@ -66,7 +66,10 @@ import { upgradeList, upgradesById, RL_RETIRED_UPGRADES } from "../data/upgrades
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 import { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount, rlUpdateTraps } from "./traps.js";
 import { hitsObstacle, buildLayout, isConnected, RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
-import { computeStats } from "./stats.js";
+import { computeStats, buildStatRows } from "./stats.js";
+import { bossMedal } from "./medals.js";
+import { PACTS, PACT_MAX, cleanPacts, pactBonus, applyPactsToThreat } from "../data/pacts.js";
+import { dailyKey, dayBefore, dailySpec, recordDaily, liveStreak } from "./daily.js";
 import {
   RL_EVENT_KINDS,
   RL_BOSS_EVENTS,
@@ -478,6 +481,13 @@ function rlSelfTest() {
   result = selfTestV3160(result);
   result = selfTestV3170(result);
   result = selfTestV3172(result);
+  result = selfTestV3210(result);
+  result = selfTestV3220(result);
+  result = selfTestV3240(result);
+  result = selfTestV3250(result);
+  result = selfTestV3260(result);
+  result = selfTestV3270(result);
+  result = selfTestV3280(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3591,6 +3601,379 @@ function selfTestV3170(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3170: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.21.0: the recap of a lost run: the last twelve hits with their source, the ticks of a hazard in one entry, the
+   damage taken by source ---- */
+function selfTestV3210(result) {
+  const fail = [];
+  try {
+    const world = new World({ seed: 0x3210, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(2);
+    world.state = "fight";
+    const p = world.player;
+    p.hp = p.maxHp = 100000;
+    if (world.hitLog.length || Object.keys(world.takenBy).length) fail.push("starts-empty");
+    const hit = (dmg, src, chip) => {
+      p.iT = 0;
+      p.dashT = 0;
+      p.shield = false;
+      world.time += 2;
+      world.hurtPlayer(dmg, null, null, src, chip);
+    };
+    hit(10, "grunt");
+    hit(20, "brute");
+    if (world.hitLog.length !== 2 || world.hitLog[1].src !== "brute" || world.hitLog[1].dmg < 15) fail.push("two-hits");
+    // the ticks of a hazard that follow each other are one entry (and add up)
+    for (let i = 0; i < 4; i++) {
+      p.iT = 0;
+      world.time += 0.3;
+      world.hurtPlayer(3, null, null, "acid", true);
+    }
+    const acid = world.hitLog.filter((h) => h.src === "acid");
+    if (acid.length !== 1 || acid[0].n < 2) fail.push("ticks-merge:" + JSON.stringify(acid));
+    // only the last twelve are kept; the totals are for the whole run
+    for (let i = 0; i < 30; i++) hit(5, "spitter");
+    if (world.hitLog.length !== 12) fail.push("keeps-twelve:" + world.hitLog.length);
+    if (!(world.takenBy.spitter >= 140 && world.takenBy.grunt >= 8 && world.takenBy.brute >= 15))
+      fail.push("taken-by:" + JSON.stringify(world.takenBy));
+    if (world.hitLog.some((h, i) => i && h.t < world.hitLog[i - 1].t)) fail.push("order");
+    // the final blow is the last entry
+    p.hp = 5;
+    hit(50, "turret");
+    if (world.state !== "dead" || world.hitLog[world.hitLog.length - 1].src !== "turret") fail.push("final-blow");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3210: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.22.0: the numbers behind the build (the stats of the pause menu) ---- */
+function selfTestV3220(result) {
+  const fail = [];
+  try {
+    const by = (rows) => Object.fromEntries(rows.map((r) => [r.label, r]));
+    const plain = by(buildStatRows("pulse", {}, {}, 100));
+    for (const [label, r] of Object.entries(plain)) {
+      if (!Number.isFinite(r.now) || !Number.isFinite(r.base)) fail.push("finite:" + label);
+      if (Math.abs(r.now - r.base) > 1e-9) fail.push("plain-differs:" + label);
+    }
+    if (Object.keys(plain).length < 12) fail.push("rows:" + Object.keys(plain).length);
+    if (plain.Hull.hp !== 100) fail.push("hull-now");
+    // upgrades move the numbers the way their cards say
+    const up = by(buildStatRows("pulse", { dmg: 2, speed: 1, crit: 1, hp: 2 }, {}, 100));
+    if (Math.abs(up["Damage per hit"].now - up["Damage per hit"].base * 1.36) > 1e-6) fail.push("dmg-x1.36");
+    if (!(up["Damage per second"].now > up["Damage per second"].base * 1.36)) fail.push("dps-includes-crit");
+    if (!(up["Dash cooldown"].now < up["Dash cooldown"].base && up["Dash cooldown"].better === "down"))
+      fail.push("dash-cd");
+    if (Math.abs(up["Move speed"].now - up["Move speed"].base * 1.1) > 1e-6) fail.push("speed");
+    if (up.Hull.now !== up.Hull.base + 50) fail.push("hull:" + up.Hull.now);
+    // the workshop belongs to the base: a module does not show as a change of the run
+    const shop = by(buildStatRows("pulse", {}, { armorCore: 5, hull: 3 }, 130));
+    if (Math.abs(shop.Armor.now - 20) > 1e-6 || shop.Armor.now !== shop.Armor.base) fail.push("workshop-in-base");
+    // every weapon has numbers
+    for (const id of Object.keys(weaponDefs)) {
+      const rows = buildStatRows(id, { multishot: 1 }, {}, 100);
+      if (rows.some((r) => !Number.isFinite(r.now) || r.now < 0)) fail.push("weapon:" + id);
+      if (!(by(rows)["Damage per second"].now > 0)) fail.push("dps:" + id);
+    }
+    // the look at the next wave says what the wave then brings, and changes nothing
+    const seen = { boss: 0, event: 0, newBiome: 0, mutator: 0 };
+    for (const seed of [0x3220, 7, 99]) {
+      const ahead = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
+      ahead.endless = true;
+      for (let n = 2; n <= 40; n++) {
+        const pv = ahead.previewWave(n),
+          again = ahead.previewWave(n);
+        if (JSON.stringify(pv) !== JSON.stringify(again)) fail.push("preview-stable:" + n);
+        const real = new World({ seed, weapon: "pulse", threat: 0, ws: {} });
+        real.endless = true;
+        real.startWave(n);
+        if ((real.bossPending || null) !== pv.boss)
+          fail.push(`preview-boss:${seed}:${n}:${real.bossPending}/${pv.boss}`);
+        if ((real.event || null) !== pv.event) fail.push(`preview-event:${seed}:${n}:${real.event}/${pv.event}`);
+        if (real.arena.biome.id !== pv.biome) fail.push(`preview-biome:${seed}:${n}`);
+        seen.boss += pv.boss ? 1 : 0;
+        seen.event += pv.event ? 1 : 0;
+        seen.newBiome += pv.newBiome ? 1 : 0;
+        seen.mutator += pv.mutator ? 1 : 0;
+      }
+    }
+    if (!(seen.boss > 10 && seen.event > 3 && seen.newBiome > 10 && seen.mutator > 0))
+      fail.push("preview-coverage:" + JSON.stringify(seen));
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3220: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.24.0: boss medals: the rule, the numbers of a real kill, the clean-up of the saved medals ---- */
+function selfTestV3240(result) {
+  const fail = [];
+  try {
+    const m = bossMedal;
+    if (m("warden", 40, 0, 100, 1) !== 3) fail.push("gold");
+    if (m("warden", 200, 0, 100, 1) !== 2) fail.push("silver-slow-hitless");
+    if (m("warden", 50, 20, 100, 1) !== 2) fail.push("silver-fast-few-hits");
+    if (m("warden", 50, 60, 100, 1) !== 1) fail.push("bronze-hits");
+    if (m("warden", 100, 5, 100, 1) !== 1) fail.push("bronze-slow-hits");
+    if (m("warden", null, 0, 100, 1) !== 0 || m("warden", NaN, 0, 100, 1) !== 0) fail.push("no-time-no-medal");
+    // the par grows with the hull of the threat level
+    if (m("warden", 100, 0, 100, 2) !== 3 || m("warden", 100, 0, 100, 1) === 3) fail.push("par-follows-threat");
+    // a real kill: the numbers of the bossDown event
+    const world = new World({ seed: 0x3240, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(5);
+    world.state = "fight";
+    world.god = true;
+    world.spawnBoss("warden");
+    const boss = world.boss;
+    if (!boss) fail.push("no-boss");
+    else {
+      world.time += 12.5;
+      world.runStats.dmgTaken += 9;
+      boss.hp = 0;
+      world.killEnemy(boss);
+      const down = world.fx.filter((e) => e.k === "bossDown").pop();
+      if (!down || Math.abs(down.secs - 12.5) > 1e-6 || down.damage !== 9) fail.push("event:" + JSON.stringify(down));
+    }
+    // the saved medals are cleaned: a wrong id goes, numbers are clamped
+    const raw = JSON.parse(JSON.stringify(newSave()));
+    raw.stats.medals = {
+      warden: { medal: 9, secs: -5, damage: "x" },
+      "BAD ID": { medal: 2, secs: 1, damage: 1 },
+      core: { medal: 2, secs: 50.5, damage: 3 },
+      forge: { medal: 0, secs: 10, damage: 0 },
+      prism: "gold",
+    };
+    const clean = cleanSave(raw).stats.medals;
+    if (!clean.warden || clean.warden.medal !== 3 || clean.warden.secs !== 0 || clean.warden.damage !== 0)
+      fail.push("clamp");
+    if ("BAD ID" in clean || clean.forge || clean.prism) fail.push("junk-kept:" + Object.keys(clean));
+    if (!clean.core || clean.core.medal !== 2 || clean.core.secs !== 50.5) fail.push("keeps-good");
+    if (!newSave().stats.medals || Object.keys(newSave().stats.medals).length) fail.push("new-save");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3240: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.25.0: Banish Protocol: a card out of the pool for the rest of the run ---- */
+function selfTestV3250(result) {
+  const fail = [];
+  try {
+    const mod = workshopModules.find((m) => m.id === "banish");
+    if (!mod || mod.costs.length !== 2) fail.push("module");
+    const make = (level) => {
+      const w = new World({ seed: 0x3250, weapon: "pulse", threat: 0, ws: level ? { banish: level } : {} });
+      w.startWave(2);
+      w.state = "fight";
+      w.beginChoice();
+      return w;
+    };
+    const none = make(0);
+    if (none.banishes !== 0 || none.banish(none.offer[0])) fail.push("no-module-no-banish");
+    const w = make(2);
+    if (w.banishes !== 2 || w.state !== "choose") fail.push("start:" + w.banishes + w.state);
+    const first = w.offer[0],
+      size = w.offer.length;
+    if (!w.banish(first)) fail.push("banish-fails");
+    if (w.offer.includes(first) || w.offer.length !== size || w.banishes !== 1 || !w.banished.includes(first))
+      fail.push("after:" + JSON.stringify(w.offer));
+    if (w.banish("nonsense") || w.banish(first)) fail.push("only-offered-cards");
+    // never offered again, however often it is rolled
+    for (let i = 0; i < 60; i++) {
+      w.rerolls = 5;
+      w.reroll();
+      if (w.offer.includes(first)) {
+        fail.push("offered-again");
+        break;
+      }
+    }
+    // a second one, then none left
+    if (!w.banish(w.offer[1]) || w.banishes !== 0 || w.banish(w.offer[0])) fail.push("limit");
+    // the snapshot keeps them; a hostile one is cleaned
+    const snap = JSON.parse(JSON.stringify(w.snapshot()));
+    if (snap.banishes !== 0 || snap.banished.length !== 2) fail.push("snapshot");
+    const restored = new World({ seed: 0x3250, weapon: "pulse", threat: 0, ws: { banish: 2 }, snap });
+    if (restored.banishes !== 0 || restored.banished.length !== 2) fail.push("restore");
+    const raw = {
+      ...snap,
+      banished: [first, first, "nonsense", 42, "dmg", "hp", "rate", "crit", "speed", "regen"],
+      banishes: 99,
+    };
+    const cleaned = cleanRun(raw);
+    if (
+      !cleaned ||
+      cleaned.banishes !== 9 ||
+      cleaned.banished.includes("nonsense") ||
+      cleaned.banished.length > 6 ||
+      new Set(cleaned.banished).size !== cleaned.banished.length
+    )
+      fail.push("clean:" + JSON.stringify(cleaned && [cleaned.banishes, cleaned.banished]));
+    // the boss card stays: it cannot be banished
+    const boss = make(1);
+    boss.offerBoss = true;
+    boss.offerExclusive = boss.offer[0];
+    if (boss.banish(boss.offer[0])) fail.push("boss-card-banished");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3250: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.26.0: the Daily Rift: the same Rift for everyone on a date, the record of the day and the streak ---- */
+function selfTestV3260(result) {
+  const fail = [];
+  try {
+    if (dailyKey(Date.UTC(2026, 9, 6, 23, 59, 59)) !== "2026-10-06" || dailyKey(Date.UTC(2026, 9, 7)) !== "2026-10-07")
+      fail.push("key");
+    if (dayBefore("2026-03-01") !== "2026-02-28" || dayBefore("2027-01-01") !== "2026-12-31") fail.push("day-before");
+    // the Rift of a date is always the same and varies from day to day
+    const a = dailySpec("2026-10-06"),
+      b = dailySpec("2026-10-06");
+    if (JSON.stringify(a) !== JSON.stringify(b)) fail.push("not-deterministic");
+    const weapons = new Set(),
+      threats = [0, 0];
+    for (let d = 0; d < 60; d++) {
+      const spec = dailySpec(dailyKey(Date.UTC(2026, 9, 1 + d)));
+      if (!weaponDefs[spec.weapon] || (spec.threat !== 0 && spec.threat !== 1) || !Number.isFinite(spec.seed))
+        fail.push("spec:" + JSON.stringify(spec));
+      weapons.add(spec.weapon);
+      threats[spec.threat]++;
+    }
+    if (weapons.size < 5) fail.push("weapons-vary:" + weapons.size);
+    if (threats[1] < 8 || threats[1] > 35) fail.push("threats:" + threats);
+    if (dailySpec("junk").key !== dailyKey()) fail.push("junk-key");
+    // the record: the first day, the next day, a gap, a better and a worse run on the same day
+    const d = { key: "", wave: 0, kills: 0, streak: 0, days: 0, bestWave: 0 };
+    if (!recordDaily(d, "2026-10-06", 5, 100) || d.streak !== 1 || d.days !== 1) fail.push("first");
+    if (recordDaily(d, "2026-10-06", 4, 300) || d.wave !== 5) fail.push("worse-replaces");
+    if (!recordDaily(d, "2026-10-06", 5, 150) || d.kills !== 150) fail.push("more-kills");
+    if (!recordDaily(d, "2026-10-06", 8, 10) || d.wave !== 8 || d.days !== 1) fail.push("better");
+    recordDaily(d, "2026-10-07", 3, 40);
+    if (d.streak !== 2 || d.days !== 2 || d.wave !== 3 || d.bestWave !== 8) fail.push("next-day:" + JSON.stringify(d));
+    if (liveStreak(d, "2026-10-08") !== 2 || liveStreak(d, "2026-10-09") !== 0) fail.push("live-streak");
+    recordDaily(d, "2026-10-10", 2, 1);
+    if (d.streak !== 1) fail.push("gap");
+    // a run of the day: the same seed gives the same first offer, the key survives the snapshot, junk does not
+    const run = () => {
+      const w = new World({ seed: a.seed, weapon: a.weapon, threat: a.threat, ws: {}, daily: a.key });
+      w.startWave(2);
+      w.state = "fight";
+      w.beginChoice();
+      return w;
+    };
+    const w1 = run(),
+      w2 = run();
+    if (JSON.stringify(w1.offer) !== JSON.stringify(w2.offer) || w1.daily !== a.key) fail.push("same-rift");
+    const snap = JSON.parse(JSON.stringify(w1.snapshot()));
+    if (snap.daily !== a.key || new World({ seed: 1, weapon: a.weapon, threat: 0, ws: {}, snap }).daily !== a.key)
+      fail.push("snapshot");
+    if (cleanRun({ ...snap, daily: "<script>" }).daily !== "" || cleanRun({ ...snap, daily: 42 }).daily !== "")
+      fail.push("clean-run");
+    if (cleanRun(snap).daily !== a.key) fail.push("clean-run-keeps");
+    // the save cleans the record
+    const hostile = cleanSave({
+      ...newSave(),
+      stats: { ...newSave().stats, daily: { key: "bad", wave: 5, kills: 9, streak: 4, days: -3, bestWave: 1e9 } },
+    });
+    if (hostile.stats.daily.key !== "" || hostile.stats.daily.wave !== 0 || hostile.stats.daily.streak !== 0)
+      fail.push("clean-bad-key:" + JSON.stringify(hostile.stats.daily));
+    if (hostile.stats.daily.days !== 0 || hostile.stats.daily.bestWave !== 999) fail.push("clean-clamp");
+    const good = cleanSave({
+      ...newSave(),
+      stats: { ...newSave().stats, daily: { key: "2026-10-06", wave: 5, kills: 9, streak: 4, days: 7, bestWave: 12 } },
+    });
+    if (good.stats.daily.streak !== 4 || good.stats.daily.days !== 7) fail.push("clean-keeps");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3260: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.27.0: pacts: a harder run for a share of shards ---- */
+function selfTestV3270(result) {
+  const fail = [];
+  try {
+    if (new Set(PACTS.map((p) => p.id)).size !== PACTS.length || PACT_MAX !== 2) fail.push("table");
+    for (const p of PACTS)
+      if (!iconPaths[p.icon] || !p.name || !p.desc || !(p.shards > 0 && p.shards <= 0.5)) fail.push("pact:" + p.id);
+    const arr = (x) => JSON.stringify(x);
+    if (arr(cleanPacts(["glass", "glass", "nonsense", 7, "swarm", "hunt"])) !== arr(["glass", "swarm"]))
+      fail.push("clean");
+    if (arr(cleanPacts("glass")) !== "[]" || arr(cleanPacts(null)) !== "[]") fail.push("clean-junk");
+    if (Math.abs(pactBonus(["glass", "hunt"]) - 0.45) > 1e-9 || pactBonus([]) !== 0 || pactBonus(["x"]) !== 0)
+      fail.push("bonus");
+    // the enemies' side
+    const tm = threatMods(1),
+      both = applyPactsToThreat(tm, ["swarm", "ironhide"]);
+    if (
+      Math.abs(both.budget - tm.budget * 1.35) > 1e-9 ||
+      Math.abs(both.hp - tm.hp * 1.3) > 1e-9 ||
+      both.elite !== tm.elite
+    )
+      fail.push("threat");
+    if (applyPactsToThreat(tm, ["hunt"]).elite - tm.elite < 0.11 || tm.budget !== threatMods(1).budget)
+      fail.push("elite/pure");
+    // the drone's side
+    const base = computeStats("pulse", {}, {}),
+      glass = computeStats("pulse", {}, { pact_glass: 1 }),
+      slow = computeStats("pulse", {}, { pact_sluggish: 1 });
+    if (glass.maxHp !== Math.round(base.maxHp * 0.6) || Math.abs(glass.dmgMul - base.dmgMul * 1.3) > 1e-9)
+      fail.push("glass:" + glass.maxHp + "/" + glass.dmgMul);
+    if (!(slow.speed < base.speed) || !(slow.dashCd > base.dashCd)) fail.push("sluggish");
+    // in a world: the numbers, the snapshot, the resume (a saved run keeps its pacts whatever the save says now)
+    const w = new World({ seed: 0x3270, weapon: "pulse", threat: 0, ws: {}, pacts: ["glass", "swarm", "hunt"] });
+    if (arr(w.pacts) !== arr(["glass", "swarm"]) || w.player.hp !== 60 || w.stats.maxHp !== 60)
+      fail.push("world:" + w.player.hp);
+    if (Math.abs(w.tm.budget - 1.35) > 1e-9 || Math.abs(w.pactBonus() - 0.4) > 1e-9) fail.push("world-tm");
+    const plain = new World({ seed: 0x3270, weapon: "pulse", threat: 0, ws: {} });
+    if (plain.pacts.length || plain.player.hp !== 100 || plain.pactBonus() !== 0) fail.push("plain");
+    w.startWave(2);
+    const snap = JSON.parse(JSON.stringify(w.snapshot()));
+    if (arr(snap.pacts) !== arr(["glass", "swarm"])) fail.push("snapshot");
+    const back = new World({ seed: 1, weapon: "pulse", threat: 0, ws: {}, pacts: [], snap });
+    if (arr(back.pacts) !== arr(["glass", "swarm"]) || back.stats.maxHp !== 60) fail.push("resume");
+    if (arr(cleanRun({ ...snap, pacts: ["x", "hunt", "hunt", "glass", "swarm"] }).pacts) !== arr(["hunt", "glass"]))
+      fail.push("clean-run");
+    // the save
+    const hostile = cleanSave({ ...newSave(), pacts: ["bad", "glass", "glass", 3, "hunt", "swarm"] });
+    if (arr(hostile.pacts) !== arr(["glass", "hunt"])) fail.push("clean-save:" + arr(hostile.pacts));
+    if (arr(newSave().pacts) !== "[]") fail.push("new-save");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3270: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.28.0: the Codex part for the Endless mutators and the Overdrive attacks ---- */
+function selfTestV3280(result) {
+  const fail = [];
+  try {
+    const empty = rlCodexEntries(newSave());
+    if (empty.events.length !== MUTATOR_IDS.length + Object.keys(OVERDRIVE).length)
+      fail.push("count:" + empty.events.length);
+    if (empty.events.some((e) => e.seen)) fail.push("seen-at-start");
+    for (const id of MUTATOR_IDS) if (!empty.events.some((e) => e.key === "mut_" + id)) fail.push("mutator:" + id);
+    for (const boss of Object.keys(OVERDRIVE)) {
+      const e = empty.events.find((x) => x.key === "od_" + boss);
+      if (!e || !e.name || !e.desc || !e.extra) fail.push("overdrive:" + boss);
+    }
+    const save = newSave();
+    save.seen.mut_hasted = true;
+    save.seen.od_core = true;
+    const some = rlCodexEntries(save)
+      .events.filter((e) => e.seen)
+      .map((e) => e.key)
+      .sort();
+    if (some.join() !== "mut_hasted,od_core") fail.push("seen:" + some.join());
+    // the keys survive the save's clean-up
+    const cleaned = cleanSave(JSON.parse(JSON.stringify(save)));
+    if (!cleaned.seen.mut_hasted || !cleaned.seen.od_core) fail.push("clean-save");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3280: { ok: fail.length === 0, fail } };
 }
 
 /* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct

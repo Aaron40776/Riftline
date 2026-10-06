@@ -105,7 +105,9 @@ const out = await page.evaluate(() => {
     const s1 = T.computeStats("pulse", {}, { [m.id]: 1 });
     const diff = Object.keys(s1).some((k) => typeof s1[k] === "number" && s1[k] !== base[k]);
     diff ||
-      ["reroll", "nova", "insight", "revive", "salvage", "fieldSupply", "droneBay", "starterKit"].includes(m.id) ||
+      ["reroll", "nova", "insight", "revive", "salvage", "fieldSupply", "droneBay", "starterKit", "banish"].includes(
+        m.id,
+      ) ||
       bad("workshop-noop", `${m.id} changes no stat`);
   }
   dupe(T.workshopModules, (m) => m.name, "workshop");

@@ -1,3 +1,440 @@
+RIFTLINE v3.28.0 – CODEX: RIFT EVENTS
+Base: v3.27.0 · Build r3280a1005a-r1 · 06.10.2026
+
+The last open part of the package "learning and overview" (proposal A4 of 03.10.2026): codex entries for the Endless mutators and the
+boss Overdrive attacks. (The short introduction of the Singularity and traps turned out to exist already as tips.)
+
+1) What it does
+   - New Codex part "Rift events" after the bosses: six mutators (Volatile, Shielded, Hasted, Armored, Barrage, Trap Storm) and five
+     Overdrive attacks (Lockdown, Meltdown, Whiteout, Plague, Collapse), each with its text; unseen ones are "???".
+   - main.js keeps a mutator in play and a boss in its Overdrive as seen (seen.mut_<id>, seen.od_<boss>) each frame; no new
+     simulation event, so the determinism records do not change.
+
+2) Tests
+   - Self-test v3280, the codex sections of the full QA (rows counted with the 11 new ones) and the new section codex-events.
+
+3) Results 3.28.0
+   - See the handoff table of docs/ROADMAP.de.md.
+
+4) Open doubts
+   - The texts of the Overdrive attacks are written from the code (core/ai.js), not tested with players.
+
+RIFTLINE v3.27.0 – PACTS
+Base: v3.26.0 · Build r3270a1005a-r1 · 06.10.2026
+
+Roadmap, proposal C9 of 03.10.2026: pacts before a run (optional risks for a share of shards).
+
+1) The pacts (data/pacts.js)
+   - Up to two of five at once: Glass Cannon (hull -40 %, damage +30 %, shards +20 %), Swarm Pact (35 % more enemies, +20 %),
+     Iron Hide (enemies +30 % health, +20 %), Elite Hunt (+12 % elite chance, +25 %), Heavy Drive (move speed -10 %, dash
+     cooldown +40 %, +15 %). The bonuses add up (at most +45 %). They work with every weapon and threat level; the Daily Rift
+     ignores them.
+   - The World keeps them in its snapshot; the enemies' side changes the threat numbers, the drone's side is read by computeStats
+     from the ws keys pact_<id>. The payout is multiplied by 1 + the bonus; the run audit expects the same sum.
+
+2) What the player sees
+   - A Pacts link next to Daily Rift (with the number signed), a page with a toggle per pact (the third is refused with a
+     message), a toast at the start of a run, a Pacts row in the payout.
+
+3) Tests
+   - Self-test v3270 and the full QA sections pacts-desktop and pacts-phone (pictures tests/shots/qa-pacts-*.png).
+
+4) Results 3.27.0 (headless Chromium, software WebGL)
+   - npm run release-check on the top of the stack (3.27.0, which contains 3.18.1 to 3.26.0 below it): ALL steps ok (format, build, deep
+     test with the self-tests up to v3270, data audit, determinism 15/15, full QA, e2e, world and run audit, screens pc and land,
+     biome shots pc and land, attack shots pc), 35 min 20 s. (The first check on 3.26.0 found two things that the filtered runs had
+     not shown: the data audit and the full QA "every workshop module has an effect test" did not know the Banish Protocol;
+     fixed in 3.25.0's branch and carried up. Lesson: check the exit status of the whole npm test, not only the sections.)
+
+5) Open doubts
+   - The numbers (the penalties and the shard bonuses) are my estimate and not balanced with the balance simulation; whether
+     Elite Hunt and Swarm Pact are hard enough for +20 to 25 % is open. The sound and the look of a pact are only the toast and the
+     list (no model: a pact is a rule, not an object in the arena).
+
+RIFTLINE v3.26.0 – DAILY RIFT
+Base: v3.25.0 · Build r3260a1005a-r1 · 06.10.2026
+
+Roadmap, proposal C10 of 03.10.2026: a daily challenge, the same for everyone, with the best of the day and a streak.
+
+1) The rule (core/daily.js)
+   - The day is the UTC date (the Rift changes at 01:00 or 02:00 German time). Seed, weapon (one of the seven) and threat (Standard,
+     on a third of the days Threat I) come from a hash of the date, so the same date always gives the same Rift. The workshop does not
+     count (World gets an empty ws), so every pilot flies the same drone.
+   - stats.daily keeps: the last day played, its best wave and kills, the streak (consecutive days), the days played and the best
+     wave ever. A streak that missed a day reads 0. An abandoned run before wave 2 does not count.
+   - A saved Daily run resumes as the same Rift; Run Again after a Daily run plays today's Rift again.
+
+2) What the player sees
+   - A Daily Rift link at the top right of the home screen (a dot until today's Rift is played), a page with the day, weapon,
+     threat, Start and the four numbers, and a line on the end screen (day, best of the day, streak).
+
+3) Tests
+   - Self-test v3260 and the full QA sections daily-desktop and daily-phone (pictures tests/shots/qa-daily-*.png).
+
+4) Results 3.26.0 (headless Chromium, software WebGL)
+   - Self-test and full QA daily sections pass. The complete release-check on the top of the stack follows (see the handoff table
+     of docs/ROADMAP.de.md).
+
+5) Open doubts
+   - There is no server: the daily Rift is only the same for everyone, nobody's result is compared (a leaderboard needs the
+     Cloudflare plan). The day edge at UTC and the choice of weapons are my decisions; the Threat I days may be too hard for a new pilot.
+
+RIFTLINE v3.25.0 – BANISH PROTOCOL
+Base: v3.24.0 · Build r3250a1005a-r1 · 06.10.2026
+
+Roadmap, proposal D13 of 03.10.2026: "Banish in der Upgrade-Auswahl".
+
+1) The rule
+   - Workshop module Banish Protocol (700 / 1400 shards): 1 or 2 banishes per run (World.banishes). In the upgrade choice the
+     Banish button (or B) arms the mode; the next card picked is removed from the offer and from the pool for the rest of the run
+     (World.banished), and a fresh card takes its place. Not possible: outside the choice, the boss's exclusive card, the last card
+     of an offer, a card that is not on offer.
+   - Run saves keep banished and banishes; the save cleans them on load.
+
+2) Tests
+   - Self-test v3250 (the rule at its edges, banished cards never come back over many offers, snapshot and restore) and the full QA
+     sections banish-desktop, banish-phone (fits, button, arming, toast) and banish-without (no module, no button).
+
+3) Results 3.25.0 (headless Chromium, software WebGL)
+   - Self-test v3250 ok; full QA banish sections pass ("FULL QA: all checks passed"). The complete release-check follows on the top
+     of the stack (see the handoff table of docs/ROADMAP.de.md).
+
+4) Open doubts
+   - The prices (700 / 1400) and the limit of 2 per run are my estimate. The effect of banishing on the balance is not measured.
+
+RIFTLINE v3.24.0 – BOSS MEDALS
+Base: v3.23.0 · Build r3240a1005a-r1 · 06.10.2026
+
+Roadmap, proposal C11 of 03.10.2026: "Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex".
+
+1) The rule (core/medals.js)
+   - Bronze: the boss is down. Silver: no damage taken in the fight (however slow), or a kill in under 1.5 times the par time with
+     at most a quarter of the hull lost. Gold: no damage taken and under the par time. No medal when the time is unknown (a fight
+     resumed from a saved run).
+   - Par times at Standard threat (the time of a good run): Warden 60 s, Crucible 70, Frost Prism 70, Hive Queen 75, Rift Core 85;
+     they grow with the hull factor of the threat level.
+   - The fight counts from the appearance of the boss to its death (World.bossT0, bossDmg0; the bossDown event carries the
+     seconds and the damage).
+
+2) What the player sees and what is kept
+   - A toast at the kill ("Gold medal · THE WARDEN down in 38 s, no damage taken", "a new best" when it replaces an older one); a banner
+     was tried first and found replaced by the banners of the same moment (the test showed it).
+   - stats.medals in the save: the best medal per boss and its time (a better medal, or the same one faster, replaces it); the save
+     cleans it on load (ids a-z, medal 0-3, numbers clamped, junk dropped). The Codex shows "Defeated x3 · Gold · 38 s".
+
+3) Tests
+   - Self-test v3240 (the rule at its edges, the par follows the threat, a real kill's numbers, a hostile save) and the full QA
+     section medals (toast, kept medal, a worse kill does not replace it, the Codex).
+
+4) Results 3.24.0 (headless Chromium, software WebGL)
+   - npm run release-check on the top of the whole stack (3.24.0, which contains 3.18.1 to 3.23.0 below it): ALL steps ok (format,
+     build, deep test with the self-tests v3210, v3220 and v3240, data audit, determinism 15/15, full QA, e2e, world and run
+     audit, screens pc and land, biome shots pc and land, attack shots pc), 34 min 11 s. The full QA section medals passes.
+
+5) Open doubts
+   - The par times are my estimate of a good run, not measured with players: they may be too tight or too loose (the numbers are
+     in core/medals.js). The medals are not part of the milestones or the shard payout (no reward beyond the Codex entry).
+
+RIFTLINE v3.23.0 – GAMEPAD AND VIBRATION
+Base: v3.22.0 · Build r3230a1005a-r1 · 06.10.2026
+
+Roadmap, proposals B5 and B6 of 03.10.2026: a gamepad (sticks, shoulder buttons, Start for pause, the menus first with mouse
+and touch, then the controller) and vibration on hits, dashes and boss blows (Android, switchable). Built from the browser's
+Gamepad API; tested with a faked controller, not with real hardware.
+
+1) The controller (ui/gamepad.js, Input.updatePad)
+   - Left stick moves; right stick aims and fires (like the aim stick on a touch screen), the right trigger or bumper fires; A or
+     the left bumper dashes; X the Nova; Y the Singularity; Start pauses and resumes. The dead zone (0.2) is cut out of the middle
+     of a stick so that it does not jump from 0 to 0.2.
+   - Menus, pause, the upgrade choice and the end screen: the D-pad or the left stick moves a ring of focus to the nearest button
+     in that direction (the top layer only: an open dialog, else the last visible screen); a held direction repeats after 0.4
+     s; A presses what is in focus; B goes back (the Esc path); Y rerolls the upgrades. The ring is removed while a run is played.
+   - Nothing runs while no controller is connected.
+
+2) Vibration (Settings, Vibration; default on)
+   - A hit, a dash and the end of a run: the controller's motors (dual-rumble, or pulse where that is all there is) and, where
+     the screen is touched (Android Chrome), a buzz of the phone (30, 14 and 120 ms; navigator.vibrate). Never on a desktop.
+
+3) Found by the first test run
+   - The import of rumble was missing in main.js: the frame loop reported a ReferenceError ("a hit makes the controller rumble",
+     "Start pauses the run" failed). Fixed.
+
+4) Tests
+   - Full QA gamepad (a faked controller): the ring of focus, A and B in the menus, the left stick moves the drone, the right
+     stick aims up and fires, A dashes, a hit rumbles, Start pauses and resumes, no controller leaves no ring; vibration-phone:
+     a hit buzzes, with the setting off it stays still.
+
+5) Results 3.23.0 (headless Chromium, software WebGL; npm run release-check)
+   - npm run release-check (covers 3.21.0 to 3.23.0, which were built one on the other): all steps ok except the determinism
+     step, which reported one changed hash, "data-tables": the table of default settings is part of it and the new Vibration
+     setting changed it (key "Oh": fc675a28... -> a00c1356...). That is meant: the fixture was updated with --update; all fifteen
+     other cases (every simulation, the statistics, the layouts, the planner) are unchanged. Time of the chain: 32 min 15 s.
+     (Earlier in the night the full QA also caught the missing import of rumble, see 3.)
+
+6) Open doubts
+   - Not tested on real hardware: an Xbox or PlayStation pad, the buttons of non-standard pads (the browser maps most pads to the
+     standard layout), the vibration of a real phone, a pad in Safari. The focus ring has no explanation on screen (no "press A"
+     hints); the touch buttons of a phone stay visible when a pad is used.
+
+RIFTLINE v3.22.0 – SEE WHAT YOU ARE BUILDING
+Base: v3.21.0 · Build r3220a1005a-r1 · 06.10.2026
+
+Roadmap, proposals A2 and A3 of 03.10.2026 ("Learning and overview"): the numbers behind the build in the pause menu and a look at
+the next wave in the upgrade choice. Neither changes a rule of the game.
+
+1) The stats (pause menu, Stats)
+   - buildStatRows (core/stats.js) gives, for the weapon and the run's upgrades, 13 rows: hull (left over maximum), damage per
+     hit, shots per second, damage per second (estimate: damage x rate x shots (pellets and extra shots) x (1 + crit chance x
+     (crit damage - 1)), all hits landing), critical chance and damage, range, move speed, dash cooldown, armor, regeneration, pickup
+     radius, Nova strength. Each with the change against the plain weapon (workshop modules are in the base): +36 % in green,
+     -8 % of the dash cooldown in green (less is better), red when something got worse.
+
+2) The next wave (upgrade choice, under the title)
+   - World.previewWave(n) (no state changed): the biome and whether it is new, the boss, the wave event, the mutator that joins
+     in Endless, traps (from wave 6, not on boss waves). Chips: Wave N, Entering <biome>, Boss, Elite Surge or Shard Rain, New
+     mutator, Traps on the floor.
+
+3) Tests
+   - Self-test v3220: rows finite, equal to the base without upgrades, the numbers of two levels of Overclock and one of Servo
+     Thrusters, the workshop in the base, all seven weapons; the preview matches the real wave (boss, event, biome) for waves 2 to
+     40 of three seeds (234 waves), is stable, changes nothing.
+   - Full QA stats-desktop, stats-phone and nextwave (pictures tests/shots/qa-stats-phone.png, qa-nextwave.png: looked at).
+
+4) Results 3.22.0 (headless Chromium, software WebGL; npm run release-check)
+   - npm test (deep test with self-tests v3210 and v3220, files check, data audit, determinism 15/15 unchanged): ok. The full QA
+     sections stats-desktop, stats-phone and nextwave pass. As for 3.21.0, the complete release check is the one of the
+     topmost release of the chain (3.23.0).
+
+5) Open doubts
+   - The damage per second is an estimate: it ignores misses, chain lightning, burn and the like (the weapons differ in how
+     much they depend on them); it is there to compare builds, not to promise a number.
+   - Not built from the package: the short introduction to the Singularity and traps in waves 1-6, codex entries for mutators and
+     overdrive attacks.
+
+RIFTLINE v3.21.0 – WHAT HIT YOU
+Base: v3.20.0 · Build r3210a1005a-r1 · 06.10.2026
+
+Roadmap, proposal A1 of 03.10.2026 ("Learning and overview"), recommended next after the boss rewards: a recap on the end
+screen of a lost run, "the last hits (who, which attack, how much), the final blow marked, the damage by source".
+
+1) What it is
+   - World.hitLog: the last twelve hits (time, wave, source, damage); the ticks of a hazard within 1.5 s are one entry that
+     adds up (acid, lava, manholes would otherwise flood it). World.takenBy: the damage taken by source over the run.
+   - The end screen of a lost run has a panel "What hit you": the last six hits with the damage, the name (enemy, boss or
+     hazard: lava vent, live manhole, acid, a trap), how long before the end, the final blow marked in red; underneath the
+     three sources that took most of the run's damage, in per cent. A won or abandoned run shows nothing.
+   - No effect on the game itself (no random numbers, no change of any rule; determinism fixtures unchanged).
+
+2) Tests
+   - Self-test v3210 and the full QA sections recap-desktop and recap-phone (panel, names, final blow, totals, fits the
+     screen); pictures tests/shots/qa-recap-desktop.png and -phone.png (looked at: the phone landscape layout shows it
+     under the statistics, the final blow in red).
+
+3) Results 3.21.0 (headless Chromium, software WebGL; npm run release-check)
+   - npm test (deep test with self-test v3210, files check, data audit, determinism 15/15 unchanged): ok. The full QA sections
+     recap-desktop and recap-phone pass. The complete release check of this release is the one of the topmost release of
+     the chain (3.23.0), which contains all of its changes; the releases 3.21.0 and 3.22.0 were built one on the other the same
+     night and were each tested with npm test and their own sections.
+
+4) Open doubts
+   - Hits of the old attacks are named by their source (enemy or boss), not by the attack ("Warden" and not "laser grid"):
+     the attacks of bosses share one source. A name per attack would need a source tag per attack (open).
+   - The stats overview of the pause menu and the wave preview of the upgrade choice (A2, A3) are not built yet.
+
+RIFTLINE v3.20.0 – ULTRA LOOK
+Base: v3.19.0 · Build r3200a1005a-r1 · 06.10.2026
+
+Asked by the owner (05.10.2026): "it's all looking like a kids game, we need more professional style"; answered with
+"ultra sure": an opt-in Ultra preset. The pictures of 3.19.0 were looked at first: flat even light, saturated colours, a soft
+blob under everything, no material. Ultra changes the light and the picture, not the models (a pass on the models comes
+later, with a reference from the owner).
+
+1) What Ultra does (render/look.js; Settings, Graphics: Auto, High, Ultra, Saver)
+   - A filmic tone curve (ACES) with an exposure per biome, so that the dark places stay readable and the Cryo Vault does
+     not burn out (yard 2.2, works 1.9, vault 1.25, marsh 1.9, void 2.1).
+   - Real shadows: the sun casts a soft 2048 px shadow map over the arena. The floor is a custom shader and cannot receive
+     shadows, so they fall on a plane that draws only shadows (ShadowMaterial) just above it. The walker, the enemies and
+     the props cast; glows, rings, sprites and beams do not. The blob shadows are not drawn.
+   - The scene goes into a 4x multisampled half-float target and through one grading pass: 10 % less saturation, cool
+     shadows and warm lights, the tone curve and display transform, a vignette and a fine moving film grain. The HUD (a
+     2D overlay) is not graded.
+   - Only with Ultra: Auto, High and Saver draw exactly as before (checked in the test below).
+
+2) Looked at (tests/shots/biomes-pc-ultra against tests/shots/biomes-pc)
+   - Blackout City: first attempt olive-brown and washed out (exposure 1.18 not applied: the exposure of the renderer
+     did not reach the pass; moved into the pass as a uniform); with 2.2 a moody noir, the hexagons of the floor visible,
+     hard soft-edged shadows under the pillars, a vignette. Ember Works and Cryo Vault: filmic, contrast and colour kept.
+   - Found while testing: a pass written with ShaderMaterial must not include the tone-mapping chunks itself (three adds
+     them: "toneMappingExposure redefinition"); the blob shadow pool shows its mesh again every frame, so Ultra hides it
+     in the pass.
+
+3) Tests
+   - Full QA section `ultra`: the Ultra button; saving; the look is on (tone curve, shadow map, sun, catcher, no blobs); 190
+     solids cast; no shader or GL error; back on High nothing is left; no page errors. biome-shots can show Ultra
+     (SHOT_QUALITY=ultra).
+
+4) Results 3.20.0 (headless Chromium, software WebGL; npm run release-check)
+   - npm run release-check: all steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, e2e, world and
+     run audit, screens pc and land, biome shots pc and land, attack shots pc) except one check of the full QA: the test of
+     a hostile save used "ultra" as its example of an invalid Graphics value ("saves: every value clamped to its valid
+     range"); "ultra" is valid now. The test uses "extreme" instead; the section saves passes. Time of the chain: 33 min 22 s.
+
+5) Open doubts
+   - I judge pictures, not taste: whether this is the "professional" look the owner means needs his eyes (and a reference
+     game or picture). Not done: bloom of the glows, a colour grade per biome beyond the exposure, ambient occlusion, hard-
+     surface models. Performance on a real device is not measured here (software GL): Ultra costs a shadow pass and a
+     multisampled target; it is for strong devices and Auto never picks it.
+
+RIFTLINE v3.19.0 – AMBIENT BLOOM
+Base: v3.18.2 · Build r3190a1005a-r1 · 06.10.2026
+
+The direction of the owner (05.10.2026): "I like the sound for example in the mobile game Osmos. Basically I just want
+high quality (stereo) ambience, so a nice subtle melody, ambient effect sounds etc. but so that it's noticeable and nice.
+This should be distinct for each biome." Synthesis first (reference clips from the owner follow later). This is the
+first step: a quiet generative melody on every calm theme, in stereo, with a voice for each place.
+
+1) What it is (audio/sound.js: BLOOM, BLOOM_VOICE, calmBloom, the ping-pong bus)
+   - At four places of the bar single notes may bloom; the chance is highest when it is quiet and falls as the fight
+     swells. A note is a chord tone or one of two colour notes of the place, in the register of the place, with its own
+     place in the room, and rings out for 2 to 7 s through the ping-pong echo and the room of the music.
+   - Voices: Blackout City a felt piano, Ember Works struck pipes (low, inharmonic partials), Cryo Vault glass (high), Toxin
+     Marsh a kalimba, Void Core sine bells that sing a fifth and sink away. Notes are deterministic (hash of bar, step,
+     biome), optional voices of the music budget, partials never above 12 kHz.
+   - The ping-pong echo is new (SoundEngine.ping): two delays of 0.43 s feeding each other, one heard hard left and one
+     hard right. Where the browser has no stereo panner the bloom is simply absent.
+   - The boss tracks, the menu music, the sounds and the atmospheres are unchanged.
+
+2) Measured (offline stereo renders, 8 bars of each calm theme at intensity 0.2, with and without the bloom)
+   - The bloom adds 16 to 37 % of the level of the theme (yard 0.31, works 0.37, vault 0.33, marsh 0.24, void 0.16): noticeable
+     and under the theme. The sound is wider (energy of the difference of the channels against that of their sum): yard
+     0.13 -> 0.21, works 0.17 -> 0.24, vault 0.11 -> 0.19, marsh 0.07 -> 0.13, void 0.19 -> 0.21.
+   - 12 to 41 tones per 8 bars (a note is two to four tones). Registers: Ember Works 110 to 1380 Hz, Blackout City 330 to
+     5950 Hz (partials), Cryo Vault 520 to 10700 Hz, Toxin Marsh 175 to 5440 Hz, Void Core 310 to 4750 Hz.
+   - tools: `node tools/qa.js scape-preview music` renders stereo MP3s (calm-quiet 40 s at intensity 0.15, calm busy, boss)
+     for each biome into tests/shots/scapes to listen to without playing.
+
+3) Tests
+   - Deep test, new block: for every biome enough tones (at least 8) and not too many (at most 70), the level share of the
+     bloom between 0.08 and 0.9 of the theme, wider with the bloom than without, no notes refused, and the register of the
+     Cryo Vault's glass clearly above that of the Ember Works' pipes.
+
+4) Results 3.19.0 (headless Chromium, software WebGL; npm run release-check)
+   - All steps ok (format, build, deep test with the new bloom block, data audit, determinism 15/15 unchanged, full QA,
+     e2e, world and run audit, screens pc and land, biome shots pc and land, attack shots pc), 35 min 17 s.
+   - Stereo previews of the five calm themes (quiet, 40 s) were rendered and sent to the owner to listen to.
+
+5) Open doubts
+   - I cannot hear it. The numbers say present, subtle and wide; whether it is beautiful is for the owner's ears (the
+     Sound notes of 3.17.2 are the way to say what is off, and reference clips would let me match the voices).
+   - The echo time (0.43 s) and the feedback (0.42) are guesses; a slower, longer one would sound more like Osmos.
+
+RIFTLINE v3.18.2 – LONG-RUN CHECKS
+Base: v3.18.1 · Build r3182a1005a-r1 · 05.10.2026
+
+Asked by the owner (05.10.2026): "do another check up (feel free to test accordingly to catch smaller things)", and "keep
+continuing and checking everything". Three tools for what a normal test run does not look at, and what they found.
+
+1) Endless soak (tests/soak.mjs, npm run soak [weapon] [waves])
+   - A bot plays an Endless run in the live game (loop and renderer); every third wave the JS heap, the geometries,
+     textures and programs of the renderer, the objects of the scene, the DOM nodes, the music voices and the lists of the
+     world are written down. The first third is warm-up (every biome, enemy and boss is built the first time it appears);
+     from the middle third to the last none of them may keep growing (for geometries, programs and scene objects the
+     floor of each third is compared, as they follow the biome of the moment).
+   - Measured (pulse 75 waves, flame 120 waves, all seven weapons to 60): the heap stays at 11 MB (8 MB at the start),
+     the geometries move between 150 and 250 without a trend (they are disposed with the biome), the programs stay at 24 to
+     27, the textures at 5, the DOM at 700 nodes. No leak.
+   - A step that does not answer in a minute stops the page with the debugger and prints the stack (build with
+     RL_NO_MINIFY=1 for readable names). The headless Chromium of the test machine crashed now and then in long runs
+     (about one run in six, at random waves); its own log shows errors of the GPU process ("Trying to Produce a Skia
+     representation from a non-existent mailbox"), the heap of the game is flat; a forced garbage collection through the
+     debugger protocol made it worse and was removed. A crash is reported as a finding, not hidden.
+
+2) UI fuzz (tests/fuzz.mjs, npm run fuzz [seed] [steps])
+   - A seeded monkey over five window sizes (phone 844 x 390 and 667 x 375, tablet, two desktops): it presses any visible
+     control, keys (Esc, Enter, Space, Tab, arrows, 1-4, R, E, G), plays a little, resizes the window (never below 568 x
+     320, the smallest landscape phone), confirms dialogs; after every step it looks for a page error, a dead screen
+     (nothing to press), a save in localStorage that is not valid JSON, and, every 20 steps, the layout audit.
+   - Found: the layout audit counted the buttons of a screen under a dialog (its backdrop) or under another screen on top
+     as covered; that is by design. Fixed in the audit (src/index.html). After that seeds 1 to 7 (about 6500 steps)
+     found nothing. At 372 x 318 (below any phone) the list of the Sound notes clips a row; not a real size, not changed.
+
+3) Weapon comparison (tests/balance.mjs, npm run balance [seeds] [threats] [cap])
+   - A mortal bot dies at the first boss (wave 5) with every weapon at threat 0 and 2: it says little about the weapons
+     (it does not dodge boss attacks). In god mode the clear speed is comparable: median seconds per ordinary wave 24
+     (flame), 27 (rail), 30 (tesla), 31 (disc, pulse), 33 (rocket), 37 (scatter): a spread of 1.5; per boss wave 19 (flame)
+     to 43 (rocket): 2.2. No weapon is out of line; flame is the fastest, scatter the slowest on ordinary waves and rocket
+     on bosses. Numbers for a talk about balance, not a verdict (a bot is no player).
+
+4) Found in the log of a soak run
+   - The Blackout City electric piano plays a tine at 7.1 times the pitch of a note; in the high octave this was 24992 Hz,
+     above the limit of the sampling rate (the browser clamped it and warned in the console). Inaudible, but wrong. The tine
+     is left out above 16 kHz. New deep-test check: every sound of the catalog (310) and every music track must only ask
+     for tones from 15 Hz to 20 kHz (found with a scan of all of them: this was the only one).
+
+5) Results 3.18.2 (headless Chromium, software WebGL; npm run release-check)
+   - npm run release-check: all steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, full QA,
+     e2e, world audit, screens pc and land, biome shots pc and land, attack shots pc) except the run audit, which died after
+     13 s with "Target crashed" (the same browser crash as in the soak, see 1; the page crashed in its first evaluate, no
+     game code involved). The run audit alone, five times in a row: 5 of 5 ok. Time of the chain: 29 min 55 s.
+   - Soak: pulse 75 waves, flame 120 waves and all seven weapons to 60: no growth. Fuzz: seeds 1 to 7, about 6500 steps,
+     no finding after the audit fix. Deep test (uncached, with the new tone check): ok.
+   - The browser crash shows up about once in twenty browser sessions on the test machine this evening (12 traps in the
+     kernel log, always at the same place of the browser); it did not appear in the earlier release checks of the day.
+
+6) Open doubts
+   - The soak crash of the browser (see 1) could hide a problem of the game that only shows in the GPU process; the heap and
+     the object counts say no. If a real device ever crashes in a long run, the soak with a stack is the first tool.
+
+RIFTLINE v3.18.1 – CLEAN MUSIC CHANGES
+Base: v3.18.0 · Build r3181a1005a-r1 · 05.10.2026
+
+Asked by the owner (05.10.2026): "some tracks overlap or am I imagining that? During the boss music isn't there also the
+normal music?" Option C of the three offered (a quick fade-out at the switch) was chosen.
+
+1) The cause
+   - syncTrack cut only the notes that were still to be played (cutScheduled). What was already sounding rang on: the
+     pads and bells of the calm theme (some last several seconds), the echoes of the delay line (feedback 0.32, 0.28 s a
+     round) and the tail of the 2 s room. Under the first bars of a boss, the calm theme was heard, and the boss under the
+     calm theme after it. (The calm motif that the boss tracks carry by design is a second, intended layer; unchanged.)
+
+2) The fix (audio/sound.js, quietOld, called at every track change)
+   - The music voices that sound fade out over 0.25 s (QUIET_FADE) and stop.
+   - The echo line gets no feedback for 0.7 s while it empties.
+   - The music reverb is swapped for a fresh convolver; the old one fades out and is disconnected.
+   - Nothing else about the music changes (levels, mix, the boss impact, the resolve fade-in).
+
+3) Test (deep test, trackSwitch)
+   - Offline renders of four tracks (calm Blackout City, calm Void Core, boss Ember Works, boss Frost Prism) with and
+     without the change; the music stops at 6 s and the level 0.3 to 1.75 s after the change is compared with the level
+     before it: with the cut under 12 % (measured about 1 %), without it 8 to 40 % (the test also fails when the control
+     shows nothing).
+
+4) The red cross on GitHub (found after the merges of #40 and #41)
+   - The deploy of #40 was cancelled by the deploy of #41 (GitHub replaces a running deploy by the newer one: normal).
+     The deploy of #41 failed in `npm test`, the deep test: "calm works / void: too similar (rhythm 0.099, colour 0.171,
+     busyness 0.024)" (the limit: rhythm 0.1, colour 0.2 or busyness 0.25; one of the three has to be reached). The same
+     test had always passed on the development machine. The live game stayed at 3.17.0 until a deploy passed.
+   - Cause, measured: the numbers of that test were not reproducible. Four runs of the same pair gave a rhythm of 0.085 to
+     0.148 and a colour of 0.132 to 0.278, so the limit lay inside the noise and the test was green or red by chance.
+     Two sources: (a) the random choices of the music were not seeded in the render (renderOffline seeded only the engine's
+     noise and one-off sounds), (b) the impulse of the music reverb and the pink and brown noise buffers are made from
+     Math.random once per page and then kept, so whichever test ran first decided what the room sounded like.
+   - Fix: renderOffline seeds the music (its notes and atmosphere) when the spec has a seed, the music numbers of the
+     deep test are rendered with a seed, and roomImpulse and colorNoise use their own seeded generator (the same kind of
+     noise; the room and the noise are now the same for everyone, and in every test). Two uncached runs (--full) in
+     separate processes give identical numbers for all ten calm and ten boss pairs; the closest pair (calm Ember Works /
+     Void Core) is at 1.39 times its limit (the colour 0.278 against 0.2), every other pair at 2.4 times or more.
+
+5) Results 3.18.1 (headless Chromium, software WebGL)
+   - npm run release-check before the seeding: all steps ok (format, build, deep test, data audit, determinism 15/15
+     unchanged, full QA, e2e, world and run audit, screens pc and land, biome shots pc and land, attack shots pc), 37 min
+     22 s. After the seeding: npm test (deep test uncached, files check, data audit, determinism 15/15) ok. The seeding only
+     changes which noise the room and the pink and brown atmospheres are made of.
+
+6) Open doubts
+   - The sound itself is judged by ear: the 0.25 s fade is short on purpose (a boss starts with an impact); the Sound
+     notes (3.17.2) are the way to say if it is too abrupt.
+
 RIFTLINE v3.18.0 – ALWAYS LANDSCAPE
 Base: v3.17.2 · Build r3180a1005a-r1 · 05.10.2026
 

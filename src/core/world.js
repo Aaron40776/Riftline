@@ -17,6 +17,7 @@ import {
   rlEnemyFrom,
 } from "./waves.js";
 import { threatMods } from "../data/progression.js";
+import { cleanPacts, applyPactsToThreat, pactBonus } from "../data/pacts.js";
 import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
 import { computeStats, DASH_CD_MIN } from "./stats.js";
@@ -158,8 +159,12 @@ const rlStep = 1 / 60,
       this.seed = (snap ? snap.seed : opts.seed) >>> 0;
       this.weapon = weaponDefs[snap ? snap.weapon : opts.weapon] ? (snap ? snap.weapon : opts.weapon) : "pulse";
       this.threat = clamp((snap ? snap.threat : opts.threat) | 0, 0, 5);
-      this.tm = threatMods(this.threat);
+      // 3.27.0: the pacts of the run (kept in the snapshot): the enemies' side changes the threat numbers, the drone's side
+      // is read by computeStats from the ws keys pact_<id>
+      this.pacts = cleanPacts(snap ? snap.pacts : opts.pacts);
+      this.tm = applyPactsToThreat(threatMods(this.threat), this.pacts);
       this.ws = { ...(opts.ws || {}) };
+      for (const id of this.pacts) this.ws["pact_" + id] = 1;
       this.up = snap ? { ...snap.up } : {};
       this.wave = snap ? snap.wave : 1;
       this.endless = snap ? !!snap.endless : false;
@@ -167,6 +172,12 @@ const rlStep = 1 / 60,
       this.kills = (snap && snap.kills) || 0;
       this.shards = (snap && snap.shards) || 0;
       this.rerolls = snap && snap.rerolls != null ? snap.rerolls | 0 : 1 + (this.ws.reroll || 0);
+      // 3.25.0: the upgrades banished in this run (never offered again) and the banishes that are left
+      this.banished =
+        snap && Array.isArray(snap.banished) ? snap.banished.filter((id) => typeof id === "string").slice(0, 6) : [];
+      this.banishes = snap && snap.banishes != null ? snap.banishes | 0 : this.ws.banish || 0;
+      // 3.26.0: the day of a Daily Rift run, or ""
+      this.daily = (snap ? snap.daily : opts.daily) || "";
       this.revived = snap ? !!snap.revived : false;
       this.bossKills = snap ? [...(snap.bossKills || [])] : [];
       this.flawless = (snap && snap.flawless) || 0;
@@ -183,6 +194,9 @@ const rlStep = 1 / 60,
         dashes: (snap && snap.runStats && Number(snap.runStats.dashes)) || 0,
         critHits: (snap && snap.runStats && Number(snap.runStats.critHits)) || 0,
       };
+      // 3.21.0: what hit the drone (the death recap): the last hits, and the damage taken by source over the run
+      this.hitLog = [];
+      this.takenBy = {};
       this.dmgSrc = {};
       if (snap && snap.dmgSrc && typeof snap.dmgSrc == "object")
         for (let src in snap.dmgSrc) {
@@ -507,6 +521,22 @@ const rlStep = 1 / 60,
       rng.next();
       return ["elite", "rain"][Math.floor(rng.next() * 2)];
     }
+    /* 3.22.0: what the next wave brings (a look ahead for the upgrade choice; it changes nothing): the biome and whether
+       it is a new one, the boss, the wave event, the mutator that joins in Endless, and whether traps are on the floor */
+    previewWave(n) {
+      const biome = this.biomeFor(n),
+        boss = this.bossFor(n),
+        mutators = rlMutatorsFor(this.seed, n);
+      return {
+        wave: n,
+        biome: biome.id,
+        newBiome: n > 1 && this.biomeFor(n - 1).id !== biome.id,
+        boss: boss || null,
+        event: boss ? null : this.eventFor(n),
+        mutator: mutators.gained || null,
+        traps: n >= 6 && !boss,
+      };
+    }
     biomeFor(wave) {
       const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
       return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
@@ -535,6 +565,10 @@ const rlStep = 1 / 60,
     isFinalWave() {
       return !this.endless && this.wave >= 20;
     }
+    /* 3.27.0: the extra share of the payout the pacts of this run bring (0.2 = +20%) */
+    pactBonus() {
+      return pactBonus(this.pacts);
+    }
     snapshot() {
       let snap = {
         v: 1,
@@ -549,6 +583,10 @@ const rlStep = 1 / 60,
         kills: this.kills,
         time: this.time,
         rerolls: this.rerolls,
+        banished: [...this.banished],
+        banishes: this.banishes,
+        daily: this.daily,
+        pacts: [...this.pacts],
         revived: this.revived,
         nova: Math.round(this.player.nova),
         bossKills: [...this.bossKills],
@@ -607,6 +645,21 @@ const rlStep = 1 / 60,
       this.emit("reroll");
       return true;
     }
+    /* 3.25.0: banishes a card of the offer for the rest of the run (Banish Protocol): it is replaced by another card and the
+       upgrade is never offered again. Not the boss card, not the last card of an offer. */
+    banish(id) {
+      const offer = this.offer;
+      if (this.state !== "choose" || this.banishes <= 0 || !offer || !offer.includes(id)) return false;
+      if (offer.length < 2 || (this.offerBoss && id === this.offerExclusive) || !upgradesById[id]) return false;
+      this.banishes--;
+      this.banished.push(id);
+      const at = offer.indexOf(id),
+        fresh = this.makeOffer([...offer]).find((card) => !offer.includes(card));
+      if (fresh) offer[at] = fresh;
+      else offer.splice(at, 1);
+      this.emit("banish", { id });
+      return true;
+    }
     makeOffer(exclude = []) {
       let count = 3 + ((this.ws.insight || 0) > 0 ? 1 : 0);
       // 3.15.0: the boss card holds the first place, also through a reroll
@@ -618,7 +671,7 @@ const rlStep = 1 / 60,
         this.player.hp / this.stats.maxHp,
         count - (exclusive ? 1 : 0),
         this.offerBoss,
-        exclude,
+        [...exclude, ...this.banished],
         this.weapon,
       );
       return exclusive ? [exclusive, ...picks] : picks;
@@ -1471,6 +1524,22 @@ const rlStep = 1 / 60,
         this.emit("novaReady");
       }
     }
+    /* 3.21.0: the last twelve hits of the run for the recap on the end screen; the ticks of a hazard (acid, lava) that
+       follow each other within 1.5 s are one entry */
+    logHit(src, dmg, chip) {
+      const key = src || "?",
+        log = this.hitLog,
+        last = log[log.length - 1];
+      this.takenBy[key] = (this.takenBy[key] || 0) + dmg;
+      if (chip && last && last.chip && last.src === key && this.time - last.t < 1.5) {
+        last.dmg += dmg;
+        last.t = this.time;
+        last.n++;
+        return;
+      }
+      log.push({ t: this.time, wave: this.wave, src: key, dmg, chip: !!chip, n: 1 });
+      if (log.length > 12) log.shift();
+    }
     hurtPlayer(dmg, srcX, srcY, src, chip = false) {
       // 2.5.0 B: no damage while the Emergency Shield barrier is up
       if (this.barrierT > 0 && this.player.alive && this.state === "fight") return false;
@@ -1501,6 +1570,7 @@ const rlStep = 1 / 60,
         player.hp -= dmg;
         this.runStats.dmgTaken += Math.min(dmg, hpBefore);
         this.lastHit = src || null;
+        this.logHit(src, dmg, chip);
         if (this.dmgBy) {
           this.dmgBy[src || "?"] = (this.dmgBy[src || "?"] || 0) + dmg;
         }
@@ -1743,6 +1813,9 @@ const rlStep = 1 / 60,
       // mattered; +25% per tier, at most twice the hull (the first boss stays as it was)
       this.enemies.push(boss);
       this.boss = boss;
+      // 3.24.0: the start of the fight and the damage taken so far (the medal of the kill, see core/medals.js)
+      this.bossT0 = this.time;
+      this.bossDmg0 = this.runStats.dmgTaken;
       this.emit("boss", { id: id, name: def.name, title: def.title });
       // 2.4.6: in waves 5–20 the hull follows the slot (see bossFor)
       const slot = this.wave / 5 - 1;
@@ -2113,7 +2186,14 @@ const rlStep = 1 / 60,
         this.hazards.length = 0;
         this.markers = [];
         this.planIdx = this.plan.length;
-        this.emit("bossDown", { id: enemy.type, x: enemy.x, y: enemy.y });
+        this.emit("bossDown", {
+          id: enemy.type,
+          x: enemy.x,
+          y: enemy.y,
+          // 3.24.0: how the fight went (null seconds after a resumed run: the start of the fight is not saved)
+          secs: this.bossT0 == null ? null : this.time - this.bossT0,
+          damage: this.runStats.dmgTaken - (this.bossDmg0 || 0),
+        });
       }
       // carriers drop a shard cache, Supply Drop pays shards every 12th kill
       if (enemy.boss || this.kills <= kills0 || !this.player.alive) return;

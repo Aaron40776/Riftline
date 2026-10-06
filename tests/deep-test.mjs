@@ -43,6 +43,13 @@ const res = await page.evaluate(() => {
     v3160: r.v3160?.fail,
     v3170: r.v3170?.fail,
     v3172: r.v3172?.fail,
+    v3210: r.v3210?.fail,
+    v3220: r.v3220?.fail,
+    v3240: r.v3240?.fail,
+    v3250: r.v3250?.fail,
+    v3260: r.v3260?.fail,
+    v3270: r.v3270?.fail,
+    v3280: r.v3280?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
@@ -56,11 +63,21 @@ const sound = cached
       const engine = window.__riftTest.game.sound.constructor,
         fail = [],
         catalog = engine.catalog();
+      // 3.18.2: no tone is asked for outside what can be heard and what the sampling rate carries (a note of the Blackout
+      // City piano had a tine at 24992 Hz: the browser clamped it and warned in the console)
+      const offHz = new Set(),
+        tone = engine.prototype.tone;
+      let current = "";
+      engine.prototype.tone = function (freq, dur, wave, vol, opts) {
+        if (!(freq >= 15 && freq <= 20000)) offHz.add(`${current} ${Math.round(freq)} Hz`);
+        return tone.call(this, freq, dur, wave, vol, opts);
+      };
       const peaks = {};
       let maxPeak = 0,
         longest = 0;
       for (const { name, spec } of catalog) {
         try {
+          current = name;
           const r = await engine.renderOffline(spec);
           peaks[name] = r.peak;
           maxPeak = Math.max(maxPeak, r.peak);
@@ -122,6 +139,8 @@ const sound = cached
       const loudStep = stepKeys.filter((key) => key.startsWith("step:")).sort((a, b) => peaks[b] - peaks[a])[0];
       const loudPlace = placeKeys.sort((a, b) => peaks[b] - peaks[a])[0],
         loudBed = placeKeys.filter((key) => BEDS.includes(key.slice(6))).sort((a, b) => peaks[b] - peaks[a])[0];
+      engine.prototype.tone = tone;
+      if (offHz.size) fail.push(`tones outside 15 Hz to 20 kHz: ${[...offHz].slice(0, 6).join(", ")}`);
       return {
         count: catalog.length,
         maxPeak,
@@ -507,12 +526,20 @@ const music = cached
           bpm,
         };
       };
+      const offHz = new Set(),
+        tone = E.prototype.tone;
+      let current = "";
+      E.prototype.tone = function (freq, dur, wave, vol, opts) {
+        if (!(freq >= 15 && freq <= 20000)) offHz.add(`${current} ${Math.round(freq)} Hz`);
+        return tone.call(this, freq, dur, wave, vol, opts);
+      };
       for (const biome of BIOMES)
         for (const kind of ["fight", "boss"]) {
+          current = `${biome}:${kind}`;
           const info = E.trackInfo(kind, biome),
             seconds = (6 * 240) / info.bpm,
             r = await E.renderOffline(
-              { music: kind, biome, fromBar: kind === "fight" ? 4 : 0, intensity: 0.9, wav: true, log: true },
+              { music: kind, biome, fromBar: kind === "fight" ? 4 : 0, intensity: 0.9, wav: true, log: true, seed: 7 },
               seconds,
             ),
             d = describe(r.samples, info.bpm, r.musicLog.length),
@@ -534,7 +561,7 @@ const music = cached
           if (d.flat > FLAT_MAX) fail.push(`${name}: noisy (flatness ${d.flat.toFixed(3)} over ${FLAT_MAX})`);
           if (kind === "fight") {
             const bare = await E.renderOffline(
-                { music: kind, biome, fromBar: 4, intensity: 0.9, wav: true, noBed: true },
+                { music: kind, biome, fromBar: 4, intensity: 0.9, wav: true, noBed: true, seed: 7 },
                 seconds,
               ),
               db = describe(bare.samples, info.bpm, 0),
@@ -543,6 +570,8 @@ const music = cached
             if (share > BED_MAX) fail.push(`${name}: the atmosphere is ${Math.round(share * 100)} % of the sound`);
           }
         }
+      E.prototype.tone = tone;
+      if (offHz.size) fail.push(`tones outside 15 Hz to 20 kHz: ${[...offHz].slice(0, 6).join(", ")}`);
       const T = (name) => out.tracks[name].raw,
         gridDist = (a, b) => a.grid.reduce((p, v, i) => p + Math.abs(v - b.grid[i]), 0) / 2,
         pairs = (kind, list) => {
@@ -682,6 +711,104 @@ const ambience = await page.evaluate(async (under) => {
   return { ...out, fail };
 }, AMB_UNDER);
 res.ambience = ambience;
+// 3.18.1: a track change silences the old track: the notes still sounding, the echoes and the room are gone shortly
+// after the change (the calm theme used to ring on under the first bars of a boss)
+const SWITCH_UNDER = 0.12;
+const switched = await page.evaluate(async (under) => {
+  const E = window.__riftTest.game.sound.constructor,
+    out = {},
+    fail = [],
+    rms = (x, a, b) => {
+      let sum = 0;
+      const i0 = Math.floor(a * 44100),
+        i1 = Math.floor(b * 44100);
+      for (let i = i0; i < i1; i++) sum += x[i] * x[i];
+      return Math.sqrt(sum / (i1 - i0));
+    };
+  for (const [music, biome] of [
+    ["fight", "yard"],
+    ["fight", "void"],
+    ["boss", "works"],
+    ["boss", "vault"],
+  ]) {
+    const spec = { music, biome, intensity: 0.9, heat: 0.5, wav: true, seed: 5, musicEnd: 6, noBed: true },
+      kept = (await E.renderOffline(spec, 10)).samples,
+      cut = (await E.renderOffline({ ...spec, quietAt: 6 }, 10)).samples,
+      // the music plays 0.25 s into the render: 4 to 6 s of the music is the level before the change; 0.3 to 1.75 s after it
+      before = rms(cut, 4.25, 6.25),
+      after = rms(cut, 6.55, 8),
+      ringing = rms(kept, 6.55, 8);
+    out[`${music}:${biome}`] = { before: +before.toFixed(4), after: +after.toFixed(4), ringing: +ringing.toFixed(4) };
+    if (!(after < before * under))
+      fail.push(`${music}:${biome}: ${(after / before).toFixed(2)} of the level is still heard after the change`);
+    if (!(ringing > after * 2))
+      fail.push(
+        `${music}:${biome}: the test shows nothing (without the cut ${ringing.toFixed(4)}, with it ${after.toFixed(4)})`,
+      );
+  }
+  return { ...out, fail };
+}, SWITCH_UNDER);
+// 3.19.0: the ambient bloom: every calm theme has single notes that ring out in the ping-pong echo (BLOOM): enough of them
+// to be noticed and few enough to be subtle, at a level under the theme, each biome with a voice and a register of its
+// own, and the whole thing wide (the two channels differ)
+const bloomRes = await page.evaluate(async () => {
+  const E = window.__riftTest.game.sound.constructor,
+    out = {},
+    fail = [],
+    rms = (x) => {
+      let sum = 0;
+      for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
+      return Math.sqrt(sum / x.length);
+    },
+    // how wide: the energy of the difference of the channels against that of their sum
+    width = (l, r) => {
+      let side = 0,
+        mid = 0;
+      for (let i = 0; i < l.length; i++) {
+        side += (l[i] - r[i]) ** 2;
+        mid += (l[i] + r[i]) ** 2;
+      }
+      return Math.sqrt(side / (mid || 1));
+    };
+  for (const biome of ["yard", "works", "vault", "marsh", "void"]) {
+    const info = E.trackInfo("fight", biome),
+      seconds = (8 * 240) / info.bpm,
+      spec = { music: "fight", biome, intensity: 0.2, wav: true, log: true, seed: 11, stereo: true, noBed: true },
+      withB = await E.renderOffline(spec, seconds),
+      without = await E.renderOffline({ ...spec, bloom: false }, seconds),
+      notes = withB.musicLog.filter((n) => n.bus === "b"),
+      onlyPitches = notes.map((n) => n.pitch);
+    const rw = rms(withB.samples),
+      ro = rms(without.samples),
+      share = Math.sqrt(Math.max(0, rw * rw - ro * ro)) / ro,
+      wW = width(withB.samples, withB.samplesR),
+      wO = width(without.samples, without.samplesR);
+    out[biome] = {
+      notes: notes.length,
+      lowHz: Math.round(Math.min(...onlyPitches)),
+      highHz: Math.round(Math.max(...onlyPitches)),
+      share: +share.toFixed(2),
+      widthWith: +wW.toFixed(2),
+      widthWithout: +wO.toFixed(2),
+    };
+    // (a note is two to four tones: its partials)
+    if (notes.length < 8) fail.push(`${biome}: only ${notes.length} bloom tones in 8 bars`);
+    if (notes.length > 70) fail.push(`${biome}: ${notes.length} bloom tones in 8 bars is not subtle`);
+    if (share < 0.08) fail.push(`${biome}: the bloom is not noticeable (${share.toFixed(2)} of the theme)`);
+    if (share > 0.9) fail.push(`${biome}: the bloom is louder than the theme allows (${share.toFixed(2)})`);
+    if (!(wW > wO)) fail.push(`${biome}: the bloom does not widen the sound (${wO.toFixed(2)} -> ${wW.toFixed(2)})`);
+    if (withB.musicSkipped || withB.musicShed) fail.push(`${biome}: notes refused with the bloom`);
+  }
+  // each biome has its own register
+  const centre = (b) => Math.sqrt(out[b].lowHz * out[b].highHz);
+  if (!(centre("vault") > centre("works") * 1.8))
+    fail.push("the glass of the Cryo Vault is not clearly above the pipes of the Ember Works");
+  return { ...out, fail };
+});
+res.bloom = bloomRes;
+if (bloomRes.fail.length) res.ok = false;
+res.trackSwitch = switched;
+if (switched.fail.length) res.ok = false;
 if (ambience.fail.length) res.ok = false;
 if (placeMusic.fail.length) res.ok = false;
 lap("place music");

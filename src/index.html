@@ -336,6 +336,17 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 }
 .logo::after { content: ''; position: absolute; left: -6%; right: -6%; top: 48%; height: 2px; background: linear-gradient(90deg, transparent, var(--pink), #fff, var(--cyan), transparent); box-shadow: 0 0 12px var(--pink); }
 @keyframes rift { 0%, 100% { transform: translateX(-0.05em); } 48% { transform: translateX(0.05em); } 50% { transform: translateX(-0.12em); } 52% { transform: translateX(0.03em); } }
+.daily-link { position: relative; gap: 6px; }
+.daily-link .ico { width: 16px; height: 16px; }
+.daily-link .badge { top: -4px; right: -4px; }
+.daily-body { display: grid; gap: 12px; align-content: start; }
+.daily-body .btn.primary { justify-self: stretch; }
+.pact.on { background: var(--panel3); }
+.pact.on b { color: var(--cyan); }
+.daily-card { padding: 14px 16px; display: grid; gap: 6px; }
+.daily-card .dc-day { font: 600 11px/1 var(--display); letter-spacing: 0.2em; color: var(--mute); text-transform: uppercase; }
+.daily-card .dc-weapon { font: 700 22px/1.1 var(--display); }
+.daily-card .dc-sub { color: var(--dim); font-size: 13px; }
 .best-line { margin: 8px 0 0; font: 600 13px/1 var(--display); letter-spacing: 0.14em; color: var(--amber); text-transform: uppercase; }
 .tagline { margin: 12px 0 0; color: var(--dim); font: 600 13px/1.3 var(--display); letter-spacing: 0.18em; text-transform: uppercase; }
 .home-panel { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 460px; justify-self: center; }
@@ -427,6 +438,13 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 #choose { justify-content: flex-start; padding-top: calc(var(--st) + 22px); gap: 14px; }
 .choose-head { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .choose-head h2 { font-size: 24px; }
+/* 3.22.0: a look at the next wave under the title of the upgrade choice */
+.next-wave { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; min-height: 22px; }
+.next-wave .nw { font: 600 11px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); padding: 5px 9px; border: 1px solid rgba(147, 162, 191, 0.28); background: rgba(9, 14, 26, 0.55); clip-path: var(--notch); --n: 5px; }
+.next-wave .nw.boss { color: #ffb0c2; border-color: rgba(255, 90, 130, 0.55); background: rgba(255, 61, 127, 0.12); }
+.next-wave .nw.biome { color: var(--cyan); border-color: rgba(73, 242, 255, 0.4); }
+.next-wave .nw.event { color: #ffe08a; border-color: rgba(255, 216, 74, 0.45); }
+.next-wave .nw.mut { color: #ffc89a; border-color: rgba(255, 130, 60, 0.45); }
 .choose-hp { display: flex; align-items: center; gap: 8px; width: min(260px, 70vw); }
 .choose-hp .bar { flex: 1; }
 .choose-hp .num { font-size: 13px; color: var(--dim); }
@@ -525,6 +543,7 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
   #over .payout { grid-column: 2; }
   #over .center-col > .chip.best { justify-self: center; }
   #over .dmg-panel { grid-column: 1; }
+  #over .recap { grid-column: 2; }
   #over .ms-unlocked { grid-column: 1; grid-row: span 3; }
   #over .center-col > .btn { grid-column: 2; }
 }
@@ -540,6 +559,28 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .dmg-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 13px; color: var(--text); }
 .dmg-row .num { color: var(--dim); font-size: 12px; }
 .dmg-row .db { grid-column: 1 / -1; height: 4px; background: rgba(255, 255, 255, 0.07); }
+/* 3.21.0: the recap of a lost run: the last hits, the final blow in red */
+/* 3.22.0: the numbers of the build in the pause menu */
+.stat-rows { display: grid; grid-template-columns: 1fr auto auto; gap: 3px 12px; width: 100%; text-align: left; font-size: 13px; }
+.stat-rows .sr-k { color: var(--dim); }
+.stat-rows .sr-v { font: 700 13px/1.2 var(--display); color: var(--text); text-align: right; }
+.stat-rows .sr-d { min-width: 4.2em; text-align: right; font-size: 12px; color: var(--dim); }
+.stat-rows .sr-d.up { color: #6dffb0; }
+.stat-rows .sr-d.down { color: #6dffb0; }
+.stat-rows .sr-d.worse { color: #ff9ab0; }
+/* 3.23.0: the ring of focus a controller moves through the menus */
+.pad-focus { outline: 2px solid var(--cyan); outline-offset: 3px; box-shadow: 0 0 16px rgba(73, 242, 255, 0.55); }
+/* 3.25.0: Banish Protocol: a card to be banished */
+.cards.banishing .card { outline: 2px dashed #ff5a82; outline-offset: -4px; cursor: crosshair; }
+.cards.banishing .card::after { content: "TAP TO BANISH"; position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 700 11px/1 var(--display); letter-spacing: 0.2em; color: #ff8aa6; }
+#banishBtn.on { border-color: #ff5a82; color: #ff8aa6; }
+.recap .hits { display: flex; flex-direction: column; gap: 3px; }
+.recap .hit { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text); }
+.recap .hit .hd { font: 700 13px/1 var(--display); color: #ff7a92; min-width: 3.2em; }
+.recap .hit .hw { color: var(--dim); font-size: 12px; }
+.recap .hit.final { padding: 3px 6px; margin: 2px -6px; background: rgba(255, 61, 127, 0.14); border-left: 3px solid #ff3d7f; }
+.recap .hit.final .hw { color: #ffb0c2; }
+.recap .rt { margin-top: 6px; font-size: 12px; color: var(--dim); }
 .dmg-row .db i { display: block; height: 100%; background: var(--dc, var(--cyan)); transform-origin: left; }
 .ms-unlocked { display: flex; flex-direction: column; gap: 6px; }
 .ms-unlocked .chip { justify-content: center; color: var(--amber); border-color: rgba(255, 200, 74, 0.45); padding: 6px; }
@@ -1407,6 +1448,10 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
           if(sp){const pr=sp.getBoundingClientRect();if(y<pr.top||y>pr.bottom||x<pr.left||x>pr.right){scrolled++;continue}}
           if(x<0||y<0||x>innerWidth||y>innerHeight){findings.push(`${b.id||b.textContent.trim().slice(0,20)} offscreen`);continue;}
           const hit=document.elementFromPoint(x,y);
+          // 3.18.2: a button under a modal dialog or under another screen on top of its own (the pause menu behind the
+          // confirm box, the settings behind the sound notes) is covered by design
+          const over=hit&&hit.closest('[aria-modal="true"], .dialog-wrap, .screen');
+          if(over&&over!==b.closest('.screen')) continue;
           if(hit&&hit!==b&&!b.contains(hit)) findings.push(`${b.id||b.textContent.trim().slice(0,20)} covered by ${hit.id||hit.className||hit.tagName}`);
         }
         window.__riftLayoutAuditResult={ok:findings.length===0,checked:all.length,bad:findings.length,scrolled,findings};
@@ -1550,6 +1595,8 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <header class="topbar">
       <div class="shard-chip big"><span class="shard-ico"></span><span id="bank" class="num">0</span></div>
       <div class="spacer"></div>
+      <button id="pactsBtn" class="btn small ghost daily-link" data-go="pacts"><span data-icon="skull"></span><span id="pactsLabel">Pacts</span></button>
+      <button id="dailyBtn" class="btn small ghost daily-link" data-go="daily"><span data-icon="calendar"></span>Daily Rift<i id="dailyBadge" class="badge" hidden></i></button>
     </header>
     <div class="home-grid">
       <div class="brand">
@@ -1614,6 +1661,37 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     </div>
   </section>
 
+  <!-- ====================================================== PACTS (3.27.0) -->
+  <section id="pacts" class="screen page" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>Pacts</h2>
+      <div class="spacer"></div>
+      <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
+    </header>
+    <div class="scroll settings-body">
+      <p class="page-intro">Sign up to two pacts before a run. Each makes the run harder in one way and adds to the shards you earn. They apply to your next runs until you take them off, and not to the Daily Rift.</p>
+      <div id="pactList" class="list"></div>
+      <p id="pactSum" class="page-intro"></p>
+    </div>
+  </section>
+
+  <!-- ====================================================== DAILY RIFT (3.26.0) -->
+  <section id="daily" class="screen page" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>Daily Rift</h2>
+      <div class="spacer"></div>
+      <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
+    </header>
+    <div class="scroll settings-body daily-body">
+      <p class="page-intro">One Rift a day, the same for every pilot: the waves, the offers and the hazards come from the date. The workshop does not count, so everyone flies the same drone. A new Rift opens at midnight UTC.</p>
+      <div id="dailyCard" class="panel daily-card"></div>
+      <button id="dailyStart" class="btn primary">START TODAY'S RIFT</button>
+      <div id="dailyStats" class="stat-grid"></div>
+    </div>
+  </section>
+
   <!-- ====================================================== NEWS -->
   <section id="news" class="screen page" hidden>
     <header class="topbar">
@@ -1634,12 +1712,13 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div class="set-group">
         <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest enemy while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
         <label class="set-row"><span><b>Aim assist</b><small>Nudges your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
+        <label class="set-row"><span><b>Vibration</b><small>Rumble on a controller, a short buzz on a phone: hits, dashes, the end of a run.</small></span><input type="checkbox" id="setVibration" class="toggle"></label>
         <div class="set-row"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the buttons and the sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
       </div>
       <h3 class="section-h">Display</h3>
       <div class="set-group">
         <div class="set-row"><span><b>Graphics</b><small id="qualityNote"></small></span>
-          <div class="seg" id="setQuality"><button data-v="auto">Auto</button><button data-v="high">High</button><button data-v="battery">Saver</button></div></div>
+          <div class="seg" id="setQuality"><button data-v="auto">Auto</button><button data-v="high">High</button><button data-v="ultra">Ultra</button><button data-v="battery">Saver</button></div></div>
         <div class="set-row"><span><b>Camera</b></span>
           <div class="seg" id="setZoom"><button data-v="0.85">Near</button><button data-v="1">Normal</button><button data-v="1.18">Far</button></div></div>
         <label class="set-row"><span><b>Screen shake</b></span><input type="checkbox" id="setShake" class="toggle"></label>
@@ -1687,11 +1766,13 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <div class="choose-head">
       <div id="chooseEyebrow" class="eyebrow">WAVE 1 CLEARED</div>
       <h2 id="chooseTitle">Choose an upgrade</h2>
+      <div id="nextWave" class="next-wave" aria-live="polite"></div>
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
     </div>
     <div id="cards" class="cards"></div>
     <div class="choose-foot">
       <button id="rerollBtn" class="btn ghost"><span data-icon="reroll"></span><span id="rerollTxt">Reroll</span></button>
+      <button id="banishBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="banishTxt">Banish</span></button>
     </div>
     <div id="buildStrip" class="build-strip"></div>
   </section>
@@ -1709,6 +1790,8 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       </div>
       <button id="pauseSndBtn" class="btn ghost small">Sound notes</button>
       <button id="abandonBtn" class="btn danger ghost">Abandon run</button>
+      <div class="section-h">Stats</div>
+      <div id="pauseStatRows" class="stat-rows"></div>
       <div class="section-h">Build</div>
       <div id="pauseBuild" class="build-list"></div>
       <div id="pauseUpInfo" class="up-info" aria-live="polite" hidden></div>
@@ -1739,11 +1822,13 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <h2 id="overTitle" class="over-title">SIGNAL LOST</h2>
       <div id="overCause" class="over-cause" hidden></div>
       <div id="overBest" class="chip best" hidden>NEW BEST</div>
+      <div id="overDaily" class="chip" hidden></div>
       <div id="overStats" class="stat-grid compact"></div>
       <div class="payout panel">
         <div id="payRows"></div>
         <div class="pay-total"><span>Shards earned</span><span class="shard-chip"><span class="shard-ico"></span><span id="payTotal" class="num">0</span></span></div>
       </div>
+      <div id="overRecap" class="dmg-panel panel recap" hidden></div>
       <div id="overDmg" class="dmg-panel panel" hidden></div>
       <div id="overExtra" class="run-extra panel" hidden></div>
       <div id="overMs" class="ms-unlocked"></div>

@@ -519,7 +519,7 @@ await section("saves", async (L) => {
       threatMax: 9,
       threat: 7,
       milestones: { fake: true },
-      settings: { sfx: 9, music: -1, zoom: 0, quality: "ultra", autoFire: "no", contrast: 1 },
+      settings: { sfx: 9, music: -1, zoom: 0, quality: "extreme", autoFire: "no", contrast: 1 },
       stats: { runs: "5", bestWave: 1e99, kills: NaN, bosses: { "<img src=x>": 3, warden: 2 } },
       history: [1, "x", null, { wave: "a" }, { wave: 5, win: "yes" }],
       run: { v: 1, weapon: "pulse", wave: "x", hp: 5 },
@@ -725,6 +725,8 @@ await section("workshop", async (L) => {
     dv.player.shield = false;
     dv.hurtPlayer(99999, null, null, "grunt", true);
     res.revive = rv.player.alive && rv.player.hp === Math.round(rv.stats.maxHp * 0.5) && !dv.player.alive;
+    // 3.25.0: Banish Protocol — one banish per level for the run (the card rule is tested in the banish sections)
+    res.banish = W({ banish: 2 }).banishes === 2 && W({ banish: 1 }).banishes === 1 && W({}).banishes === 0;
     res.salvage = true; // payout formula is verified by the post-run audit ("payout") after every run
     const untested = T.workshopModules.map((a) => a.id).filter((id) => !(id in res));
     return { res, untested };
@@ -2199,7 +2201,7 @@ await section("qol", async (L) => {
   });
   await P.page.waitForTimeout(300);
   const back = [];
-  for (const s of ["workshop", "records", "settings"]) {
+  for (const s of ["workshop", "records", "daily", "pacts", "settings"]) {
     await P.nav(s);
     await P.page.keyboard.press("Escape");
     await P.page.waitForTimeout(250);
@@ -2207,7 +2209,7 @@ await section("qol", async (L) => {
   }
   check(
     L,
-    "Esc goes back from Workshop, Records and Settings",
+    "Esc goes back from Workshop, Records, Daily Rift, Pacts and Settings",
     back.every((x) => x === "home"),
     back.join(", "),
   );
@@ -2840,7 +2842,8 @@ for (const profName of ["desktop", "phone"])
       return {
         shown: !document.getElementById("codexList").hidden && document.getElementById("recStats").hidden,
         rows: rows.length,
-        want: Object.keys(d.enemyDefs).length + Object.keys(d.data.bossDefs).length + d.data.upgradeList.length,
+        // + the 6 Endless mutators and the 5 Overdrive attacks (3.28.0)
+        want: Object.keys(d.enemyDefs).length + Object.keys(d.data.bossDefs).length + d.data.upgradeList.length + 11,
         unseen: rows.filter((r) => r.classList.contains("unseen")).length,
         grunt: txt("enemy_grunt"),
         warden: txt("boss_warden"),
@@ -2852,7 +2855,7 @@ for (const profName of ["desktop", "phone"])
     });
     check(
       L,
-      "codex: tab shows one row per enemy, boss and upgrade",
+      "codex: tab shows one row per enemy, boss, upgrade, mutator and Overdrive attack",
       cx.shown && cx.rows === cx.want,
       `${cx.rows}/${cx.want}`,
     );
@@ -3560,6 +3563,931 @@ await section("layout360", async (L) => {
       eq((await P.stored()).settings.hudLayout, stored.settings.hudLayout),
   );
   check(L, "no page errors", !P.errors.length, P.errors.join(" | "));
+  await P.close();
+});
+
+// 3.20.0: the Ultra look (Settings, Graphics: Ultra): the button is there and saves, the look turns on (a filmic tone curve,
+// real shadows, the graded pass) and off again without a trace, and no shader fails to compile
+await section("ultra", async (L) => {
+  const P = await open("desktop", {
+    save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }),
+    draw: true,
+  });
+  const glErrors = [];
+  P.page.on("console", (m) => m.type() === "error" && glErrors.push(m.text().slice(0, 200)));
+  await P.boot();
+  await P.tap('[data-go="settings"]');
+  check(
+    L,
+    "the Graphics setting has an Ultra button",
+    await P.ev(() => !!document.querySelector('#setQuality [data-v="ultra"]')),
+  );
+  await P.tap('#setQuality [data-v="ultra"]');
+  await P.page.waitForTimeout(400);
+  check(L, "tapping it saves the setting", (await P.stored()).settings.quality === "ultra");
+  const look = () =>
+    P.ev(() => {
+      const r = window.__riftTest.renderer;
+      return {
+        on: r.look.on,
+        tone: r.renderer.toneMapping,
+        shadows: r.renderer.shadowMap.enabled,
+        sun: r.sun.castShadow,
+        catcher: r.look.catcher.visible,
+        blob: r.shadows.mesh.visible,
+      };
+    });
+  const on = await look();
+  check(
+    L,
+    "the look is on: tone curve, shadow map, the catcher; the blob shadows are off",
+    on.on && on.tone !== 0 && on.shadows && on.sun && on.catcher && !on.blob,
+    JSON.stringify(on),
+  );
+  await P.ev(() => {
+    window.__riftTest.game.startRun({});
+  });
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  await P.page.waitForTimeout(2500);
+  const solids = await P.ev(() => {
+    let cast = 0;
+    window.__riftTest.renderer.scene.traverse((o) => o.isMesh && o.castShadow && cast++);
+    return cast;
+  });
+  check(L, "the solids of the scene cast shadows", solids > 20, String(solids));
+  await P.shot({ path: new URL("./shots/qa-ultra.png", import.meta.url).pathname });
+  check(L, "no shader or GL errors in the console", !glErrors.length, glErrors.slice(0, 2).join(" | "));
+  // back to High: nothing of the look is left
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.store.data.settings.quality = "high";
+    T.game.settingsChanged(true);
+  });
+  await P.page.waitForTimeout(1500);
+  const off = await look();
+  check(
+    L,
+    "back on High the look is off: no tone curve, no shadow map, the blob shadows are back",
+    !off.on && off.tone === 0 && !off.shadows && !off.sun && !off.catcher && off.blob,
+    JSON.stringify(off),
+  );
+  check(L, "no shader or GL errors after switching back", !glErrors.length, glErrors.slice(0, 2).join(" | "));
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.21.0: the recap of a lost run on the end screen: the last hits, the final blow, the damage taken by source
+for (const profName of ["desktop", "phone"]) {
+  await section(`recap-${profName}`, async (L) => {
+    const P = await open(profName, { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+    await P.boot();
+    await P.ev(() => {
+      const T = window.__riftTest;
+      T.game.startRun({});
+    });
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      {
+        timeout: 30000,
+      },
+    );
+    // three hits from three sources, the last one kills
+    await P.ev(() => {
+      const w = window.__riftTest.game.world,
+        p = w.player;
+      w.god = false;
+      p.hp = p.maxHp = 400;
+      const hit = (dmg, src) => {
+        p.iT = 0;
+        p.dashT = 0;
+        p.shield = false;
+        w.time += 1.5;
+        w.hurtPlayer(dmg, null, null, src);
+      };
+      hit(12, "grunt");
+      hit(30, "brute");
+      p.hp = 20;
+      hit(200, "turret");
+    });
+    await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 });
+    await P.page.waitForTimeout(500);
+    const rec = await P.ev(() => {
+      const box = document.getElementById("overRecap");
+      return {
+        hidden: box.hidden,
+        rows: [...box.querySelectorAll(".hit")].map((r) => r.textContent.replace(/\s+/g, " ").trim()),
+        final: [...box.querySelectorAll(".hit.final")].length,
+        text: box.textContent,
+        fits: (() => {
+          const r = box.getBoundingClientRect();
+          return r.right <= innerWidth + 1 && r.left >= -1;
+        })(),
+      };
+    });
+    check(L, "the recap is shown on the end screen", !rec.hidden && rec.rows.length === 3, JSON.stringify(rec.rows));
+    check(
+      L,
+      "it names who hit (the last one marked as the final blow), with the damage",
+      rec.final === 1 &&
+        /grunt|Grunt/i.test(rec.rows[0]) &&
+        /final blow/.test(rec.rows[2]) &&
+        /\u2212/.test(rec.rows[2]),
+      rec.rows.join(" | "),
+    );
+    check(L, "it lists where most damage came from", /Most damage taken from/.test(rec.text), rec.text.slice(-120));
+    await P.shot({ path: new URL(`./shots/qa-recap-${profName}.png`, import.meta.url).pathname });
+    check(L, "it fits the screen", rec.fits);
+    // a won run has no recap
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+
+// 3.22.0: the numbers behind the build in the pause menu: the value now and how far it is from the plain weapon
+for (const profName of ["desktop", "phone"]) {
+  await section(`stats-${profName}`, async (L) => {
+    const P = await open(profName, { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+    await P.boot();
+    await P.ev(() => {
+      const T = window.__riftTest;
+      T.game.startRun({});
+    });
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      {
+        timeout: 30000,
+      },
+    );
+    await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      w.up.dmg = 2;
+      w.up.speed = 1;
+      w.stats = window.__riftTest.computeStats(w.weapon, w.up, w.ws);
+      window.__riftTest.game.pause();
+    });
+    await P.page.waitForTimeout(500);
+    const rows = await P.ev(() => {
+      const box = document.getElementById("pauseStatRows"),
+        cells = [...box.children].map((c) => c.textContent.trim()),
+        out = {};
+      for (let i = 0; i + 2 < cells.length; i += 3) out[cells[i]] = { v: cells[i + 1], d: cells[i + 2] };
+      const r = box.getBoundingClientRect();
+      return { out, count: cells.length / 3, inView: r.right <= innerWidth + 1 };
+    });
+    check(L, "the pause menu lists the numbers of the build", rows.count >= 12, String(rows.count));
+    check(
+      L,
+      "damage per hit is up 36 % (two levels of Overclock), the dash cooldown down",
+      rows.out["Damage per hit"]?.d === "+36%" && /^\u2212\d+%$/.test(rows.out["Dash cooldown"]?.d || ""),
+      JSON.stringify([rows.out["Damage per hit"], rows.out["Dash cooldown"]]),
+    );
+    check(
+      L,
+      "the hull shows what is left over what there is",
+      /^\d+ \/ \d+$/.test(rows.out.Hull?.v || ""),
+      rows.out.Hull?.v,
+    );
+    check(L, "unchanged numbers show no change", rows.out["Armor"]?.d === "", JSON.stringify(rows.out["Armor"]));
+    await P.shot({ path: new URL(`./shots/qa-stats-${profName}.png`, import.meta.url).pathname });
+    check(L, "it fits the screen", rows.inView);
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+
+// 3.22.0: a look at the next wave under the title of the upgrade choice
+await section("nextwave", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  const chips = async (cleared) => {
+    await P.ev((n) => {
+      const g = window.__riftTest.game,
+        w = g.world;
+      g.chooseShown = false;
+      w.god = true;
+      w.wave = n;
+      for (const e of [...w.enemies]) w.killEnemy(e);
+      w.beginChoice();
+    }, cleared);
+    await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
+    await P.page.waitForTimeout(300);
+    return P.ev(() => [...document.querySelectorAll("#nextWave .nw")].map((c) => c.textContent.trim()));
+  };
+  // after wave 4 the boss of wave 5 comes (Blackout City: the Warden); after wave 5 the second biome starts
+  const beforeBoss = await chips(4);
+  check(
+    L,
+    "after wave 4 it announces wave 5 and its boss",
+    beforeBoss[0] === "Wave 5" && beforeBoss.some((c) => /^Boss/.test(c)),
+    beforeBoss.join(" | "),
+  );
+  const newBiome = await chips(5);
+  check(
+    L,
+    "after wave 5 it announces the new biome",
+    newBiome.some((c) => /^Entering /.test(c)),
+    newBiome.join(" | "),
+  );
+  const traps = await chips(7);
+  check(
+    L,
+    "from wave 6 on it says that traps are on the floor",
+    traps.includes("Traps on the floor"),
+    traps.join(" | "),
+  );
+  await P.shot({ path: new URL("./shots/qa-nextwave.png", import.meta.url).pathname });
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.23.0: the gamepad (a faked controller): sticks, buttons, pause, the rumble, and the ring of focus in the menus
+await section("gamepad", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => {
+    const pad = {
+      id: "Test Pad (STANDARD GAMEPAD)",
+      connected: true,
+      axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })),
+      vibrationActuator: { playEffect: (...a) => (window.__rumbles = window.__rumbles || []).push(a) },
+    };
+    window.__pad = pad;
+    navigator.getGamepads = () => [pad];
+  });
+  const frames = (n = 3) =>
+    P.ev(
+      (n) =>
+        new Promise((resolve) => {
+          let left = n;
+          const tick = () => (--left <= 0 ? resolve() : requestAnimationFrame(tick));
+          requestAnimationFrame(tick);
+        }),
+      n,
+    );
+  const hold = async (button, n = 4) => {
+    await P.ev((b) => ((window.__pad.buttons[b].pressed = true), (window.__pad.buttons[b].value = 1)), button);
+    await frames(n);
+    await P.ev((b) => ((window.__pad.buttons[b].pressed = false), (window.__pad.buttons[b].value = 0)), button);
+    await frames(2);
+  };
+  // the menus: the D-pad moves a ring of focus, A presses, B goes back
+  await frames(3);
+  const focused = () =>
+    P.ev(
+      () =>
+        document.querySelector(".pad-focus")?.getAttribute("data-go") || document.querySelector(".pad-focus")?.id || "",
+    );
+  await hold(13); // down
+  const first = await focused();
+  check(
+    L,
+    "the D-pad puts the ring of focus on a button of the home screen",
+    first !== "" || (await P.ev(() => !!document.querySelector(".pad-focus"))),
+    first,
+  );
+  let reached = false;
+  for (let i = 0; i < 10 && !reached; i++) {
+    reached = (await P.ev(() => document.querySelector(".pad-focus")?.getAttribute("data-go") === "settings")) || false;
+    if (!reached) await hold(i % 2 ? 13 : 15);
+  }
+  check(L, "the ring walks to Settings", reached);
+  await hold(0); // A
+  await P.page.waitForTimeout(500);
+  check(L, "A presses it: the settings open", await P.vis("settings"));
+  await hold(1); // B
+  await P.page.waitForTimeout(500);
+  check(L, "B goes back to the home screen", (await P.vis("home")) && !(await P.vis("settings")));
+  // a run: the left stick moves, A dashes, Start pauses, the rumble answers a hit
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  await P.ev(() => (window.__riftTest.game.world.god = true));
+  const x0 = await P.ev(() => window.__riftTest.game.world.player.x);
+  await P.ev(() => (window.__pad.axes[0] = 1));
+  await frames(10);
+  await P.ev(() => (window.__pad.axes[0] = 0));
+  const x1 = await P.ev(() => window.__riftTest.game.world.player.x);
+  check(L, "the left stick moves the drone to the right", x1 > x0 + 0.5, `${x0.toFixed(2)} -> ${x1.toFixed(2)}`);
+  // the right stick aims (up) and fires
+  await P.ev(() => {
+    window.__riftTest.game.world.pb.length = 0;
+    window.__pad.axes[3] = -1;
+  });
+  await frames(12);
+  const aim = await P.ev(() => ({
+    aim: window.__riftTest.game.world.player.aim,
+    shots: window.__riftTest.game.world.pb.length,
+  }));
+  await P.ev(() => (window.__pad.axes[3] = 0));
+  check(
+    L,
+    "the right stick aims up and fires",
+    Math.abs(aim.aim + Math.PI / 2) < 0.35 && aim.shots > 0,
+    JSON.stringify(aim),
+  );
+  const d0 = await P.ev(() => window.__riftTest.game.world.runStats.dashes);
+  await P.ev(() => (window.__riftTest.game.world.player.dashCdT = 0));
+  await hold(0);
+  check(L, "A dashes", (await P.ev(() => window.__riftTest.game.world.runStats.dashes)) > d0);
+  await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    w.god = false;
+    w.player.iT = 0;
+    w.player.dashT = 0;
+    w.player.shield = false;
+    w.hurtPlayer(3, null, null, "grunt");
+    w.god = true;
+  });
+  await frames(4);
+  check(L, "a hit makes the controller rumble", (await P.ev(() => (window.__rumbles || []).length)) >= 1);
+  await hold(9); // Start
+  check(L, "Start pauses the run", await P.ev(() => window.__riftTest.game.paused));
+  await hold(9);
+  check(L, "Start resumes it", !(await P.ev(() => window.__riftTest.game.paused)));
+  // without a controller nothing is left of it
+  await P.ev(() => (navigator.getGamepads = () => []));
+  await frames(3);
+  check(L, "no controller: no ring of focus in the way", !(await P.ev(() => !!document.querySelector(".pad-focus"))));
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.23.0: a phone buzzes on a hit and on the end of a run (Android: navigator.vibrate), and not when the setting is off
+await section("vibration-phone", async (L) => {
+  const P = await open("phone", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => {
+    window.__buzz = [];
+    navigator.vibrate = (pattern) => (window.__buzz.push(pattern), true);
+    window.__riftTest.game.startRun({});
+  });
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  const hurt = () =>
+    P.ev(() => {
+      const w = window.__riftTest.game.world;
+      w.god = false;
+      w.player.hp = w.player.maxHp = 500;
+      w.player.iT = 0;
+      w.player.dashT = 0;
+      w.player.shield = false;
+      w.hurtPlayer(4, null, null, "grunt");
+    });
+  await hurt();
+  await P.page.waitForTimeout(800);
+  check(
+    L,
+    "a hit buzzes the phone",
+    (await P.ev(() => window.__buzz.length)) >= 1,
+    await P.ev(() => JSON.stringify(window.__buzz)),
+  );
+  await P.ev(() => {
+    window.__buzz.length = 0;
+    const T = window.__riftTest;
+    T.store.data.settings.vibration = false;
+    T.game.settingsChanged(true);
+  });
+  await hurt();
+  await P.page.waitForTimeout(800);
+  check(L, "with Vibration off it stays still", (await P.ev(() => window.__buzz.length)) === 0);
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.24.0: boss medals: the banner of a kill, the best one kept per boss, the Codex shows it
+await section("medals", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  const kill = (secs, damage) =>
+    P.ev(
+      ([secs, damage]) => {
+        const w = window.__riftTest.game.world;
+        w.god = true;
+        if (!w.boss) w.spawnBoss("warden");
+        w.bossT0 = w.time - secs;
+        w.bossDmg0 = w.runStats.dmgTaken - damage;
+        const boss = w.boss;
+        boss.hp = 0;
+        w.killEnemy(boss);
+      },
+      [secs, damage],
+    );
+  const banner = () => P.ev(() => document.getElementById("toasts").textContent);
+  await kill(30, 0);
+  await P.page.waitForFunction(() => /medal/i.test(document.getElementById("toasts").textContent), null, {
+    timeout: 15000,
+  });
+  check(L, "a hitless kill in 30 s earns Gold and says so", /Gold medal/i.test(await banner()), await banner());
+  const stored = () => P.ev(() => window.__riftTest.store.data.stats.medals.warden);
+  check(
+    L,
+    "the medal is kept",
+    (await stored())?.medal === 3 && (await stored()).secs === 30,
+    JSON.stringify(await stored()),
+  );
+  // a worse kill later does not take it away
+  await P.ev(() => (window.__riftTest.game.world.state = "fight"));
+  await kill(90, 60);
+  await P.page.waitForTimeout(600);
+  check(L, "a worse kill later does not replace it", (await stored())?.medal === 3, JSON.stringify(await stored()));
+  // the Codex
+  await P.ev(() => {
+    window.__riftTest.game.abandon && window.__riftTest.game.abandon();
+  });
+  await P.page.waitForTimeout(500);
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.ui.save = T.store.data;
+    T.ui.recordsTab("codex");
+  });
+  const codex = await P.ev(() => document.querySelector('[data-cx="boss_warden"]')?.textContent || "");
+  check(
+    L,
+    "the Codex shows Gold and the time on the boss",
+    /Gold/.test(codex) && /30 s/.test(codex),
+    codex.slice(0, 120),
+  );
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.25.0: Banish Protocol (a workshop module): a card out of the pool for the rest of the run
+for (const profName of ["desktop", "phone"]) {
+  await section(`banish-${profName}`, async (L) => {
+    const P = await open(profName, {
+      save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true }, workshop: { banish: 1 } }),
+    });
+    await P.boot();
+    await P.ev(() => window.__riftTest.game.startRun({}));
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      {
+        timeout: 30000,
+      },
+    );
+    await P.ev(() => {
+      const g = window.__riftTest.game,
+        w = g.world;
+      w.god = true;
+      for (const e of [...w.enemies]) w.killEnemy(e);
+      w.beginChoice();
+    });
+    await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
+    await P.page.waitForTimeout(900);
+    const ids = () => P.ev(() => [...document.querySelectorAll("#cards [data-pick]")].map((c) => c.dataset.pick));
+    const btn = () =>
+      P.ev(() => {
+        const b = document.getElementById("banishBtn");
+        return { hidden: b.hidden, disabled: b.disabled, text: b.textContent.trim(), on: b.classList.contains("on") };
+      });
+    const before = await ids();
+    const b0 = await btn();
+    check(
+      L,
+      "the Banish button shows with one banish",
+      !b0.hidden && !b0.disabled && /Banish \(1\)/.test(b0.text),
+      JSON.stringify(b0),
+    );
+    await P.tap("#banishBtn");
+    check(
+      L,
+      "tapping it arms Banish: the cards are marked",
+      await P.ev(() => document.getElementById("cards").classList.contains("banishing")),
+    );
+    await P.page.waitForTimeout(800);
+    await P.shot({ path: new URL(`./shots/qa-banish-${profName}.png`, import.meta.url).pathname });
+    const target = before[0];
+    await P.tap(`#cards [data-pick="${target}"]`);
+    await P.page.waitForTimeout(500);
+    const after = await ids();
+    const b1 = await btn();
+    check(
+      L,
+      "the card is replaced and the choice is still open",
+      !after.includes(target) && after.length === before.length && (await P.vis("choose")),
+      JSON.stringify([before, after]),
+    );
+    check(
+      L,
+      "no banish left: the button says so and is disabled",
+      b1.disabled && /Banish \(0\)/.test(b1.text) && !b1.on,
+      JSON.stringify(b1),
+    );
+    check(
+      L,
+      "a toast says what was banished",
+      await P.ev(() => /Banished:/.test(document.getElementById("toasts").textContent)),
+    );
+    check(
+      L,
+      "the run keeps it (saved)",
+      await P.ev((id) => (window.__riftTest.store.data.run?.banished || []).includes(id), target),
+    );
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+// without the module there is no button
+await section("banish-without", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    for (const e of [...w.enemies]) w.killEnemy(e);
+    w.beginChoice();
+  });
+  await P.page.waitForFunction(() => !document.getElementById("choose").hidden, null, { timeout: 30000 });
+  check(
+    L,
+    "without the module the choice has no Banish button",
+    await P.ev(() => document.getElementById("banishBtn").hidden),
+  );
+  await P.close();
+});
+
+// 3.26.0: the Daily Rift: one Rift a day, the same for every pilot (seed, weapon, threat from the date, no workshop)
+for (const profName of ["desktop", "phone"]) {
+  await section(`daily-${profName}`, async (L) => {
+    const P = await open(profName, {
+      save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true }, workshop: { hull: 3, banish: 2 } }),
+    });
+    await P.boot();
+    check(
+      L,
+      "the home screen has the Daily Rift link with a dot (not played today)",
+      await P.ev(() => {
+        const b = document.getElementById("dailyBtn"),
+          r = b.getBoundingClientRect();
+        return r.width > 20 && r.right <= innerWidth + 1 && !document.getElementById("dailyBadge").hidden;
+      }),
+    );
+    await P.nav("daily");
+    await P.page.waitForTimeout(400);
+    const card = await P.ev(() => ({
+      screen: window.__riftTest.ui.screen,
+      day: document.querySelector("#dailyCard .dc-day")?.textContent,
+      weapon: document.querySelector("#dailyCard .dc-weapon")?.textContent,
+      today: new Date().toISOString().slice(0, 10),
+      fits: (() => {
+        const r = document.getElementById("dailyStart").getBoundingClientRect();
+        return r.right <= innerWidth + 1 && r.left >= -1 && r.bottom <= innerHeight + 200;
+      })(),
+    }));
+    check(
+      L,
+      "the page shows today's date (UTC) and the weapon",
+      card.screen === "daily" && card.day.startsWith(card.today) && !!card.weapon,
+      JSON.stringify(card),
+    );
+    await P.shot({ path: new URL(`./shots/qa-daily-${profName}.png`, import.meta.url).pathname });
+    await P.page.keyboard.press("Escape");
+    await P.page.waitForTimeout(200);
+    check(L, "Esc goes back to the home screen", (await P.ev(() => window.__riftTest.ui.screen)) === "home");
+    await P.nav("daily");
+    await P.tap("#dailyStart");
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const run = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return {
+        daily: w.daily,
+        today: new Date().toISOString().slice(0, 10),
+        weapon: w.weapon,
+        threat: w.threat,
+        seed: w.seed,
+        ws: JSON.stringify(w.ws),
+        banishes: w.banishes,
+        hp: w.player.maxHp,
+      };
+    });
+    check(
+      L,
+      "the run is the Rift of today: workshop not counted",
+      run.daily === run.today && run.ws === "{}" && run.banishes === 0,
+      JSON.stringify(run),
+    );
+    // resumed: the day, the seed and the empty workshop survive
+    await P.ev(() => {
+      const T = window.__riftTest;
+      T.game.world.god = true;
+      T.game.paused = false;
+      T.store.data.run = T.game.world.snapshot();
+      T.store.save("qa");
+      T.game.goHome();
+    });
+    await P.ev(() => window.__riftTest.game.startRun({ resume: true }));
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const resumed = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return { daily: w.daily, ws: JSON.stringify(w.ws), seed: w.seed, hp: w.player.maxHp };
+    });
+    check(
+      L,
+      "a saved Daily run resumes as the same Rift",
+      resumed.daily === run.daily && resumed.ws === "{}" && resumed.seed === run.seed && resumed.hp === run.hp,
+      JSON.stringify(resumed),
+    );
+    // dies at wave 1: not counted when abandoned that early, but a loss counts
+    await P.ev(() => {
+      const w = window.__riftTest.game.world,
+        p = w.player;
+      w.god = false;
+      p.hp = 1;
+      p.iT = 0;
+      p.dashT = 0;
+      p.shield = false;
+      w.hurtPlayer(500, null, null, "turret");
+    });
+    await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 });
+    await P.page.waitForTimeout(400);
+    const over = await P.ev(() => ({
+      text: document.getElementById("overDaily").textContent,
+      hidden: document.getElementById("overDaily").hidden,
+      daily: window.__riftTest.store.data.stats.daily,
+      today: new Date().toISOString().slice(0, 10),
+    }));
+    check(
+      L,
+      "the end screen names the Daily Rift; the record of the day is kept",
+      !over.hidden &&
+        over.text.includes(over.today) &&
+        over.daily.key === over.today &&
+        over.daily.days === 1 &&
+        over.daily.streak === 1,
+      JSON.stringify(over),
+    );
+    // Run Again plays the same Rift (same seed, same weapon)
+    await P.ev(() => window.__riftTest.game.retry());
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const again = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return { daily: w.daily, seed: w.seed, weapon: w.weapon };
+    });
+    check(
+      L,
+      "Run Again after a Daily run is the same Rift",
+      again.daily === run.daily && again.seed === run.seed && again.weapon === run.weapon,
+      JSON.stringify(again),
+    );
+    await P.ev(() => {
+      window.__riftTest.game.abandon();
+      window.__riftTest.game.goHome();
+    });
+    await P.page.waitForTimeout(400);
+    check(
+      L,
+      "back home the dot is gone and the page shows today's best",
+      await P.ev(() => {
+        window.__riftTest.ui.show("daily");
+        return (
+          document.getElementById("dailyBadge").hidden &&
+          /Wave/.test(document.getElementById("dailyStats").textContent) &&
+          !/Not played/.test(document.getElementById("dailyStats").textContent)
+        );
+      }),
+    );
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+
+// 3.27.0: pacts: up to two, a harder run for a share of shards
+for (const profName of ["desktop", "phone"]) {
+  await section(`pacts-${profName}`, async (L) => {
+    const P = await open(profName, { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+    await P.boot();
+    check(
+      L,
+      "the home screen has a Pacts link",
+      await P.ev(() => {
+        const b = document.getElementById("pactsBtn"),
+          r = b.getBoundingClientRect();
+        return r.width > 20 && r.right <= innerWidth + 1 && /^Pacts$/.test(b.textContent.trim());
+      }),
+    );
+    await P.nav("pacts");
+    await P.page.waitForTimeout(400);
+    check(
+      L,
+      "the page lists the five pacts",
+      (await P.ev(() => document.querySelectorAll("#pactList [data-pact]").length)) === 5,
+    );
+    await P.tap('#pactList [data-pact="glass"]');
+    await P.tap('#pactList [data-pact="swarm"]');
+    await P.tap('#pactList [data-pact="hunt"]');
+    await P.page.waitForTimeout(300);
+    const state = await P.ev(() => ({
+      saved: window.__riftTest.store.data.pacts,
+      signed: [...document.querySelectorAll("#pactList .pact.on [data-pact]")].map((b) => b.dataset.pact),
+      sum: document.getElementById("pactSum").textContent,
+      toast: /At most 2/.test(document.getElementById("toasts").textContent),
+    }));
+    check(
+      L,
+      "two pacts can be signed, a third is refused with a message",
+      state.saved.join() === "glass,swarm" &&
+        state.signed.join() === "glass,swarm" &&
+        state.toast &&
+        /\+40%/.test(state.sum),
+      JSON.stringify(state),
+    );
+    await P.shot({ path: new URL(`./shots/qa-pacts-${profName}.png`, import.meta.url).pathname });
+    await P.page.keyboard.press("Escape");
+    await P.page.waitForTimeout(200);
+    check(
+      L,
+      "Esc goes back; the link shows how many are signed",
+      await P.ev(
+        () =>
+          window.__riftTest.ui.screen === "home" &&
+          /Pacts\s*·\s*2/.test(document.getElementById("pactsBtn").textContent),
+      ),
+    );
+    await P.ev(() => window.__riftTest.game.startRun({}));
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const run = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return {
+        pacts: w.pacts.join(),
+        hp: w.stats.maxHp,
+        budget: w.tm.budget,
+        toast: /Pacts: Glass Cannon, Swarm Pact \(\+40% shards\)/.test(document.getElementById("toasts").textContent),
+      };
+    });
+    check(
+      L,
+      "the run has the pacts: hull 60, 35% more enemies, a toast names them",
+      run.pacts === "glass,swarm" && run.hp === 60 && Math.abs(run.budget - 1.35) < 1e-6 && run.toast,
+      JSON.stringify(run),
+    );
+    await P.ev(() => {
+      const w = window.__riftTest.game.world,
+        p = w.player;
+      w.god = false;
+      w.shards = 100;
+      p.hp = 1;
+      p.iT = 0;
+      p.dashT = 0;
+      p.shield = false;
+      w.hurtPlayer(500, null, null, "turret");
+    });
+    await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 });
+    await P.page.waitForTimeout(3500); // the total counts up
+    const pay = await P.ev(() => ({
+      rows: document.getElementById("payRows").textContent,
+      total: document.getElementById("payTotal").textContent,
+    }));
+    check(
+      L,
+      "the payout names the pacts and pays 100 + 40 = 140 shards",
+      /Pacts \+40%/.test(pay.rows) && pay.total.replace(/\D/g, "") === "140",
+      JSON.stringify(pay),
+    );
+    // the Daily Rift does not use them
+    await P.ev(() => window.__riftTest.game.startRun({ daily: true }));
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    check(
+      L,
+      "the Daily Rift has no pacts",
+      await P.ev(
+        () => window.__riftTest.game.world.pacts.length === 0 && window.__riftTest.game.world.stats.maxHp === 100,
+      ),
+    );
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+
+// 3.28.0: the Codex part "Rift events": Endless mutators and boss Overdrive attacks are found in play
+await section("codex-events", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    { timeout: 30000 },
+  );
+  const before = await P.ev(() => Object.keys(window.__riftTest.store.data.seen).filter((k) => /^(mut|od)_/.test(k)));
+  check(L, "nothing of the rift events is known at the start", before.length === 0, before.join());
+  await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    w.god = true;
+    for (const e of [...w.enemies]) w.killEnemy(e);
+    w.startWave(5);
+  });
+  await P.page.waitForFunction(() => window.__riftTest.game.world.boss, null, { timeout: 30000 });
+  await P.ev(() => {
+    const w = window.__riftTest.game.world,
+      b = w.boss;
+    w.mods = { hasted: 1, volatile: 2 }; // (set after the wave is built: it recomputes the mutators)
+    b.st = "lockdown";
+  });
+  await P.page.waitForTimeout(800);
+  const seen = await P.ev(() =>
+    Object.keys(window.__riftTest.store.data.seen)
+      .filter((k) => /^(mut|od)_/.test(k))
+      .sort(),
+  );
+  check(
+    L,
+    "mutators in play and the Warden's Lockdown are kept as seen",
+    seen.join() === "mut_hasted,mut_volatile,od_warden",
+    seen.join(),
+  );
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.game.goHome();
+    T.ui.show("records");
+    T.ui.recordsTab("codex");
+  });
+  const cx = await P.ev(() => {
+    const txt = (k) => document.querySelector(`#codexList [data-cx="${k}"]`)?.textContent || "";
+    return {
+      hasted: txt("mut_hasted"),
+      armored: txt("mut_armored"),
+      lockdown: txt("od_warden"),
+      collapse: txt("od_core"),
+      head: [...document.querySelectorAll("#codexList .section-h")].map((h) =>
+        h.textContent.replace(/\s+/g, " ").trim(),
+      ),
+    };
+  });
+  check(
+    L,
+    "the Codex shows them, the others stay ???",
+    /Hasted/.test(cx.hasted) &&
+      /Lockdown/.test(cx.lockdown) &&
+      /THE WARDEN/.test(cx.lockdown) &&
+      /\?\?\?/.test(cx.armored) &&
+      /\?\?\?/.test(cx.collapse) &&
+      cx.head.some((h) => /^Rift events 3\/11/.test(h)),
+    JSON.stringify(cx),
+  );
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
   await P.close();
 });
 

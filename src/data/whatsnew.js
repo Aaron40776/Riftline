@@ -2,6 +2,106 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.28.0",
+    title: "Codex: rift events",
+    items: [
+      "The Codex has a new part, Rift events: the six Endless mutators and the five boss Overdrive attacks.",
+      "Each entry unlocks when you see it in a run and tells you what it does and how to survive it.",
+    ],
+  },
+  {
+    version: "3.27.0",
+    title: "Pacts",
+    items: [
+      "Before a run you can sign up to two pacts (Pacts, top right of the home screen): Glass Cannon, Swarm Pact, Iron Hide, Elite Hunt and Heavy Drive.",
+      "Each makes the run harder in one way and adds 15 to 25 percent to the shards you earn; the bonuses add up. They do not count in the Daily Rift.",
+    ],
+  },
+  {
+    version: "3.26.0",
+    title: "Daily Rift",
+    items: [
+      "A new Rift every day, the same for every pilot: the waves, the upgrade offers and the hazards come from the date. Open it with Daily Rift at the top right of the home screen.",
+      "The weapon is set for the day and your workshop modules do not count, so everyone flies the same drone.",
+      "The best wave of the day, your streak of days played and your best Daily wave are kept. A new Rift opens at midnight UTC.",
+    ],
+  },
+  {
+    version: "3.25.0",
+    title: "Banish Protocol",
+    items: [
+      "New workshop module, Banish Protocol: when you choose an upgrade, press Banish (or B) and then a card to remove it for the rest of the run. A fresh card takes its place.",
+      "Level 1 gives one banish per run, level 2 gives two. The boss's own card cannot be banished.",
+    ],
+  },
+  {
+    version: "3.24.0",
+    title: "Boss medals",
+    items: [
+      "Every boss kill earns a medal: Bronze for the kill, Silver for no damage taken (or a fast kill with few hits), Gold for no damage and under the par time.",
+      "A message tells you what you earned; the best medal and time of each boss are kept in the Codex.",
+    ],
+  },
+  {
+    version: "3.23.0",
+    title: "Gamepad and vibration",
+    items: [
+      "Plug in or pair a controller and play: left stick moves, right stick aims and fires, A or the left bumper dashes, X is the Nova, Y the Singularity, Start pauses.",
+      "In the menus the D-pad or left stick moves a glowing ring from button to button, A presses, B goes back, Y rerolls the upgrades.",
+      "Rumble on a controller and a short buzz on a phone when you are hit, dash or fall. Settings, Vibration switches it off.",
+    ],
+  },
+  {
+    version: "3.22.0",
+    title: "See what you are building",
+    items: [
+      "The pause menu now lists the numbers of your build: hull, damage, fire rate, damage per second, crits, range, speed, dash cooldown, armor, regeneration and more, each with how far it is from the plain weapon.",
+      "The upgrade choice shows what the next wave brings: its number, a new biome, a boss, a wave event, a new Endless mutator, traps on the floor.",
+    ],
+  },
+  {
+    version: "3.21.0",
+    title: "What hit you",
+    items: [
+      "When a run is lost, the end screen now shows the last hits: who hit you, for how much and how long before the end, with the final blow marked in red.",
+      "Below it: where most of the damage of the run came from, so you can see what to dodge or what to build against.",
+    ],
+  },
+  {
+    version: "3.20.0",
+    title: "Ultra look",
+    items: [
+      "New in Settings, Graphics: Ultra, for strong devices. A cinematic look: a filmic tone curve, real soft shadows of the sun, a slight grade (cool shadows, warm lights), a vignette and a fine film grain.",
+      "Everything sits in the picture like a place and not like a toy: the blob under every thing is replaced by the shadow it really casts.",
+      "Auto and High look exactly as before.",
+    ],
+  },
+  {
+    version: "3.19.0",
+    title: "Ambient bloom",
+    items: [
+      "A new quiet layer lies on every calm theme: single notes that bloom, ring out for seconds and wander from ear to ear through a ping-pong echo.",
+      "Every place has a voice of its own: a felt piano in Blackout City, struck pipes in the Ember Works, glass in the Cryo Vault, a kalimba in the Toxin Marsh and singing sine bells in the Void Core.",
+      "The notes are most present when it is quiet and step back as the fight swells; the music is wider in stereo (headphones help).",
+    ],
+  },
+  {
+    version: "3.18.2",
+    title: "Long-run checks",
+    items: [
+      "A 120-wave Endless run, thousands of random taps across five screen sizes and a weapon comparison found no leaks and no stuck screens.",
+      "One note of the Blackout City piano reached above what anyone can hear; it is gone.",
+    ],
+  },
+  {
+    version: "3.18.1",
+    title: "Clean music changes",
+    items: [
+      "When the music changes (the calm theme to a boss track and back), the old track now fades out instead of ringing on under the new one.",
+      "The echoes and the room of the old track are cleared with it, so every track starts clean.",
+    ],
+  },
+  {
     version: "3.18.0",
     title: "Always landscape",
     items: [
