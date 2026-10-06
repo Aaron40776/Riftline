@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.29.0",
+    title: "Richer colours and light",
+    items: [
+      "All graphics settings: a stronger sun and a coloured fill light from the other side give the machines real form and edge light, and the floors are richer: Blackout City is deep blue with warm street light, the Cryo Vault a clear icy teal.",
+      "No extra cost: it is one more light, not a new graphics mode.",
+    ],
+  },
+  {
     version: "3.28.2",
     title: "Ultra graphics removed",
     items: [

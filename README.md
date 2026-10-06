@@ -35,7 +35,7 @@ on in Endless, which keeps getting harder. Shards from every run, won or lost, b
   best of the day and a streak. **Pacts**: up to two optional risks before a run for more shards.
 - **Boss medals** (Bronze, Silver, Gold for a kill without damage and on time), a **death recap** on the end screen,
   the numbers of your build in the pause menu and a look at the next wave in the upgrade choice.
-- **Gamepad** support (menus included) and vibration on hits (phone and controller).
+- **Gamepad** support (menus included) and vibration on hits (phone and controller). Every biome has its own key and fill light and a floor palette of its own.
 - Everything you see and hear is made in code: low-poly models, WebAudio sounds and music, no image or audio files.
 
 | | |

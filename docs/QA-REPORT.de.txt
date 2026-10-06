@@ -1,3 +1,23 @@
+RIFTLINE v3.29.0 – RICHER COLOURS AND LIGHT
+Base: v3.28.2 · Build r3290a1005a-r1 · 06.10.2026
+
+The owner, 06.10.2026, after Ultra was removed: "that's why I meant to just improve the graphics generally (more vivid colors, a bit
+lighting etc. which actually makes a difference)".
+
+1) What changed (all graphics settings, no extra pass)
+   - Light: a stronger sun and a weaker sky light, so that the faceted (flat-shaded) models get a lit and a shaded side; a fill
+     light from the opposite side in a complementary colour per biome (one more directional light, no shadows).
+   - Floor: saturation and brightness per biome in the floor shader (uVivid, uGain): strong in Blackout City and Cryo Vault, which
+     looked murky and grey, hardly at all in the Ember Works, the Marsh and the Void, which were rich already.
+   - Cost: one light more in the lit materials and two multiplications in the floor shader. No second pass, no new buffer.
+
+2) How it was judged (pictures of the biome tool, SHOT_TAG, side by side: base, v1, v2)
+   - v1 (stronger colour everywhere) made the Marsh lime green and cartoonish and the Void a magenta wash: the "kids game" look.
+     v2 lifts colour only where it was muted. I have not seen it on a phone: the owner has to say whether it is enough.
+
+3) Results (headless Chromium, software WebGL)
+   - See the release-check line below.
+
 RIFTLINE v3.28.2 – ULTRA REMOVED, CLEANUP
 Base: v3.28.1 · Build r3282a1005a-r1 · 06.10.2026
 
