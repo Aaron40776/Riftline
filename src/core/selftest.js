@@ -487,6 +487,7 @@ function rlSelfTest() {
   result = selfTestV3250(result);
   result = selfTestV3260(result);
   result = selfTestV3270(result);
+  result = selfTestV3280(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3943,6 +3944,36 @@ function selfTestV3270(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3270: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.28.0: the Codex part for the Endless mutators and the Overdrive attacks ---- */
+function selfTestV3280(result) {
+  const fail = [];
+  try {
+    const empty = rlCodexEntries(newSave());
+    if (empty.events.length !== MUTATOR_IDS.length + Object.keys(OVERDRIVE).length)
+      fail.push("count:" + empty.events.length);
+    if (empty.events.some((e) => e.seen)) fail.push("seen-at-start");
+    for (const id of MUTATOR_IDS) if (!empty.events.some((e) => e.key === "mut_" + id)) fail.push("mutator:" + id);
+    for (const boss of Object.keys(OVERDRIVE)) {
+      const e = empty.events.find((x) => x.key === "od_" + boss);
+      if (!e || !e.name || !e.desc || !e.extra) fail.push("overdrive:" + boss);
+    }
+    const save = newSave();
+    save.seen.mut_hasted = true;
+    save.seen.od_core = true;
+    const some = rlCodexEntries(save)
+      .events.filter((e) => e.seen)
+      .map((e) => e.key)
+      .sort();
+    if (some.join() !== "mut_hasted,od_core") fail.push("seen:" + some.join());
+    // the keys survive the save's clean-up
+    const cleaned = cleanSave(JSON.parse(JSON.stringify(save)));
+    if (!cleaned.seen.mut_hasted || !cleaned.seen.od_core) fail.push("clean-save");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3280: { ok: fail.length === 0, fail } };
 }
 
 /* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct

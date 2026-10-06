@@ -1943,7 +1943,7 @@ const getById = (id) => document.getElementById(id),
     }
     renderCodex() {
       const codex = rlCodexEntries(this.save),
-        all = [...codex.enemies, ...codex.bosses, ...codex.upgrades],
+        all = [...codex.enemies, ...codex.bosses, ...codex.events, ...codex.upgrades],
         found = all.filter((entry) => entry.seen).length,
         rows = (list, hint) =>
           list
@@ -1957,9 +1957,10 @@ const getById = (id) => document.getElementById(id),
         part = (title, list, hint) =>
           `<h3 class="section-h">${title} <span class="cx-count">${list.filter((entry) => entry.seen).length}/${list.length}</span></h3><div class="codex-grid">${rows(list, hint)}</div>`;
       getById("codexList").innerHTML =
-        `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies and bosses unlock when you meet them, upgrades when a run offers them.</p>` +
+        `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies and bosses unlock when you meet them, mutators and Overdrive attacks when you see them, upgrades when a run offers them.</p>` +
         part("Enemies", codex.enemies, "Not encountered yet") +
         part("Bosses", codex.bosses, "Not encountered yet") +
+        part("Rift events", codex.events, "Not seen yet") +
         part("Upgrades", codex.upgrades, "Not offered yet");
     }
   };
@@ -2142,8 +2143,53 @@ function rlCodexEntries(save) {
         icon: up.icon,
       };
     });
-  return { enemies, bosses, upgrades };
+  // 3.28.0: the Endless mutators and the boss Overdrive attacks: found when one joins a run / a boss uses it for the first time
+  const events = [
+    ...Object.entries(MUTATORS).map(([id, m]) => ({
+      key: "mut_" + id,
+      id,
+      seen: seen["mut_" + id] === true,
+      name: "Mutator \xB7 " + m.name,
+      desc: m.desc + ". From wave 21, one more every tenth wave; later they grow stronger.",
+      color: m.color.replace("#", ""),
+      icon: "burst",
+    })),
+    ...Object.entries(RL_OVERDRIVE_INFO).map(([boss, od]) => ({
+      key: "od_" + boss,
+      id: boss,
+      seen: seen["od_" + boss] === true,
+      name: "Overdrive \xB7 " + od.name,
+      desc: od.desc,
+      extra: (bossDefs[boss] ? bossDefs[boss].name : boss) + " when enraged",
+      color: bossDefs[boss] ? rlHex(bossDefs[boss].color) : "",
+      icon: "target",
+    })),
+  ];
+  return { enemies, bosses, upgrades, events };
 }
+// 3.28.0: the Overdrive attack of each boss (core/ai.js OVERDRIVE), as the Codex tells it
+const RL_OVERDRIVE_INFO = {
+  warden: {
+    name: "Lockdown",
+    desc: "A grid of lasers across the whole arena, then a second grid shifted by half a cell: step into a new cell before it closes.",
+  },
+  forge: {
+    name: "Meltdown",
+    desc: "Three rings of lava burst outwards from the Crucible, each with a gap of its own: find the gap.",
+  },
+  prism: {
+    name: "Whiteout",
+    desc: "Three frost beams turn around the Prism while ice shards hunt you in between.",
+  },
+  queen: {
+    name: "Plague",
+    desc: "Acid wells up in a ring around you, two eggs hatch, then a dense spiral of spores.",
+  },
+  core: {
+    name: "Collapse",
+    desc: "Bombardments under and around you while a cross of six beams turns.",
+  },
+};
 // ---- 2.5.0 D: title card helpers
 function titleCardLayer() {
   let el = getById("titleCard");

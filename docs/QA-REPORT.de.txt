@@ -1,3 +1,24 @@
+RIFTLINE v3.28.0 – CODEX: RIFT EVENTS
+Base: v3.27.0 · Build r3280a1005a-r1 · 06.10.2026
+
+The last open part of the package "learning and overview" (proposal A4 of 03.10.2026): codex entries for the Endless mutators and the
+boss Overdrive attacks. (The short introduction of the Singularity and traps turned out to exist already as tips.)
+
+1) What it does
+   - New Codex part "Rift events" after the bosses: six mutators (Volatile, Shielded, Hasted, Armored, Barrage, Trap Storm) and five
+     Overdrive attacks (Lockdown, Meltdown, Whiteout, Plague, Collapse), each with its text; unseen ones are "???".
+   - main.js keeps a mutator in play and a boss in its Overdrive as seen (seen.mut_<id>, seen.od_<boss>) each frame; no new
+     simulation event, so the determinism records do not change.
+
+2) Tests
+   - Self-test v3280, the codex sections of the full QA (rows counted with the 11 new ones) and the new section codex-events.
+
+3) Results 3.28.0
+   - See the handoff table of docs/ROADMAP.de.md.
+
+4) Open doubts
+   - The texts of the Overdrive attacks are written from the code (core/ai.js), not tested with players.
+
 RIFTLINE v3.27.0 – PACTS
 Base: v3.26.0 · Build r3270a1005a-r1 · 06.10.2026
 
@@ -19,7 +40,11 @@ Roadmap, proposal C9 of 03.10.2026: pacts before a run (optional risks for a sha
    - Self-test v3270 and the full QA sections pacts-desktop and pacts-phone (pictures tests/shots/qa-pacts-*.png).
 
 4) Results 3.27.0 (headless Chromium, software WebGL)
-   - See the handoff table of docs/ROADMAP.de.md for the release check on the top of the stack.
+   - npm run release-check on the top of the stack (3.27.0, which contains 3.18.1 to 3.26.0 below it): ALL steps ok (format, build, deep
+     test with the self-tests up to v3270, data audit, determinism 15/15, full QA, e2e, world and run audit, screens pc and land,
+     biome shots pc and land, attack shots pc), 35 min 20 s. (The first check on 3.26.0 found two things that the filtered runs had
+     not shown: the data audit and the full QA "every workshop module has an effect test" did not know the Banish Protocol;
+     fixed in 3.25.0's branch and carried up. Lesson: check the exit status of the whole npm test, not only the sections.)
 
 5) Open doubts
    - The numbers (the penalties and the shard bonuses) are my estimate and not balanced with the balance simulation; whether

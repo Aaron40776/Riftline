@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.28.0",
+    title: "Codex: rift events",
+    items: [
+      "The Codex has a new part, Rift events: the six Endless mutators and the five boss Overdrive attacks.",
+      "Each entry unlocks when you see it in a run and tells you what it does and how to survive it.",
+    ],
+  },
+  {
     version: "3.27.0",
     title: "Pacts",
     items: [

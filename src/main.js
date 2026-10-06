@@ -56,7 +56,7 @@ import {
   bossByWave,
 } from "./data/enemies.js";
 import { BUILD_ID, GAME_VERSION, formatCount } from "./core/util.js";
-import { RL_KITERS, updateEnemy } from "./core/ai.js";
+import { RL_KITERS, updateEnemy, OVERDRIVE } from "./core/ai.js";
 import { RL_BIOME_HAZARD, biomesById, biomeList, rlApplyBiomeFixes } from "./data/biomes.js";
 import { weaponOrder, weaponDefs } from "./data/weapons.js";
 import { waveEvents, spawnWeights, heavyEnemies } from "./core/waves.js";
@@ -73,6 +73,18 @@ import { SCAPE } from "./audio/place.js";
 
 const RL_INTRO = { queue: [], last: 0 };
 function rlIntroEvents(world) {
+  // 3.28.0: the first Overdrive of a boss goes into the Codex
+  const boss = world.boss;
+  if (boss && OVERDRIVE[boss.type] && boss.st === OVERDRIVE[boss.type] && !store.data.seen["od_" + boss.type]) {
+    store.data.seen["od_" + boss.type] = true;
+    store.save("codex");
+  }
+  // ... and so does each Endless mutator that is in play
+  for (const id of Object.keys(world.mods || {}))
+    if (MUTATORS[id] && !store.data.seen["mut_" + id]) {
+      store.data.seen["mut_" + id] = true;
+      store.save("codex");
+    }
   if (game.tut) return; // the tutorial coach owns the screen on the first run
   for (const ev of world.fx) {
     if (

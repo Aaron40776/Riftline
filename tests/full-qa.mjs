@@ -2842,7 +2842,8 @@ for (const profName of ["desktop", "phone"])
       return {
         shown: !document.getElementById("codexList").hidden && document.getElementById("recStats").hidden,
         rows: rows.length,
-        want: Object.keys(d.enemyDefs).length + Object.keys(d.data.bossDefs).length + d.data.upgradeList.length,
+        // + the 6 Endless mutators and the 5 Overdrive attacks (3.28.0)
+        want: Object.keys(d.enemyDefs).length + Object.keys(d.data.bossDefs).length + d.data.upgradeList.length + 11,
         unseen: rows.filter((r) => r.classList.contains("unseen")).length,
         grunt: txt("enemy_grunt"),
         warden: txt("boss_warden"),
@@ -2854,7 +2855,7 @@ for (const profName of ["desktop", "phone"])
     });
     check(
       L,
-      "codex: tab shows one row per enemy, boss and upgrade",
+      "codex: tab shows one row per enemy, boss, upgrade, mutator and Overdrive attack",
       cx.shown && cx.rows === cx.want,
       `${cx.rows}/${cx.want}`,
     );
@@ -4419,6 +4420,76 @@ for (const profName of ["desktop", "phone"]) {
     await P.close();
   });
 }
+
+// 3.28.0: the Codex part "Rift events": Endless mutators and boss Overdrive attacks are found in play
+await section("codex-events", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    { timeout: 30000 },
+  );
+  const before = await P.ev(() => Object.keys(window.__riftTest.store.data.seen).filter((k) => /^(mut|od)_/.test(k)));
+  check(L, "nothing of the rift events is known at the start", before.length === 0, before.join());
+  await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    w.god = true;
+    for (const e of [...w.enemies]) w.killEnemy(e);
+    w.startWave(5);
+  });
+  await P.page.waitForFunction(() => window.__riftTest.game.world.boss, null, { timeout: 30000 });
+  await P.ev(() => {
+    const w = window.__riftTest.game.world,
+      b = w.boss;
+    w.mods = { hasted: 1, volatile: 2 }; // (set after the wave is built: it recomputes the mutators)
+    b.st = "lockdown";
+  });
+  await P.page.waitForTimeout(800);
+  const seen = await P.ev(() =>
+    Object.keys(window.__riftTest.store.data.seen)
+      .filter((k) => /^(mut|od)_/.test(k))
+      .sort(),
+  );
+  check(
+    L,
+    "mutators in play and the Warden's Lockdown are kept as seen",
+    seen.join() === "mut_hasted,mut_volatile,od_warden",
+    seen.join(),
+  );
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.game.goHome();
+    T.ui.show("records");
+    T.ui.recordsTab("codex");
+  });
+  const cx = await P.ev(() => {
+    const txt = (k) => document.querySelector(`#codexList [data-cx="${k}"]`)?.textContent || "";
+    return {
+      hasted: txt("mut_hasted"),
+      armored: txt("mut_armored"),
+      lockdown: txt("od_warden"),
+      collapse: txt("od_core"),
+      head: [...document.querySelectorAll("#codexList .section-h")].map((h) =>
+        h.textContent.replace(/\s+/g, " ").trim(),
+      ),
+    };
+  });
+  check(
+    L,
+    "the Codex shows them, the others stay ???",
+    /Hasted/.test(cx.hasted) &&
+      /Lockdown/.test(cx.lockdown) &&
+      /THE WARDEN/.test(cx.lockdown) &&
+      /\?\?\?/.test(cx.armored) &&
+      /\?\?\?/.test(cx.collapse) &&
+      cx.head.some((h) => /^Rift events 3\/11/.test(h)),
+    JSON.stringify(cx),
+  );
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
 
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
