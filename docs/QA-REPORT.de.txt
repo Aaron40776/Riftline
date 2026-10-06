@@ -23,8 +23,11 @@ things" and "fix and clean up everything thoroughly".
    - Not judged by me and for the owner's ears and fingers: the ambient bloom and its echo, the rumble and the buzz of the
      phone, the sizes of the new links on the home screen.
 
-3) Tests and results
-   - See the release-check line of the handoff in docs/ROADMAP.de.md (CURRENT STATE).
+3) Tests and results (headless Chromium, software WebGL)
+   - npm run release-check on this state: ALL steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, full
+     QA with the new section no-ultra, e2e, world and run audit, screens pc and land, biome shots pc and land, attack shots
+     pc), 39 min 58 s. (An earlier run was stopped because I rebuilt the same worktree while it ran: never edit and build in
+     the tree a check is running in.)
 
 RIFTLINE v3.28.1 – CHECKUP; THE ROTATE SCREEN IS BACK
 Base: v3.28.0 · Build r3281a1005a-r1 · 06.10.2026
