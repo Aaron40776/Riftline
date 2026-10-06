@@ -786,6 +786,8 @@ const musicChords = {
         pr.connect(this.mus);
         dr.connect(fr);
         fr.connect(dl);
+        // 3.28.1: the feedback of the echo, silenced for a moment when the music changes (quietOld)
+        this.pingFb = [fl, fr];
       }
       let len = ctx.sampleRate;
       this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -3177,6 +3179,12 @@ const musicChords = {
         this.fb.gain.cancelScheduledValues(now);
         this.fb.gain.setValueAtTime(0, now);
         this.fb.gain.setValueAtTime(0.32, now + 0.7);
+        // 3.28.1: the ping-pong echo of the bloom empties too (it rang about two seconds into the next track)
+        for (const g of this.pingFb || []) {
+          g.gain.cancelScheduledValues(now);
+          g.gain.setValueAtTime(0, now);
+          g.gain.setValueAtTime(0.42, now + 1);
+        }
         if (this.verbIn && this.verb) {
           let fresh = ctx.createConvolver(),
             freshOut = ctx.createGain(),

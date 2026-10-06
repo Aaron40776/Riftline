@@ -23,6 +23,7 @@ import { milestones, workshopModules, rlRetired, threatLevels } from "../data/pr
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
 import { RL_INPUT } from "./input.js";
+import { clearFocus } from "./gamepad.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
 import { markHomeViewDirty } from "../render/renderer.js";
@@ -454,6 +455,8 @@ const getById = (id) => document.getElementById(id),
         this.recTab = "stats";
       }
       for (let id of menuScreens) getById(id).hidden = id !== screen;
+      // 3.28.1: the gamepad's ring of focus stays on the screen it was on
+      clearFocus();
       this.screen = screen;
       // the music preview plays only while the settings screen is open
       if (screen !== "settings") {
@@ -951,6 +954,8 @@ const getById = (id) => document.getElementById(id),
       return ok;
     }
     dialog({ title, body, buttons, onOpen, read }) {
+      // 3.28.1: the gamepad's ring of focus does not stay on the button that opened the dialog
+      clearFocus();
       if (this.dlgResolve) {
         this.closeDialog(null);
       }
@@ -1694,7 +1699,9 @@ const getById = (id) => document.getElementById(id),
       over.hidden = !result.daily;
       if (result.daily) {
         const ds = result.dailyStats;
-        over.textContent = `Daily Rift ${result.daily} \xB7 best today wave ${ds.wave}${result.dailyBest ? " (new)" : ""} \xB7 streak ${ds.streak}`;
+        over.textContent = ds
+          ? `Daily Rift ${result.daily} \xB7 best today wave ${ds.wave}${result.dailyBest ? " (new)" : ""} \xB7 streak ${ds.streak}`
+          : `Daily Rift ${result.daily} \xB7 not counted (ended before wave 2)`;
       }
       this.renderRecap(result);
       getById("overStats").innerHTML = [

@@ -482,7 +482,8 @@ const overlay = new Overlay(elementById("ov")),
       }
     },
     resume() {
-      if (this.paused) {
+      // 3.11.0: not behind the rotate screen (a tablet with a keyboard could press Esc there)
+      if (this.paused && !needsRotate()) {
         this.paused = false;
         ui.hidePause();
         input.reset();
@@ -522,6 +523,9 @@ const overlay = new Overlay(elementById("ov")),
         world.restartClock();
         world.evolved = 0;
         world.dmgSrc = {};
+        // 3.28.1: the death recap of Endless shows the hits of the Endless part only (the clock starts again)
+        world.hitLog = [];
+        world.takenBy = {};
         // 2.8.1: the Endless summary counts only the Endless part, like shards and kills above
         world.dmgDealt = 0;
         world.bestCombo = 0;
@@ -643,9 +647,11 @@ const overlay = new Overlay(elementById("ov")),
       for (let bossId of world.bossKills) stats.bosses[bossId] = (stats.bosses[bossId] || 0) + 1;
       if (win && !world.endless) {
         stats.clears++;
-        stats.clearsBy[world.weapon] = (stats.clearsBy[world.weapon] || 0) + 1;
+        // 3.28.1: a Daily Rift sets the weapon and the threat: its clear counts as a clear, but unlocks no threat level and
+        // does not count as a clear with that weapon (it may not even be owned)
+        if (!world.daily) stats.clearsBy[world.weapon] = (stats.clearsBy[world.weapon] || 0) + 1;
         stats.bestClearThreat = Math.max(stats.bestClearThreat, world.threat);
-        if (world.threat >= save.threatMax && save.threatMax < 5) {
+        if (!world.daily && world.threat >= save.threatMax && save.threatMax < 5) {
           save.threatMax = world.threat + 1;
           unlocks.push(`${threatLevels[save.threatMax].name} unlocked`);
         }
@@ -692,7 +698,8 @@ const overlay = new Overlay(elementById("ov")),
           fastest: fastest,
           daily: world.daily,
           dailyBest: dailyBest,
-          dailyStats: world.daily ? { ...stats.daily } : null,
+          // 3.28.1: the record only when this run was counted (an abandoned Daily before wave 2 is not)
+          dailyStats: world.daily && stats.daily.key === world.daily ? { ...stats.daily } : null,
         });
         sound.setMusic("menu");
         setWakeLock(false);
@@ -752,7 +759,7 @@ function awardBossMedal(ev, world) {
   try {
     const def = bossDefs[ev.id];
     if (!def) return;
-    const medal = bossMedal(ev.id, ev.secs, ev.damage, world.stats.maxHp, (world.tm && world.tm.hp) || 1),
+    const medal = bossMedal(ev.id, ev.secs, ev.damage, world.stats.maxHp, threatMods(world.threat).boss),
       stats = store.data.stats;
     if (!medal) return;
     stats.medals = stats.medals || {};
@@ -856,10 +863,13 @@ let loopFrameId = 0,
   fpsWindowFrames = 0,
   dimFrameCounter = 0,
   menuFrame = 0;
-/* 3.11.0: Riftline plays in landscape on phones and tablets. 3.18.0: it always does: held upright, the shell at the top
-   of index.html turns the whole game a quarter (there is no rotate screen). Where the browser allows it (an installed app,
-   Android in full screen) the screen is also locked to landscape when a run starts, so that the shell has nothing to
-   turn; elsewhere the lock is refused and nothing happens. */
+/* 3.11.0: Riftline plays in landscape on phones and tablets. index.html sets needs-rotate on <body> while such a
+   device is held upright (the rotate screen). Where the browser allows it (an installed app, Android in full screen)
+   the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens.
+   (3.28.1: the shell of 3.18.0 that turned the whole game a quarter is gone again; the owner found it odd.) */
+function needsRotate() {
+  return document.body.classList.contains("needs-rotate");
+}
 function lockLandscape() {
   if (document.body.dataset.device === "desktop") return;
   try {
@@ -879,6 +889,9 @@ function loopTick(now) {
   if (!(qualityPreset.fps && dt < 1 / qualityPreset.fps - 0.004)) {
     game.last = now;
     dt = Math.min(0.1, Math.max(0, dt));
+    // 3.11.0: a phone or tablet held upright shows the rotate screen; a run waits paused behind it (pause() does
+    // nothing outside the fight or when already paused)
+    if (needsRotate()) game.pause();
     try {
       const frameStart = performance.now();
       input.updatePad(dt);
@@ -921,6 +934,9 @@ function runFrame(dt) {
       }
       let steps = 0,
         maxSteps = 5 * speed;
+      // 3.28.1: an ended run stands still behind the end screen. An abandoned run went on in the background (it is still in
+      // its fight) and the start of its next wave wrote it back into the save, so Continue brought the abandoned run back.
+      if (game.overShown) game.acc = 0;
       for (; game.acc >= rlStep && steps < maxSteps; ) {
         world.step(rlStep, input.sample(world, settings));
         game.acc -= rlStep;
@@ -1047,8 +1063,11 @@ function handleWorldEvents(world) {
   for (let ev of world.fx)
     switch (ev.k) {
       case "wave": {
-        store.data.run = world.snapshot();
-        store.save("wave");
+        // 3.28.1: never for a run that has ended (see runFrame)
+        if (!game.overShown) {
+          store.data.run = world.snapshot();
+          store.save("wave");
+        }
         let biome = world.biomeFor(ev.n);
         if (renderer) {
           renderer.resetCamera();
@@ -1195,8 +1214,10 @@ function handleWorldEvents(world) {
         overlay.callout(ev.atk);
         break;
       case "offer":
-        store.data.run = world.snapshot();
-        store.save("offer");
+        if (!game.overShown) {
+          store.data.run = world.snapshot();
+          store.save("offer");
+        }
         break;
       case "maxed":
         // 2.9.1: nothing left to offer: no choice screen, the run goes on with a small reward
