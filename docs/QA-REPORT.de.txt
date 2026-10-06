@@ -1,3 +1,49 @@
+RIFTLINE v3.28.1 – CHECKUP; THE ROTATE SCREEN IS BACK
+Base: v3.28.0 · Build r3281a1005a-r1 · 06.10.2026
+
+The owner, 06.10.2026: "Do a full checkup of the project if everything is working" and "the always landscape thing is kinda
+weird, maybe just keep the turn phone thing".
+
+1) The checkup of main (3.28.0, after #54 was merged)
+   - The live site (GitHub Pages) serves exactly the build of main: index.html and the game script are byte for byte the same
+     as a local build, every asset answers 200. The deploy and CodeQL on the merge commit passed; no open issues.
+   - npm run release-check on main: all steps ok except one check of the full QA: "whiteout: the fog closes in" measured
+     42.4 against 55.8 (76 %, the limit is 75 %). Cause: the test waited a fixed 1.6 s while the Whiteout fades in over about a
+     second of frame time and a frame of software rendering counts at most 0.1 s; on a busy machine the fade was not complete.
+     The test now waits until it is (renderer.rlWhiteK >= 0.99). Not a fault of the game.
+   - A review of the code of 3.18.1 to 3.28.0 found four faults (all fixed, see 2) and some questions of design.
+
+2) Fixes
+   - An abandoned run came back: the world went on behind the end screen (still in its fight) and the start of its next wave
+     saved it again, so Continue brought the abandoned run back. Found by the new test gamepad-dialog. runFrame no longer steps
+     a world whose end screen is up; the wave and offer events do not save then.
+   - Gamepad: A in a confirm dialog (Abandon, Restart, New run) pressed the main button of the screen behind the dialog
+     (Resume, Continue), and on the Pacts page a second A unsigned the first pact. pressFocus now also tries the element that
+     has the browser's focus, the fallback presses the main button of the top layer only and never a toggle, and the ring of
+     focus is cleared when a screen or a dialog opens.
+   - Boss medals: the par time followed the hull factor of ordinary enemies (and so the Iron Hide pact) instead of the boss's.
+   - Endless: the death recap kept the hits of the 20 waves before it.
+   - Daily Rift: the end screen of a Daily abandoned before wave 2 showed another day's record (it now says "not counted"); a
+     Daily clear unlocked the next threat level and counted as a clear with its weapon (it does neither now); the page says
+     that the shard bonuses of the workshop still pay out.
+   - The ping-pong echo of the ambient bloom rang about two seconds into the next track; its feedback is now silenced for a
+     second when the music changes, like the old echo.
+
+3) The rotate screen is back
+   - The shell of 3.18.0 (index.html ran the game in a frame and turned it by 90 degrees while a phone was held upright) is
+     removed. Held upright, a phone or tablet shows "Turn your device" again and a run waits paused behind it (3.11.0); Resume
+     is refused behind it. input.js reads pointerrawupdate and the coalesced events again (the turned frame needed otherwise).
+   - The full QA section shell is the section rotate again (picture tests/shots/qa-rotate-phone.png, looked at).
+
+4) Tests and results (headless Chromium, software WebGL)
+   - New full QA sections gamepad-dialog and checkup-3281.
+   - npm run release-check on 3.28.1: ALL steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, full QA,
+     e2e, world and run audit, screens pc and land, biome shots pc and land, attack shots pc), 38 min 32 s.
+
+5) Open doubts
+   - Design questions from the review, left as they are: the Shard Refinery still multiplies the payout of a Daily run.
+   - Not tested on real devices: the rotate screen on iPhone Safari and Android Chrome, the gamepad on real hardware.
+
 RIFTLINE v3.28.0 – CODEX: RIFT EVENTS
 Base: v3.27.0 · Build r3280a1005a-r1 · 06.10.2026
 
