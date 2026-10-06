@@ -31,7 +31,10 @@ later, with a reference from the owner).
      (SHOT_QUALITY=ultra).
 
 4) Results 3.20.0 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+   - npm run release-check: all steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, e2e, world and
+     run audit, screens pc and land, biome shots pc and land, attack shots pc) except one check of the full QA: the test of
+     a hostile save used "ultra" as its example of an invalid Graphics value ("saves: every value clamped to its valid
+     range"); "ultra" is valid now. The test uses "extreme" instead; the section saves passes. Time of the chain: 33 min 22 s.
 
 5) Open doubts
    - I judge pictures, not taste: whether this is the "professional" look the owner means needs his eyes (and a reference
