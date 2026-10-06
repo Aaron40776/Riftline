@@ -3813,6 +3813,107 @@ await section("nextwave", async (L) => {
   await P.close();
 });
 
+// 3.23.0: the gamepad (a faked controller): sticks, buttons, pause, the rumble, and the ring of focus in the menus
+await section("gamepad", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => {
+    const pad = {
+      id: "Test Pad (STANDARD GAMEPAD)",
+      connected: true,
+      axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })),
+      vibrationActuator: { playEffect: (...a) => (window.__rumbles = window.__rumbles || []).push(a) },
+    };
+    window.__pad = pad;
+    navigator.getGamepads = () => [pad];
+  });
+  const frames = (n = 3) =>
+    P.ev(
+      (n) =>
+        new Promise((resolve) => {
+          let left = n;
+          const tick = () => (--left <= 0 ? resolve() : requestAnimationFrame(tick));
+          requestAnimationFrame(tick);
+        }),
+      n,
+    );
+  const hold = async (button, n = 4) => {
+    await P.ev((b) => ((window.__pad.buttons[b].pressed = true), (window.__pad.buttons[b].value = 1)), button);
+    await frames(n);
+    await P.ev((b) => ((window.__pad.buttons[b].pressed = false), (window.__pad.buttons[b].value = 0)), button);
+    await frames(2);
+  };
+  // the menus: the D-pad moves a ring of focus, A presses, B goes back
+  await frames(3);
+  const focused = () =>
+    P.ev(
+      () =>
+        document.querySelector(".pad-focus")?.getAttribute("data-go") || document.querySelector(".pad-focus")?.id || "",
+    );
+  await hold(13); // down
+  const first = await focused();
+  check(
+    L,
+    "the D-pad puts the ring of focus on a button of the home screen",
+    first !== "" || (await P.ev(() => !!document.querySelector(".pad-focus"))),
+    first,
+  );
+  let reached = false;
+  for (let i = 0; i < 10 && !reached; i++) {
+    reached = (await P.ev(() => document.querySelector(".pad-focus")?.getAttribute("data-go") === "settings")) || false;
+    if (!reached) await hold(i % 2 ? 13 : 15);
+  }
+  check(L, "the ring walks to Settings", reached);
+  await hold(0); // A
+  await P.page.waitForTimeout(500);
+  check(L, "A presses it: the settings open", await P.vis("settings"));
+  await hold(1); // B
+  await P.page.waitForTimeout(500);
+  check(L, "B goes back to the home screen", (await P.vis("home")) && !(await P.vis("settings")));
+  // a run: the left stick moves, A dashes, Start pauses, the rumble answers a hit
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  await P.ev(() => (window.__riftTest.game.world.god = true));
+  const x0 = await P.ev(() => window.__riftTest.game.world.player.x);
+  await P.ev(() => (window.__pad.axes[0] = 1));
+  await frames(10);
+  await P.ev(() => (window.__pad.axes[0] = 0));
+  const x1 = await P.ev(() => window.__riftTest.game.world.player.x);
+  check(L, "the left stick moves the drone to the right", x1 > x0 + 0.5, `${x0.toFixed(2)} -> ${x1.toFixed(2)}`);
+  const d0 = await P.ev(() => window.__riftTest.game.world.runStats.dashes);
+  await P.ev(() => (window.__riftTest.game.world.player.dashCdT = 0));
+  await hold(0);
+  check(L, "A dashes", (await P.ev(() => window.__riftTest.game.world.runStats.dashes)) > d0);
+  await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    w.god = false;
+    w.player.iT = 0;
+    w.player.dashT = 0;
+    w.player.shield = false;
+    w.hurtPlayer(3, null, null, "grunt");
+    w.god = true;
+  });
+  await frames(4);
+  check(L, "a hit makes the controller rumble", (await P.ev(() => (window.__rumbles || []).length)) >= 1);
+  await hold(9); // Start
+  check(L, "Start pauses the run", await P.ev(() => window.__riftTest.game.paused));
+  await hold(9);
+  check(L, "Start resumes it", !(await P.ev(() => window.__riftTest.game.paused)));
+  // without a controller nothing is left of it
+  await P.ev(() => (navigator.getGamepads = () => []));
+  await frames(3);
+  check(L, "no controller: no ring of focus in the way", !(await P.ev(() => !!document.querySelector(".pad-focus"))));
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));

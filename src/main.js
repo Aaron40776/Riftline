@@ -804,6 +804,7 @@ function loopTick(now) {
     dt = Math.min(0.1, Math.max(0, dt));
     try {
       const frameStart = performance.now();
+      input.updatePad(dt);
       runFrame(dt);
       frameErrorCount = 0;
       if (RL_MON)
@@ -1079,6 +1080,7 @@ function handleWorldEvents(world) {
         break;
       case "hurt":
         if (!ev.chip) {
+          rumble("hurt", store.data.settings.vibration !== false);
           ui.hurtFlash();
           overlay.addHurt(world, ev.sx, ev.sy);
           hitStop(0.06);
@@ -1135,6 +1137,7 @@ function handleWorldEvents(world) {
         }
         break;
       case "dash":
+        rumble("dash", store.data.settings.vibration !== false);
         if (game.tut) {
           game.tut.dashed = true;
         }
@@ -1158,6 +1161,7 @@ function handleWorldEvents(world) {
         ui.banner("SECOND LIFE", "Hull restored", "good", 1600);
         break;
       case "die":
+        rumble("die", store.data.settings.vibration !== false);
         sound.setMusic("off");
         break;
       case "victory":

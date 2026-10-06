@@ -557,6 +557,8 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .stat-rows .sr-d.up { color: #6dffb0; }
 .stat-rows .sr-d.down { color: #6dffb0; }
 .stat-rows .sr-d.worse { color: #ff9ab0; }
+/* 3.23.0: the ring of focus a controller moves through the menus */
+.pad-focus { outline: 2px solid var(--cyan); outline-offset: 3px; box-shadow: 0 0 16px rgba(73, 242, 255, 0.55); }
 .recap .hits { display: flex; flex-direction: column; gap: 3px; }
 .recap .hit { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text); }
 .recap .hit .hd { font: 700 13px/1 var(--display); color: #ff7a92; min-width: 3.2em; }
@@ -1662,6 +1664,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div class="set-group">
         <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest enemy while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
         <label class="set-row"><span><b>Aim assist</b><small>Nudges your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
+        <label class="set-row"><span><b>Vibration</b><small>Rumble on a controller, a short buzz on a phone: hits, dashes, the end of a run.</small></span><input type="checkbox" id="setVibration" class="toggle"></label>
         <div class="set-row"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the buttons and the sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
       </div>
       <h3 class="section-h">Display</h3>

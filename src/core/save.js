@@ -166,6 +166,8 @@ const SAVE_KEY = "riftline.save.v1",
     ambience: 0.8,
     autoFire: true,
     assist: true,
+    // 3.23.0: the rumble of a controller and the vibration of a phone on hits, dashes and the end of a run
+    vibration: true,
     shake: true,
     numbers: true,
     quality: "auto",

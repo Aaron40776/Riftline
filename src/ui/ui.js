@@ -376,6 +376,7 @@ const getById = (id) => document.getElementById(id),
         };
       bindToggle("setAuto", "autoFire");
       bindToggle("setAssist", "assist");
+      bindToggle("setVibration", "vibration");
       bindToggle("setShake", "shake");
       bindToggle("setNumbers", "numbers");
       bindToggle("setContrast", "contrast");
@@ -768,6 +769,7 @@ const getById = (id) => document.getElementById(id),
       let settings = this.save.settings;
       getById("setAuto").checked = settings.autoFire;
       getById("setAssist").checked = settings.assist;
+      getById("setVibration").checked = settings.vibration !== false;
       getById("setShake").checked = settings.shake;
       getById("setNumbers").checked = settings.numbers;
       getById("setContrast").checked = settings.contrast;
