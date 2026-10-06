@@ -1,3 +1,31 @@
+RIFTLINE v3.27.0 – PACTS
+Base: v3.26.0 · Build r3270a1005a-r1 · 06.10.2026
+
+Roadmap, proposal C9 of 03.10.2026: pacts before a run (optional risks for a share of shards).
+
+1) The pacts (data/pacts.js)
+   - Up to two of five at once: Glass Cannon (hull -40 %, damage +30 %, shards +20 %), Swarm Pact (35 % more enemies, +20 %),
+     Iron Hide (enemies +30 % health, +20 %), Elite Hunt (+12 % elite chance, +25 %), Heavy Drive (move speed -10 %, dash
+     cooldown +40 %, +15 %). The bonuses add up (at most +45 %). They work with every weapon and threat level; the Daily Rift
+     ignores them.
+   - The World keeps them in its snapshot; the enemies' side changes the threat numbers, the drone's side is read by computeStats
+     from the ws keys pact_<id>. The payout is multiplied by 1 + the bonus; the run audit expects the same sum.
+
+2) What the player sees
+   - A Pacts link next to Daily Rift (with the number signed), a page with a toggle per pact (the third is refused with a
+     message), a toast at the start of a run, a Pacts row in the payout.
+
+3) Tests
+   - Self-test v3270 and the full QA sections pacts-desktop and pacts-phone (pictures tests/shots/qa-pacts-*.png).
+
+4) Results 3.27.0 (headless Chromium, software WebGL)
+   - See the handoff table of docs/ROADMAP.de.md for the release check on the top of the stack.
+
+5) Open doubts
+   - The numbers (the penalties and the shard bonuses) are my estimate and not balanced with the balance simulation; whether
+     Elite Hunt and Swarm Pact are hard enough for +20 to 25 % is open. The sound and the look of a pact are only the toast and the
+     list (no model: a pact is a rule, not an object in the arena).
+
 RIFTLINE v3.26.0 – DAILY RIFT
 Base: v3.25.0 · Build r3260a1005a-r1 · 06.10.2026
 

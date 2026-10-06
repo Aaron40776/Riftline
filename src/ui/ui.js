@@ -17,6 +17,7 @@ import { clamp, GAME_VERSION, formatCount, rlAgo, formatTime } from "../core/uti
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
 import { MEDAL_NAMES } from "../core/medals.js";
 import { dailyKey, dailySpec, liveStreak } from "../core/daily.js";
+import { PACTS, PACT_MAX, pactBonus } from "../data/pacts.js";
 import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, rlRetired, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
@@ -139,7 +140,7 @@ function iconSvg(name, cls = "") {
   return `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
 const getById = (id) => document.getElementById(id),
-  menuScreens = ["home", "workshop", "records", "daily", "news", "settings"],
+  menuScreens = ["home", "workshop", "records", "daily", "pacts", "news", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
   formatPercent = (value) => Math.round(value * 100) + "%",
   formatCooldown = (value) => (value > 0 ? formatTenths(value) + " s" : "off"),
@@ -472,6 +473,9 @@ const getById = (id) => document.getElementById(id),
       if (screen === "daily") {
         this.renderDaily();
       }
+      if (screen === "pacts") {
+        this.renderPacts();
+      }
       if (screen === "news") {
         this.renderNews();
       }
@@ -536,6 +540,7 @@ const getById = (id) => document.getElementById(id),
       getById("newsBadge").hidden = !!save.seen["news_" + GAME_VERSION];
       // 3.26.0: a dot on the Daily Rift until today's Rift has been played
       getById("dailyBadge").hidden = save.stats.daily.key === dailyKey();
+      getById("pactsLabel").textContent = save.pacts.length ? `Pacts \xB7 ${save.pacts.length}` : "Pacts";
       let stats = save.stats;
       getById("bestLine").hidden = !stats.runs;
       if (stats.runs) {
@@ -766,6 +771,33 @@ const getById = (id) => document.getElementById(id),
       }
     }
     // the What's new tab: opening it marks this version's notes as read (the badge on the home screen goes away)
+    /* 3.27.0: the pacts page: each pact is a toggle, at most PACT_MAX at once; the choice is saved for the next runs */
+    renderPacts() {
+      const save = this.save,
+        list = getById("pactList");
+      for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
+      list.innerHTML = PACTS.map((pact) => {
+        const on = save.pacts.includes(pact.id);
+        return `<div class="row panel pact${on ? " on" : ""}"><div class="rico">${iconSvg(pact.icon)}</div><div><b>${escapeHtml(pact.name)}</b><small>${escapeHtml(pact.desc)} · shards +${Math.round(pact.shards * 100)}%</small></div><button class="btn${on ? " primary" : ""}" data-pact="${pact.id}" aria-pressed="${on}">${on ? "SIGNED" : "SIGN"}</button></div>`;
+      }).join("");
+      for (const btn of list.querySelectorAll("[data-pact]")) this.click(btn, () => this.togglePact(btn.dataset.pact));
+      const bonus = Math.round(pactBonus(save.pacts) * 100);
+      getById("pactSum").textContent = save.pacts.length
+        ? `${save.pacts.length} of ${PACT_MAX} signed · shards +${bonus}% on every run`
+        : `No pact signed (up to ${PACT_MAX}).`;
+      getById("pactsLabel").textContent = save.pacts.length ? `Pacts \xB7 ${save.pacts.length}` : "Pacts";
+    }
+    togglePact(id) {
+      const save = this.save;
+      if (save.pacts.includes(id)) save.pacts = save.pacts.filter((x) => x !== id);
+      else if (save.pacts.length >= PACT_MAX) {
+        this.g.sound.play("deny");
+        this.toast(`At most ${PACT_MAX} pacts: take one off first`, "hint");
+        return;
+      } else save.pacts = [...save.pacts, id];
+      this.g.store.save("pacts");
+      this.renderPacts();
+    }
     /* 3.26.0: the Daily Rift page: today's weapon and threat, the best of the day, the streak */
     renderDaily() {
       const save = this.save,

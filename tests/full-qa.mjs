@@ -2199,7 +2199,7 @@ await section("qol", async (L) => {
   });
   await P.page.waitForTimeout(300);
   const back = [];
-  for (const s of ["workshop", "records", "daily", "settings"]) {
+  for (const s of ["workshop", "records", "daily", "pacts", "settings"]) {
     await P.nav(s);
     await P.page.keyboard.press("Escape");
     await P.page.waitForTimeout(250);
@@ -2207,7 +2207,7 @@ await section("qol", async (L) => {
   }
   check(
     L,
-    "Esc goes back from Workshop, Records, Daily Rift and Settings",
+    "Esc goes back from Workshop, Records, Daily Rift, Pacts and Settings",
     back.every((x) => x === "home"),
     back.join(", "),
   );
@@ -4297,6 +4297,121 @@ for (const profName of ["desktop", "phone"]) {
           !/Not played/.test(document.getElementById("dailyStats").textContent)
         );
       }),
+    );
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+
+// 3.27.0: pacts: up to two, a harder run for a share of shards
+for (const profName of ["desktop", "phone"]) {
+  await section(`pacts-${profName}`, async (L) => {
+    const P = await open(profName, { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+    await P.boot();
+    check(
+      L,
+      "the home screen has a Pacts link",
+      await P.ev(() => {
+        const b = document.getElementById("pactsBtn"),
+          r = b.getBoundingClientRect();
+        return r.width > 20 && r.right <= innerWidth + 1 && /^Pacts$/.test(b.textContent.trim());
+      }),
+    );
+    await P.nav("pacts");
+    await P.page.waitForTimeout(400);
+    check(
+      L,
+      "the page lists the five pacts",
+      (await P.ev(() => document.querySelectorAll("#pactList [data-pact]").length)) === 5,
+    );
+    await P.tap('#pactList [data-pact="glass"]');
+    await P.tap('#pactList [data-pact="swarm"]');
+    await P.tap('#pactList [data-pact="hunt"]');
+    await P.page.waitForTimeout(300);
+    const state = await P.ev(() => ({
+      saved: window.__riftTest.store.data.pacts,
+      signed: [...document.querySelectorAll("#pactList .pact.on [data-pact]")].map((b) => b.dataset.pact),
+      sum: document.getElementById("pactSum").textContent,
+      toast: /At most 2/.test(document.getElementById("toasts").textContent),
+    }));
+    check(
+      L,
+      "two pacts can be signed, a third is refused with a message",
+      state.saved.join() === "glass,swarm" &&
+        state.signed.join() === "glass,swarm" &&
+        state.toast &&
+        /\+40%/.test(state.sum),
+      JSON.stringify(state),
+    );
+    await P.shot({ path: new URL(`./shots/qa-pacts-${profName}.png`, import.meta.url).pathname });
+    await P.page.keyboard.press("Escape");
+    await P.page.waitForTimeout(200);
+    check(
+      L,
+      "Esc goes back; the link shows how many are signed",
+      await P.ev(
+        () =>
+          window.__riftTest.ui.screen === "home" &&
+          /Pacts\s*·\s*2/.test(document.getElementById("pactsBtn").textContent),
+      ),
+    );
+    await P.ev(() => window.__riftTest.game.startRun({}));
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const run = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return {
+        pacts: w.pacts.join(),
+        hp: w.player.maxHp,
+        budget: w.tm.budget,
+        toast: /Pacts: Glass Cannon, Swarm Pact \(\+40% shards\)/.test(document.getElementById("toasts").textContent),
+      };
+    });
+    check(
+      L,
+      "the run has the pacts: hull 60, 35% more enemies, a toast names them",
+      run.pacts === "glass,swarm" && run.hp === 60 && Math.abs(run.budget - 1.35) < 1e-6 && run.toast,
+      JSON.stringify(run),
+    );
+    await P.ev(() => {
+      const w = window.__riftTest.game.world,
+        p = w.player;
+      w.god = false;
+      w.shards = 100;
+      p.hp = 1;
+      p.iT = 0;
+      p.dashT = 0;
+      p.shield = false;
+      w.hurtPlayer(500, null, null, "turret");
+    });
+    await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 });
+    await P.page.waitForTimeout(400);
+    const pay = await P.ev(() => ({
+      rows: document.getElementById("payRows").textContent,
+      total: document.getElementById("payTotal").textContent,
+    }));
+    check(
+      L,
+      "the payout names the pacts and pays 100 + 40 = 140 shards",
+      /Pacts \+40%/.test(pay.rows) && pay.total.replace(/\D/g, "") === "140",
+      JSON.stringify(pay),
+    );
+    // the Daily Rift does not use them
+    await P.ev(() => window.__riftTest.game.startRun({ daily: true }));
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    check(
+      L,
+      "the Daily Rift has no pacts",
+      await P.ev(
+        () => window.__riftTest.game.world.pacts.length === 0 && window.__riftTest.game.world.player.maxHp === 100,
+      ),
     );
     check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
     await P.close();

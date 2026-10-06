@@ -17,6 +17,7 @@ import {
   rlEnemyFrom,
 } from "./waves.js";
 import { threatMods } from "../data/progression.js";
+import { cleanPacts, applyPactsToThreat, pactBonus } from "../data/pacts.js";
 import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
 import { computeStats, DASH_CD_MIN } from "./stats.js";
@@ -158,8 +159,12 @@ const rlStep = 1 / 60,
       this.seed = (snap ? snap.seed : opts.seed) >>> 0;
       this.weapon = weaponDefs[snap ? snap.weapon : opts.weapon] ? (snap ? snap.weapon : opts.weapon) : "pulse";
       this.threat = clamp((snap ? snap.threat : opts.threat) | 0, 0, 5);
-      this.tm = threatMods(this.threat);
+      // 3.27.0: the pacts of the run (kept in the snapshot): the enemies' side changes the threat numbers, the drone's side
+      // is read by computeStats from the ws keys pact_<id>
+      this.pacts = cleanPacts(snap ? snap.pacts : opts.pacts);
+      this.tm = applyPactsToThreat(threatMods(this.threat), this.pacts);
       this.ws = { ...(opts.ws || {}) };
+      for (const id of this.pacts) this.ws["pact_" + id] = 1;
       this.up = snap ? { ...snap.up } : {};
       this.wave = snap ? snap.wave : 1;
       this.endless = snap ? !!snap.endless : false;
@@ -560,6 +565,10 @@ const rlStep = 1 / 60,
     isFinalWave() {
       return !this.endless && this.wave >= 20;
     }
+    /* 3.27.0: the extra share of the payout the pacts of this run bring (0.2 = +20%) */
+    pactBonus() {
+      return pactBonus(this.pacts);
+    }
     snapshot() {
       let snap = {
         v: 1,
@@ -577,6 +586,7 @@ const rlStep = 1 / 60,
         banished: [...this.banished],
         banishes: this.banishes,
         daily: this.daily,
+        pacts: [...this.pacts],
         revived: this.revived,
         nova: Math.round(this.player.nova),
         bossKills: [...this.bossKills],

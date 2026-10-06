@@ -847,6 +847,7 @@ function rlMonPreEnd(world) {
     runKills: world.kills,
     threat: world.threat,
     salvage: data.workshop.salvage || 0,
+    pactBonus: world.pactBonus ? world.pactBonus() : 0,
     endless: !!world.endless,
     wave: world.wave,
   };
@@ -960,7 +961,9 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
     const data = store.data,
       runShards = pre.shards,
       bonus = win ? Math.round(runShards * 0.25) : 0,
-      expect = Math.round((runShards + bonus) * threatMods(pre.threat).shards * (1 + 0.1 * pre.salvage)),
+      expect = Math.round(
+        (runShards + bonus) * threatMods(pre.threat).shards * (1 + 0.1 * pre.salvage) * (1 + pre.pactBonus),
+      ),
       got = data.shards - pre.bank;
     addCheck(
       got === expect ? "OK" : "FAIL",

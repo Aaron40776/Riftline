@@ -48,6 +48,7 @@ const res = await page.evaluate(() => {
     v3240: r.v3240?.fail,
     v3250: r.v3250?.fail,
     v3260: r.v3260?.fail,
+    v3270: r.v3270?.fail,
   };
 });
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,

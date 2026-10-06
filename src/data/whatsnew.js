@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.27.0",
+    title: "Pacts",
+    items: [
+      "Before a run you can sign up to two pacts (Pacts, top right of the home screen): Glass Cannon, Swarm Pact, Iron Hide, Elite Hunt and Heavy Drive.",
+      "Each makes the run harder in one way and adds 15 to 25 percent to the shards you earn; the bonuses add up. They do not count in the Daily Rift.",
+    ],
+  },
+  {
     version: "3.26.0",
     title: "Daily Rift",
     items: [

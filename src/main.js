@@ -5,6 +5,7 @@
 
 import { rumble } from "./ui/gamepad.js";
 import { dailySpec, recordDaily } from "./core/daily.js";
+import { pactsById } from "./data/pacts.js";
 import { bossMedal, MEDAL_NAMES } from "./core/medals.js";
 import {
   RL_EVENT_KINDS,
@@ -353,6 +354,8 @@ const overlay = new Overlay(elementById("ov")),
           threat: spec ? spec.threat : (options.threat ?? save.threat),
           ws: spec || (snap && snap.daily) ? {} : save.workshop,
           daily: spec ? spec.key : "",
+          // 3.27.0: the pacts signed on the home screen (not in the Daily Rift: the same drone for everyone)
+          pacts: spec ? [] : save.pacts,
           snap: snap,
         });
       } catch (err) {
@@ -385,6 +388,12 @@ const overlay = new Overlay(elementById("ov")),
         ui.hidePause();
         ui.hideCrash();
         ui.showHud(true);
+        // 3.27.0: the pacts of a fresh run are named at the start
+        if (this.world.pacts.length && !resume)
+          ui.toast(
+            `Pacts: ${this.world.pacts.map((id) => pactsById[id].name).join(", ")} (+${Math.round(this.world.pactBonus() * 100)}% shards)`,
+            "gold",
+          );
         placeHud();
         input.reset();
         input.enabled = true;
@@ -584,13 +593,17 @@ const overlay = new Overlay(elementById("ov")),
         salvage = 1 + 0.1 * (save.workshop.salvage || 0),
         collected = world.shards,
         bonus = win ? Math.round(collected * 0.25) : 0,
-        total = Math.round((collected + bonus) * mods.shards * salvage),
+        pacts = world.pactBonus(),
+        total = Math.round((collected + bonus) * mods.shards * salvage * (1 + pacts)),
         rows = [["Collected", collected]];
       if (bonus) {
         rows.push(["Clear bonus +25%", "+" + bonus]);
       }
       if (world.threat > 0) {
         rows.push([`${threatLevels[world.threat].name} \xD7${mods.shards.toFixed(2)}`, "\xD7"]);
+      }
+      if (pacts > 0) {
+        rows.push([`Pacts +${Math.round(pacts * 100)}%`, "\xD7"]);
       }
       if (salvage > 1) {
         rows.push([`Shard Refinery \xD7${salvage.toFixed(1)}`, "\xD7"]);
@@ -788,7 +801,10 @@ input.onPause = () => {
   // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
   if (ui.rlSoundNotes || ui.rlFromPause) return ui.back();
   if (game.mode === "menu") {
-    if (input._rlKey === "escape" && ["workshop", "records", "daily", "news", "settings"].includes(ui.screen)) {
+    if (
+      input._rlKey === "escape" &&
+      ["workshop", "records", "daily", "pacts", "news", "settings"].includes(ui.screen)
+    ) {
       ui.back();
     }
     return;

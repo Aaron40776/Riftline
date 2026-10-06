@@ -1,7 +1,7 @@
 // The deep self-test (rlSelfTest: the base test plus one part per release) and its palette checks.
 // Used by the tests (window.__riftTest) and the "Deep test" button of the diagnostics dialog.
 
-import { GameUI, rlCodexEntries, rlBiomeCardInfo } from "../ui/ui.js";
+import { GameUI, rlCodexEntries, rlBiomeCardInfo, iconPaths } from "../ui/ui.js";
 import { Input } from "../ui/input.js";
 import {
   musicChords,
@@ -68,6 +68,7 @@ import { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount, rlUpdateTraps } from "./
 import { hitsObstacle, buildLayout, isConnected, RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
 import { computeStats, buildStatRows } from "./stats.js";
 import { bossMedal } from "./medals.js";
+import { PACTS, PACT_MAX, cleanPacts, pactBonus, applyPactsToThreat } from "../data/pacts.js";
 import { dailyKey, dayBefore, dailySpec, recordDaily, liveStreak } from "./daily.js";
 import {
   RL_EVENT_KINDS,
@@ -485,6 +486,7 @@ function rlSelfTest() {
   result = selfTestV3240(result);
   result = selfTestV3250(result);
   result = selfTestV3260(result);
+  result = selfTestV3270(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3886,6 +3888,61 @@ function selfTestV3260(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3260: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.27.0: pacts: a harder run for a share of shards ---- */
+function selfTestV3270(result) {
+  const fail = [];
+  try {
+    if (new Set(PACTS.map((p) => p.id)).size !== PACTS.length || PACT_MAX !== 2) fail.push("table");
+    for (const p of PACTS)
+      if (!iconPaths[p.icon] || !p.name || !p.desc || !(p.shards > 0 && p.shards <= 0.5)) fail.push("pact:" + p.id);
+    const arr = (x) => JSON.stringify(x);
+    if (arr(cleanPacts(["glass", "glass", "nonsense", 7, "swarm", "hunt"])) !== arr(["glass", "swarm"]))
+      fail.push("clean");
+    if (arr(cleanPacts("glass")) !== "[]" || arr(cleanPacts(null)) !== "[]") fail.push("clean-junk");
+    if (Math.abs(pactBonus(["glass", "hunt"]) - 0.45) > 1e-9 || pactBonus([]) !== 0 || pactBonus(["x"]) !== 0)
+      fail.push("bonus");
+    // the enemies' side
+    const tm = threatMods(1),
+      both = applyPactsToThreat(tm, ["swarm", "ironhide"]);
+    if (
+      Math.abs(both.budget - tm.budget * 1.35) > 1e-9 ||
+      Math.abs(both.hp - tm.hp * 1.3) > 1e-9 ||
+      both.elite !== tm.elite
+    )
+      fail.push("threat");
+    if (applyPactsToThreat(tm, ["hunt"]).elite - tm.elite < 0.11 || tm.budget !== threatMods(1).budget)
+      fail.push("elite/pure");
+    // the drone's side
+    const base = computeStats("pulse", {}, {}),
+      glass = computeStats("pulse", {}, { pact_glass: 1 }),
+      slow = computeStats("pulse", {}, { pact_sluggish: 1 });
+    if (glass.maxHp !== Math.round(base.maxHp * 0.6) || Math.abs(glass.dmgMul - base.dmgMul * 1.3) > 1e-9)
+      fail.push("glass:" + glass.maxHp + "/" + glass.dmgMul);
+    if (!(slow.speed < base.speed) || !(slow.dashCd > base.dashCd)) fail.push("sluggish");
+    // in a world: the numbers, the snapshot, the resume (a saved run keeps its pacts whatever the save says now)
+    const w = new World({ seed: 0x3270, weapon: "pulse", threat: 0, ws: {}, pacts: ["glass", "swarm", "hunt"] });
+    if (arr(w.pacts) !== arr(["glass", "swarm"]) || w.player.hp !== 60 || w.stats.maxHp !== 60)
+      fail.push("world:" + w.player.hp);
+    if (Math.abs(w.tm.budget - 1.35) > 1e-9 || Math.abs(w.pactBonus() - 0.4) > 1e-9) fail.push("world-tm");
+    const plain = new World({ seed: 0x3270, weapon: "pulse", threat: 0, ws: {} });
+    if (plain.pacts.length || plain.player.hp !== 100 || plain.pactBonus() !== 0) fail.push("plain");
+    w.startWave(2);
+    const snap = JSON.parse(JSON.stringify(w.snapshot()));
+    if (arr(snap.pacts) !== arr(["glass", "swarm"])) fail.push("snapshot");
+    const back = new World({ seed: 1, weapon: "pulse", threat: 0, ws: {}, pacts: [], snap });
+    if (arr(back.pacts) !== arr(["glass", "swarm"]) || back.stats.maxHp !== 60) fail.push("resume");
+    if (arr(cleanRun({ ...snap, pacts: ["x", "hunt", "hunt", "glass", "swarm"] }).pacts) !== arr(["hunt", "glass"]))
+      fail.push("clean-run");
+    // the save
+    const hostile = cleanSave({ ...newSave(), pacts: ["bad", "glass", "glass", 3, "hunt", "swarm"] });
+    if (arr(hostile.pacts) !== arr(["glass", "hunt"])) fail.push("clean-save:" + arr(hostile.pacts));
+    if (arr(newSave().pacts) !== "[]") fail.push("new-save");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3270: { ok: fail.length === 0, fail } };
 }
 
 /* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct

@@ -9,6 +9,7 @@ import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rl
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
 import { BOSS_CARD_CHANCE } from "./boss-cards.js";
 import { DAILY_KEY } from "./daily.js";
+import { cleanPacts } from "../data/pacts.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
@@ -246,6 +247,8 @@ function newSave() {
       evolved: 0,
       bestCombo: 0,
     },
+    // 3.27.0: the pacts signed for the next run (ids, at most two)
+    pacts: [],
     settings: { ...defaultSettings },
     run: null,
     history: [],
@@ -288,6 +291,8 @@ function cleanRun(raw) {
     banishes: Math.floor(cleanNumber(raw.banishes, 0, 0, 9)),
     // 3.26.0: the day of a Daily Rift run (empty for a normal run)
     daily: typeof raw.daily === "string" && DAILY_KEY.test(raw.daily) ? raw.daily : "",
+    // 3.27.0: the pacts of the run
+    pacts: cleanPacts(raw.pacts),
     revived: !!raw.revived,
     nova: Math.floor(cleanNumber(raw.nova, 0, 0, 100)),
     bossKills: [],
@@ -441,6 +446,7 @@ function cleanSave(input) {
       }
     }
   }
+  save.pacts = cleanPacts(raw.pacts);
   save.run = cleanRun(raw.run);
   save.history = rlSanitizeHistory(raw.history);
   let rawSeen = asObject(raw.seen);
