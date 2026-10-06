@@ -49,4 +49,4 @@ function walkStep(world, x0, y0, dt) {
     });
 }
 
-export { STEP_LEN, DASH_TIME, FLOOR, groundOf, walkStep };
+export { STEP_LEN, DASH_TIME, FLOOR, walkStep };

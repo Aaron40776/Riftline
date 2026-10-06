@@ -442,7 +442,12 @@ function cleanSave(input) {
       if (typeof def == "number") {
         save.settings[key] = rlSettingNum(key, rawSettings[key], def);
       } else {
-        save.settings[key] = ["auto", "high", "ultra", "battery"].includes(rawSettings[key]) ? rawSettings[key] : def;
+        // 3.28.2: the Ultra setting is gone (it was hot and slow and looked no better); a save that has it plays on High
+        save.settings[key] = ["auto", "high", "battery"].includes(rawSettings[key])
+          ? rawSettings[key]
+          : rawSettings[key] === "ultra"
+            ? "high"
+            : def;
       }
     }
   }

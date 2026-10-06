@@ -42,6 +42,12 @@ class GamepadReader {
     this.prev = {};
     this.held = {}; // direction -> seconds it has been held
     this.id = null;
+    // 3.28.2: without a controller the browser is asked about one only once a second (every frame allocates a list on a
+    // phone for nothing); a controller announces itself with an event the moment a button is pressed
+    this.idle = 1;
+    try {
+      if (typeof addEventListener === "function") addEventListener("gamepadconnected", () => (this.idle = 1));
+    } catch {}
   }
   /* the first connected controller (or null) */
   pad() {
@@ -55,6 +61,11 @@ class GamepadReader {
   /* one reading: the sticks, what is held, and the buttons that went down since the last reading (edges); `dt` is the
      time since the last reading (for the repeat of a direction held in a menu) */
   read(dt = 1 / 60) {
+    if (!this.id) {
+      this.idle += dt;
+      if (this.idle < 1) return null;
+      this.idle = 0;
+    }
     const p = this.pad();
     if (!p) {
       if (this.id) this.prev = {};
@@ -232,4 +243,4 @@ function rumble(kind, enabled = true) {
   return done;
 }
 
-export { GamepadReader, stick, moveFocus, setFocus, clearFocus, pressFocus, mainButton, rumble, candidates, DEAD, BTN };
+export { GamepadReader, moveFocus, clearFocus, pressFocus, mainButton, rumble };

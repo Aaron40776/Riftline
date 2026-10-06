@@ -1,3 +1,57 @@
+RIFTLINE v3.29.0 – RICHER COLOURS AND LIGHT
+Base: v3.28.2 · Build r3290a1005a-r1 · 06.10.2026
+
+The owner, 06.10.2026, after Ultra was removed: "that's why I meant to just improve the graphics generally (more vivid colors, a bit
+lighting etc. which actually makes a difference)".
+
+1) What changed (all graphics settings, no extra pass)
+   - Light: a stronger sun and a weaker sky light, so that the faceted (flat-shaded) models get a lit and a shaded side; a fill
+     light from the opposite side in a complementary colour per biome (one more directional light, no shadows).
+   - Floor: saturation and brightness per biome in the floor shader (uVivid, uGain): strong in Blackout City and Cryo Vault, which
+     looked murky and grey, hardly at all in the Ember Works, the Marsh and the Void, which were rich already.
+   - Cost: one light more in the lit materials and two multiplications in the floor shader. No second pass, no new buffer.
+
+2) How it was judged (pictures of the biome tool, SHOT_TAG, side by side: base, v1, v2)
+   - v1 (stronger colour everywhere) made the Marsh lime green and cartoonish and the Void a magenta wash: the "kids game" look.
+     v2 lifts colour only where it was muted. I have not seen it on a phone: the owner has to say whether it is enough.
+
+3) Results (headless Chromium, software WebGL)
+   - npm run release-check on this state (it contains 3.28.2, the removal of Ultra): ALL steps ok (format, build, deep test,
+     data audit, determinism 15/15 unchanged, full QA, e2e, world and run audit, screens pc and land, biome shots pc and land,
+     attack shots pc), 38 min 04 s. The pictures of the attacks (red telegraphs on the richer floors) and of the phone
+     (landscape) were looked at: the telegraphs stay clearly readable.
+
+RIFTLINE v3.28.2 – ULTRA REMOVED, CLEANUP
+Base: v3.28.1 · Build r3282a1005a-r1 · 06.10.2026
+
+The owner, 06.10.2026, after trying 3.28.x on his phone: "ultra graphics just make my phone hot and fps low while looking kind of
+the same as high ... I don't even really see any shadows and the colors actually look worse most of the time ... look through such
+things" and "fix and clean up everything thoroughly".
+
+1) Ultra (3.20.0) is removed
+   - Looked at again with the pictures of the biome tool (High against Ultra, Blackout City): the owner is right. The grade
+     washes the colours out (less saturation, a cool haze, a paler floor), the shadow of the sun on the shadow catcher is
+     barely visible, and nothing looks better than High. It cost a second pass over the scene for the shadow map, a 4x
+     multisampled half-float target at the full device resolution and a full-screen pass: that is what heated the phone.
+   - render/look.js, the hooks in renderer.js and main.js, the preset, the Settings button and its text are gone. A saved
+     quality "ultra" is read as "high". The full QA section ultra became no-ultra (a saved Ultra plays on High, no button, no tone
+     curve, no shadow map, no grade pass).
+   - Lesson (also in the roadmap): I judged the look from pictures of a software renderer and never saw it on a phone. A better
+     look has to come from lights, colours and models of the normal setting, tested on a device.
+
+2) The other additions of 3.18 to 3.28, looked through once more for cost and value
+   - The controller: the game asked the browser for gamepads every frame (a list is allocated on a phone for nothing); it now
+     asks once a second while none is connected, and at once when the browser announces a controller (gamepadconnected).
+   - Per frame otherwise: the Codex marks (a loop over at most six mutators), the end-screen guard. Nothing else runs each frame.
+   - Not judged by me and for the owner's ears and fingers: the ambient bloom and its echo, the rumble and the buzz of the
+     phone, the sizes of the new links on the home screen.
+
+3) Tests and results (headless Chromium, software WebGL)
+   - npm run release-check on this state: ALL steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, full
+     QA with the new section no-ultra, e2e, world and run audit, screens pc and land, biome shots pc and land, attack shots
+     pc), 39 min 58 s. (An earlier run was stopped because I rebuilt the same worktree while it ran: never edit and build in
+     the tree a check is running in.)
+
 RIFTLINE v3.28.1 – CHECKUP; THE ROTATE SCREEN IS BACK
 Base: v3.28.0 · Build r3281a1005a-r1 · 06.10.2026
 
@@ -48,8 +102,15 @@ weird, maybe just keep the turn phone thing".
      geometries plateau (174, 209, 185 at waves 36, 48, 60); the soak's "floor rises" flag compares the main run with Endless
      and its mutator visuals. Not counted as a leak; to repeat on a steadier machine.
 
+   - Cleanup (owner: "fix and clean up everything thoroughly"): the Shard Refinery no longer multiplies a Daily payout
+     (test in checkup-3281); unused exports (19) and an unused import trimmed, dead code removed (isIOSDevice,
+     isInstalledPwa, wallRun); README (features, project structure, soak) and the roadmap (CURRENT STATE) up to date; npm
+     audit: 0 vulnerabilities. The soak tool judges the floors only from wave 75 on, no longer calls a crash a hang and
+     exits after a crash (it hung 100 minutes in browser.close). The 31 merged claude/* branches could not be deleted from
+     this session (GitHub refuses branch deletion here): for the owner.
+
 5) Open doubts
-   - Design questions from the review, left as they are: the Shard Refinery still multiplies the payout of a Daily run.
+   - claude/music-lab holds one commit that is not in main (a Music Lab of 03.10.2026): the owner decides.
    - Not tested on real devices: the rotate screen on iPhone Safari and Android Chrome, the gamepad on real hardware.
 
 RIFTLINE v3.28.0 – CODEX: RIFT EVENTS

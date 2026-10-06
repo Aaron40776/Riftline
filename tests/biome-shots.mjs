@@ -12,9 +12,11 @@ if (!prof) {
   console.error("usage: node biome-shots.mjs [url] pc|land");
   process.exit(2);
 }
-// 3.20.0: SHOT_QUALITY=ultra shows the Ultra look (pictures in tests/shots/biomes-<profile>-ultra)
 const QUALITY = process.env.SHOT_QUALITY || "high";
-const OUT = `tests/shots/biomes-${NAME}${QUALITY === "high" ? "" : "-" + QUALITY}`;
+// 3.29.0: SHOT_TAG=name writes to tests/shots/biomes-<profile>-<name> (to compare variants of the look side by side) and
+// SHOT_BOSS=0 leaves out the boss pictures
+const TAG = process.env.SHOT_TAG || (QUALITY === "high" ? "" : QUALITY);
+const OUT = `tests/shots/biomes-${NAME}${TAG ? "-" + TAG : ""}`;
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({
@@ -40,7 +42,7 @@ await ev(() => window.__riftTest.game.startRun({}));
 await p.waitForTimeout(800);
 const ids = await ev(() => window.__riftTest.game.world.route.slice());
 for (const id of ids) {
-  for (const boss of [false, true]) {
+  for (const boss of process.env.SHOT_BOSS === "0" ? [false] : [false, true]) {
     const wave = await ev(
       ([id, boss]) => {
         const g = window.__riftTest.game,

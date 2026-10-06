@@ -106,6 +106,9 @@ void main() {
           uDeco: { value: 0 },
           // 3.4.0: how dark the Blackout makes the floor (0..1); the lights of blasts and arcs still light it
           uDark: { value: 0 },
+          // 3.29.0: the colour of the floor: how saturated (1 = as the palette says) and how bright it is, per biome
+          uVivid: { value: 1 },
+          uGain: { value: 1 },
           uL: { value: Array.from({ length: 6 }, () => new Vector4()) },
           uLC: { value: Array.from({ length: 6 }, () => new Color()) },
         },
@@ -159,6 +162,8 @@ void main() {
       uniforms.uHalf.value.set(layout.W, layout.H);
       uniforms.uDeco.value = look.style === 0 ? layout.deco || 0 : 0;
       uniforms.uStyle.value = look.style;
+      uniforms.uVivid.value = look.vivid || 1;
+      uniforms.uGain.value = look.gain || 1;
       const floor = new Mesh(new PlaneGeometry(100, 100), this.floorMat);
       floor.rotation.x = -Math.PI / 2;
       this.group.add(floor);
@@ -217,18 +222,65 @@ void main() {
  ---- */
 const RL_BIOME_LOOK = {
   // 3.4.0: Blackout City: a cold moon, little ambient light, some fog over the street
-  yard: { style: 5, hemi: 1.45, sun: 0xb4c4ff, sunI: 1.25, fog: [1.5, 3.8] },
-  works: { style: 1, hemi: 1.6, sun: 0xffb27a, sunI: 1.75, fog: [1.35, 3.3] },
-  vault: { style: 2, hemi: 2.2, sun: 0xd6ecff, sunI: 1.8, fog: [1.3, 3.2] },
-  marsh: { style: 3, hemi: 1.6, sun: 0xdcffb8, sunI: 1.15, fog: [0.95, 2.5] },
-  void: { style: 4, hemi: 1.35, sun: 0xd8c4ff, sunI: 1.05, fog: [1.7, 4.4] },
+  // 3.29.0: key light and fill light from opposite sides in complementary colours (a strong sun and a weaker, flat sky light give
+  // the faceted models their form), a richer floor (vivid: saturation, gain: brightness)
+  yard: {
+    style: 5,
+    hemi: 0.95,
+    sun: 0xb4c4ff,
+    sunI: 2.0,
+    fill: [0xff7a3a, 0.95],
+    vivid: 1.45,
+    gain: 1.12,
+    fog: [1.5, 3.8],
+  },
+  works: {
+    style: 1,
+    hemi: 1.0,
+    sun: 0xffb27a,
+    sunI: 2.3,
+    fill: [0x3a8cff, 0.7],
+    vivid: 1.1,
+    gain: 1.02,
+    fog: [1.35, 3.3],
+  },
+  vault: {
+    style: 2,
+    hemi: 1.5,
+    sun: 0xe4f4ff,
+    sunI: 2.2,
+    fill: [0xff8ad0, 0.75],
+    vivid: 1.5,
+    gain: 1.0,
+    fog: [1.3, 3.2],
+  },
+  marsh: {
+    style: 3,
+    hemi: 1.0,
+    sun: 0xe8ffa8,
+    sunI: 1.7,
+    fill: [0xa05cff, 0.75],
+    vivid: 1.1,
+    gain: 1.0,
+    fog: [0.95, 2.5],
+  },
+  void: {
+    style: 4,
+    hemi: 0.9,
+    sun: 0xd8c4ff,
+    sunI: 1.6,
+    fill: [0x20e0ff, 1.0],
+    vivid: 1.1,
+    gain: 1.0,
+    fog: [1.7, 4.4],
+  },
 };
 const RL_FLOOR_FRAG = `
 #include <common>
 #include <fog_pars_fragment>
 uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
 uniform vec2 uHalf; uniform vec2 uPlayer; uniform float uTime; uniform float uPulse; uniform float uDeco;
-uniform float uStyle; uniform float uDark;
+uniform float uStyle; uniform float uDark; uniform float uVivid; uniform float uGain;
 uniform vec4 uL[6]; uniform vec3 uLC[6];
 varying vec2 vW;
 float gridLine(vec2 p, float w) {
@@ -373,6 +425,8 @@ void main() {
     col += uLC[i] * uL[i].w * fall * lit;
   }
   col *= mix(outside, 1.0, inside);
+  // 3.29.0: richer colour: the floor is most of the picture, and its palette was muted
+  col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, uVivid) * uGain;
   gl_FragColor = vec4(col, 1.0);
   #include <fog_fragment>
   #include <colorspace_fragment>

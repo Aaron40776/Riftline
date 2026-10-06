@@ -650,4 +650,4 @@ function placeTick(e, world, dt) {
   }
 }
 
-export { PLACE, PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, near as placeNear, nearestProp, PROP_HEAR };
+export { PLACE, PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, PROP_HEAR };

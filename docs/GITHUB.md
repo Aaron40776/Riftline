@@ -19,8 +19,7 @@ These are settings of the repository on github.com. They are not files, so only 
 ## Social preview (Settings, General, "Social preview")
 
 An image of 1280 x 640 px shows when the link is shared. A good one: the Blackout City picture of the game with the title
-(RIFTLINE in the display font) over it. The pictures `tests/shots/biomes-pc/01-yard.png` and the Ultra version
-`tests/shots/biomes-pc-ultra/01-yard.png` (run `SHOT_QUALITY=ultra npm run screens`, or the biome-shots alone) are a start; the
+(RIFTLINE in the display font) over it. The picture `tests/shots/biomes-pc/01-yard.png` (run `npm run screens`, or the biome-shots alone) is a start; the
 title can be added with any image editor. If you want, I can make one.
 
 ## The licence (decide, then add a LICENSE file)

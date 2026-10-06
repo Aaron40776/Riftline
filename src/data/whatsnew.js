@@ -2,6 +2,21 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.29.0",
+    title: "Richer colours and light",
+    items: [
+      "All graphics settings: a stronger sun and a coloured fill light from the other side give the machines real form and edge light, and the floors are richer: Blackout City is deep blue with warm street light, the Cryo Vault a clear icy teal.",
+      "No extra cost: it is one more light, not a new graphics mode.",
+    ],
+  },
+  {
+    version: "3.28.2",
+    title: "Ultra graphics removed",
+    items: [
+      "The Ultra graphics setting is gone: it made phones hot and slow without looking better than High. A save that had Ultra plays on High.",
+    ],
+  },
+  {
     version: "3.28.1",
     title: "Turn your device, and fixes",
     items: [
@@ -10,7 +25,7 @@ export const WHATS_NEW = [
       "Boss medals: the par time follows the boss's own health, so the Iron Hide pact no longer makes medals easier.",
       "An abandoned run no longer comes back as Continue (it kept running behind the end screen and saved itself again).",
       "Endless: the death recap shows only the hits of the Endless part.",
-      "Daily Rift: a clear unlocks no threat level and counts for no weapon; an early abandon says it was not counted.",
+      "Daily Rift: a clear unlocks no threat level and counts for no weapon, the Shard Refinery no longer multiplies it, and an early abandon says it was not counted.",
     ],
   },
   {

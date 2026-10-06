@@ -116,7 +116,7 @@ Plan:
 4. Then the boss rewards (done in 3.15.0, see the HANDOFF), the walker. (Renumbered on 04.10.2026: the owner's later requests come first, as 3.11.0
    landscape only and 3.12.0 the Singularity, so the soundscapes become 3.13.0 and the music 3.14.0.)
 
-### HANDOFF (05.10.2026, after 3.15.0; read this first when the work goes on)
+### HANDOFF (05.10.2026, after 3.15.0; history)
 
 **State.** 3.10.0 to 3.14.0 and the repository cleanup were merged on the morning of 05.10.2026 and are live. The
 owner merges stacked PRs one after another (base of each switched to main before merging; a merged branch is only
@@ -193,12 +193,37 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   thin hazard outlines and hatching instead of flat slabs, calmer effect colours, a tighter model language (hard-surface
   shapes for machines, organic only for the Hive). Needs a decision: how far (a polish pass on everything vs. an opt-in
   Ultra preset), and a reference (a game or a picture whose look is meant).
+  **Ultra was tried and removed (3.20.0 to 3.28.2).** Owner, 06.10.2026, on his phone: "ultra graphics just make my phone hot
+  and fps low while looking kind of the same as high ... colors actually look worse most of the time". Checked with pictures:
+  true. The tone curve plus the grade washed the colours out, the sun's shadow on the shadow catcher was barely visible, and the
+  price was a second pass for the shadow map, a 4x multisampled half-float target at full resolution and a full-screen pass.
+  Lessons: judge a look on the real device, not by pictures from a software renderer; a better look must come from the
+  lights, colours and models of the normal setting (cheap, for everyone), not from extra passes. Still wanted, with a
+  reference picture from the owner.
 - **Sound direction** (the owner likes the mobile game *Osmos*): high quality stereo ambience, a nice subtle melody and
   ambient effect sounds, noticeable and pleasant, distinct for each biome. To plan (not built yet): wider stereo (slow
   auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
   (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
 
-### HANDOFF (06.10.2026, after the night of autonomous work; read this first when the work goes on)
+### CURRENT STATE (06.10.2026, afternoon; read this first when the work goes on)
+
+- **Live:** 3.28.1 (merged as #55 on 06.10.2026: the fixes of the checkup, the rotate screen back instead of the turning
+  shell). Before that 3.28.0 with the whole stack #43 to #54; #44 to #53 were closed as contained in it.
+- **Open (3.29.0, one PR against main that also contains 3.28.2 / #56):** richer colours and light for every graphics setting
+  (the owner: "just improve the graphics generally ... which actually makes a difference"): a stronger sun, a coloured fill light
+  from the other side, a richer floor where it was grey (Blackout City, Cryo Vault); judged from pictures only, to be seen on a
+  phone. Contents of 3.28.2: the Ultra graphics setting is removed (see "A more professional look"); the controller is
+  looked for once a second instead of every frame when none is connected; a cleanup (unused exports and imports, dead code,
+  README, the Daily payout without the Shard Refinery) and fixes of the test tools (the Whiteout check, the layout audit behind
+  the rotate screen, the soak verdict and its hang after a crash).
+- **For the owner:** delete the merged `claude/*` branches on GitHub (this session may push but not delete branches);
+  `claude/music-lab` has one commit that is not in main (a Music Lab of 03.10.2026): keep, merge or delete is his call.
+- **Still open from before:** the second step of the sound direction (reference clips), the model pass for the
+  professional look (a reference picture), the licence (`docs/GITHUB.md`), Cloudflare (when he says go; also needed for a
+  Daily Rift leaderboard), the real-device tests (rotate screen on iPhone Safari and Android Chrome, a real gamepad, the
+  vibration), and a 120-wave soak on a steadier machine (the test machine's browser crashed twice).
+
+### HANDOFF (06.10.2026, after the night of autonomous work; history, superseded by CURRENT STATE above)
 
 The owner slept and said: continue on your own until about 95 % of the limit, with the necessary and recommended things and
 thorough checks in between. Never merge, never push to main. Everything below is built, tested and in open pull requests, STACKED:
@@ -210,7 +235,7 @@ each is based on the one before, so merge them in this order and, after each mer
 | #43 | 3.18.1 | the old track fades out when the music changes; the deep test no longer flips (seeded noise): this is also why the deploy of #41 was red |
 | #44 | 3.18.2 | the checkups as tools (soak, fuzz, balance) and a 24992 Hz tone removed |
 | #45 | 3.19.0 | the ambient bloom (stereo, a voice per biome, ping-pong echo): the Osmos direction, first step |
-| #46 | 3.20.0 | the Ultra look (tone curve, real shadows, grade pass): the "professional style" answer |
+| #46 | 3.20.0 | the Ultra look (tone curve, real shadows, grade pass): REMOVED again in 3.28.2, see the note under "A more professional look" |
 | #47 | 3.21.0 | the death recap ("What hit you"), docs/GITHUB.md |
 | #48 | 3.22.0 | build stats in the pause menu, a look at the next wave |
 | #49 | 3.23.0 | gamepad, vibration (determinism fixture updated for the new setting) |
@@ -225,7 +250,7 @@ State of the tests: the complete release check ran on 3.18.1, 3.18.2, 3.19.0 (al
 (covers 3.21 to 3.23; ok after the determinism fixture update). 3.24.0 had `npm test` and its own sections.
 
 Owner's decisions of 05.10.2026: the overlap of music is fixed by a fade (done); the sound goes on by synthesis first (he will send
-reference clips: Osmos is the direction); the professional look is an opt-in Ultra preset; tablets are landscape-only (since 3.28.1 by the rotate
+reference clips: Osmos is the direction); the professional look was to be an opt-in Ultra preset (removed 3.28.2); tablets are landscape-only (since 3.28.1 by the rotate
 screen again); the recommended order goes on; a repo description, topics and a licence are prepared (`docs/GITHUB.md`: the licence
 needs his choice).
 
@@ -233,9 +258,9 @@ A4 (a short introduction to the Singularity and traps) turned out to exist alrea
 (`showTipOnce` in `main.js`). NOT done, still wanted: Cloudflare (when he says go), the second step of the sound direction (slow evolving
 pads with auto-panning; reference clips), a pass on the models for the professional look (hard-surface shapes, bloom, ambient
 occlusion; a reference picture), and the real-hardware tests (a gamepad, a phone: Safari and Chrome with the rotate screen, the
-vibration, Ultra on a real device).
+vibration).
 
-Tools of the night: `npm run soak | fuzz | balance` (see README), `RL_NO_MINIFY=1 node build.js`, `SHOT_QUALITY=ultra node tools/qa.js
+Tools of the night: `npm run soak | fuzz | balance` (see README), `RL_NO_MINIFY=1 node build.js`, `SHOT_QUALITY=battery node tools/qa.js
 biome-shots pc`, `node tools/qa.js scape-preview music` (stereo MP3s in tests/shots/scapes).
 
 Known and not ours: the headless Chromium of the test machine crashes now and then in long runs (its GPU process logs errors; the

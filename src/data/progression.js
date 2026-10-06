@@ -532,6 +532,5 @@ export {
   workshopModules,
   modulesById,
   rlRetired,
-  rlRetiredModule,
   threatLevels,
 };

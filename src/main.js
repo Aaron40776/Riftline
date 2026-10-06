@@ -129,13 +129,6 @@ function rlApplyDataFixes() {
   rlApplyBiomeFixes();
 }
 const isStandaloneBuild = true;
-const isIOSDevice =
-  typeof navigator < "u" &&
-  (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
-const isInstalledPwa =
-  typeof window < "u" &&
-  ((window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
-    window.navigator.standalone === true);
 function registerServiceWorker(onUpdate) {
   if (
     !(
@@ -229,8 +222,6 @@ let qualityPresets = {
     high: { dpr: 2, particles: 1400, fps: 0 },
     battery: { dpr: 1, particles: 500, fps: 30 },
     auto: { dpr: 1.5, particles: 1400, fps: 0 },
-    // 3.20.0: High, with the Ultra look (look.js)
-    ultra: { dpr: 2, particles: 1800, fps: 0 },
   },
   store = new SaveStore(),
   sound = new SoundEngine(),
@@ -566,7 +557,13 @@ const overlay = new Overlay(elementById("ov")),
       const snap = store.data.run;
       if (snap && !this.world) {
         try {
-          this.world = new World({ seed: 1, weapon: snap.weapon, threat: snap.threat, ws: store.data.workshop, snap });
+          this.world = new World({
+            seed: 1,
+            weapon: snap.weapon,
+            threat: snap.threat,
+            ws: snap.daily ? {} : store.data.workshop,
+            snap,
+          });
           this.overShown = false;
           this.endRun(false, true, true);
         } catch (err) {
@@ -606,7 +603,8 @@ const overlay = new Overlay(elementById("ov")),
       this.overShown = true;
       rlRunAudit(world, win, abandoned);
       let mods = threatMods(world.threat),
-        salvage = 1 + 0.1 * (save.workshop.salvage || 0),
+        // 3.28.1: the Daily Rift is the same for everyone: the Shard Refinery does not multiply it either
+        salvage = world.daily ? 1 : 1 + 0.1 * (save.workshop.salvage || 0),
         collected = world.shards,
         bonus = win ? Math.round(collected * 0.25) : 0,
         pacts = world.pactBonus(),
@@ -749,9 +747,7 @@ game.qualityNote = () => {
       ? `Adapts to your device (now ${dpr}\xD7)`
       : settings.quality === "battery"
         ? "Lower resolution, 30 fps, no edge smoothing"
-        : settings.quality === "ultra"
-          ? `Sharpest with the cinematic look: real shadows, film tone and grade (${dpr}\xD7); for strong devices`
-          : `Sharpest (${dpr}\xD7)`) + restart
+        : `Sharpest (${dpr}\xD7)`) + restart
   );
 };
 /* 3.24.0: the medal of a boss kill (core/medals.js): the best one per boss is kept; a banner says what was earned */
@@ -853,7 +849,6 @@ function applySettings() {
     renderer.zoom = settings.zoom || 1;
     let dpr = settings.quality === "auto" ? autoDpr : qualityPreset.dpr;
     renderer.setQuality(dpr, qualityPreset.particles);
-    renderer.setLook(settings.quality === "ultra");
   }
 }
 let loopFrameId = 0,
@@ -865,8 +860,7 @@ let loopFrameId = 0,
   menuFrame = 0;
 /* 3.11.0: Riftline plays in landscape on phones and tablets. index.html sets needs-rotate on <body> while such a
    device is held upright (the rotate screen). Where the browser allows it (an installed app, Android in full screen)
-   the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens.
-   (3.28.1: the shell of 3.18.0 that turned the whole game a quarter is gone again; the owner found it odd.) */
+   the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens. */
 function needsRotate() {
   return document.body.classList.contains("needs-rotate");
 }

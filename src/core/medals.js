@@ -20,4 +20,4 @@ function bossMedal(id, secs, damage, maxHp = 100, hpMul = 1) {
   return 1;
 }
 
-export { bossMedal, MEDAL_NAMES, PAR };
+export { bossMedal, MEDAL_NAMES };

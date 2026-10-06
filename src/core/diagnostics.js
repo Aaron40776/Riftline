@@ -846,7 +846,7 @@ function rlMonPreEnd(world) {
     shards: world.shards,
     runKills: world.kills,
     threat: world.threat,
-    salvage: data.workshop.salvage || 0,
+    salvage: world.daily ? 0 : data.workshop.salvage || 0,
     pactBonus: world.pactBonus ? world.pactBonus() : 0,
     endless: !!world.endless,
     wave: world.wave,

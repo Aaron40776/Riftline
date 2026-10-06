@@ -29,7 +29,13 @@ on in Endless, which keeps getting harder. Shards from every run, won or lost, b
 - **The Singularity**: a gadget that pulls a crowd together, then collapses.
 - **A walker**: the drone has legs that swing, bend and plant, a dash is a jump, and every foot sounds like its
   ground (asphalt, grating, frozen ground, ice, mud, glass, acid).
-- **Endless** with mutators, a **Workshop** of 18 modules, 47 milestones, a codex, and Threat I–V on top of Standard.
+- **Endless** with mutators, a **Workshop** of 19 modules (one of them banishes upgrade cards), 47 milestones, a
+  codex of enemies, bosses, mutators, Overdrive attacks and upgrades, and Threat I–V on top of Standard.
+- **Daily Rift**: one run a day that is the same for everyone (the date sets the seed, weapon and threat), with the
+  best of the day and a streak. **Pacts**: up to two optional risks before a run for more shards.
+- **Boss medals** (Bronze, Silver, Gold for a kill without damage and on time), a **death recap** on the end screen,
+  the numbers of your build in the pause menu and a look at the next wave in the upgrade choice.
+- **Gamepad** support (menus included) and vibration on hits (phone and controller). Every biome has its own key and fill light and a floor palette of its own.
 - Everything you see and hear is made in code: low-poly models, WebAudio sounds and music, no image or audio files.
 
 | | |
@@ -88,7 +94,7 @@ npm run audit          # world audit, data audit, a bot run to wave 22 with its 
 npm run screens        # screenshots of every screen, biome and attack -> tests/shots/
 node tools/qa.js scape-preview   # every biome's soundscape as WAV/MP3 -> tests/shots/scapes/ (`music`: the ten tracks)
 npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
-npm run soak -- flame 90       # an Endless run of 90 waves: heap, GPU objects and lists must settle, no hang
+npm run soak -- flame 120      # an Endless run of 120 waves: heap, GPU objects and lists must settle, no hang
 npm run fuzz -- 3 200          # a monkey over the interface (seed 3, 200 steps per window size)
 npm run balance -- 4 0,2 50    # how far a plain bot gets with each weapon, and how fast each clears waves
 npm run format         # Prettier (width 120); CI runs npm run format:check
@@ -111,12 +117,13 @@ How the code is organised, its history and the rules for changing it: [`docs/DEV
 ```
 src/
   main.js          entry point: boot, game controller, main loop, wiring
-  core/            simulation and services: world, arena, waves, AI, stats, traps, boss cards, walker, difficulty, save,
-                   diagnostics (runtime log and monitor), selftest (deep self-test), util
-  data/            tables: weapons, enemies, upgrades, progression, biomes, whatsnew (the News tab)
+  core/            simulation and services: world, arena, waves, AI, stats, traps, boss cards, walker, difficulty,
+                   mutators, medals, daily (the Daily Rift), save, diagnostics (runtime log and monitor), selftest
+                   (deep self-test), util
+  data/            tables: weapons, enemies, upgrades, progression, pacts, biomes, hud, whatsnew (the News tab)
   render/          three.js renderer, models, biome visuals, traps, hazards, attacks, boss cards, 2D overlay
   audio/           sound effects, music and the sounds of the place
-  ui/              DOM UI (screens, HUD, dialogs), input and the button layout editor
+  ui/              DOM UI (screens, HUD, dialogs), input, gamepad and the button layout editor
   index.html       page shell, all CSS, device detection, rotate screen, layout audit
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)

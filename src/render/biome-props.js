@@ -93,19 +93,6 @@ function scatter(rng, W, H, obs, n, { margin = 1.2, gap = 1.3, pad = 0.5, near =
   }
   return out;
 }
-// A straight run along a wall, `off` metres inside it: [ax, az, bx, bz]
-function wallRun(rng, W, H, off, lenMin, lenMax) {
-  const side = rng.int(0, 3),
-    len = rng.range(lenMin, lenMax);
-  if (side < 2) {
-    const z = (side ? 1 : -1) * (H - off),
-      x0 = rng.range(-W + 1, W - 1 - len);
-    return [x0, z, x0 + len, z];
-  }
-  const x = (side === 2 ? -1 : 1) * (W - off),
-    z0 = rng.range(-H + 1, H - 1 - len);
-  return [x, z0, x, z0 + len];
-}
 // a zigzag crack of thin flat bars
 function crack(into, color, x, z, rng, segs, step, w = 0.05) {
   let a = rng.range(0, TAU),

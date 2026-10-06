@@ -55,7 +55,6 @@ import { BossCardView } from "./boss-cards-view.js";
 import { STEP_LEN, DASH_TIME } from "../core/walk.js";
 import { HazardView } from "./hazards-view.js";
 import { AttackView, MARK_LOOK } from "./attacks-view.js";
-import { Look } from "./look.js";
 
 // 3.13.0: the colours of the light of the place (lightning, a passing police siren)
 const LIGHTNING_COLOR = new Color(0xcfe0ff),
@@ -429,9 +428,10 @@ const MAX_PARTICLES = 1400,
       this.hemi = new HemisphereLight(2771594, 657944, 1.9);
       this.sun = new DirectionalLight(16777215, 1.5);
       this.sun.position.set(6, 14, 9);
-      this.scene.add(this.hemi, this.sun);
-      // 3.20.0: the Ultra look (Settings, Graphics); it does nothing until it is switched on
-      this.look = new Look(this);
+      // 3.29.0: a fill light from the other side, in a colour that goes against the sun's (set per biome, no shadows)
+      this.fill = new DirectionalLight(0xffffff, 0);
+      this.fill.position.set(-9, 5, 8);
+      this.scene.add(this.hemi, this.sun, this.fill);
       this.arena = new ArenaView(this.scene);
       this.time = 0;
       this.shake = 0;
@@ -590,9 +590,6 @@ const MAX_PARTICLES = 1400,
         spark: new Uint8Array(max),
       };
     }
-    setLook(on) {
-      this.look.set(on);
-    }
     setQuality(dprCap, particles) {
       this.dprCap = dprCap;
       if (particles && particles !== this.maxParticles) {
@@ -615,7 +612,6 @@ const MAX_PARTICLES = 1400,
         this.camera.aspect = w / h;
         this.camera.fov = w / h < 1 ? 50 : 40;
         this.camera.updateProjectionMatrix();
-        this.look.resize(Math.round(w * dpr), Math.round(h * dpr));
       }
     }
     camDistance() {
@@ -652,6 +648,7 @@ const MAX_PARTICLES = 1400,
       const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.yard,
         fog = this.scene.fog;
       this.sun.color.setHex(look.sun);
+      this.fill.color.setHex(look.fill ? look.fill[0] : 0xffffff);
       if (look.fog) {
         // fog relative to the camera distance, so portrait phones (camera further out) look the same
         const dist = this.camDistance();
@@ -827,12 +824,14 @@ const MAX_PARTICLES = 1400,
       if (look) {
         this.hemi.intensity = look.hemi;
         this.sun.intensity = look.sunI;
+        this.fill.intensity = look.fill ? look.fill[1] : 0;
       }
       // 3.4.0: the Blackout of Blackout City takes most of the light away (blasts and arcs still light the street)
       const dark = this.rlBlackK || 0;
       if (dark > 0) {
         this.hemi.intensity *= 1 - 0.68 * dark;
         this.sun.intensity *= 1 - 0.75 * dark;
+        this.fill.intensity *= 1 - 0.75 * dark;
       }
     }
     debrisBurst(x, z, y, count, color, size, speed) {
@@ -1610,8 +1609,7 @@ const MAX_PARTICLES = 1400,
         this.nums = this.nums.filter((num) => num.life > 0);
       }
       this.flashT = Math.max(0, this.flashT - dt);
-      if (this.look.on) this.look.render(this.scene, this.camera, this.time);
-      else this.renderer.render(this.scene, this.camera);
+      this.renderer.render(this.scene, this.camera);
     }
     drawMenuPlayer(dt) {
       let drone = this.player;
