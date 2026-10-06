@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.20.0",
+    title: "Ultra look",
+    items: [
+      "New in Settings, Graphics: Ultra, for strong devices. A cinematic look: a filmic tone curve, real soft shadows of the sun, a slight grade (cool shadows, warm lights), a vignette and a fine film grain.",
+      "Everything sits in the picture like a place and not like a toy: the blob under every thing is replaced by the shadow it really casts.",
+      "Auto and High look exactly as before.",
+    ],
+  },
+  {
     version: "3.19.0",
     title: "Ambient bloom",
     items: [
