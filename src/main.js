@@ -4,6 +4,7 @@
 // in the original order.
 
 import { rumble } from "./ui/gamepad.js";
+import { dailySpec, recordDaily } from "./core/daily.js";
 import { bossMedal, MEDAL_NAMES } from "./core/medals.js";
 import {
   RL_EVENT_KINDS,
@@ -341,13 +342,17 @@ const overlay = new Overlay(elementById("ov")),
       }
       let started = true;
       try {
+        // 3.26.0: the Daily Rift: seed, weapon and threat come from the date and the workshop does not count; a saved
+        // daily run is resumed the same way
+        const spec = !snap && options.daily ? dailySpec(options.dailyKey) : null;
         this.world = new World({
-          seed: (Math.random() * 4294967296) >>> 0,
+          seed: spec ? spec.seed : (Math.random() * 4294967296) >>> 0,
           // 2.8.1: Restart / Run Again keep the weapon and threat of the run that just ended (a resumed run
           // may differ from what the home carousel shows)
-          weapon: options.weapon || save.weapon,
-          threat: options.threat ?? save.threat,
-          ws: save.workshop,
+          weapon: spec ? spec.weapon : options.weapon || save.weapon,
+          threat: spec ? spec.threat : (options.threat ?? save.threat),
+          ws: spec || (snap && snap.daily) ? {} : save.workshop,
+          daily: spec ? spec.key : "",
           snap: snap,
         });
       } catch (err) {
@@ -476,7 +481,7 @@ const overlay = new Overlay(elementById("ov")),
     // a new run with the weapon and threat of the current (ended) run
     retry() {
       const world = this.world;
-      this.startRun(world ? { weapon: world.weapon, threat: world.threat } : {});
+      this.startRun(world ? (world.daily ? { daily: true } : { weapon: world.weapon, threat: world.threat }) : {});
     },
     abandon() {
       ui.hidePause();
@@ -600,6 +605,9 @@ const overlay = new Overlay(elementById("ov")),
         stats.bestTime = world.time;
       }
       stats.bestBy[world.weapon] = Math.max(stats.bestBy[world.weapon] || 0, wave);
+      // 3.26.0: the Daily Rift: the best of the day and the streak (an abandoned run before wave 2 does not count)
+      let dailyBest = false;
+      if (world.daily && !(abandoned && wave < 2)) dailyBest = recordDaily(stats.daily, world.daily, wave, world.kills);
       stats.kills += world.kills;
       stats.playTime += world.time;
       stats.shardsEarned += total;
@@ -657,6 +665,9 @@ const overlay = new Overlay(elementById("ov")),
           dmgSrc: world.dmgSrc,
           weaponName: weaponDefs[world.weapon].name,
           fastest: fastest,
+          daily: world.daily,
+          dailyBest: dailyBest,
+          dailyStats: world.daily ? { ...stats.daily } : null,
         });
         sound.setMusic("menu");
         setWakeLock(false);
@@ -777,7 +788,7 @@ input.onPause = () => {
   // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
   if (ui.rlSoundNotes || ui.rlFromPause) return ui.back();
   if (game.mode === "menu") {
-    if (input._rlKey === "escape" && ["workshop", "records", "settings"].includes(ui.screen)) {
+    if (input._rlKey === "escape" && ["workshop", "records", "daily", "news", "settings"].includes(ui.screen)) {
       ui.back();
     }
     return;

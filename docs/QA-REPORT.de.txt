@@ -1,3 +1,31 @@
+RIFTLINE v3.26.0 – DAILY RIFT
+Base: v3.25.0 · Build r3260a1005a-r1 · 06.10.2026
+
+Roadmap, proposal C10 of 03.10.2026: a daily challenge, the same for everyone, with the best of the day and a streak.
+
+1) The rule (core/daily.js)
+   - The day is the UTC date (the Rift changes at 01:00 or 02:00 German time). Seed, weapon (one of the seven) and threat (Standard,
+     on a third of the days Threat I) come from a hash of the date, so the same date always gives the same Rift. The workshop does not
+     count (World gets an empty ws), so every pilot flies the same drone.
+   - stats.daily keeps: the last day played, its best wave and kills, the streak (consecutive days), the days played and the best
+     wave ever. A streak that missed a day reads 0. An abandoned run before wave 2 does not count.
+   - A saved Daily run resumes as the same Rift; Run Again after a Daily run plays today's Rift again.
+
+2) What the player sees
+   - A Daily Rift link at the top right of the home screen (a dot until today's Rift is played), a page with the day, weapon,
+     threat, Start and the four numbers, and a line on the end screen (day, best of the day, streak).
+
+3) Tests
+   - Self-test v3260 and the full QA sections daily-desktop and daily-phone (pictures tests/shots/qa-daily-*.png).
+
+4) Results 3.26.0 (headless Chromium, software WebGL)
+   - Self-test and full QA daily sections pass. The complete release-check on the top of the stack follows (see the handoff table
+     of docs/ROADMAP.de.md).
+
+5) Open doubts
+   - There is no server: the daily Rift is only the same for everyone, nobody's result is compared (a leaderboard needs the
+     Cloudflare plan). The day edge at UTC and the choice of weapons are my decisions; the Threat I days may be too hard for a new pilot.
+
 RIFTLINE v3.25.0 – BANISH PROTOCOL
 Base: v3.24.0 · Build r3250a1005a-r1 · 06.10.2026
 

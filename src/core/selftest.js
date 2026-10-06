@@ -68,6 +68,7 @@ import { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount, rlUpdateTraps } from "./
 import { hitsObstacle, buildLayout, isConnected, RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
 import { computeStats, buildStatRows } from "./stats.js";
 import { bossMedal } from "./medals.js";
+import { dailyKey, dayBefore, dailySpec, recordDaily, liveStreak } from "./daily.js";
 import {
   RL_EVENT_KINDS,
   RL_BOSS_EVENTS,
@@ -483,6 +484,7 @@ function rlSelfTest() {
   result = selfTestV3220(result);
   result = selfTestV3240(result);
   result = selfTestV3250(result);
+  result = selfTestV3260(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3814,6 +3816,76 @@ function selfTestV3250(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3250: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.26.0: the Daily Rift: the same Rift for everyone on a date, the record of the day and the streak ---- */
+function selfTestV3260(result) {
+  const fail = [];
+  try {
+    if (dailyKey(Date.UTC(2026, 9, 6, 23, 59, 59)) !== "2026-10-06" || dailyKey(Date.UTC(2026, 9, 7)) !== "2026-10-07")
+      fail.push("key");
+    if (dayBefore("2026-03-01") !== "2026-02-28" || dayBefore("2027-01-01") !== "2026-12-31") fail.push("day-before");
+    // the Rift of a date is always the same and varies from day to day
+    const a = dailySpec("2026-10-06"),
+      b = dailySpec("2026-10-06");
+    if (JSON.stringify(a) !== JSON.stringify(b)) fail.push("not-deterministic");
+    const weapons = new Set(),
+      threats = [0, 0];
+    for (let d = 0; d < 60; d++) {
+      const spec = dailySpec(dailyKey(Date.UTC(2026, 9, 1 + d)));
+      if (!weaponDefs[spec.weapon] || (spec.threat !== 0 && spec.threat !== 1) || !Number.isFinite(spec.seed))
+        fail.push("spec:" + JSON.stringify(spec));
+      weapons.add(spec.weapon);
+      threats[spec.threat]++;
+    }
+    if (weapons.size < 5) fail.push("weapons-vary:" + weapons.size);
+    if (threats[1] < 8 || threats[1] > 35) fail.push("threats:" + threats);
+    if (dailySpec("junk").key !== dailyKey()) fail.push("junk-key");
+    // the record: the first day, the next day, a gap, a better and a worse run on the same day
+    const d = { key: "", wave: 0, kills: 0, streak: 0, days: 0, bestWave: 0 };
+    if (!recordDaily(d, "2026-10-06", 5, 100) || d.streak !== 1 || d.days !== 1) fail.push("first");
+    if (recordDaily(d, "2026-10-06", 4, 300) || d.wave !== 5) fail.push("worse-replaces");
+    if (!recordDaily(d, "2026-10-06", 5, 150) || d.kills !== 150) fail.push("more-kills");
+    if (!recordDaily(d, "2026-10-06", 8, 10) || d.wave !== 8 || d.days !== 1) fail.push("better");
+    recordDaily(d, "2026-10-07", 3, 40);
+    if (d.streak !== 2 || d.days !== 2 || d.wave !== 3 || d.bestWave !== 8) fail.push("next-day:" + JSON.stringify(d));
+    if (liveStreak(d, "2026-10-08") !== 2 || liveStreak(d, "2026-10-09") !== 0) fail.push("live-streak");
+    recordDaily(d, "2026-10-10", 2, 1);
+    if (d.streak !== 1) fail.push("gap");
+    // a run of the day: the same seed gives the same first offer, the key survives the snapshot, junk does not
+    const run = () => {
+      const w = new World({ seed: a.seed, weapon: a.weapon, threat: a.threat, ws: {}, daily: a.key });
+      w.startWave(2);
+      w.state = "fight";
+      w.beginChoice();
+      return w;
+    };
+    const w1 = run(),
+      w2 = run();
+    if (JSON.stringify(w1.offer) !== JSON.stringify(w2.offer) || w1.daily !== a.key) fail.push("same-rift");
+    const snap = JSON.parse(JSON.stringify(w1.snapshot()));
+    if (snap.daily !== a.key || new World({ seed: 1, weapon: a.weapon, threat: 0, ws: {}, snap }).daily !== a.key)
+      fail.push("snapshot");
+    if (cleanRun({ ...snap, daily: "<script>" }).daily !== "" || cleanRun({ ...snap, daily: 42 }).daily !== "")
+      fail.push("clean-run");
+    if (cleanRun(snap).daily !== a.key) fail.push("clean-run-keeps");
+    // the save cleans the record
+    const hostile = cleanSave({
+      ...newSave(),
+      stats: { ...newSave().stats, daily: { key: "bad", wave: 5, kills: 9, streak: 4, days: -3, bestWave: 1e9 } },
+    });
+    if (hostile.stats.daily.key !== "" || hostile.stats.daily.wave !== 0 || hostile.stats.daily.streak !== 0)
+      fail.push("clean-bad-key:" + JSON.stringify(hostile.stats.daily));
+    if (hostile.stats.daily.days !== 0 || hostile.stats.daily.bestWave !== 999) fail.push("clean-clamp");
+    const good = cleanSave({
+      ...newSave(),
+      stats: { ...newSave().stats, daily: { key: "2026-10-06", wave: 5, kills: 9, streak: 4, days: 7, bestWave: 12 } },
+    });
+    if (good.stats.daily.streak !== 4 || good.stats.daily.days !== 7) fail.push("clean-keeps");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3260: { ok: fail.length === 0, fail } };
 }
 
 /* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct

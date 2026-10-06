@@ -2199,7 +2199,7 @@ await section("qol", async (L) => {
   });
   await P.page.waitForTimeout(300);
   const back = [];
-  for (const s of ["workshop", "records", "settings"]) {
+  for (const s of ["workshop", "records", "daily", "settings"]) {
     await P.nav(s);
     await P.page.keyboard.press("Escape");
     await P.page.waitForTimeout(250);
@@ -2207,7 +2207,7 @@ await section("qol", async (L) => {
   }
   check(
     L,
-    "Esc goes back from Workshop, Records and Settings",
+    "Esc goes back from Workshop, Records, Daily Rift and Settings",
     back.every((x) => x === "home"),
     back.join(", "),
   );
@@ -4145,6 +4145,163 @@ await section("banish-without", async (L) => {
   );
   await P.close();
 });
+
+// 3.26.0: the Daily Rift: one Rift a day, the same for every pilot (seed, weapon, threat from the date, no workshop)
+for (const profName of ["desktop", "phone"]) {
+  await section(`daily-${profName}`, async (L) => {
+    const P = await open(profName, {
+      save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true }, workshop: { hull: 3, banish: 2 } }),
+    });
+    await P.boot();
+    check(
+      L,
+      "the home screen has the Daily Rift link with a dot (not played today)",
+      await P.ev(() => {
+        const b = document.getElementById("dailyBtn"),
+          r = b.getBoundingClientRect();
+        return r.width > 20 && r.right <= innerWidth + 1 && !document.getElementById("dailyBadge").hidden;
+      }),
+    );
+    await P.nav("daily");
+    await P.page.waitForTimeout(400);
+    const card = await P.ev(() => ({
+      screen: window.__riftTest.ui.screen,
+      day: document.querySelector("#dailyCard .dc-day")?.textContent,
+      weapon: document.querySelector("#dailyCard .dc-weapon")?.textContent,
+      today: new Date().toISOString().slice(0, 10),
+      fits: (() => {
+        const r = document.getElementById("dailyStart").getBoundingClientRect();
+        return r.right <= innerWidth + 1 && r.left >= -1 && r.bottom <= innerHeight + 200;
+      })(),
+    }));
+    check(
+      L,
+      "the page shows today's date (UTC) and the weapon",
+      card.screen === "daily" && card.day.startsWith(card.today) && !!card.weapon,
+      JSON.stringify(card),
+    );
+    await P.shot({ path: new URL(`./shots/qa-daily-${profName}.png`, import.meta.url).pathname });
+    await P.page.keyboard.press("Escape");
+    await P.page.waitForTimeout(200);
+    check(L, "Esc goes back to the home screen", (await P.ev(() => window.__riftTest.ui.screen)) === "home");
+    await P.nav("daily");
+    await P.tap("#dailyStart");
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const run = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return {
+        daily: w.daily,
+        today: new Date().toISOString().slice(0, 10),
+        weapon: w.weapon,
+        threat: w.threat,
+        seed: w.seed,
+        ws: JSON.stringify(w.ws),
+        banishes: w.banishes,
+        hp: w.player.maxHp,
+      };
+    });
+    check(
+      L,
+      "the run is the Rift of today: workshop not counted",
+      run.daily === run.today && run.ws === "{}" && run.banishes === 0,
+      JSON.stringify(run),
+    );
+    // resumed: the day, the seed and the empty workshop survive
+    await P.ev(() => {
+      const T = window.__riftTest;
+      T.game.world.god = true;
+      T.game.paused = false;
+      T.store.data.run = T.game.world.snapshot();
+      T.store.save("qa");
+      T.game.goHome();
+    });
+    await P.ev(() => window.__riftTest.game.startRun({ resume: true }));
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const resumed = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return { daily: w.daily, ws: JSON.stringify(w.ws), seed: w.seed, hp: w.player.maxHp };
+    });
+    check(
+      L,
+      "a saved Daily run resumes as the same Rift",
+      resumed.daily === run.daily && resumed.ws === "{}" && resumed.seed === run.seed && resumed.hp === run.hp,
+      JSON.stringify(resumed),
+    );
+    // dies at wave 1: not counted when abandoned that early, but a loss counts
+    await P.ev(() => {
+      const w = window.__riftTest.game.world,
+        p = w.player;
+      w.god = false;
+      p.hp = 1;
+      p.iT = 0;
+      p.dashT = 0;
+      p.shield = false;
+      w.hurtPlayer(500, null, null, "turret");
+    });
+    await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 });
+    await P.page.waitForTimeout(400);
+    const over = await P.ev(() => ({
+      text: document.getElementById("overDaily").textContent,
+      hidden: document.getElementById("overDaily").hidden,
+      daily: window.__riftTest.store.data.stats.daily,
+      today: new Date().toISOString().slice(0, 10),
+    }));
+    check(
+      L,
+      "the end screen names the Daily Rift; the record of the day is kept",
+      !over.hidden &&
+        over.text.includes(over.today) &&
+        over.daily.key === over.today &&
+        over.daily.days === 1 &&
+        over.daily.streak === 1,
+      JSON.stringify(over),
+    );
+    // Run Again plays the same Rift (same seed, same weapon)
+    await P.ev(() => window.__riftTest.game.retry());
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const again = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return { daily: w.daily, seed: w.seed, weapon: w.weapon };
+    });
+    check(
+      L,
+      "Run Again after a Daily run is the same Rift",
+      again.daily === run.daily && again.seed === run.seed && again.weapon === run.weapon,
+      JSON.stringify(again),
+    );
+    await P.ev(() => {
+      window.__riftTest.game.abandon();
+      window.__riftTest.game.goHome();
+    });
+    await P.page.waitForTimeout(400);
+    check(
+      L,
+      "back home the dot is gone and the page shows today's best",
+      await P.ev(() => {
+        window.__riftTest.ui.show("daily");
+        return (
+          document.getElementById("dailyBadge").hidden &&
+          /Wave/.test(document.getElementById("dailyStats").textContent) &&
+          !/Not played/.test(document.getElementById("dailyStats").textContent)
+        );
+      }),
+    );
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
 
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();

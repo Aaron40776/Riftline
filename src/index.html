@@ -336,6 +336,15 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 }
 .logo::after { content: ''; position: absolute; left: -6%; right: -6%; top: 48%; height: 2px; background: linear-gradient(90deg, transparent, var(--pink), #fff, var(--cyan), transparent); box-shadow: 0 0 12px var(--pink); }
 @keyframes rift { 0%, 100% { transform: translateX(-0.05em); } 48% { transform: translateX(0.05em); } 50% { transform: translateX(-0.12em); } 52% { transform: translateX(0.03em); } }
+.daily-link { position: relative; gap: 6px; }
+.daily-link .ico { width: 16px; height: 16px; }
+.daily-link .badge { top: -4px; right: -4px; }
+.daily-body { display: grid; gap: 12px; align-content: start; }
+.daily-body .btn.primary { justify-self: stretch; }
+.daily-card { padding: 14px 16px; display: grid; gap: 6px; }
+.daily-card .dc-day { font: 600 11px/1 var(--display); letter-spacing: 0.2em; color: var(--mute); text-transform: uppercase; }
+.daily-card .dc-weapon { font: 700 22px/1.1 var(--display); }
+.daily-card .dc-sub { color: var(--dim); font-size: 13px; }
 .best-line { margin: 8px 0 0; font: 600 13px/1 var(--display); letter-spacing: 0.14em; color: var(--amber); text-transform: uppercase; }
 .tagline { margin: 12px 0 0; color: var(--dim); font: 600 13px/1.3 var(--display); letter-spacing: 0.18em; text-transform: uppercase; }
 .home-panel { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 460px; justify-self: center; }
@@ -1584,6 +1593,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <header class="topbar">
       <div class="shard-chip big"><span class="shard-ico"></span><span id="bank" class="num">0</span></div>
       <div class="spacer"></div>
+      <button id="dailyBtn" class="btn small ghost daily-link" data-go="daily"><span data-icon="calendar"></span>Daily Rift<i id="dailyBadge" class="badge" hidden></i></button>
     </header>
     <div class="home-grid">
       <div class="brand">
@@ -1645,6 +1655,22 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div id="runHist" class="list"></div>
       <h3 class="section-h">Milestones</h3>
       <div id="msList" class="list"></div>
+    </div>
+  </section>
+
+  <!-- ====================================================== DAILY RIFT (3.26.0) -->
+  <section id="daily" class="screen page" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
+      <h2>Daily Rift</h2>
+      <div class="spacer"></div>
+      <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
+    </header>
+    <div class="scroll settings-body daily-body">
+      <p class="page-intro">One Rift a day, the same for every pilot: the waves, the offers and the hazards come from the date. The workshop does not count, so everyone flies the same drone. A new Rift opens at midnight UTC.</p>
+      <div id="dailyCard" class="panel daily-card"></div>
+      <button id="dailyStart" class="btn primary">START TODAY'S RIFT</button>
+      <div id="dailyStats" class="stat-grid"></div>
     </div>
   </section>
 
@@ -1778,6 +1804,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <h2 id="overTitle" class="over-title">SIGNAL LOST</h2>
       <div id="overCause" class="over-cause" hidden></div>
       <div id="overBest" class="chip best" hidden>NEW BEST</div>
+      <div id="overDaily" class="chip" hidden></div>
       <div id="overStats" class="stat-grid compact"></div>
       <div class="payout panel">
         <div id="payRows"></div>

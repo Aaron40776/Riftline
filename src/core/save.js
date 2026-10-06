@@ -8,6 +8,7 @@ import { weaponDefs } from "../data/weapons.js";
 import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rlRetired } from "../data/progression.js";
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
 import { BOSS_CARD_CHANCE } from "./boss-cards.js";
+import { DAILY_KEY } from "./daily.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
@@ -232,6 +233,8 @@ function newSave() {
       bosses: {},
       // 3.24.0: the best medal per boss: { medal: 1-3, secs: its time, damage: what it cost }
       medals: {},
+      // 3.26.0: the Daily Rift: the last day played, its best wave and kills, the streak of days, the days played, the best wave ever
+      daily: { key: "", wave: 0, kills: 0, streak: 0, days: 0, bestWave: 0 },
       clearsBy: {},
       bestBy: {},
       legendaries: 0,
@@ -283,6 +286,8 @@ function cleanRun(raw) {
     // 3.25.0: Banish Protocol: the upgrades banished in this run and the banishes left
     banished: [],
     banishes: Math.floor(cleanNumber(raw.banishes, 0, 0, 9)),
+    // 3.26.0: the day of a Daily Rift run (empty for a normal run)
+    daily: typeof raw.daily === "string" && DAILY_KEY.test(raw.daily) ? raw.daily : "",
     revived: !!raw.revived,
     nova: Math.floor(cleanNumber(raw.nova, 0, 0, 100)),
     bossKills: [],
@@ -394,6 +399,19 @@ function cleanSave(input) {
       if (medal >= 1)
         stats.medals[id] = { medal, secs: cleanNumber(m.secs, 0, 0, 1e5), damage: cleanNumber(m.damage, 0, 0, 1e9) };
     }
+  }
+  // 3.26.0: the Daily Rift record
+  {
+    const d = asObject(rawStats.daily);
+    stats.daily = {
+      key: typeof d.key === "string" && DAILY_KEY.test(d.key) ? d.key : "",
+      wave: Math.floor(cleanNumber(d.wave, 0, 0, 999)),
+      kills: Math.floor(cleanNumber(d.kills, 0, 0, 1e9)),
+      streak: Math.floor(cleanNumber(d.streak, 0, 0, 9999)),
+      days: Math.floor(cleanNumber(d.days, 0, 0, 9999)),
+      bestWave: Math.floor(cleanNumber(d.bestWave, 0, 0, 999)),
+    };
+    if (!stats.daily.key) Object.assign(stats.daily, { wave: 0, kills: 0, streak: 0 });
   }
   // 2.8.1: per-weapon records of retired weapons count for the weapon that took them over (clears are
   // added, the best wave is the higher one), so "clear with every weapon" sees an old Ion Repeater clear

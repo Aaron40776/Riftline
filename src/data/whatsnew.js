@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.26.0",
+    title: "Daily Rift",
+    items: [
+      "A new Rift every day, the same for every pilot: the waves, the upgrade offers and the hazards come from the date. Open it with Daily Rift at the top right of the home screen.",
+      "The weapon is set for the day and your workshop modules do not count, so everyone flies the same drone.",
+      "The best wave of the day, your streak of days played and your best Daily wave are kept. A new Rift opens at midnight UTC.",
+    ],
+  },
+  {
     version: "3.25.0",
     title: "Banish Protocol",
     items: [

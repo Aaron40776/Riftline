@@ -171,6 +171,8 @@ const rlStep = 1 / 60,
       this.banished =
         snap && Array.isArray(snap.banished) ? snap.banished.filter((id) => typeof id === "string").slice(0, 6) : [];
       this.banishes = snap && snap.banishes != null ? snap.banishes | 0 : this.ws.banish || 0;
+      // 3.26.0: the day of a Daily Rift run, or ""
+      this.daily = (snap ? snap.daily : opts.daily) || "";
       this.revived = snap ? !!snap.revived : false;
       this.bossKills = snap ? [...(snap.bossKills || [])] : [];
       this.flawless = (snap && snap.flawless) || 0;
@@ -574,6 +576,7 @@ const rlStep = 1 / 60,
         rerolls: this.rerolls,
         banished: [...this.banished],
         banishes: this.banishes,
+        daily: this.daily,
         revived: this.revived,
         nova: Math.round(this.player.nova),
         bossKills: [...this.bossKills],

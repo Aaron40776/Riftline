@@ -16,6 +16,7 @@ import { store } from "../main.js";
 import { clamp, GAME_VERSION, formatCount, rlAgo, formatTime } from "../core/util.js";
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
 import { MEDAL_NAMES } from "../core/medals.js";
+import { dailyKey, dailySpec, liveStreak } from "../core/daily.js";
 import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, rlRetired, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
@@ -120,6 +121,7 @@ const iconPaths = {
   check: '<path d="M4 12.5l5 5 11-11"/>',
   save: '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
   load: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v4h16v-4"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
   skull:
     '<path d="M12 3a8 8 0 00-5 14.2V21h10v-3.8A8 8 0 0012 3z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/>',
@@ -137,7 +139,7 @@ function iconSvg(name, cls = "") {
   return `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
 const getById = (id) => document.getElementById(id),
-  menuScreens = ["home", "workshop", "records", "news", "settings"],
+  menuScreens = ["home", "workshop", "records", "daily", "news", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
   formatPercent = (value) => Math.round(value * 100) + "%",
   formatCooldown = (value) => (value > 0 ? formatTenths(value) + " s" : "off"),
@@ -308,6 +310,7 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("tNext"), () => this.stepThreat(1));
       this.click(getById("wBuy"), () => this.buyWeapon());
       this.click(getById("playBtn"), () => this.play());
+      this.click(getById("dailyStart"), () => this.playDaily());
       this.click(getById("continueBtn"), () => this.g.startRun({ resume: true }));
       let onPress = (el, action) =>
         el.addEventListener("pointerdown", (ev) => {
@@ -466,6 +469,9 @@ const getById = (id) => document.getElementById(id),
       if (screen === "records") {
         this.renderRecords();
       }
+      if (screen === "daily") {
+        this.renderDaily();
+      }
       if (screen === "news") {
         this.renderNews();
       }
@@ -528,6 +534,8 @@ const getById = (id) => document.getElementById(id),
       this.updatePlayState();
       getById("recBadge").hidden = !this.g.claimable().length;
       getById("newsBadge").hidden = !!save.seen["news_" + GAME_VERSION];
+      // 3.26.0: a dot on the Daily Rift until today's Rift has been played
+      getById("dailyBadge").hidden = save.stats.daily.key === dailyKey();
       let stats = save.stats;
       getById("bestLine").hidden = !stats.runs;
       if (stats.runs) {
@@ -758,6 +766,42 @@ const getById = (id) => document.getElementById(id),
       }
     }
     // the What's new tab: opening it marks this version's notes as read (the badge on the home screen goes away)
+    /* 3.26.0: the Daily Rift page: today's weapon and threat, the best of the day, the streak */
+    renderDaily() {
+      const save = this.save,
+        d = save.stats.daily,
+        spec = dailySpec(),
+        today = d.key === spec.key,
+        weapon = weaponDefs[spec.weapon];
+      for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
+      getById("dailyCard").innerHTML =
+        `<div class="dc-day">${escapeHtml(spec.key)} · UTC</div>` +
+        `<div class="dc-weapon">${escapeHtml(weapon.name)}</div>` +
+        `<div class="dc-sub">${escapeHtml(threatLevels[spec.threat].name)} threat · no workshop modules · ${escapeHtml(weapon.blurb)}</div>`;
+      getById("dailyStart").textContent = today ? "PLAY TODAY'S RIFT AGAIN" : "START TODAY'S RIFT";
+      getById("dailyStats").innerHTML = [
+        ["Today's best", today ? `Wave ${d.wave} · ${formatCount(d.kills)} kills` : "Not played yet"],
+        ["Streak", `${liveStreak(d, spec.key)} day${liveStreak(d, spec.key) === 1 ? "" : "s"}`],
+        ["Days played", d.days],
+        ["Best wave ever", d.bestWave || "-"],
+      ]
+        .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
+        .join("");
+    }
+    async playDaily() {
+      const save = this.save;
+      if (
+        save.run &&
+        !(await this.confirm(
+          "Start the Daily Rift?",
+          `Your run at wave ${save.run.wave} ends here. You keep the shards collected in it.`,
+          "Start",
+        ))
+      )
+        return;
+      if (save.run) this.g.discardRun();
+      this.g.startRun({ daily: true });
+    }
     renderNews() {
       getById("newsList").innerHTML = WHATS_NEW.map(
         (entry, i) =>
@@ -1612,6 +1656,13 @@ const getById = (id) => document.getElementById(id),
             getById("overCause").textContent = "Crushed by a trap";
           }
         }
+      }
+      // 3.26.0: a Daily Rift run says so, and what the day's best is
+      const over = getById("overDaily");
+      over.hidden = !result.daily;
+      if (result.daily) {
+        const ds = result.dailyStats;
+        over.textContent = `Daily Rift ${result.daily} \xB7 best today wave ${ds.wave}${result.dailyBest ? " (new)" : ""} \xB7 streak ${ds.streak}`;
       }
       this.renderRecap(result);
       getById("overStats").innerHTML = [

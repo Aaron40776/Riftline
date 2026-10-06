@@ -214,6 +214,7 @@ each is based on the one before, so merge them in this order and, after each mer
 | #49 | 3.23.0 | gamepad, vibration (determinism fixture updated for the new setting) |
 | #50 | 3.24.0 | boss medals |
 | #51 | 3.25.0 | Banish Protocol (workshop module; banish a card in the upgrade choice) |
+| #52 | 3.26.0 | Daily Rift (date seed, weapon and threat; best of the day, streak) |
 
 State of the tests: the complete release check ran on 3.18.1, 3.18.2, 3.19.0 (all ok), 3.20.0 (ok after one test fix), 3.23.0
 (covers 3.21 to 3.23; ok after the determinism fixture update). 3.24.0 had `npm test` and its own sections.
@@ -223,7 +224,7 @@ reference clips: Osmos is the direction); the professional look is an opt-in Ult
 does it); the recommended order goes on; a repo description, topics and a licence are prepared (`docs/GITHUB.md`: the licence
 needs his choice).
 
-NOT done, still wanted: pacts before a run (C9), the daily challenge (C10), a short
+NOT done, still wanted: pacts before a run (C9), a short
 introduction to the Singularity and traps (A4), Cloudflare (when he says go), the second step of the sound direction (slow evolving
 pads with auto-panning; reference clips), a pass on the models for the professional look (hard-surface shapes, bloom, ambient
 occlusion; a reference picture), and the real-hardware tests (a gamepad, a phone: Safari and Chrome with the landscape shell, the
