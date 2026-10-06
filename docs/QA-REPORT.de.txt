@@ -51,7 +51,10 @@ screen of a lost run, "the last hits (who, which attack, how much), the final bl
      under the statistics, the final blow in red).
 
 3) Results 3.21.0 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+   - npm test (deep test with self-test v3210, files check, data audit, determinism 15/15 unchanged): ok. The full QA sections
+     recap-desktop and recap-phone pass. The complete release check of this release is the one of the topmost release of
+     the chain (3.23.0), which contains all of its changes; the releases 3.21.0 and 3.22.0 were built one on the other the same
+     night and were each tested with npm test and their own sections.
 
 4) Open doubts
    - Hits of the old attacks are named by their source (enemy or boss), not by the attack ("Warden" and not "laser grid"):
@@ -91,7 +94,10 @@ later, with a reference from the owner).
      (SHOT_QUALITY=ultra).
 
 4) Results 3.20.0 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+   - npm run release-check: all steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, e2e, world and
+     run audit, screens pc and land, biome shots pc and land, attack shots pc) except one check of the full QA: the test of
+     a hostile save used "ultra" as its example of an invalid Graphics value ("saves: every value clamped to its valid
+     range"); "ultra" is valid now. The test uses "extreme" instead; the section saves passes. Time of the chain: 33 min 22 s.
 
 5) Open doubts
    - I judge pictures, not taste: whether this is the "professional" look the owner means needs his eyes (and a reference
