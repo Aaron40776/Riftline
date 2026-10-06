@@ -34,7 +34,7 @@ valid choice for a game you want to keep to yourself. The usual choices:
 | **GPL-3.0** | others may use and change it, but their changes must stay open under the same licence | you want improvements to flow back |
 | **All rights reserved** (no file, or a short copyright note) | nobody may reuse it without asking | you plan to sell the game or keep it closed |
 
-Three-package code (three.js, MIT) and the fonts (OFL) in the build keep their own licences either way. I will add the
+Third-party code (three.js, MIT) and the fonts (OFL) in the build keep their own licences either way. I will add the
 `LICENSE` file as soon as you say which one (it is a pull request like everything else).
 
 ## Other settings worth a look
