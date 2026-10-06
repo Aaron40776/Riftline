@@ -18,7 +18,10 @@ screen of a lost run, "the last hits (who, which attack, how much), the final bl
      under the statistics, the final blow in red).
 
 3) Results 3.21.0 (headless Chromium, software WebGL; npm run release-check)
-   - RESULTS_PLACEHOLDER
+   - npm test (deep test with self-test v3210, files check, data audit, determinism 15/15 unchanged): ok. The full QA sections
+     recap-desktop and recap-phone pass. The complete release check of this release is the one of the topmost release of
+     the chain (3.23.0), which contains all of its changes; the releases 3.21.0 and 3.22.0 were built one on the other the same
+     night and were each tested with npm test and their own sections.
 
 4) Open doubts
    - Hits of the old attacks are named by their source (enemy or boss), not by the attack ("Warden" and not "laser grid"):
