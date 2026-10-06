@@ -1,3 +1,33 @@
+RIFTLINE v3.24.0 – BOSS MEDALS
+Base: v3.23.0 · Build r3240a1005a-r1 · 06.10.2026
+
+Roadmap, proposal C11 of 03.10.2026: "Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex".
+
+1) The rule (core/medals.js)
+   - Bronze: the boss is down. Silver: no damage taken in the fight (however slow), or a kill in under 1.5 times the par time with
+     at most a quarter of the hull lost. Gold: no damage taken and under the par time. No medal when the time is unknown (a fight
+     resumed from a saved run).
+   - Par times at Standard threat (the time of a good run): Warden 60 s, Crucible 70, Frost Prism 70, Hive Queen 75, Rift Core 85;
+     they grow with the hull factor of the threat level.
+   - The fight counts from the appearance of the boss to its death (World.bossT0, bossDmg0; the bossDown event carries the
+     seconds and the damage).
+
+2) What the player sees and what is kept
+   - A banner at the kill ("GOLD MEDAL: The Warden down in 38 s, no damage taken", "a new best" when it replaces an older one).
+   - stats.medals in the save: the best medal per boss and its time (a better medal, or the same one faster, replaces it); the save
+     cleans it on load (ids a-z, medal 0-3, numbers clamped, junk dropped). The Codex shows "Defeated x3 · Gold · 38 s".
+
+3) Tests
+   - Self-test v3240 (the rule at its edges, the par follows the threat, a real kill's numbers, a hostile save) and the full QA
+     section medals (banner, kept medal, a worse kill does not replace it, the Codex).
+
+4) Results 3.24.0 (headless Chromium, software WebGL)
+   - RESULTS_PLACEHOLDER
+
+5) Open doubts
+   - The par times are my estimate of a good run, not measured with players: they may be too tight or too loose (the numbers are
+     in core/medals.js). The medals are not part of the milestones or the shard payout (no reward beyond the Codex entry).
+
 RIFTLINE v3.23.0 – GAMEPAD AND VIBRATION
 Base: v3.22.0 · Build r3230a1005a-r1 · 06.10.2026
 

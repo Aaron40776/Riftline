@@ -4,6 +4,7 @@
 // in the original order.
 
 import { rumble } from "./ui/gamepad.js";
+import { bossMedal, MEDAL_NAMES } from "./core/medals.js";
 import {
   RL_EVENT_KINDS,
   RL_HEALTH,
@@ -699,6 +700,31 @@ game.qualityNote = () => {
           : `Sharpest (${dpr}\xD7)`) + restart
   );
 };
+/* 3.24.0: the medal of a boss kill (core/medals.js): the best one per boss is kept; a banner says what was earned */
+function awardBossMedal(ev, world) {
+  try {
+    const def = bossDefs[ev.id];
+    if (!def) return;
+    const medal = bossMedal(ev.id, ev.secs, ev.damage, world.stats.maxHp, (world.tm && world.tm.hp) || 1),
+      stats = store.data.stats;
+    if (!medal) return;
+    stats.medals = stats.medals || {};
+    const old = stats.medals[ev.id],
+      better = !old || medal > old.medal || (medal === old.medal && ev.secs < old.secs);
+    if (better) {
+      stats.medals[ev.id] = { medal, secs: Math.round(ev.secs * 10) / 10, damage: Math.round(ev.damage) };
+      store.save("medal");
+    }
+    ui.banner(
+      `${MEDAL_NAMES[medal].toUpperCase()} MEDAL`,
+      `${def.name} down in ${Math.round(ev.secs)} s${ev.damage <= 0 ? ", no damage taken" : ""}${old && !better ? "" : better && old ? " \u2014 a new best" : ""}`,
+      medal === 3 ? "good" : "info",
+      2600,
+    );
+  } catch (err) {
+    logError("medal", err);
+  }
+}
 function afterProgressReset(message) {
   ui.homeInit = false;
   applySettings();
@@ -1157,6 +1183,7 @@ function handleWorldEvents(world) {
         break;
       case "bossDown":
         game.slowMo = 1.1;
+        awardBossMedal(ev, world);
         break;
       case "revive":
         ui.banner("SECOND LIFE", "Hull restored", "good", 1600);

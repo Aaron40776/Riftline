@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.24.0",
+    title: "Boss medals",
+    items: [
+      "Every boss kill earns a medal: Bronze for the kill, Silver for no damage taken (or a fast kill with few hits), Gold for no damage and under the par time.",
+      "A banner tells you what you earned; the best medal and time of each boss are kept in the Codex.",
+    ],
+  },
+  {
     version: "3.23.0",
     title: "Gamepad and vibration",
     items: [

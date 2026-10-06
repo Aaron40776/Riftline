@@ -15,6 +15,7 @@ import { biomeList, biomesById } from "../data/biomes.js";
 import { store } from "../main.js";
 import { clamp, GAME_VERSION, formatCount, rlAgo, formatTime } from "../core/util.js";
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
+import { MEDAL_NAMES } from "../core/medals.js";
 import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, rlRetired, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
@@ -1971,6 +1972,7 @@ function rlCodexEntries(save) {
   const data = save || {},
     seen = data.seen || {},
     beaten = (data.stats && data.stats.bosses) || {},
+    medals = (data.stats && data.stats.medals) || {},
     offered = new Set();
   // saves from before the Codex never stored up_<id>; builds in the run history and the saved run
   // show which upgrades the player has been offered already
@@ -2012,7 +2014,11 @@ function rlCodexEntries(save) {
         seen: seen["boss_" + id] === true || kills > 0,
         name: boss.name,
         desc: boss.title + (bio ? ` \xB7 ${bio.name}` : ""),
-        extra: kills > 0 ? `Defeated \xD7${kills}` : "",
+        extra:
+          kills > 0
+            ? `Defeated \xD7${kills}` +
+              (medals[id] ? ` \xB7 ${MEDAL_NAMES[medals[id].medal]} \xB7 ${Math.round(medals[id].secs)} s` : "")
+            : "",
         color: rlHex(boss.color),
         icon: "target",
       };

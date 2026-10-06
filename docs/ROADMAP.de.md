@@ -309,7 +309,7 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
    für mehr Shards und ein Abzeichen in der Run-Historie; Meilensteine für Siege mit Pakten.
 10. Tägliche Herausforderung: fester Seed, feste Waffe und feste Mutatoren für alle; eigener Bestwert (später die
     Cloudflare-Bestenliste).
-11. Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex.
+11. (Done in 3.24.0.) Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex.
 12. Training gegen bereits besiegte Bosse (keine Belohnung): üben, ohne den Run leichter zu machen.
 
 **D. Mit Vorsicht (macht es etwas leichter, nur begrenzt)**

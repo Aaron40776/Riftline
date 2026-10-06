@@ -3978,6 +3978,71 @@ await section("vibration-phone", async (L) => {
   await P.close();
 });
 
+// 3.24.0: boss medals: the banner of a kill, the best one kept per boss, the Codex shows it
+await section("medals", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  const kill = (secs, damage) =>
+    P.ev(
+      ([secs, damage]) => {
+        const w = window.__riftTest.game.world;
+        w.god = true;
+        if (!w.boss) w.spawnBoss("warden");
+        w.bossT0 = w.time - secs;
+        w.bossDmg0 = w.runStats.dmgTaken - damage;
+        const boss = w.boss;
+        boss.hp = 0;
+        w.killEnemy(boss);
+      },
+      [secs, damage],
+    );
+  const banner = () => P.ev(() => document.getElementById("banner").textContent);
+  await kill(30, 0);
+  await P.page.waitForFunction(() => /MEDAL/.test(document.getElementById("banner").textContent), null, {
+    timeout: 15000,
+  });
+  check(L, "a hitless kill in 30 s earns Gold and says so", /GOLD MEDAL/i.test(await banner()), await banner());
+  const stored = () => P.ev(() => window.__riftTest.store.data.stats.medals.warden);
+  check(
+    L,
+    "the medal is kept",
+    (await stored())?.medal === 3 && (await stored()).secs === 30,
+    JSON.stringify(await stored()),
+  );
+  // a worse kill later does not take it away
+  await P.ev(() => (window.__riftTest.game.world.state = "fight"));
+  await kill(90, 60);
+  await P.page.waitForTimeout(600);
+  check(L, "a worse kill later does not replace it", (await stored())?.medal === 3, JSON.stringify(await stored()));
+  // the Codex
+  await P.ev(() => {
+    window.__riftTest.game.abandon && window.__riftTest.game.abandon();
+  });
+  await P.page.waitForTimeout(500);
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.ui.save = T.store.data;
+    T.ui.recordsTab("codex");
+  });
+  const codex = await P.ev(() => document.querySelector('[data-cx="boss_warden"]')?.textContent || "");
+  check(
+    L,
+    "the Codex shows Gold and the time on the boss",
+    /Gold/.test(codex) && /30 s/.test(codex),
+    codex.slice(0, 120),
+  );
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));

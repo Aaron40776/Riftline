@@ -230,6 +230,8 @@ function newSave() {
       clears: 0,
       deaths: 0,
       bosses: {},
+      // 3.24.0: the best medal per boss: { medal: 1-3, secs: its time, damage: what it cost }
+      medals: {},
       clearsBy: {},
       bestBy: {},
       legendaries: 0,
@@ -374,6 +376,17 @@ function cleanSave(input) {
       if (/^[a-z]{2,12}$/.test(id)) {
         stats[key][id] = cleanNumber(rawMap[id], 0, 0, 1e9);
       }
+    }
+  }
+  // 3.24.0: the best medal of every boss
+  {
+    const rawMedals = asObject(rawStats.medals);
+    for (const id in rawMedals) {
+      if (!/^[a-z]{2,12}$/.test(id)) continue;
+      const m = asObject(rawMedals[id]),
+        medal = Math.floor(cleanNumber(m.medal, 0, 0, 3));
+      if (medal >= 1)
+        stats.medals[id] = { medal, secs: cleanNumber(m.secs, 0, 0, 1e5), damage: cleanNumber(m.damage, 0, 0, 1e9) };
     }
   }
   // 2.8.1: per-weapon records of retired weapons count for the weapon that took them over (clears are

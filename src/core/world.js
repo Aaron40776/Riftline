@@ -1779,6 +1779,9 @@ const rlStep = 1 / 60,
       // mattered; +25% per tier, at most twice the hull (the first boss stays as it was)
       this.enemies.push(boss);
       this.boss = boss;
+      // 3.24.0: the start of the fight and the damage taken so far (the medal of the kill, see core/medals.js)
+      this.bossT0 = this.time;
+      this.bossDmg0 = this.runStats.dmgTaken;
       this.emit("boss", { id: id, name: def.name, title: def.title });
       // 2.4.6: in waves 5–20 the hull follows the slot (see bossFor)
       const slot = this.wave / 5 - 1;
@@ -2149,7 +2152,14 @@ const rlStep = 1 / 60,
         this.hazards.length = 0;
         this.markers = [];
         this.planIdx = this.plan.length;
-        this.emit("bossDown", { id: enemy.type, x: enemy.x, y: enemy.y });
+        this.emit("bossDown", {
+          id: enemy.type,
+          x: enemy.x,
+          y: enemy.y,
+          // 3.24.0: how the fight went (null seconds after a resumed run: the start of the fight is not saved)
+          secs: this.bossT0 == null ? null : this.time - this.bossT0,
+          damage: this.runStats.dmgTaken - (this.bossDmg0 || 0),
+        });
       }
       // carriers drop a shard cache, Supply Drop pays shards every 12th kill
       if (enemy.boss || this.kills <= kills0 || !this.player.alive) return;

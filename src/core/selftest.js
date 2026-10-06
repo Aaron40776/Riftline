@@ -67,6 +67,7 @@ import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 import { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount, rlUpdateTraps } from "./traps.js";
 import { hitsObstacle, buildLayout, isConnected, RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
 import { computeStats, buildStatRows } from "./stats.js";
+import { bossMedal } from "./medals.js";
 import {
   RL_EVENT_KINDS,
   RL_BOSS_EVENTS,
@@ -480,6 +481,7 @@ function rlSelfTest() {
   result = selfTestV3172(result);
   result = selfTestV3210(result);
   result = selfTestV3220(result);
+  result = selfTestV3240(result);
   return result;
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
@@ -3697,6 +3699,56 @@ function selfTestV3220(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3220: { ok: fail.length === 0, fail } };
+}
+
+/* ---- 3.24.0: boss medals: the rule, the numbers of a real kill, the clean-up of the saved medals ---- */
+function selfTestV3240(result) {
+  const fail = [];
+  try {
+    const m = bossMedal;
+    if (m("warden", 40, 0, 100, 1) !== 3) fail.push("gold");
+    if (m("warden", 200, 0, 100, 1) !== 2) fail.push("silver-slow-hitless");
+    if (m("warden", 50, 20, 100, 1) !== 2) fail.push("silver-fast-few-hits");
+    if (m("warden", 50, 60, 100, 1) !== 1) fail.push("bronze-hits");
+    if (m("warden", 100, 5, 100, 1) !== 1) fail.push("bronze-slow-hits");
+    if (m("warden", null, 0, 100, 1) !== 0 || m("warden", NaN, 0, 100, 1) !== 0) fail.push("no-time-no-medal");
+    // the par grows with the hull of the threat level
+    if (m("warden", 100, 0, 100, 2) !== 3 || m("warden", 100, 0, 100, 1) === 3) fail.push("par-follows-threat");
+    // a real kill: the numbers of the bossDown event
+    const world = new World({ seed: 0x3240, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(5);
+    world.state = "fight";
+    world.god = true;
+    world.spawnBoss("warden");
+    const boss = world.boss;
+    if (!boss) fail.push("no-boss");
+    else {
+      world.time += 12.5;
+      world.runStats.dmgTaken += 9;
+      boss.hp = 0;
+      world.killEnemy(boss);
+      const down = world.fx.filter((e) => e.k === "bossDown").pop();
+      if (!down || Math.abs(down.secs - 12.5) > 1e-6 || down.damage !== 9) fail.push("event:" + JSON.stringify(down));
+    }
+    // the saved medals are cleaned: a wrong id goes, numbers are clamped
+    const raw = JSON.parse(JSON.stringify(newSave()));
+    raw.stats.medals = {
+      warden: { medal: 9, secs: -5, damage: "x" },
+      "BAD ID": { medal: 2, secs: 1, damage: 1 },
+      core: { medal: 2, secs: 50.5, damage: 3 },
+      forge: { medal: 0, secs: 10, damage: 0 },
+      prism: "gold",
+    };
+    const clean = cleanSave(raw).stats.medals;
+    if (!clean.warden || clean.warden.medal !== 3 || clean.warden.secs !== 0 || clean.warden.damage !== 0)
+      fail.push("clamp");
+    if ("BAD ID" in clean || clean.forge || clean.prism) fail.push("junk-kept:" + Object.keys(clean));
+    if (!clean.core || clean.core.medal !== 2 || clean.core.secs !== 50.5) fail.push("keeps-good");
+    if (!newSave().stats.medals || Object.keys(newSave().stats.medals).length) fail.push("new-save");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3240: { ok: fail.length === 0, fail } };
 }
 
 /* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct
