@@ -519,7 +519,7 @@ await section("saves", async (L) => {
       threatMax: 9,
       threat: 7,
       milestones: { fake: true },
-      settings: { sfx: 9, music: -1, zoom: 0, quality: "ultra", autoFire: "no", contrast: 1 },
+      settings: { sfx: 9, music: -1, zoom: 0, quality: "extreme", autoFire: "no", contrast: 1 },
       stats: { runs: "5", bestWave: 1e99, kills: NaN, bosses: { "<img src=x>": 3, warden: 2 } },
       history: [1, "x", null, { wave: "a" }, { wave: 5, win: "yes" }],
       run: { v: 1, weapon: "pulse", wave: "x", hp: 5 },
