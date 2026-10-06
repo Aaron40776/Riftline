@@ -209,7 +209,10 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
 
 - **Live:** 3.28.1 (merged as #55 on 06.10.2026: the fixes of the checkup, the rotate screen back instead of the turning
   shell). Before that 3.28.0 with the whole stack #43 to #54; #44 to #53 were closed as contained in it.
-- **In work (3.28.2, next PR):** the Ultra graphics setting is removed (see "A more professional look"); the controller is
+- **Open (3.29.0, one PR against main that also contains 3.28.2 / #56):** richer colours and light for every graphics setting
+  (the owner: "just improve the graphics generally ... which actually makes a difference"): a stronger sun, a coloured fill light
+  from the other side, a richer floor where it was grey (Blackout City, Cryo Vault); judged from pictures only, to be seen on a
+  phone. Contents of 3.28.2: the Ultra graphics setting is removed (see "A more professional look"); the controller is
   looked for once a second instead of every frame when none is connected; a cleanup (unused exports and imports, dead code,
   README, the Daily payout without the Shard Refinery) and fixes of the test tools (the Whiteout check, the layout audit behind
   the rotate screen, the soak verdict and its hang after a crash).

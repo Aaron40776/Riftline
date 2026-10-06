@@ -16,7 +16,10 @@ lighting etc. which actually makes a difference)".
      v2 lifts colour only where it was muted. I have not seen it on a phone: the owner has to say whether it is enough.
 
 3) Results (headless Chromium, software WebGL)
-   - See the release-check line below.
+   - npm run release-check on this state (it contains 3.28.2, the removal of Ultra): ALL steps ok (format, build, deep test,
+     data audit, determinism 15/15 unchanged, full QA, e2e, world and run audit, screens pc and land, biome shots pc and land,
+     attack shots pc), 38 min 04 s. The pictures of the attacks (red telegraphs on the richer floors) and of the phone
+     (landscape) were looked at: the telegraphs stay clearly readable.
 
 RIFTLINE v3.28.2 – ULTRA REMOVED, CLEANUP
 Base: v3.28.1 · Build r3282a1005a-r1 · 06.10.2026
