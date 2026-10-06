@@ -40,6 +40,14 @@ weird, maybe just keep the turn phone thing".
    - npm run release-check on 3.28.1: ALL steps ok (format, build, deep test, data audit, determinism 15/15 unchanged, full QA,
      e2e, world and run audit, screens pc and land, biome shots pc and land, attack shots pc), 38 min 32 s.
 
+   - UI fuzz, seeds 2 to 4 (200 steps per window size): the first runs found only that the layout audit counted the buttons
+     under the rotate screen as covered (the fuzz is newer than the rotate screen, which covers everything on purpose); the
+     audit now stands down while the rotate screen shows. Afterwards 3 x 1000 steps clean.
+   - Endless soak: twice the headless Chromium of the test machine crashed (wave 16 and wave 61, "trap int3" in the browser,
+     as on the evening of 05.10.2026), so no 120-wave run completed. Up to wave 61 the heap stays at 24 to 47 MB and the
+     geometries plateau (174, 209, 185 at waves 36, 48, 60); the soak's "floor rises" flag compares the main run with Endless
+     and its mutator visuals. Not counted as a leak; to repeat on a steadier machine.
+
 5) Open doubts
    - Design questions from the review, left as they are: the Shard Refinery still multiplies the payout of a Daily run.
    - Not tested on real devices: the rotate screen on iPhone Safari and Android Chrome, the gamepad on real hardware.

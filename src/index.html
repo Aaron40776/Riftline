@@ -1393,7 +1393,8 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     window.__riftLayoutAuditResult = null;
     window.__riftLayoutAudit = () => {
       try {
-        const all=[...document.querySelectorAll('.screen:not([hidden]) button:not([disabled]), #hud:not(.editing) button:not([hidden]):not([disabled]), #hudEdit:not([hidden]) button:not([disabled])')];
+        // 3.28.1: the rotate screen covers everything on purpose (a phone held upright): nothing under it is "covered"
+        const all=document.body.classList.contains('needs-rotate')?[]:[...document.querySelectorAll('.screen:not([hidden]) button:not([disabled]), #hud:not(.editing) button:not([hidden]):not([disabled]), #hudEdit:not([hidden]) button:not([disabled])')];
         const findings=[];let scrolled=0;
         const scrollParent=el=>{for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement){const s=getComputedStyle(p);if(/(auto|scroll)/.test(s.overflowY+' '+s.overflowX)&&(p.scrollHeight>p.clientHeight+1||p.scrollWidth>p.clientWidth+1))return p}return null};
         for(const b of all){
