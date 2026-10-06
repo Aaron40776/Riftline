@@ -21,7 +21,6 @@ import {
   Quaternion,
   Shape,
   SphereGeometry,
-  TetrahedronGeometry,
   TorusGeometry,
   Vector3,
 } from "three";

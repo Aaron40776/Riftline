@@ -2257,16 +2257,4 @@ function ensureRecordTabs(ui) {
     ui.click(btn, () => ui.recordsTab(btn.dataset.rtab));
 }
 
-export {
-  GameUI,
-  iconSvg,
-  RL_TOUCH_CLICK_GUARD,
-  getById,
-  rlBiomeTitle,
-  rlRenderHistory,
-  iconPaths,
-  escapeHtml,
-  RL_BIOME_CARD,
-  rlBiomeCardInfo,
-  rlCodexEntries,
-};
+export { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml, rlBiomeCardInfo, rlCodexEntries };

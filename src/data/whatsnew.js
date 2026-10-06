@@ -10,7 +10,7 @@ export const WHATS_NEW = [
       "Boss medals: the par time follows the boss's own health, so the Iron Hide pact no longer makes medals easier.",
       "An abandoned run no longer comes back as Continue (it kept running behind the end screen and saved itself again).",
       "Endless: the death recap shows only the hits of the Endless part.",
-      "Daily Rift: a clear unlocks no threat level and counts for no weapon; an early abandon says it was not counted.",
+      "Daily Rift: a clear unlocks no threat level and counts for no weapon, the Shard Refinery no longer multiplies it, and an early abandon says it was not counted.",
     ],
   },
   {

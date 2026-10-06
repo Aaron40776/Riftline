@@ -232,4 +232,4 @@ function rumble(kind, enabled = true) {
   return done;
 }
 
-export { GamepadReader, stick, moveFocus, setFocus, clearFocus, pressFocus, mainButton, rumble, candidates, DEAD, BTN };
+export { GamepadReader, moveFocus, clearFocus, pressFocus, mainButton, rumble };

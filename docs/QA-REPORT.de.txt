@@ -48,8 +48,15 @@ weird, maybe just keep the turn phone thing".
      geometries plateau (174, 209, 185 at waves 36, 48, 60); the soak's "floor rises" flag compares the main run with Endless
      and its mutator visuals. Not counted as a leak; to repeat on a steadier machine.
 
+   - Cleanup (owner: "fix and clean up everything thoroughly"): the Shard Refinery no longer multiplies a Daily payout
+     (test in checkup-3281); unused exports (19) and an unused import trimmed, dead code removed (isIOSDevice,
+     isInstalledPwa, wallRun); README (features, project structure, soak) and the roadmap (CURRENT STATE) up to date; npm
+     audit: 0 vulnerabilities. The soak tool judges the floors only from wave 75 on, no longer calls a crash a hang and
+     exits after a crash (it hung 100 minutes in browser.close). The 31 merged claude/* branches could not be deleted from
+     this session (GitHub refuses branch deletion here): for the owner.
+
 5) Open doubts
-   - Design questions from the review, left as they are: the Shard Refinery still multiplies the payout of a Daily run.
+   - claude/music-lab holds one commit that is not in main (a Music Lab of 03.10.2026): the owner decides.
    - Not tested on real devices: the rotate screen on iPhone Safari and Android Chrome, the gamepad on real hardware.
 
 RIFTLINE v3.28.0 – CODEX: RIFT EVENTS

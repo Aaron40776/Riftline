@@ -36,7 +36,7 @@ for (const size of SIZES) {
     log = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("dialog", (d) => d.accept().catch(() => {}));
-  await page.goto(URL + (size.mobile ? "?shell=0" : ""));
+  await page.goto(URL);
   await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
   await page.evaluate(() => {
     window.__riftTest.store.data.seen.tutorial = true;

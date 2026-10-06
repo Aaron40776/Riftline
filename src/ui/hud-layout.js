@@ -537,4 +537,4 @@ class HudEditor {
     this.placePanel();
   }
 }
-export { HUD_CONTROLS, HudEditor, applyHudLayout, fitHudLayout, fixedStickCenter, hudOrientation };
+export { HudEditor, applyHudLayout, fitHudLayout, fixedStickCenter };

@@ -4443,6 +4443,7 @@ await section("checkup-3281", async (L) => {
       game: "riftline",
       seen: { tutorial: true },
       stats: { daily: { key: yesterday, wave: 12, kills: 300, streak: 3, days: 3, bestWave: 12 } },
+      workshop: { salvage: 2 },
     }),
   });
   await P.boot();
@@ -4471,15 +4472,28 @@ await section("checkup-3281", async (L) => {
     const T = window.__riftTest,
       w = T.game.world,
       d = T.store.data;
-    const before = { max: d.threatMax, by: JSON.stringify(d.stats.clearsBy), clears: d.stats.clears };
+    const before = { max: d.threatMax, by: JSON.stringify(d.stats.clearsBy), clears: d.stats.clears, bank: d.shards };
+    w.shards = 100;
     w.state = "victory";
     T.game.endRun(true, false, true);
-    return { before, max: d.threatMax, by: JSON.stringify(d.stats.clearsBy), clears: d.stats.clears, threat: w.threat };
+    return {
+      before,
+      max: d.threatMax,
+      by: JSON.stringify(d.stats.clearsBy),
+      clears: d.stats.clears,
+      threat: w.threat,
+      paid: d.shards - before.bank,
+      // 100 collected + 25 clear bonus, times the threat; the Shard Refinery (level 2 in this save) does not count
+      want: Math.round(125 * (1 + 0.25 * w.threat)),
+    };
   });
   check(
     L,
-    "a Daily clear counts as a clear but unlocks no threat and no weapon clear",
-    clear.max === clear.before.max && clear.by === clear.before.by && clear.clears === clear.before.clears + 1,
+    "a Daily clear counts as a clear but unlocks no threat, no weapon clear, and the Shard Refinery does not multiply it",
+    clear.max === clear.before.max &&
+      clear.by === clear.before.by &&
+      clear.clears === clear.before.clears + 1 &&
+      clear.paid === clear.want,
     JSON.stringify(clear),
   );
   // Endless: the recap starts empty

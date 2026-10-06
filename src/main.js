@@ -129,13 +129,6 @@ function rlApplyDataFixes() {
   rlApplyBiomeFixes();
 }
 const isStandaloneBuild = true;
-const isIOSDevice =
-  typeof navigator < "u" &&
-  (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
-const isInstalledPwa =
-  typeof window < "u" &&
-  ((window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
-    window.navigator.standalone === true);
 function registerServiceWorker(onUpdate) {
   if (
     !(
@@ -566,7 +559,13 @@ const overlay = new Overlay(elementById("ov")),
       const snap = store.data.run;
       if (snap && !this.world) {
         try {
-          this.world = new World({ seed: 1, weapon: snap.weapon, threat: snap.threat, ws: store.data.workshop, snap });
+          this.world = new World({
+            seed: 1,
+            weapon: snap.weapon,
+            threat: snap.threat,
+            ws: snap.daily ? {} : store.data.workshop,
+            snap,
+          });
           this.overShown = false;
           this.endRun(false, true, true);
         } catch (err) {
@@ -606,7 +605,8 @@ const overlay = new Overlay(elementById("ov")),
       this.overShown = true;
       rlRunAudit(world, win, abandoned);
       let mods = threatMods(world.threat),
-        salvage = 1 + 0.1 * (save.workshop.salvage || 0),
+        // 3.28.1: the Daily Rift is the same for everyone: the Shard Refinery does not multiply it either
+        salvage = world.daily ? 1 : 1 + 0.1 * (save.workshop.salvage || 0),
         collected = world.shards,
         bonus = win ? Math.round(collected * 0.25) : 0,
         pacts = world.pactBonus(),
@@ -865,8 +865,7 @@ let loopFrameId = 0,
   menuFrame = 0;
 /* 3.11.0: Riftline plays in landscape on phones and tablets. index.html sets needs-rotate on <body> while such a
    device is held upright (the rotate screen). Where the browser allows it (an installed app, Android in full screen)
-   the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens.
-   (3.28.1: the shell of 3.18.0 that turned the whole game a quarter is gone again; the owner found it odd.) */
+   the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens. */
 function needsRotate() {
   return document.body.classList.contains("needs-rotate");
 }

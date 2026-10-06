@@ -116,7 +116,7 @@ Plan:
 4. Then the boss rewards (done in 3.15.0, see the HANDOFF), the walker. (Renumbered on 04.10.2026: the owner's later requests come first, as 3.11.0
    landscape only and 3.12.0 the Singularity, so the soundscapes become 3.13.0 and the music 3.14.0.)
 
-### HANDOFF (05.10.2026, after 3.15.0; read this first when the work goes on)
+### HANDOFF (05.10.2026, after 3.15.0; history)
 
 **State.** 3.10.0 to 3.14.0 and the repository cleanup were merged on the morning of 05.10.2026 and are live. The
 owner merges stacked PRs one after another (base of each switched to main before merging; a merged branch is only
@@ -198,7 +198,23 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
   (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
 
-### HANDOFF (06.10.2026, after the night of autonomous work; read this first when the work goes on)
+### CURRENT STATE (06.10.2026, afternoon; read this first when the work goes on)
+
+- **Live:** 3.28.0. The owner merged #54, which carried the whole stack #43 to #54 (3.18.1 to 3.28.0); #44 to #53 were
+  closed as contained in it. The live site was checked byte for byte against a build of main.
+- **Open:** #55 (3.28.1): the fixes of the full checkup (an abandoned run came back as Continue, gamepad A in dialogs, the
+  medal par, the Endless recap, Daily payout and unlocks, the bloom echo), the rotate screen back instead of the turning
+  shell (owner: "the always landscape thing is kinda weird"), a cleanup (unused exports and imports, README) and fixes of
+  the test tools (the Whiteout check, the layout audit behind the rotate screen, the soak verdict and its hang after a
+  crash). Release check on #55: all steps ok.
+- **For the owner:** delete the merged `claude/*` branches on GitHub (this session may push but not delete branches);
+  `claude/music-lab` has one commit that is not in main (a Music Lab of 03.10.2026): keep, merge or delete is his call.
+- **Still open from before:** the second step of the sound direction (reference clips), the model pass for the
+  professional look (a reference picture), the licence (`docs/GITHUB.md`), Cloudflare (when he says go; also needed for a
+  Daily Rift leaderboard), the real-device tests (rotate screen on iPhone Safari and Android Chrome, a real gamepad, the
+  vibration, Ultra on a phone), and a 120-wave soak on a steadier machine (the test machine's browser crashed twice).
+
+### HANDOFF (06.10.2026, after the night of autonomous work; history, superseded by CURRENT STATE above)
 
 The owner slept and said: continue on your own until about 95 % of the limit, with the necessary and recommended things and
 thorough checks in between. Never merge, never push to main. Everything below is built, tested and in open pull requests, STACKED:

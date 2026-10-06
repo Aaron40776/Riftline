@@ -1,11 +1,12 @@
 // 3.18.2: a long Endless run with a bot (the live game loop and renderer, a god-mode bot stepping the world), sampled at
 // every wave: the JS heap after a garbage collection, what the renderer holds on the GPU (geometries, textures, programs),
 // the objects in the scene and the lists of the world. A run that is healthy settles: after the first waves nothing keeps
-// growing with the number of waves. Usage: node tools/qa.js soak [weapon] [target wave] (default pulse, 90).
+// growing with the number of waves. Usage: node tools/qa.js soak [weapon] [target wave] (default pulse, 120; the floors of
+// the scene are judged from wave 75 on, when every Endless mutator is in play).
 import { chromium } from "playwright";
 const URL = process.argv[2] || "http://localhost:8124/index.html";
 const WEAPON = process.argv[3] || "pulse",
-  TARGET = +(process.argv[4] || 90);
+  TARGET = +(process.argv[4] || 120);
 const browser = await chromium.launch({
   args: [
     "--use-angle=swiftshader",
@@ -200,10 +201,21 @@ const grow = (name, f, limit) => {
   if (b - a > limit) fail.push(`${name} grows: ${a.toFixed(1)} -> ${b.toFixed(1)} (limit +${limit})`);
 };
 // what the scene holds depends on the biome and the boss of the moment (it is built and thrown away with them), so for
-// these the floor of each third is compared: a leak lifts the floor, a different biome only moves the peaks
+// these the floor of each third is compared: a leak lifts the floor, a different biome only moves the peaks.
+// 3.28.1: Endless brings a new mutator (with its own looks: shields, bursts, more traps) every tenth wave up to wave 71,
+// so before that the floor rises by design. The floors are compared only between waves that all have every mutator in
+// play (from MUTATORS_ALL); a shorter run says so instead of failing (a 60-wave run flagged the mutators as a leak).
+const MUTATORS_ALL = 75,
+  settled = rows.filter((r) => r.wave >= MUTATORS_ALL),
+  half = Math.floor(settled.length / 2),
+  notes = [];
 const growFloor = (name, f, limit) => {
-  const a = Math.min(...early.map(f)),
-    b = Math.min(...late.map(f));
+  if (settled.length < 6) {
+    if (!notes.length) notes.push(`floors not judged: fewer than 6 samples from wave ${MUTATORS_ALL} on`);
+    return;
+  }
+  const a = Math.min(...settled.slice(0, half).map(f)),
+    b = Math.min(...settled.slice(-half).map(f));
   if (b - a > limit) fail.push(`${name} floor rises: ${a} -> ${b} (limit +${limit})`);
 };
 if (rows.length >= 6) {
@@ -223,8 +235,10 @@ if (rows.length >= 6) {
   }
 } else fail.push(`too few samples (${rows.length}): the run stopped at wave ${wave}`);
 if (crashed) fail.push(`the page crashed at wave ${wave} (${lastState || "start"})`);
-if (stuck) fail.push(`the game hangs: ${stuck}${hangStack ? ` | stack: ${hangStack}` : ""}`);
+// 3.28.1: a crashed page also fails its last step; that is the crash, not a hang of the game
+else if (stuck) fail.push(`the game hangs: ${stuck}${hangStack ? ` | stack: ${hangStack}` : ""}`);
 if (errors.length) fail.push(`page errors: ${errors.slice(0, 3).join(" | ")}`);
-console.log(JSON.stringify({ weapon: WEAPON, reached: wave, samples: rows.length, fail }, null, 1));
-await browser.close();
-process.exitCode = fail.length ? 1 : 0;
+console.log(JSON.stringify({ weapon: WEAPON, reached: wave, samples: rows.length, fail, notes }, null, 1));
+// 3.28.1: after a crash the browser may never answer close(); the verdict is printed, so do not wait for it
+await Promise.race([browser.close().catch(() => {}), new Promise((r) => setTimeout(r, 15000))]);
+process.exit(fail.length ? 1 : 0);
