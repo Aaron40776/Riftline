@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.19.0",
+    title: "Ambient bloom",
+    items: [
+      "A new quiet layer lies on every calm theme: single notes that bloom, ring out for seconds and wander from ear to ear through a ping-pong echo.",
+      "Every place has a voice of its own: a felt piano in Blackout City, struck pipes in the Ember Works, glass in the Cryo Vault, a kalimba in the Toxin Marsh and singing sine bells in the Void Core.",
+      "The notes are most present when it is quiet and step back as the fight swells; the music is wider in stereo (headphones help).",
+    ],
+  },
+  {
     version: "3.18.2",
     title: "Long-run checks",
     items: [

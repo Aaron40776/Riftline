@@ -784,8 +784,9 @@ const bloomRes = await page.evaluate(async () => {
       widthWith: +wW.toFixed(2),
       widthWithout: +wO.toFixed(2),
     };
-    if (notes.length < 3) fail.push(`${biome}: only ${notes.length} bloom notes in 8 bars`);
-    if (notes.length > 20) fail.push(`${biome}: ${notes.length} bloom notes in 8 bars is not subtle`);
+    // (a note is two to four tones: its partials)
+    if (notes.length < 8) fail.push(`${biome}: only ${notes.length} bloom tones in 8 bars`);
+    if (notes.length > 70) fail.push(`${biome}: ${notes.length} bloom tones in 8 bars is not subtle`);
     if (share < 0.08) fail.push(`${biome}: the bloom is not noticeable (${share.toFixed(2)} of the theme)`);
     if (share > 0.9) fail.push(`${biome}: the bloom is louder than the theme allows (${share.toFixed(2)})`);
     if (!(wW > wO)) fail.push(`${biome}: the bloom does not widen the sound (${wO.toFixed(2)} -> ${wW.toFixed(2)})`);

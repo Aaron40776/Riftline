@@ -1,3 +1,44 @@
+RIFTLINE v3.19.0 – AMBIENT BLOOM
+Base: v3.18.2 · Build r3190a1005a-r1 · 06.10.2026
+
+The direction of the owner (05.10.2026): "I like the sound for example in the mobile game Osmos. Basically I just want
+high quality (stereo) ambience, so a nice subtle melody, ambient effect sounds etc. but so that it's noticeable and nice.
+This should be distinct for each biome." Synthesis first (reference clips from the owner follow later). This is the
+first step: a quiet generative melody on every calm theme, in stereo, with a voice for each place.
+
+1) What it is (audio/sound.js: BLOOM, BLOOM_VOICE, calmBloom, the ping-pong bus)
+   - At four places of the bar single notes may bloom; the chance is highest when it is quiet and falls as the fight
+     swells. A note is a chord tone or one of two colour notes of the place, in the register of the place, with its own
+     place in the room, and rings out for 2 to 7 s through the ping-pong echo and the room of the music.
+   - Voices: Blackout City a felt piano, Ember Works struck pipes (low, inharmonic partials), Cryo Vault glass (high), Toxin
+     Marsh a kalimba, Void Core sine bells that sing a fifth and sink away. Notes are deterministic (hash of bar, step,
+     biome), optional voices of the music budget, partials never above 12 kHz.
+   - The ping-pong echo is new (SoundEngine.ping): two delays of 0.43 s feeding each other, one heard hard left and one
+     hard right. Where the browser has no stereo panner the bloom is simply absent.
+   - The boss tracks, the menu music, the sounds and the atmospheres are unchanged.
+
+2) Measured (offline stereo renders, 8 bars of each calm theme at intensity 0.2, with and without the bloom)
+   - The bloom adds 16 to 37 % of the level of the theme (yard 0.31, works 0.37, vault 0.33, marsh 0.24, void 0.16): noticeable
+     and under the theme. The sound is wider (energy of the difference of the channels against that of their sum): yard
+     0.13 -> 0.21, works 0.17 -> 0.24, vault 0.11 -> 0.19, marsh 0.07 -> 0.13, void 0.19 -> 0.21.
+   - 12 to 41 tones per 8 bars (a note is two to four tones). Registers: Ember Works 110 to 1380 Hz, Blackout City 330 to
+     5950 Hz (partials), Cryo Vault 520 to 10700 Hz, Toxin Marsh 175 to 5440 Hz, Void Core 310 to 4750 Hz.
+   - tools: `node tools/qa.js scape-preview music` renders stereo MP3s (calm-quiet 40 s at intensity 0.15, calm busy, boss)
+     for each biome into tests/shots/scapes to listen to without playing.
+
+3) Tests
+   - Deep test, new block: for every biome enough tones (at least 8) and not too many (at most 70), the level share of the
+     bloom between 0.08 and 0.9 of the theme, wider with the bloom than without, no notes refused, and the register of the
+     Cryo Vault's glass clearly above that of the Ember Works' pipes.
+
+4) Results 3.19.0 (headless Chromium, software WebGL; npm run release-check)
+   - RESULTS_PLACEHOLDER
+
+5) Open doubts
+   - I cannot hear it. The numbers say present, subtle and wide; whether it is beautiful is for the owner's ears (the
+     Sound notes of 3.17.2 are the way to say what is off, and reference clips would let me match the voices).
+   - The echo time (0.43 s) and the feedback (0.42) are guesses; a slower, longer one would sound more like Osmos.
+
 RIFTLINE v3.18.2 – LONG-RUN CHECKS
 Base: v3.18.1 · Build r3182a1005a-r1 · 05.10.2026
 

@@ -4334,7 +4334,7 @@ const BLOOM_VOICE = {
     g.t(f, len, "sine", v, { attack: 0.003, ...o });
     g.t(f * 1.003, len * 0.8, "sine", v * 0.5, { attack: 0.003, ...o });
     g.t(f * 2.76, len * 0.3, "sine", v * 0.3, { attack: 0.002, ...o });
-    g.t(f * 5.4, len * 0.12, "sine", v * 0.1, { attack: 0.002, ...o });
+    if (f * 5.4 < 12000) g.t(f * 5.4, len * 0.12, "sine", v * 0.1, { attack: 0.002, ...o });
   },
   kalimba: (g, f, v, len, o) => {
     g.t(f, len, "triangle", v, { attack: 0.004, lp: 3000, ...o });

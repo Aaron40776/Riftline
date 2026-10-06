@@ -18,35 +18,44 @@ await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, nu
 // intensity of a busy fight (where the rhythm of the place plays) and 30 s of each boss track, as music-<kind>-<biome>
 if (ONLY === "music") {
   for (const biome of ["yard", "works", "vault", "marsh", "void"])
-    for (const kind of ["fight", "boss"]) {
+    // 3.19.0: stereo, and the calm theme twice: quiet (intensity 0.15: the ambient bloom is most present) and busy
+    for (const [name, kind, intensity, secs] of [
+      ["calm-quiet", "fight", 0.15, 40],
+      ["calm", "fight", 0.9, 30],
+      ["boss", "boss", 0.9, 30],
+    ]) {
       const wav = await page.evaluate(
-        async ([biome, kind]) => {
+        async ([biome, kind, intensity, secs]) => {
           const E = window.__riftTest.game.sound.constructor,
-            r = await E.renderOffline({ music: kind, biome, intensity: 0.9, heat: 0.8, wav: true }, 30),
+            r = await E.renderOffline({ music: kind, biome, intensity, heat: 0.8, wav: true, stereo: true }, secs),
             x = r.samples,
-            out = new DataView(new ArrayBuffer(44 + x.length * 2)),
+            y = r.samplesR,
+            out = new DataView(new ArrayBuffer(44 + x.length * 4)),
             text = (o, s) => [...s].forEach((c, i) => out.setUint8(o + i, c.charCodeAt(0)));
           text(0, "RIFF");
-          out.setUint32(4, 36 + x.length * 2, true);
+          out.setUint32(4, 36 + x.length * 4, true);
           text(8, "WAVEfmt ");
           out.setUint32(16, 16, true);
           out.setUint16(20, 1, true);
-          out.setUint16(22, 1, true);
+          out.setUint16(22, 2, true);
           out.setUint32(24, 44100, true);
-          out.setUint32(28, 88200, true);
-          out.setUint16(32, 2, true);
+          out.setUint32(28, 176400, true);
+          out.setUint16(32, 4, true);
           out.setUint16(34, 16, true);
           text(36, "data");
-          out.setUint32(40, x.length * 2, true);
-          for (let i = 0; i < x.length; i++) out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x[i])) * 32767, true);
+          out.setUint32(40, x.length * 4, true);
+          for (let i = 0; i < x.length; i++) {
+            out.setInt16(44 + i * 4, Math.max(-1, Math.min(1, x[i])) * 32767, true);
+            out.setInt16(46 + i * 4, Math.max(-1, Math.min(1, y[i])) * 32767, true);
+          }
           let s = "";
           const bytes = new Uint8Array(out.buffer);
           for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
           return btoa(s);
         },
-        [biome, kind],
+        [biome, kind, intensity, secs],
       );
-      const file = `${OUT}/music-${kind === "fight" ? "calm" : "boss"}-${biome}.wav`;
+      const file = `${OUT}/music-${name}-${biome}.wav`;
       fs.writeFileSync(file, Buffer.from(wav, "base64"));
       const mp3 = spawnSync("ffmpeg", [
         "-y",
