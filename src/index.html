@@ -1349,6 +1349,17 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
 /* 2.3.6: workshop prices of every width ("50" to "6800") had buttons of their own width, so the
    right column looked ragged. They share one width now. */
 #wsList .row .btn { min-width: 84px; }
+/* 3.29.1: a phone held sideways (390 px high): the upgrade cards with three lines of numbers were cut off at the bottom
+   (the cards clip their height). Tighter cards, and a card that is still too tall scrolls instead of being cut. */
+@media (orientation: landscape) and (max-height: 430px) {
+  #choose .cards { overflow-y: auto; touch-action: pan-x pan-y; }
+  #choose .card { padding: 8px 8px; gap: 4px; }
+  #choose .card .cico { width: 36px; height: 36px; }
+  #choose .card .cico .ico { width: 20px; height: 20px; }
+  #choose .card b { font-size: 16px; }
+  #choose .card p { font-size: 14px; line-height: 1.2; margin-top: 1px; }
+  #choose .card .delta, #choose .card .evo-hint { font-size: 11px; margin-top: 2px; }
+}
 </style>
 
 <script>

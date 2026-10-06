@@ -1,3 +1,21 @@
+RIFTLINE v3.29.1 – UPGRADE CARDS ON PHONES (DESIGN CRITIQUE)
+Base: v3.29.0 · Build r3291a1005a-r1 · 06.10.2026
+
+The owner asked whether I had design skills to use; I ran the design critique on the current pictures (phone landscape: home, run,
+upgrade choice, end screen; biome and attack pictures).
+
+1) Findings
+   - Fixed: the upgrade cards on a phone held sideways (844 x 390) cut off their last line (the synergy numbers): the row layout
+     clips the height of the cards and the layout audit does not see a clipped line. A rule for landscape screens up to 430 px high
+     makes the cards tighter and lets a card that is still too tall scroll. Pictures: tests/shots/screens-land/06-choose.png.
+   - Left as it is (taste, for the owner's eyes on the phone): the first wave of Blackout City is dark on purpose (the Blackout
+     event), the drone is small and dark against it; the end screen is clear (the hierarchy works: title, numbers, the one primary
+     button); the red telegraphs stay readable on the richer floors.
+
+2) Tests (headless Chromium, software WebGL)
+   - npm test ok; full QA sections visual, layout-land, layout360, banish and the screens of the phone checked; the change is
+     a CSS rule for short landscape screens, so no full release check was run for it.
+
 RIFTLINE v3.29.0 – RICHER COLOURS AND LIGHT
 Base: v3.28.2 · Build r3290a1005a-r1 · 06.10.2026
 
