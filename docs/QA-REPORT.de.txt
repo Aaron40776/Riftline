@@ -64,7 +64,10 @@ through a plain URL as the first requirement. Baseline on 3.30.0: npm test all o
 
 6) Tests and results (headless Chromium, software WebGL; no real device was used)
    - npm test on the final state: ok (sim in Node with checks 7 and 8, deep test, files, data audit, determinism 15/15).
-   - RELEASE_CHECK_RESULT
+   - npm run release-check on 3.31.0: ALL steps ok (format, sim (node), build, deep test, data audit, determinism 15/15
+     against the updated fixture, full QA with the new sections smooth and second-finger, e2e, world and run audit,
+     screens pc and land, biome shots pc and land, attack shots pc), 34 min 47 s. Screenshots looked at (the new Targeting
+     Chip card fits a phone card; the boss intros and the upgrade choice as before).
 
 7) Not done, for the owner
    - Judge on a real phone: the smoother motion (60, 90 and 120 Hz screens), the heat with the pacing on a 120 Hz phone
