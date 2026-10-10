@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-As of 10.10.2026, with 3.29.2. New entries are written in English (the owner's wish since 03.10.2026).
+As of 10.10.2026, with 3.31.0. New entries are written in English (the owner's wish since 03.10.2026).
 
 Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
@@ -205,23 +205,37 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
   (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
 
-### CURRENT STATE (10.10.2026; read this first when the work goes on)
+### CURRENT STATE (10.10.2026, evening, 3.31.0; read this first when the work goes on)
 
-- **Live:** 3.29.1 (3.28.2 Ultra removed, 3.29.0 richer colours and light, 3.29.1 upgrade cards on phones; merged as #56 to
-  #58).
-- **Open, stacked (merge in this order, then switch the base of the next to main):** #59 3.29.2 (Banish really banishes, no
-  Math.random in the simulation, attack shots wait long enough) and 3.30.0 (the simulation runs in Node: npm run test:sim,
-  first step of npm test; the next wave's layout is built while the upgrade choice is open, so a card pick no longer hitches).
-- **Audit of 10.10.2026, still open:** smooth movement on 90/120 Hz screens (the renderer draws the 60 Hz simulation without
-  interpolation; to be judged on a real phone before and after). Design questions for the owner: pacts overlap with the threat
-  levels; the diagnostics and the deep self-test (124 KB of the game file) ship to every player. Engine: stay on three.js
-  (Godot's web export is WebGL2-only and its low-latency web audio mode cannot play procedural sound).
-- **For the owner:** delete the merged `claude/*` branches on GitHub (this session may push but not delete branches);
-  `claude/music-lab` has one commit that is not in main (a Music Lab of 03.10.2026): keep, merge or delete is his call.
-- **Still open from before:** the second step of the sound direction (reference clips), the model pass for the
-  professional look (a reference picture), the licence (`docs/GITHUB.md`), Cloudflare (when he says go; also needed for a
-  Daily Rift leaderboard), the real-device tests (rotate screen on iPhone Safari and Android Chrome, a real gamepad, the
-  vibration), and a 120-wave soak on a steadier machine (the test machine's browser crashed twice).
+- **Live:** 3.30.0 (3.29.2 and 3.30.0 merged as #59 and #61). **Open:** 3.31.0 (this branch, `claude/quality-3310`).
+- **The owner's request of 10.10.2026 (evening):** a full audit and the biggest improvements, with easy access on phones,
+  tablets and PCs through a URL as the first requirement. Done in 3.31.0 (see the QA report):
+  - Smooth motion (the open item of the morning's audit): `render/interp.js` draws between the last two 60 Hz steps.
+    Measured with a model of the main loop: without it 15 to 25 % of the frames repeated the picture on a 60 Hz screen
+    (the accumulator sits on the step boundary), 33 % on 90 Hz, 50 % on 120 Hz; with it none. Still to be judged on a
+    real phone (the owner's eyes): it should feel smoother, nothing else should change.
+  - Phone fixes from a review of the touch and lifecycle code: a pause tap with a second finger while a thumb holds the
+    stick did nothing; a custom button layout could be dropped after turning the phone in a run; the wake lock could stay
+    on behind the pause menu.
+  - `npm run balance` runs in Node (seconds, no browser) with seeded card picks.
+- **Engine decision (again, with sources):** stay on three.js and plain JavaScript. Godot's web export is WebGL2-only
+  (Compatibility renderer) and its low-latency web audio mode does not support procedural audio, while every sound and
+  note of Riftline is synthesised; Babylon.js would mean rewriting about 15 000 lines of rendering for no feature the game
+  lacks; three.js's WebGPURenderer (Safari 26 ships WebGPU) would need the custom shaders (floor, skins) rewritten in
+  TSL and gives nothing to a low-poly scene whose cost on phones is fill rate. TypeScript: the gain (types) does not pay
+  for a build and migration step now; JSDoc checks could come file by file if wanted.
+- **Measured, for the owner to judge by playing (not changed):** a plain bot (kites, no dodging) dies at the first boss
+  in most runs. The Warden's body hits for its full damage (25) each time the 0.65 s of invulnerability after a hit run
+  out, and the 7 m/s push back is gone after about 0.4 m (floor grip 16), so a boss that walks into a cornered drone empties
+  a 100 hull in about 2.6 s. A dash (invulnerable) is the way out. If the first boss feels unfair on a phone, the levers are
+  a longer invulnerability after a boss's body hit or a stronger push (in `World.contactDamage`/`hurtPlayer`).
+  The weapons clear waves within 1.2x of each other (boss waves 1.6x): no outlier.
+- **Still open from before:** the second step of the sound direction (reference clips), the model pass for the professional
+  look (a reference picture; judged on a phone, not from software pictures), the licence (`docs/GITHUB.md`), Cloudflare
+  (when he says go; also needed for a Daily Rift leaderboard), the diagnostics and self-test in the game file (93 + 35 KB of
+  1.3 MB; three.js is 578 KB; 405 KB gzipped in all), the real-device tests (rotate screen on iPhone Safari and Android
+  Chrome, a real gamepad, the vibration, the second-finger pause), and a 120-wave soak on a steadier machine.
+- **For the owner:** delete the merged `claude/*` branches on GitHub; `claude/music-lab` (keep, merge or delete).
 
 ### HANDOFF (06.10.2026, after the night of autonomous work; history, superseded by CURRENT STATE above)
 

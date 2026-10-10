@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.31.0",
+    title: "Smoother motion, fixes for phones",
+    items: [
+      "Movement is smooth on every screen: the game now draws between its steps, so a 90 or 120 Hz phone no longer repeats every other picture, and 60 Hz screens no longer stutter now and then.",
+      "On a phone, tapping pause with a second finger while your thumb holds the stick works now.",
+      "A custom button layout is no longer dropped after turning the phone during a run.",
+      "The screen no longer stays awake behind the pause menu when a run was paused right after it started.",
+    ],
+  },
+  {
     version: "3.30.0",
     title: "Smoother wave starts",
     items: [

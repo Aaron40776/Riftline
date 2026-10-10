@@ -317,6 +317,7 @@ const rlStep = 1 / 60,
       this.barrierUsed = false;
       this.barrierT = 0;
       this.barrierOwnShield = false;
+      this.barrierShieldT = 0;
       this.attuned = false;
       // 2.4.0: the biome's enemy mix weights the spawn plan (planWave reads it while the wave is set up)
       set_RL_BIOME_MIX_CUR(RL_BIOME_INFO[this.biomeFor(wave).id]?.mix || null);
@@ -743,10 +744,17 @@ const rlStep = 1 / 60,
         this.barrierT -= dt;
         if (this.barrierT <= 0) {
           this.barrierT = 0;
-          // the bubble was only shown for the barrier; a shield from the Energy Shield upgrade stays
+          // the bubble was only shown for the barrier; a shield from the Energy Shield upgrade stays.
+          // 3.31.0: the Aegis kept recharging behind the barrier (its progress was thrown away)
           if (this.barrierOwnShield) {
-            player.shield = false;
-            player.shieldT = 0;
+            const charged = (this.barrierShieldT || 0) + stats.barrierT;
+            if (stats.shieldCd > 0 && charged >= stats.shieldCd) {
+              player.shieldT = 0;
+              this.emit("shieldUp");
+            } else {
+              player.shield = false;
+              player.shieldT = stats.shieldCd > 0 ? charged : 0;
+            }
           }
           this.barrierOwnShield = false;
         }
@@ -1330,6 +1338,8 @@ const rlStep = 1 / 60,
                 age: 0,
                 homing: stats.homing,
               };
+            // 3.31.0: a weaker side or rear shot (Rear Guard) also blasts weaker (its splash was at full damage)
+            if (mul !== 1) bullet.mul = mul;
             if (heavy && mul >= 1) {
               bullet.dmg *= 2;
               bullet.r *= 2;
@@ -1660,6 +1670,7 @@ const rlStep = 1 / 60,
         this.barrierT = stats.barrierT;
         player.hp = Math.min(stats.maxHp, player.hp + Math.round(stats.maxHp * stats.barrierHeal));
         this.barrierOwnShield = !player.shield;
+        this.barrierShieldT = player.shieldT;
         player.shield = true;
         this.emit("barrier", { x: player.x, y: player.y, t: stats.barrierT });
         this.emit("heal", { x: player.x, y: player.y });
@@ -1858,7 +1869,12 @@ const rlStep = 1 / 60,
       const burning = enemy.burnT > 0;
       if (burning) enemy.burnT -= dt;
       if (burning && !enemy.shielded && !enemy.ghost) {
-        let dmg = enemy.burnDps * dt;
+        // 3.31.0: a burn counts like a hit for Apex Hunter (elites and bosses) and for acid (corrode), as hurtEnemy does
+        let dmg =
+          enemy.burnDps *
+          dt *
+          (enemy.elite || enemy.boss ? this.stats.eliteMul || 1 : 1) *
+          (enemy.corrode && !enemy.boss ? 1.25 : 1);
         if (enemy.shield > 0) {
           let absorbed = Math.min(enemy.shield, dmg);
           enemy.shield -= absorbed;
@@ -2533,13 +2549,14 @@ const rlStep = 1 / 60,
         enemy.slowT = 2;
         this.emit("freeze", { x: enemy.x, y: enemy.y });
       }
+      // 3.31.0: Thermite raises the Ember Jet's own burn by its share (its many small hits gave a burn below the
+      // weapon's, so the card did nothing for the flame but stretch the timer)
       if (bullet.drag && stats.burn && !enemy.dead && !immune) {
         let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
-        enemy.burnT = Math.max(enemy.burnT, 2.5);
-        enemy.burnDps = Math.max(burn, stats.burn * stats.burnMul * stats.dmgMul);
+        enemy.burnT = Math.max(enemy.burnT, stats.thermite ? 3 : 2.5);
+        enemy.burnDps = Math.max(burn, stats.burn * stats.burnMul * stats.dmgMul * (1 + (stats.thermite || 0)));
         enemy.burnSrc = "burn";
-      }
-      if (stats.thermite && !enemy.dead && !immune) {
+      } else if (stats.thermite && !enemy.dead && !immune) {
         let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
         enemy.burnT = 3;
         enemy.burnDps = Math.max(burn, dmg * stats.thermite);
@@ -2616,24 +2633,21 @@ const rlStep = 1 / 60,
         return;
       }
       if (weapon?.explode && bullet.w !== "rocket" && !bullet.wing) {
-        let dmg = Number.isFinite(weapon.explodeDmg) ? weapon.explodeDmg * stats.dmgMul : bullet.dmg,
+        let dmg = Number.isFinite(weapon.explodeDmg)
+            ? weapon.explodeDmg * stats.dmgMul * (bullet.mul || 1)
+            : bullet.dmg,
           size = stats.sizeMul > 1 ? 1.15 : 1;
         this.explode(x, y, weapon.explode * size, dmg, { enemies: true, knock: 3, kind: bullet.w });
       }
       if (bullet.w === "rocket" && !bullet.wing) {
-        let hellfire = stats.hellfire;
-        this.explode(
-          x,
-          y,
-          weapon.explode * (stats.sizeMul > 1 ? 1.25 : 1) * (hellfire ? 1.35 : 1),
-          weapon.explodeDmg * stats.dmgMul,
-          {
-            enemies: true,
-            knock: 4,
-            kind: "rocket",
-            burn: hellfire ? weapon.explodeDmg * stats.dmgMul * 0.35 : 0,
-          },
-        );
+        let hellfire = stats.hellfire,
+          blast = weapon.explodeDmg * stats.dmgMul * (bullet.mul || 1);
+        this.explode(x, y, weapon.explode * (stats.sizeMul > 1 ? 1.25 : 1) * (hellfire ? 1.35 : 1), blast, {
+          enemies: true,
+          knock: 4,
+          kind: "rocket",
+          burn: hellfire ? blast * 0.35 : 0,
+        });
       }
       if (stats.payloadR) {
         this.explode(x, y, stats.payloadR, bullet.dmg * stats.payloadF, { enemies: true, knock: 1.5, kind: "payload" });

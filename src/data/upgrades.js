@@ -21,7 +21,7 @@ const upgradeList = [
     rarity: 1,
     max: 8,
     icon: "crosshair",
-    desc: () => "+10% critical hit chance, +0.06 crit multiplier (x2 base), +8% range and +6% projectile speed",
+    desc: () => "+10% critical hit chance, +0.06 crit multiplier (x2 base), +6% projectile speed and range",
   },
   {
     id: "heal",

@@ -268,6 +268,124 @@ for (const weapon of weaponOrder) {
   );
 }
 
+// 8. 3.31.0: fixes from the audit of 10.10.2026 (evening), each measured on a dummy that cannot die
+{
+  const { computeStats } = await import("../src/core/stats.js");
+  // a world in a fight with no enemies of its own (the wave never ends) and the given cards
+  const arena = (weapon, up, ws = {}) => {
+    const w = new World({ seed: 1, weapon, threat: 0, ws, pacts: [] });
+    w.startWave(3);
+    w.state = "fight";
+    w.hold = true;
+    w.enemies = [];
+    w.markers = [];
+    w.plan = [];
+    w.planIdx = 0;
+    w.championPending = null;
+    w.bossPending = null;
+    w.traps = [];
+    w.up = up;
+    w.stats = computeStats(weapon, up, ws);
+    return w;
+  };
+  const dummy = (w, x, y, opts) => {
+    const e = w.spawnEnemy("brute", x, y, opts);
+    e.spawnT = 0;
+    e.hp = e.maxHp = 1e7;
+    return e;
+  };
+  // Thermite raises the Ember Jet's burn (it did nothing for the flame)
+  const flameBurn = (up) => {
+    const w = arena("flame", up),
+      e = dummy(w, 3, 2);
+    e.speed = 0;
+    w.player.x = 0;
+    w.player.y = 2;
+    let peak = 0;
+    for (let i = 0; i < 600; i++) {
+      e.x = 3;
+      e.y = 2;
+      e.vx = e.vy = 0;
+      w.step(rlStep, { auto: true });
+      w.fx.length = 0;
+      peak = Math.max(peak, e.burnDps);
+    }
+    return peak;
+  };
+  const burn0 = flameBurn({}),
+    burn3 = flameBurn({ thermite: 3 });
+  line(
+    burn3 > burn0 * 1.4,
+    "Thermite on the Ember Jet",
+    `burn ${burn0.toFixed(1)}/s, with Thermite 3 ${burn3.toFixed(1)}/s`,
+  );
+  // the Aegis keeps recharging behind the Emergency Shield barrier
+  {
+    const w = arena("pulse", { shield: 1 }, { emergencyShield: 2 }),
+      p = w.player;
+    p.shield = false;
+    p.shieldT = w.stats.shieldCd - w.stats.barrierT - 0.5;
+    p.hp = 40;
+    p.iT = 0;
+    w.hurtPlayer(15, null, null, "grunt");
+    const barrier = w.barrierT > 0;
+    for (let i = 0; i < Math.ceil((w.stats.barrierT + 0.6) / rlStep); i++) {
+      w.step(rlStep, {});
+      w.fx.length = 0;
+    }
+    line(barrier && p.shield, "the Aegis recharges behind the barrier", `barrier ${barrier}, Aegis up ${p.shield}`);
+  }
+  // a Rear Guard rocket blasts with its 60 % (its splash was at full damage)
+  {
+    const w = arena("rocket", { rearguard: 1 }),
+      front = dummy(w, 5, 2),
+      back = dummy(w, -5, 2);
+    w.player.x = 0;
+    w.player.y = 2;
+    w.fire(0);
+    for (let i = 0; i < 120; i++) {
+      w.hash.build(w.enemies);
+      w.updatePBullets(rlStep);
+      w.sweep();
+    }
+    const f = 1e7 - front.hp,
+      b = 1e7 - back.hp;
+    line(Math.abs(b / f - 0.6) < 0.01, "Rear Guard rockets at 60 %", `front ${f.toFixed(1)}, rear ${b.toFixed(1)}`);
+  }
+  // the auto-aim range of Targeting Chip stays within the reach of the shots
+  {
+    let worst = "";
+    for (const weapon of ["pulse", "rail", "flame", "disc"]) {
+      const w = arena(weapon, { crit: 8 });
+      w.arena.blocked = () => false;
+      w.arena.outside = () => false;
+      w.player.x = 0;
+      w.player.y = 0;
+      w.pb = [];
+      w.fire(0);
+      const shot = w.pb[0];
+      let reach = 0;
+      while (shot.life > 0) {
+        w.hash.build([]);
+        w.updatePBullets(rlStep);
+        reach = Math.max(reach, shot.x);
+      }
+      if (w.stats.range > reach) worst += `${weapon} ${w.stats.range.toFixed(1)} > ${reach.toFixed(1)} `;
+    }
+    line(!worst, "Targeting Chip range within the shots' reach", worst || "all four weapons");
+  }
+  // a burn counts for Apex Hunter like a hit
+  {
+    const w = arena("flame", { hunter: 3 }),
+      e = dummy(w, 10, 10, { elite: true });
+    e.burnT = 5;
+    e.burnDps = 100;
+    for (let i = 0; i < 60; i++) w.statusTick(e, rlStep);
+    const burnt = 1e7 - e.hp;
+    line(Math.abs(burnt - 145) < 1, "Apex Hunter on a burn", `1 s of 100/s on an elite: ${burnt.toFixed(1)}`);
+  }
+}
+
 console.log(
   `\nSIM (node): ${fails ? fails + " FAIL" : "all checks passed"} in ${((performance.now() - t0) / 1000).toFixed(1)} s`,
 );
