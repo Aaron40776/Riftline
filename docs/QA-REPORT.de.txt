@@ -1,3 +1,28 @@
+RIFTLINE v3.29.2 – AUDIT FIXES: BANISH, ONE RANDOM CALL, ATTACK SHOTS
+Base: v3.29.1 · Build r3292a1005a-r1 · 10.10.2026
+
+The owner asked for a full audit of the project and then for the recommended fixes. This release holds the first batch.
+
+1) Fixes
+   - Banish Protocol did not banish. World.makeOffer passed the banished cards as the exclude list of rollUpgradeOffer, which
+     only makes a card rarer (x0.05, meant for a reroll), and the evolutions ignored it. Measured with the real World in Node:
+     a banished card came back in 1.30 % of 20000 offers (a comparable card: 24 %), a banished evolution in 1000 of 1000.
+     rollUpgradeOffer has a banned list now that takes a card out of the pool and the evolutions: 0 of 20000 and 0 of 1000.
+     The self-test v3250 had passed by luck (60 rerolls of one seed); it now checks 3000 offers and a banished evolution.
+   - The warp effect of a shot through a portal chose with Math.random whether it shows (the only call in the simulation): it
+     now shows every other one. Determinism: only the Endless case changed, in fx.warp (262 -> 250) and its count of random
+     calls (279 -> 0); every value of the simulation is the same. The fixture was updated for that.
+   - tests/attack-shots.mjs: the release check of 10.10.2026 timed out in Ember Works. It waited 20 s of real time for zones
+     that go off after 2.4 s of game time; at about 1 fps late in the chain (0.1 s of game time a frame) that is not enough.
+     It now waits up to 120 s, and the enemy it keeps has no variant or affix (no zones of its own).
+
+2) Tests and results (headless Chromium, software WebGL)
+   - npm run release-check on 3.29.2: ALL steps ok (format, build, deep test, data audit, determinism 15/15, full QA, e2e,
+     world and run audit, screens pc and land, biome shots pc and land, attack shots pc), 36 min 17 s.
+
+3) Open (the audit report, recommended next; see the roadmap)
+   - World testable in Node, the hitch at every wave start (buildLayout), smooth movement on 90/120 Hz screens.
+
 RIFTLINE v3.29.1 – UPGRADE CARDS ON PHONES (DESIGN CRITIQUE)
 Base: v3.29.0 · Build r3291a1005a-r1 · 06.10.2026
 
