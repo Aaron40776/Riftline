@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-As of 04.10.2026, with 3.10.0. New entries are written in English (the owner's wish since 03.10.2026).
+As of 10.10.2026, with 3.29.2. New entries are written in English (the owner's wish since 03.10.2026).
 
 Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
@@ -205,17 +205,21 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
   (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
 
-### CURRENT STATE (06.10.2026, afternoon; read this first when the work goes on)
+### CURRENT STATE (10.10.2026; read this first when the work goes on)
 
-- **Live:** 3.28.1 (merged as #55 on 06.10.2026: the fixes of the checkup, the rotate screen back instead of the turning
-  shell). Before that 3.28.0 with the whole stack #43 to #54; #44 to #53 were closed as contained in it.
-- **Open (3.29.0, one PR against main that also contains 3.28.2 / #56):** richer colours and light for every graphics setting
-  (the owner: "just improve the graphics generally ... which actually makes a difference"): a stronger sun, a coloured fill light
-  from the other side, a richer floor where it was grey (Blackout City, Cryo Vault); judged from pictures only, to be seen on a
-  phone. Contents of 3.28.2: the Ultra graphics setting is removed (see "A more professional look"); the controller is
-  looked for once a second instead of every frame when none is connected; a cleanup (unused exports and imports, dead code,
-  README, the Daily payout without the Shard Refinery) and fixes of the test tools (the Whiteout check, the layout audit behind
-  the rotate screen, the soak verdict and its hang after a crash).
+- **Live:** 3.29.1 (3.28.2 Ultra removed, 3.29.0 richer colours and light, 3.29.1 upgrade cards on phones; merged as #56 to
+  #58).
+- **Open (3.29.2, one PR against main):** fixes from the audit of 10.10.2026: Banish Protocol really removes a card for the run
+  (it was only made rarer, and a banished evolution came back at once), no Math.random left in the simulation, the attack
+  shots wait long enough on a slow machine.
+- **Audit of 10.10.2026, recommended next (each its own PR; the owner decides the order):** (1) make World testable in Node
+  (its one import of diagnostics.js pulls in main.js and the DOM; with it cut, the simulation runs at about 125 times real
+  time, so determinism, offers and bot runs could be checked in seconds in CI); (2) a hitch at every wave start (buildLayout
+  takes 13 to 66 ms on a fast desktop CPU, more on a phone): build the next layout ahead of time; (3) smooth movement on
+  90/120 Hz screens: the renderer draws the 60 Hz simulation without interpolation (to be checked on a real phone).
+  Design questions for the owner: pacts overlap with the threat levels; the diagnostics and the deep self-test (124 KB of the
+  game file) ship to every player. Engine: stay on three.js (Godot's web export is WebGL2-only and its low-latency web audio
+  mode cannot play procedural sound).
 - **For the owner:** delete the merged `claude/*` branches on GitHub (this session may push but not delete branches);
   `claude/music-lab` has one commit that is not in main (a Music Lab of 03.10.2026): keep, merge or delete is his call.
 - **Still open from before:** the second step of the sound direction (reference clips), the model pass for the

@@ -697,7 +697,7 @@
    }
   },
   "sim-pulse-t2-endless": {
-   "digest": "ce49f151a8c74190",
+   "digest": "4170ccf67e7d8c42",
    "rec": {
     "wave": 22,
     "state": "choose",
@@ -776,7 +776,7 @@
      "trapFire": 558,
      "trapWarn": 650,
      "victory": 1,
-     "warp": 262,
+     "warp": 250,
      "wave": 22,
      "zap": 230
     },
@@ -806,7 +806,7 @@
      "4a9fed3b00f13e1e"
     ],
     "final": "4a9fed3b00f13e1e",
-    "rnd": 279
+    "rnd": 0
    }
   },
   "sim-scatter-t1-resume": {

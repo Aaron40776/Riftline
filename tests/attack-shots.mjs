@@ -93,6 +93,9 @@ for (const id of ids) {
       // one enemy far away and still keeps the wave running, so the zones go off
       const keep = w.spawnEnemy("grunt", w.arena.W - 2, w.arena.H - 2, {});
       keep.speed = 0;
+      // 3.29.2: and it makes no zones of its own (a scorch or volatile one would)
+      keep.variant = null;
+      keep.affix = null;
       window.__attackKeep = keep;
       const px = w.player.x,
         py = w.player.y;
@@ -120,7 +123,9 @@ for (const id of ids) {
   );
   await p.waitForTimeout(1500);
   await p.screenshot({ path: `${OUT}/${id}-1-warn.png` });
-  await p.waitForFunction(() => window.__riftTest.game.world.hazards.every((h) => h.done), null, { timeout: 20000 });
+  // 3.29.2: the zones go off after 2.4 s of game time; under software GL late in a release check the game runs at about
+  // 1 fps (0.1 s of game time a frame), so 20 s of real time was not always enough (Ember Works timed out on 10.10.2026)
+  await p.waitForFunction(() => window.__riftTest.game.world.hazards.every((h) => h.done), null, { timeout: 120000 });
   await p.waitForTimeout(120);
   await p.screenshot({ path: `${OUT}/${id}-2-blast.png` });
   await p.waitForTimeout(1600);
