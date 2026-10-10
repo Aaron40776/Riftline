@@ -2,6 +2,8 @@
 // shards at the end (the bonuses add up). They are optional, work with every weapon and threat level, and are not part of
 // the Daily Rift (the same drone for everyone). The drone's side of a pact is read in computeStats (the ws key
 // pact_<id>, set by the World), the enemies' side in applyPactsToThreat, the payout in pactBonus.
+import { own } from "../core/util.js";
+
 const PACT_MAX = 2;
 const PACTS = [
   {
@@ -46,7 +48,7 @@ const pactsById = Object.fromEntries(PACTS.map((pact) => [pact.id, pact]));
 function cleanPacts(raw) {
   const out = [];
   for (const id of Array.isArray(raw) ? raw : [])
-    if (typeof id === "string" && pactsById[id] && !out.includes(id) && out.length < PACT_MAX) out.push(id);
+    if (own(pactsById, id) && !out.includes(id) && out.length < PACT_MAX) out.push(id);
   return out;
 }
 /* the extra share of the payout */

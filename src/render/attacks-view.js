@@ -505,33 +505,39 @@ class AttackView {
   bakeMarks(biome) {
     const gl = this.r.renderer;
     if (!gl || !this.atlas) return;
-    const mat = shaderMaterial(MARK_FRAG, { uBiome: { value: biome } }),
-      scene = new Scene(),
-      geo = disc(),
-      pool = new this.Pool(geo, mat, ATLAS.cols * ATLAS.rows),
-      cam = new OrthographicCamera(-6, 6, 4, -4, 0.1, 20),
+    // 3.31.1: the painting scene is built once and kept: only the biome uniform changes, so a new biome compiles no
+    // shader (the material was built and disposed for every bake, a compile at the first blast in a new biome)
+    if (!this.bake) {
+      const mat = shaderMaterial(MARK_FRAG, { uBiome: { value: 0 } }),
+        pool = new this.Pool(disc(), mat, ATLAS.cols * ATLAS.rows),
+        scene = new Scene(),
+        cam = new OrthographicCamera(-6, 6, 4, -4, 0.1, 20);
+      mat.blending = NoBlending;
+      mat.transparent = false;
+      mat.fog = false;
+      scene.add(pool.mesh);
+      pool.begin();
+      for (let cell = 0; cell < ATLAS.cols * ATLAS.rows; cell++) {
+        const look = cell >> 2,
+          variant = (cell >> 1) & 1,
+          cooled = cell & 1,
+          col = cell % ATLAS.cols,
+          row = Math.floor(cell / ATLAS.cols);
+        if (look > M.rift) break;
+        const idx = pool.y(col * 2 - 5, 0, row * 2 - 3, 0, 0.98);
+        pool.col(idx, cooled ? 0.3 : 1, variant ? 0.75 : 0.25, look / 8);
+      }
+      pool.end();
+      cam.position.set(0, 10, 0);
+      cam.up.set(0, 0, -1);
+      cam.lookAt(0, 0, 0);
+      this.bake = { mat, scene, cam };
+    }
+    const { mat, scene, cam } = this.bake,
       clear = new Color(),
       alpha = gl.getClearAlpha(),
       target = gl.getRenderTarget();
-    mat.blending = NoBlending;
-    mat.transparent = false;
-    mat.fog = false;
-    scene.add(pool.mesh);
-    pool.begin();
-    for (let cell = 0; cell < ATLAS.cols * ATLAS.rows; cell++) {
-      const look = cell >> 2,
-        variant = (cell >> 1) & 1,
-        cooled = cell & 1,
-        col = cell % ATLAS.cols,
-        row = Math.floor(cell / ATLAS.cols);
-      if (look > M.rift) break;
-      const idx = pool.y(col * 2 - 5, 0, row * 2 - 3, 0, 0.98);
-      pool.col(idx, cooled ? 0.3 : 1, variant ? 0.75 : 0.25, look / 8);
-    }
-    pool.end();
-    cam.position.set(0, 10, 0);
-    cam.up.set(0, 0, -1);
-    cam.lookAt(0, 0, 0);
+    mat.uniforms.uBiome.value = biome;
     gl.getClearColor(clear);
     try {
       gl.setRenderTarget(this.atlas);
@@ -541,9 +547,6 @@ class AttackView {
     } finally {
       gl.setRenderTarget(target);
       gl.setClearColor(clear, alpha);
-      mat.dispose();
-      geo.dispose();
-      pool.mesh.dispose?.();
     }
     this.baked = biome;
   }
@@ -566,6 +569,12 @@ class AttackView {
       this.marks.length = 0;
       this.spikes.length = 0;
       this.pillars.length = 0;
+      // 3.31.1: the marks of the new biome are painted now (behind the biome card), not at its first blast
+      if (world) {
+        this.markPool();
+        const index = BIOME_INDEX[biome] ?? 0;
+        if (this.baked !== index) this.bakeMarks(index);
+      }
     }
     for (const mat of this.mats) mat.uniforms.uTime.value = time;
     this.quality = Math.min(1, r.maxParticles / 1400);

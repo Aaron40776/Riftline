@@ -3509,7 +3509,8 @@ const musicChords = {
       }
     }
     accent(name, now) {
-      this.curPri = 1;
+      // 3.31.1: the sounds of a biome event give way to the fight like the sounds of the place (they took voices from it)
+      this.curPri = 0.5;
       this.curBus = this.ambBus;
       try {
         this.accentOf(name, now);

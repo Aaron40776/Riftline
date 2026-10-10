@@ -2,6 +2,7 @@
 // settings, run history and backups.
 
 import { logError } from "./diagnostics.js";
+import { own } from "./util.js";
 import { bossOrder } from "../data/enemies.js";
 import { store } from "../main.js";
 import { weaponDefs } from "../data/weapons.js";
@@ -83,7 +84,7 @@ function rlSanitizeHistory(history) {
       typeof value === "number" && Number.isFinite(value) ? Math.min(hi, Math.max(lo, value)) : def;
   for (const entry of history.slice(0, 12)) {
     // 2.4.0: runs with a retired weapon stay in the list (shown with the weapon's old name)
-    if (!entry || typeof entry !== "object" || !(weaponDefs[entry.weapon] || rlRetired(entry.weapon))) continue;
+    if (!entry || typeof entry !== "object" || !(own(weaponDefs, entry.weapon) || rlRetired(entry.weapon))) continue;
     out.push({
       t: ni2(entry.t, 0, 9e15),
       weapon: entry.weapon,
@@ -95,9 +96,7 @@ function rlSanitizeHistory(history) {
       kills: Math.floor(ni2(entry.kills, 0, 1e9)),
       shards: Math.floor(ni2(entry.shards, 0, 1e9)),
       killer: typeof entry.killer === "string" && /^[a-z]{1,18}$/.test(entry.killer) ? entry.killer : "",
-      build: Array.isArray(entry.build)
-        ? entry.build.filter((id) => typeof id === "string" && upgradesById[id]).slice(0, 6)
-        : [],
+      build: Array.isArray(entry.build) ? entry.build.filter((id) => own(upgradesById, id)).slice(0, 6) : [],
     });
   }
   return out;
@@ -105,7 +104,7 @@ function rlSanitizeHistory(history) {
 function rlRecordRun(world, pre, win, abandoned) {
   const data = store.data,
     up = Object.entries(world.up || {})
-      .filter(([id]) => upgradesById[id] && !upgradesById[id].repeat)
+      .filter(([id]) => own(upgradesById, id) && !upgradesById[id].repeat)
       .sort((a, b) => upgradesById[b[0]].rarity - upgradesById[a[0]].rarity || b[1] - a[1]);
   const entry = {
     t: Date.now(),
@@ -265,7 +264,7 @@ function cleanRun(raw) {
     !raw ||
     typeof raw !== "object" ||
     raw.v !== 1 ||
-    !weaponDefs[raw.weapon] ||
+    !own(weaponDefs, raw.weapon) ||
     !Number.isFinite(raw.wave) ||
     raw.wave < 1 ||
     raw.wave > 999 ||
@@ -307,8 +306,7 @@ function cleanRun(raw) {
     dmgSrc: {},
   };
   for (const id of Array.isArray(raw.banished) ? raw.banished : [])
-    if (typeof id === "string" && upgradesById[id] && !run.banished.includes(id) && run.banished.length < 6)
-      run.banished.push(id);
+    if (own(upgradesById, id) && !run.banished.includes(id) && run.banished.length < 6) run.banished.push(id);
   const rawUp = asObject(raw.up);
   for (const upgrade of upgradeList) {
     const level = Math.floor(cleanNumber(rawUp[upgrade.id], 0, 0, upgrade.max));
@@ -326,11 +324,7 @@ function cleanRun(raw) {
   if (Array.isArray(raw.offer)) {
     // 3.15.0: a boss card belongs only in a boss offer
     const offer = [
-      ...new Set(
-        raw.offer.filter(
-          (id) => typeof id === "string" && !!upgradesById[id] && (!upgradesById[id].boss || raw.offerBoss),
-        ),
-      ),
+      ...new Set(raw.offer.filter((id) => own(upgradesById, id) && (!upgradesById[id].boss || raw.offerBoss))),
     ].slice(0, 4);
     if (offer.length) {
       run.offer = offer;
@@ -354,7 +348,7 @@ function cleanSave(input) {
     }
   }
   save.weapons.pulse = true;
-  save.weapon = weaponDefs[raw.weapon] && save.weapons[raw.weapon] ? raw.weapon : "pulse";
+  save.weapon = own(weaponDefs, raw.weapon) && save.weapons[raw.weapon] ? raw.weapon : "pulse";
   save.threatMax = Math.floor(cleanNumber(raw.threatMax, 0, 0, 5));
   save.threat = Math.floor(cleanNumber(raw.threat, 0, 0, save.threatMax));
   for (let mod of workshopModules) {
@@ -538,7 +532,10 @@ const safeStorage = {
       return true;
     }
     save(reason) {
-      this.syncForeign();
+      // 3.31.1: an import or a reset replaces the whole save on purpose; another tab's save that came in meanwhile
+      // (a storage event while the dialog was open) used to take its place here
+      if (reason === "import" || reason === "reset") this.foreign = false;
+      else this.syncForeign();
       this.data.savedAt = Date.now();
       let text = JSON.stringify(this.data);
       safeStorage.set(SAVE_KEY, text);
@@ -595,7 +592,7 @@ function rlMigrateUpgrades(run) {
   }
   if (oldUp.length) out.up = next;
   if (oldOffer.length) {
-    const kept = offer.filter((id) => typeof id === "string" && upgradesById[id]),
+    const kept = offer.filter((id) => own(upgradesById, id)),
       picked = [],
       free = (upgrade) =>
         upgrade &&
@@ -606,7 +603,7 @@ function rlMigrateUpgrades(run) {
         !picked.includes(upgrade.id);
     for (const id of offer) {
       if (!rlRetiredUpgrade(id)) {
-        if (typeof id === "string" && upgradesById[id]) {
+        if (own(upgradesById, id)) {
           picked.push(id);
         }
         continue;

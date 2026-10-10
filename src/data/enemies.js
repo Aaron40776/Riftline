@@ -1,6 +1,24 @@
 // Enemy and boss tables, spawn weights, enemy tips and champion data.
 
-import { spawnWeights, heavyEnemies } from "../core/waves.js";
+// 3.31.1: the spawn weights and the heavy types live here (core/waves.js imported them back from this file in a circle,
+// so loading waves.js first failed); the content packs below add their types in the same order as before
+const spawnWeights = {
+    swarmer: 5,
+    grunt: 4,
+    gunner: 3,
+    bomber: 2.4,
+    splitter: 2,
+    brute: 1.3,
+    sniper: 1.5,
+    hive: 0.6,
+    bulwark: 1.3,
+    striker: 1.6,
+    mortar: 1.1,
+    mender: 1,
+    leaper: 1.5,
+    turret: 0.9,
+  },
+  heavyEnemies = { brute: 1, hive: 1, sniper: 1, bulwark: 1, mortar: 1, mender: 1, turret: 1 };
 
 /* ---- enemy intros: one short hint the first time each enemy type appears ---- */
 const RL_ENEMY_TIPS = {
@@ -454,4 +472,6 @@ export {
   bossByWave,
   bossByBiome,
   BOSS_SLOT_HP,
+  spawnWeights,
+  heavyEnemies,
 };

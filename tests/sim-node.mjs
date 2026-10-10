@@ -493,6 +493,70 @@ for (const weapon of weaponOrder) {
   );
 }
 
+// 10. 3.31.1: a shot fired at an enemy pressed against a wall hits it (the wall test ended a fast shot before the enemy
+// test of the same step, so an enemy hugging a wall could not be hit at close range; a bot pinned in a corner stalled)
+{
+  const { computeStats } = await import("../src/core/stats.js");
+  const missed = [];
+  for (const weapon of weaponOrder)
+    for (const gap of [0.05, 0.3, 0.6]) {
+      const w = new World({ seed: 1, weapon, threat: 0, ws: {}, pacts: [] });
+      w.startWave(3);
+      w.state = "fight";
+      w.hold = true;
+      w.enemies = [];
+      w.markers = [];
+      w.plan = [];
+      w.planIdx = 0;
+      w.championPending = null;
+      w.bossPending = null;
+      w.traps = [];
+      w.arena.obs = [];
+      w.stats = computeStats(weapon, {}, {});
+      const e = w.spawnEnemy("mite", 0, 0);
+      e.spawnT = 0;
+      e.hp = e.maxHp = 1e7;
+      const pin = () => {
+        e.x = w.arena.W - e.r;
+        e.y = 0;
+        e.vx = e.vy = 0;
+      };
+      pin();
+      w.player.x = e.x - e.r - w.player.r - gap;
+      w.player.y = 0;
+      for (let i = 0; i < 30 && e.hp === 1e7; i++) {
+        w.hash.build(w.enemies);
+        w.fire(0);
+        w.updatePBullets(rlStep);
+        w.sweep();
+        pin();
+      }
+      if (e.hp === 1e7) missed.push(`${weapon} at ${gap} m`);
+    }
+  line(
+    !missed.length,
+    "an enemy against a wall can be shot",
+    missed.length ? "missed by " + missed.join(", ") : "all weapons hit",
+  );
+}
+
+// 11. 3.31.1: names inherited from Object.prototype ("constructor", "toString") are not pacts, weapons or cards (a
+// crafted or broken save gave a NaN payout and a World without a weapon)
+{
+  const { cleanPacts, pactBonus } = await import("../src/data/pacts.js");
+  const pacts = cleanPacts(["constructor", "toString", "glass", "__proto__"]),
+    bonus = pactBonus(["constructor", "hasOwnProperty"]);
+  const w = new World({ seed: 3, weapon: "constructor", threat: 0, ws: {}, pacts: ["toString"] });
+  line(
+    JSON.stringify(pacts) === '["glass"]' &&
+      bonus === 0 &&
+      w.weapon === "pulse" &&
+      Number.isFinite(w.stats.damage ?? 0),
+    "inherited names are not game ids",
+    `pacts ${JSON.stringify(pacts)}, bonus ${bonus}, weapon ${w.weapon}`,
+  );
+}
+
 console.log(
   `\nSIM (node): ${fails ? fails + " FAIL" : "all checks passed"} in ${((performance.now() - t0) / 1000).toFixed(1)} s`,
 );
