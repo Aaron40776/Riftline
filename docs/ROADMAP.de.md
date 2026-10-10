@@ -209,17 +209,13 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
 
 - **Live:** 3.29.1 (3.28.2 Ultra removed, 3.29.0 richer colours and light, 3.29.1 upgrade cards on phones; merged as #56 to
   #58).
-- **Open (3.29.2, one PR against main):** fixes from the audit of 10.10.2026: Banish Protocol really removes a card for the run
-  (it was only made rarer, and a banished evolution came back at once), no Math.random left in the simulation, the attack
-  shots wait long enough on a slow machine.
-- **Audit of 10.10.2026, recommended next (each its own PR; the owner decides the order):** (1) make World testable in Node
-  (its one import of diagnostics.js pulls in main.js and the DOM; with it cut, the simulation runs at about 125 times real
-  time, so determinism, offers and bot runs could be checked in seconds in CI); (2) a hitch at every wave start (buildLayout
-  takes 13 to 66 ms on a fast desktop CPU, more on a phone): build the next layout ahead of time; (3) smooth movement on
-  90/120 Hz screens: the renderer draws the 60 Hz simulation without interpolation (to be checked on a real phone).
-  Design questions for the owner: pacts overlap with the threat levels; the diagnostics and the deep self-test (124 KB of the
-  game file) ship to every player. Engine: stay on three.js (Godot's web export is WebGL2-only and its low-latency web audio
-  mode cannot play procedural sound).
+- **Open, stacked (merge in this order, then switch the base of the next to main):** #59 3.29.2 (Banish really banishes, no
+  Math.random in the simulation, attack shots wait long enough) and 3.30.0 (the simulation runs in Node: npm run test:sim,
+  first step of npm test; the next wave's layout is built while the upgrade choice is open, so a card pick no longer hitches).
+- **Audit of 10.10.2026, still open:** smooth movement on 90/120 Hz screens (the renderer draws the 60 Hz simulation without
+  interpolation; to be judged on a real phone before and after). Design questions for the owner: pacts overlap with the threat
+  levels; the diagnostics and the deep self-test (124 KB of the game file) ship to every player. Engine: stay on three.js
+  (Godot's web export is WebGL2-only and its low-latency web audio mode cannot play procedural sound).
 - **For the owner:** delete the merged `claude/*` branches on GitHub (this session may push but not delete branches);
   `claude/music-lab` has one commit that is not in main (a Music Lab of 03.10.2026): keep, merge or delete is his call.
 - **Still open from before:** the second step of the sound direction (reference clips), the model pass for the

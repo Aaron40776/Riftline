@@ -1,3 +1,32 @@
+RIFTLINE v3.30.0 – THE SIMULATION IN NODE; NO HITCH WHEN A CARD IS PICKED
+Base: v3.29.2 · Build r3300a1005a-r1 · 10.10.2026
+
+The owner, after the audit of 10.10.2026: "do the recommended fixes". The second batch: items (1) and (2) of the audit's list.
+
+1) The simulation in Node
+   - World imported core/diagnostics.js (the run monitor), which imports main.js and the DOM UI: every check of the simulation
+     needed a browser with software GL. core/run-hooks.js now carries the link (diagnostics.js fills it, World only reads it);
+     World and all its modules load in Node.
+   - tests/sim-node.mjs (npm run test:sim; the first step of npm test, so CI runs it, and of the check chains; about 30 s):
+     Math.random throws while it runs; the same seed and inputs give the same run; a bot plays every weapon to wave 12 at
+     Threat II (no crash, no non-finite number, no wave over 240 s); a maxed flame build in Endless at wave 60 stays finite;
+     Banish keeps a card and an evolution out of 5000 and 500 offers; a snapshot at the upgrade choice resumes the same choice
+     and the same run; a layout built ahead gives the same run.
+
+2) The hitch at a wave start
+   - startWave built the arena layout of the new wave (buildLayout) at the moment a card was picked: 13 to 66 ms on a desktop
+     CPU, more on a phone. World.prefetchLayout builds it while the choice is open (main.js, requestIdleCallback) and
+     startWave takes it. Measured in Node over 19 waves: a card pick 0.4 to 4 ms (was 20 to 90 ms). A layout depends only on
+     the biome, the seed and the wave, so the runs are the same: determinism 15/15 unchanged.
+
+3) Tests and results (headless Chromium, software WebGL)
+   - npm run release-check on 3.30.0: ALL steps ok (format, sim (node), build, deep test, data audit, determinism 15/15
+     unchanged, full QA, e2e, world and run audit, screens pc and land, biome shots pc and land, attack shots pc), 36 min 14 s.
+
+4) Not done, for the owner
+   - Smooth movement on 90/120 Hz screens (the renderer draws the 60 Hz simulation without interpolation) needs a real phone
+     to judge before and after; not built.
+
 RIFTLINE v3.29.2 – AUDIT FIXES: BANISH, ONE RANDOM CALL, ATTACK SHOTS
 Base: v3.29.1 · Build r3292a1005a-r1 · 10.10.2026
 
