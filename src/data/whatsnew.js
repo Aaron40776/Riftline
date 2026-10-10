@@ -2,6 +2,13 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.29.2",
+    title: "Banish fixed",
+    items: [
+      "A banished upgrade card now really stays out of the run. Before, it could come back now and then, and a banished evolution came back at once.",
+    ],
+  },
+  {
     version: "3.29.1",
     title: "Upgrade cards on phones",
     items: [

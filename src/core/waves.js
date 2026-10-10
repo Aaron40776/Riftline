@@ -29,11 +29,14 @@ function deadForWeapon(id, weapon, owned) {
   if (weapon === "rail") return id === "pierce" && (owned.lance || 0) > 0;
   return false;
 }
-function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], weapon = null) {
+// `exclude` only makes a card rare (a reroll should show new cards); `banned` (3.29.2: the cards of Banish Protocol)
+// takes it out of the offer for good, evolutions included
+function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], weapon = null, banned = []) {
   let pool = upgradeList.filter(
       (upgrade) =>
         !(
           upgrade.evo ||
+          banned.includes(upgrade.id) ||
           // 3.15.0: boss cards come only through the boss offer (World.makeOffer)
           upgrade.boss ||
           deadForWeapon(upgrade.id, weapon, owned) ||
@@ -65,6 +68,7 @@ function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], w
       (upgrade) =>
         upgrade.evo &&
         !owned[upgrade.id] &&
+        !banned.includes(upgrade.id) &&
         (!upgrade.weapon || upgrade.weapon === weapon) &&
         Object.entries(upgrade.evo).every(([id, need]) => (owned[id] || 0) >= need),
     );

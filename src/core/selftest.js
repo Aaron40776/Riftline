@@ -3789,6 +3789,27 @@ function selfTestV3250(result) {
         break;
       }
     }
+    // 3.29.2: it was only made rarer (about 1 offer in 80), so 60 rerolls of one seed passed by luck: now 3000 offers
+    for (let i = 0; i < 3000; i++)
+      if (w.makeOffer().includes(first)) {
+        fail.push("offered-again-rare");
+        break;
+      }
+    // 3.29.2: a banished evolution came back in every offer
+    {
+      const evo = upgradeList.find((u) => u.evo && !u.weapon),
+        e = make(2);
+      for (const [id, need] of Object.entries(evo.evo)) e.up[id] = need;
+      e.offer = e.makeOffer();
+      if (!e.offer.includes(evo.id)) fail.push("evo-not-offered");
+      else if (!e.banish(evo.id)) fail.push("evo-banish-fails");
+      else
+        for (let i = 0; i < 200; i++)
+          if (e.makeOffer().includes(evo.id)) {
+            fail.push("evo-offered-again");
+            break;
+          }
+    }
     // a second one, then none left
     if (!w.banish(w.offer[1]) || w.banishes !== 0 || w.banish(w.offer[0])) fail.push("limit");
     // the snapshot keeps them; a hostile one is cleaned

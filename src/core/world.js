@@ -671,8 +671,10 @@ const rlStep = 1 / 60,
         this.player.hp / this.stats.maxHp,
         count - (exclusive ? 1 : 0),
         this.offerBoss,
-        [...exclude, ...this.banished],
+        exclude,
         this.weapon,
+        // 3.29.2: a banished card is never offered again (it was only made rarer, and an evolution came back at once)
+        this.banished,
       );
       return exclusive ? [exclusive, ...picks] : picks;
     }
@@ -1055,7 +1057,9 @@ const rlStep = 1 / 60,
                     if (bullet.boom) {
                       bullet.back = true;
                     }
-                    if (Math.random() < 0.5) {
+                    // 3.29.2: every other shot shows its warp (was Math.random, the only one in the simulation)
+                    this.warpFx = (this.warpFx || 0) + 1;
+                    if (this.warpFx % 2 === 1) {
                       this.emit("warp", { x: fromX, y: fromY, tx: toX, ty: toY, who: "shot" });
                     }
                   }
