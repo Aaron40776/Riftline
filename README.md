@@ -84,7 +84,8 @@ The browser tests drive the real game in Chromium through Playwright. Install th
 ```bash
 npm run build          # src/ -> dist/ (the deployable site)
 npm run serve          # serve dist/ on http://localhost:8124
-npm test               # build, deep self-test, file/PWA contract, data audit, determinism (CI runs this)
+npm run test:sim       # the simulation in Node, no browser (~30 s): determinism, bot runs, Banish, resume
+npm test               # sim in Node, build, deep self-test, file/PWA contract, data audit, determinism (CI runs this)
 npm run check          # quick check while developing: format + the npm test steps (~2 min with cached sounds);
                        # full-QA sections can be added by name: npm run check -- run-desktop codex
 npm run release-check  # everything a release needs, one step after another, with a time per step (~35-45 min)
@@ -118,7 +119,7 @@ How the code is organised, its history and the rules for changing it: [`docs/DEV
 src/
   main.js          entry point: boot, game controller, main loop, wiring
   core/            simulation and services: world, arena, waves, AI, stats, traps, boss cards, walker, difficulty,
-                   mutators, medals, daily (the Daily Rift), save, diagnostics (runtime log and monitor), selftest
+                   mutators, medals, daily (the Daily Rift), run-hooks (the simulation's link to the run monitor), save, diagnostics (runtime log and monitor), selftest
                    (deep self-test), util
   data/            tables: weapons, enemies, upgrades, progression, pacts, biomes, hud, whatsnew (the News tab)
   render/          three.js renderer, models, biome visuals, traps, hazards, attacks, boss cards, 2D overlay

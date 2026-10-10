@@ -980,6 +980,10 @@ function runFrame(dt) {
       game.chooseShown = true;
       input.reset();
       ui.showChoose(world);
+      // 3.30.0: the next wave's layout is built while the player reads the cards (no hitch when one is picked)
+      const prefetch = () => game.world === world && world.prefetchLayout();
+      if (window.requestIdleCallback) requestIdleCallback(prefetch, { timeout: 1500 });
+      else setTimeout(prefetch, 300);
     }
     if (world.state === "dead" && world.stateT > 1.5 && !game.overShown) {
       game.endRun(false);
