@@ -61,6 +61,7 @@ import { RL_BIOME_HAZARD, biomesById, biomeList, rlApplyBiomeFixes } from "./dat
 import { weaponOrder, weaponDefs } from "./data/weapons.js";
 import { waveEvents, spawnWeights, heavyEnemies } from "./core/waves.js";
 import { World, rlStep } from "./core/world.js";
+import { interpCapture, interpApply, interpRestore, interpReset } from "./render/interp.js";
 import { MUTATORS } from "./core/mutators.js";
 import { threatMods, milestones, workshopModules, threatLevels } from "./data/progression.js";
 import { upgradeList, upgradesById } from "./data/upgrades.js";
@@ -186,19 +187,34 @@ function registerServiceWorker(onUpdate) {
   }
 }
 let wakeLockSentinel = null,
-  wakeLockWanted = false;
+  wakeLockWanted = false,
+  wakeLockPending = false;
 async function setWakeLock(on) {
   wakeLockWanted = on;
   try {
-    if (on && !wakeLockSentinel && navigator.wakeLock && document.visibilityState === "visible") {
-      wakeLockSentinel = await navigator.wakeLock.request("screen");
-      wakeLockSentinel.addEventListener("release", () => {
-        wakeLockSentinel = null;
+    if (on && !wakeLockSentinel && !wakeLockPending && navigator.wakeLock && document.visibilityState === "visible") {
+      // 3.31.0: one request at a time, and a lock that arrives after the run was paused or left is given back at once
+      // (it kept the screen awake behind the pause menu)
+      wakeLockPending = true;
+      let lock;
+      try {
+        lock = await navigator.wakeLock.request("screen");
+      } finally {
+        wakeLockPending = false;
+      }
+      if (!wakeLockWanted) {
+        await lock.release();
+        return;
+      }
+      wakeLockSentinel = lock;
+      lock.addEventListener("release", () => {
+        if (wakeLockSentinel === lock) wakeLockSentinel = null;
       });
     } else {
       if (!on && wakeLockSentinel) {
-        await wakeLockSentinel.release();
+        const lock = wakeLockSentinel;
         wakeLockSentinel = null;
+        await lock.release();
       }
     }
   } catch {
@@ -788,9 +804,17 @@ game.ui = ui;
 const hudEditor = new HudEditor({ store, ui, input, onSave: () => game.settingsChanged() });
 /* the button layout of the player on the HUD that is on screen; a layout that does not fit this screen gives way to the
    default layout (see fitHudLayout), and the player hears about it once */
-function placeHud() {
+let placeHudRetry = 0;
+function placeHud(retry = 0) {
   applyHudLayout(store.data.settings);
-  if (fitHudLayout(store.data.settings, input.radius()))
+  const fit = fitHudLayout(store.data.settings, input.radius());
+  if (fit === "later") {
+    // the device classes of index.html follow the turn a frame later (at most ten frames are waited for)
+    cancelAnimationFrame(placeHudRetry);
+    if (retry < 10) placeHudRetry = requestAnimationFrame(() => placeHud(retry + 1));
+    return;
+  }
+  if (fit)
     ui.toast(
       "Your button layout does not fit this screen: the default layout is used. Edit it in Settings.",
       "hint",
@@ -931,7 +955,13 @@ function runFrame(dt) {
       // 3.28.1: an ended run stands still behind the end screen. An abandoned run went on in the background (it is still in
       // its fight) and the start of its next wave wrote it back into the save, so Continue brought the abandoned run back.
       if (game.overShown) game.acc = 0;
+      if (game.interpWorld !== world) {
+        interpReset();
+        game.interpWorld = world;
+      }
       for (; game.acc >= rlStep && steps < maxSteps; ) {
+        // 3.31.0: where everything was before the step, so a frame can be drawn between two steps (render/interp.js)
+        interpCapture(world);
         world.step(rlStep, input.sample(world, settings));
         game.acc -= rlStep;
         steps++;
@@ -962,19 +992,29 @@ function runFrame(dt) {
         renderer.mapChanged = false;
         sound.play("rumble");
       }
-      let dimmed = game.chooseShown || game.overShown;
-      if (!dimmed || (dimFrameCounter = (dimFrameCounter + 1) % 3) === 0) {
-        renderer.frame(dimmed ? dt * 3 : dt, world);
-      }
     }
     sound.consume(world.fx, world.player);
     world.fx.length = 0;
-    if (renderer && !(game.chooseShown || game.overShown)) {
-      // 2.3.6: the "DRAG HERE TO MOVE" hints follow the input in use (like the coach texts since
-      // 2.3.4); on a laptop with a touch screen they showed while playing with keys and mouse.
-      let hints = !!game.tut && game.tut.step <= 1 && RL_INPUT.touch;
-      overlay.draw(renderer, world, input, { hints: hints, dt: dt, safe: safeAreaInsets() });
-    } else overlay.clear();
+    // 3.31.0: the drawing sees the moving things between the last two steps; restore() puts the simulation's own
+    // positions back before anything else runs (also when a draw throws)
+    // (game.noInterp: the full-QA section smooth compares with and without)
+    if (game.interpWorld === world && !game.noInterp) interpApply(game.acc / rlStep);
+    try {
+      if (renderer) {
+        let dimmed = game.chooseShown || game.overShown;
+        if (!dimmed || (dimFrameCounter = (dimFrameCounter + 1) % 3) === 0) {
+          renderer.frame(dimmed ? dt * 3 : dt, world);
+        }
+      }
+      if (renderer && !(game.chooseShown || game.overShown)) {
+        // 2.3.6: the "DRAG HERE TO MOVE" hints follow the input in use (like the coach texts since
+        // 2.3.4); on a laptop with a touch screen they showed while playing with keys and mouse.
+        let hints = !!game.tut && game.tut.step <= 1 && RL_INPUT.touch;
+        overlay.draw(renderer, world, input, { hints: hints, dt: dt, safe: safeAreaInsets() });
+      } else overlay.clear();
+    } finally {
+      interpRestore();
+    }
     ui.hud(world);
     if (world.state === "choose" && !game.chooseShown && !game.overShown) {
       game.chooseShown = true;

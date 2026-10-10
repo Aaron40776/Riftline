@@ -26,7 +26,7 @@
     "sim": "node build.js && node tools/qa.js sim",
     "soak": "node build.js && node tools/qa.js soak",
     "fuzz": "node build.js && node tools/qa.js fuzz",
-    "balance": "node build.js && node tools/qa.js balance",
+    "balance": "node tests/balance.mjs",
     "screens": "node build.js && node tools/qa.js screens pc && node tools/qa.js screens land && node tools/qa.js biome-shots pc && node tools/qa.js biome-shots land && node tools/qa.js attack-shots pc",
     "format": "prettier --write \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.js\" build.js",
     "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.js\" build.js"

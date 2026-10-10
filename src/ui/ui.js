@@ -245,7 +245,9 @@ const getById = (id) => document.getElementById(id),
       el.addEventListener(
         "pointerdown",
         (ev) => {
-          if ((ev.pointerType === "touch" || ev.pointerType === "pen") && ev.isPrimary !== false) {
+          // 3.31.0: a second finger may tap a button when no other touch is on it (pause while a thumb holds a stick;
+          // browsers send no click for such a tap). A second finger on a button already pressed does not take it over.
+          if ((ev.pointerType === "touch" || ev.pointerType === "pen") && (ev.isPrimary !== false || !touchDown)) {
             startX = ev.clientX;
             startY = ev.clientY;
             pointerId = ev.pointerId;

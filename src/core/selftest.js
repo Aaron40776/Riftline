@@ -937,7 +937,7 @@ function selfTestExpansion22(result) {
   const haz = new World({ seed: 0x5500, weapon: "pulse", threat: 0, ws: { hazardSeal: 3 } });
   if (!(haz.stats.hazardResist > 0.4)) fail.push("hazard-resist");
   const guard = rlUiButtonGuardSelfTest();
-  if (!guard.ok || guard.count !== 9 || guard.steps !== 8) fail.push("ui-guard");
+  if (!guard.ok || guard.count !== 10 || guard.steps !== 9) fail.push("ui-guard");
   const counts = {
     weaponCount: weapons.length,
     enemyCount: enemies.length,

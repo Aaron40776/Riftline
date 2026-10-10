@@ -222,6 +222,52 @@ for (const weapon of weaponOrder) {
   line(a.d === b.d && b.used >= 5, "layout built ahead", `same run: ${a.d === b.d}, taken ${b.used} times`);
 }
 
+// 7. 3.31.0: drawing between two steps (render/interp.js) moves the positions only while a frame is drawn: the run is the
+// same with it, a drawn position lies between the step before and the last step, and restore() gives back the exact values
+{
+  const { interpCapture, interpApply, interpRestore, interpReset } = await import("../src/render/interp.js");
+  const run = (interp) => {
+    const w = new World({ seed: 2024, weapon: "scatter", threat: 1, ws: {}, pacts: [] });
+    w.god = true;
+    interpReset();
+    let ang = 0,
+      between = 0,
+      outside = 0,
+      exact = true;
+    for (let i = 0; i < 60 * 150; i++) {
+      if (w.state === "choose") {
+        w.choose(w.offer[0]);
+        continue;
+      }
+      if (interp) interpCapture(w);
+      const before = w.enemies.map((e) => [e, e.x, e.y]);
+      ang += rlStep * 0.6;
+      w.step(rlStep, { mx: Math.cos(ang), my: Math.sin(ang), auto: true });
+      w.fx.length = 0;
+      if (!interp) continue;
+      const after = w.enemies.map((e) => [e, e.x, e.y]);
+      interpApply(0.5);
+      const old = new Map(before.map(([e, x, y]) => [e, [x, y]]));
+      for (const [e, x, y] of after) {
+        const o = old.get(e);
+        if (!o || Math.abs(x - o[0]) >= 2.5 || Math.abs(y - o[1]) >= 2.5) continue;
+        if (Math.abs(e.x - (o[0] + x) / 2) < 1e-9 && Math.abs(e.y - (o[1] + y) / 2) < 1e-9) between++;
+        else outside++;
+      }
+      interpRestore();
+      for (const [e, x, y] of after) if (e.x !== x || e.y !== y) exact = false;
+    }
+    return { d: digest(w), between, outside, exact };
+  };
+  const a = run(false),
+    b = run(true);
+  line(
+    a.d === b.d && b.exact && b.outside === 0 && b.between > 1000,
+    "drawn between two steps",
+    `same run: ${a.d === b.d}, ${b.between} drawn halfway, ${b.outside} off, restored exactly: ${b.exact}`,
+  );
+}
+
 console.log(
   `\nSIM (node): ${fails ? fails + " FAIL" : "all checks passed"} in ${((performance.now() - t0) / 1000).toFixed(1)} s`,
 );
