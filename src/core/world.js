@@ -275,7 +275,7 @@ const rlStep = 1 / 60,
       // (the snapshot is taken at the wave start); a resumed upgrade choice throws the wave away anyway
       this.startWave(this.wave, snap ? snap.nova : null, !!snap && !Array.isArray(snap.offer));
       if (snap && Array.isArray(snap.offer)) {
-        let offer = snap.offer.filter((id) => upgradesById[id]);
+        let offer = snap.offer.filter((id) => own(upgradesById, id));
         this.fx.length = 0;
         this.plan = [];
         this.planIdx = 0;
@@ -2437,14 +2437,18 @@ const rlStep = 1 / 60,
         // wall); the shot used to end at the wall untested, so an enemy pressed against a wall could not be hit
         let reach = Math.hypot(bullet.vx, bullet.vy) * dt * wallFrac,
           probes = Math.max(hitWall ? 2 : 1, reach > 0.5 ? Math.ceil(reach / 0.5) : 1),
-          rail = !!weaponDefs[bullet.w].rail;
+          rail = !!weaponDefs[bullet.w].rail,
+          bounces = bullet.bounce,
+          back = bullet.back;
         for (let i = 0; i < probes && bullet.life > 0; i++) {
           let frac = probes > 1 ? ((i + 1) / probes - 1) * wallFrac : 0,
             sx = bullet.x + bullet.vx * dt * frac,
             sy = bullet.y + bullet.vy * dt * frac;
           this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => this.probeHit(bullet, enemy, sx, sy, rail));
         }
-        if (hitWall && bullet.life > 0) {
+        // a shot sent off on a new course by a hit on the way (a ricochet, a boomerang turned by a shield) is no longer at
+        // the wall
+        if (hitWall && bullet.life > 0 && bullet.bounce === bounces && bullet.back === back) {
           if (bullet.boom && !bullet.back) {
             bullet.back = true;
             bullet.hits.length = 0;

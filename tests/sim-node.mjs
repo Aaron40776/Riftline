@@ -559,6 +559,55 @@ for (const weapon of weaponOrder) {
   );
 }
 
+// 12. 3.31.1: a ricochet off an enemy against a wall flies on to the next enemy (the wall test of the same step ended the
+// redirected shot, so the bounce was spent and shown but never flew)
+{
+  const { computeStats } = await import("../src/core/stats.js");
+  const w = new World({ seed: 1, weapon: "rail", threat: 0, ws: {}, pacts: [] });
+  w.startWave(3);
+  w.state = "fight";
+  w.hold = true;
+  w.enemies = [];
+  w.markers = [];
+  w.plan = [];
+  w.planIdx = 0;
+  w.championPending = null;
+  w.bossPending = null;
+  w.traps = [];
+  w.arena.obs = [];
+  w.stats = computeStats("rail", {}, {});
+  w.stats.bounce = 2;
+  w.stats.pierce = 0;
+  const pinned = w.spawnEnemy("mite", 0, 0),
+    next = w.spawnEnemy("brute", 0, 0);
+  for (const e of [pinned, next]) {
+    e.spawnT = 0;
+    e.hp = e.maxHp = 1e7;
+  }
+  const hold = () => {
+    pinned.x = w.arena.W - pinned.r;
+    pinned.y = 0;
+    next.x = w.arena.W - 6;
+    next.y = 4;
+    for (const e of [pinned, next]) e.vx = e.vy = 0;
+  };
+  hold();
+  w.player.x = pinned.x - pinned.r - w.player.r - 0.05;
+  w.player.y = 0;
+  w.fire(0);
+  for (let i = 0; i < 90; i++) {
+    w.hash.build(w.enemies);
+    w.updatePBullets(rlStep);
+    w.sweep();
+    hold();
+  }
+  line(
+    pinned.hp < 1e7 && next.hp < 1e7,
+    "a ricochet off an enemy at a wall flies on",
+    `pinned enemy hit: ${pinned.hp < 1e7}, next enemy hit: ${next.hp < 1e7}`,
+  );
+}
+
 console.log(
   `\nSIM (node): ${fails ? fails + " FAIL" : "all checks passed"} in ${((performance.now() - t0) / 1000).toFixed(1)} s`,
 );

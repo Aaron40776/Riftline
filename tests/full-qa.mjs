@@ -4622,6 +4622,8 @@ await section("save-foreign", async (L) => {
 
 // 3.31.1: the scorch-mark atlas is painted again for every biome; the painting material is kept, so a biome change
 // compiles no shader (it was built and thrown away each time: a shader compile at the first blast in a new biome)
+// (three.js deletes a program when no material uses it any more, so disposing the painting material after each bake
+// made the next bake compile it again; counting compileShader calls shows that)
 await section("mark-bake", async (L) => {
   const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
   await P.page.addInitScript(() => {
