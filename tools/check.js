@@ -19,6 +19,8 @@ const args = process.argv.slice(2),
 const qa = (...rest) => ["node", "tools/qa.js", ...rest];
 const steps = [
   ["format", ["npx", "prettier", "--check", "src/**/*.js", "tests/**/*.mjs", "tools/**/*.js", "build.js"]],
+  // 3.30.0: the simulation in Node first (seconds, no browser)
+  ["sim (node)", ["node", "tests/sim-node.mjs"]],
   ["build", ["node", "build.js"]],
   ["deep test", qa("deep-test", ...(full ? ["--full"] : []))],
   // the full QA of a release contains the files section

@@ -34,8 +34,8 @@ import {
   BOSS_CARD_CHANCE,
 } from "./boss-cards.js";
 import { rlMutatorsFor } from "./mutators.js";
-// 2.2.3: the run monitor observes the live run's world (used at run time only; circular import)
-import { RL_MON, rlMonStep, rlMonIssue, rlMonBeginWave } from "./diagnostics.js";
+// 2.2.3: the run monitor observes the live run's world (3.30.0: through runHooks, so World needs no DOM)
+import { runHooks } from "./run-hooks.js";
 
 /* 2.3.5: shards in a supply cache, raised by Route Scanner (+50% per level). */
 function rlCacheShards(world, value) {
@@ -324,7 +324,10 @@ const rlStep = 1 / 60,
         this.wave = wave;
         this.rng = makeRng(hashString(this.seed + ":" + wave));
         let biome = this.biomeFor(wave),
-          layout = buildLayout(biome, this.seed, wave, wave === 1 || !!this.bossFor(wave));
+          // 3.30.0: built ahead while the upgrade choice was open (prefetchLayout), else now
+          ahead = this.nextLayout && this.nextLayout.wave === wave ? this.nextLayout.layout : null,
+          layout = ahead || buildLayout(biome, this.seed, wave, wave === 1 || !!this.bossFor(wave));
+        this.nextLayout = null;
         if (!this.arena || this.arena.key !== layout.key) {
           this.arena = new Arena(biome, layout);
           this.hash = new SpatialHash(layout.W, layout.H, 2.5);
@@ -474,11 +477,11 @@ const rlStep = 1 / 60,
       }
       // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
       // worlds are ignored by identity)
-      if (RL_MON && RL_MON.w === this)
+      if (runHooks.world === this)
         try {
-          rlMonBeginWave(this);
+          runHooks.beginWave(this);
         } catch (err) {
-          rlMonIssue("WARN", "monitor", "monitor exception: " + err.message);
+          runHooks.issue("WARN", "monitor", "monitor exception: " + err.message);
         }
     }
     championType(biome, wave, rng) {
@@ -692,6 +695,14 @@ const rlStep = 1 / 60,
       this.offer = offer;
       this.emit("offer");
     }
+    /* 3.30.0: builds the layout of the next wave ahead of time (main.js calls it while the upgrade choice is open). A layout
+       only depends on the biome, the seed and the wave, so this changes nothing but when the work is done: building it took
+       13 to 66 ms on a desktop CPU, a hitch at the moment a card was picked. */
+    prefetchLayout() {
+      const wave = this.wave + 1;
+      if (this.state !== "choose" || (this.nextLayout && this.nextLayout.wave === wave)) return;
+      this.nextLayout = { wave, layout: buildLayout(this.biomeFor(wave), this.seed, wave, !!this.bossFor(wave)) };
+    }
     // no cards: repair the hull a bit, pay a few shards and go on with the next wave
     skipEmptyChoice() {
       const player = this.player,
@@ -720,7 +731,7 @@ const rlStep = 1 / 60,
     step(dt, input) {
       // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
       // worlds are ignored by identity)
-      const monitored = !!RL_MON && RL_MON.w === this,
+      const monitored = runHooks.world === this,
         fx0 = this.fx.length,
         dash0 = this.player.dashId,
         shards0 = this.shards,
@@ -877,9 +888,9 @@ const rlStep = 1 / 60,
       }
       if (monitored)
         try {
-          rlMonStep(this, fx0, dash0, shards0, kills0, dt);
+          runHooks.step(this, fx0, dash0, shards0, kills0, dt);
         } catch (err) {
-          rlMonIssue("WARN", "monitor", "monitor exception: " + err.message);
+          runHooks.issue("WARN", "monitor", "monitor exception: " + err.message);
         }
     }
     variantTick(enemy, dt) {

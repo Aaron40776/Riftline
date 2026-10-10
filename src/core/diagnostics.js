@@ -7,6 +7,7 @@ import { SAVE_KEY, cleanRun } from "./save.js";
 import { RL_MESH_TYPES } from "../render/models.js";
 import { enemyDefs, RL_ENEMY_TIPS, bossDefs } from "../data/enemies.js";
 import { ui, store, game, safeAreaInsets, input, renderer } from "../main.js";
+import { runHooks } from "./run-hooks.js";
 import { BUILD_ID, GAME_VERSION, formatTime } from "./util.js";
 import { biomesById, biomeList } from "../data/biomes.js";
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
@@ -550,6 +551,7 @@ function rlMonErrKey(entry) {
   return `${entry.where}|${entry.msg}|${entry.file}|${entry.line}`;
 }
 function rlMonStart(world, resume) {
+  runHooks.world = world;
   RL_MON = {
     w: world,
     resume: !!resume,
@@ -1036,6 +1038,7 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
   };
   RL_LAST_RUN_AUDIT = audit;
   RL_MON = null;
+  runHooks.world = null;
   if (!silent && !crashed) {
     // 4. end screen: visible, HUD hidden, every control reachable (checked two frames later)
     requestAnimationFrame(() =>
@@ -1781,6 +1784,11 @@ window.addEventListener("unhandledrejection", (event) => logError("promise", eve
     true,
   );
 })();
+// 3.30.0: World reaches the monitor through these hooks (core/run-hooks.js)
+runHooks.step = rlMonStep;
+runHooks.issue = rlMonIssue;
+runHooks.beginWave = rlMonBeginWave;
+
 export {
   RL_EVENT_KINDS,
   RL_HEALTH,
