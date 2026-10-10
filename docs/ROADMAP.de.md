@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-As of 04.10.2026, with 3.10.0. New entries are written in English (the owner's wish since 03.10.2026).
+As of 10.10.2026, with 3.29.1. New entries are written in English (the owner's wish since 03.10.2026).
 
 Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
@@ -9,6 +9,79 @@ Leitgedanke des Eigentümers (steht auch in `CLAUDE.md`): alle Funktionen, Desig
 dynamisch zusammen; das Spiel skaliert und wird schwerer, und sieht und klingt dabei schön. Neue Funktionen kommen
 mit Modell, Sound, Vorwarnung und Tests, nicht als nackte Mechanik. Der Eigentümer prüft Klang und Spielgefühl selbst:
 Musik und Balance sind von uns nur gemessen, nicht gehört oder gespielt.
+
+## Strategy audit of 10.10.2026 (on 3.29.1; read this first)
+
+**State.** Live: 3.29.1 (#58). The "CURRENT STATE" of 06.10.2026 below is older; 3.29.0 and 3.29.1 have been merged since.
+
+**The request.** The owner asked how to make Riftline a substantially better finished game: its look, sound, feel and
+performance, while friends can still open one link and play on ordinary phones, tablets and PCs. He asked for an
+investigation, decisions and a plan, not for changes. The full report, with the raw measurements and how to repeat them, is
+in `docs/STRATEGY-AUDIT.md`.
+
+**How it was judged.**
+- Screenshots and `renderer.info` of every biome (wave and boss) on PC and on a phone held sideways, taken from the live site
+  in software WebGL.
+- Offline renders of all 15 music tracks and 17 sound effects, measured for loudness, spectrum and stereo.
+- Simulation and audio cost measured in a crowded fight; the source code read.
+- **Not done:** no listening, no real devices, no play-testing.
+
+**Recommended direction.** Stay on three.js and the web, and change how the content is made:
+- **Made in Blender** (or licensed CC0) and imported as glTF: arena surroundings, landmarks and floors with **baked
+  lighting**. The arena is static and the camera nearly fixed, so baked light gives the better look at almost no runtime
+  cost (unlike Ultra).
+- **Kept in code:** simulation, combat effects, telegraphs, hazards' animation and the adaptive music.
+- **Not recommended:** Godot. Its web export runs only the reduced "Compatibility" renderer, its low-latency browser audio has
+  no effects, reverb or generated sound, the download is large, and it would mean a full rewrite. Babylon.js, WebGPU, an
+  engine switch or a backend bring no gain now.
+
+**Main findings.**
+1. **No sense of place.** Each arena is a flat patterned floor from above with box obstacles and nothing around the edge;
+   Blackout City does not read as a city.
+2. **Readability.** The biome skins paint the floor's pattern on enemies (`render/biome-visuals.js` `rlSkinMaterial`), so in
+   Ember Works and the Toxin Marsh enemies and bosses (Crucible, Hive Queen) blend into the floor. At their intro the bosses are
+   small, at the top edge, under the boss bar. The floors are busy, high-contrast graphics and fill about 70 % of the picture.
+3. **Sound (measured, not heard).**
+   - Music: 71–92 % of the energy is below 200 Hz, almost nothing above 8 kHz.
+   - Explosion, nova, rocket and scattergun: 86–96 % below 200 Hz.
+   - The mix is near mono, and the biomes have very similar tonal balance.
+   - Phone speakers barely play that range, so music and impacts mask each other in it. This is likely part of "the biomes
+     sound the same" and of the missing Osmos shimmer.
+4. **No frame cap on Auto and High** (`main.js`, `qualityPresets` `fps: 0`). 90/120 Hz Android phones render up to 120 fps,
+   about twice the GPU work and heat. Auto quality only steps down below 48 fps. The likely main GPU cost is the full-screen
+   procedural floor shader at DPR 1.5–2. All inferred from source, not measured on a device.
+5. **Light elsewhere (measured).** 405 KB download, 68–127 draw calls, 12k–47k triangles, 18–21 MB heap, 0.44 ms per
+   simulation step with 56 enemies.
+
+**First batch of work** (each a small PR):
+1. 60 fps cap by default on phones and tablets, Auto quality working to a pixel budget, and a `?perf` readout built on the run
+   monitor in `core/diagnostics.js`.
+2. A device baseline: the owner and 2–3 friends run `?perf` on their phones (a low-end and a 120 Hz Android, an older and a
+   current iPhone, an iPad, a laptop).
+3. A readability pass: skins as an accent only, calmer floors, bigger bosses that spawn away from the HUD bar, tips off the
+   play area on phones.
+
+**After that:**
+4. Audio mix pass, procedural only: the bass reserved for impacts and the boss kick, one bright signature voice per biome,
+   transient layers on impacts, wide but mono-safe beds, loudness targets in tests. The owner listens on a phone speaker and on
+   headphones.
+5. glTF asset pipeline (lazy load per biome, service-worker cache, size check in `build.js`).
+6. **Blackout City pilot**: Blender kit, baked light, border and backdrop. Go or no-go judged on phones.
+7. Recorded impact and ambience layers (1.5 MB at most, AAC or MP3).
+8. A fullscreen button for Android and desktop, an iOS "Add to Home Screen" hint, a visible save export and import.
+9. The rest of the biomes, one per PR; later perhaps authored boss models.
+
+**Decisions for the owner:**
+- The frame-cap default (also on desktop?).
+- Approve an art direction and send a reference picture.
+- iPhone silent switch: `audioSession.type = "ambient"` lets the switch mute the game; `playback` would ignore it.
+- A licence policy for assets.
+- Cloudflare Pages only as a preview link per pull request, to try changes on a phone before merging; GitHub Pages stays the
+  public link, and the leaderboard plan stays parked.
+- Which devices must run well.
+
+**Still unverified:** real heat and frame rate on phones; whether the mix sounds as bad as it measures; iPhone behaviour
+(silent switch, a phone call during a run, separate storage of home-screen apps); the feel of play.
 
 ## Entschieden am 03.10.2026 (nach 3.5.0)
 

@@ -154,6 +154,8 @@ data.
 
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md): code organisation, history, working rules, versions.
 - [`docs/ROADMAP.de.md`](docs/ROADMAP.de.md): the owner's wishes, decisions and plan (older parts in German).
+- [`docs/STRATEGY-AUDIT.md`](docs/STRATEGY-AUDIT.md): the strategy audit of 10.10.2026 (look, sound, mobile performance,
+  engine and hosting options, roadmap) with its measurements.
 - [`docs/QA-REPORT.de.txt`](docs/QA-REPORT.de.txt): what changed and how it was tested, for every release (German
   until 3.7.0, English since 3.7.1).
 
