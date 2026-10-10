@@ -386,6 +386,46 @@ for (const weapon of weaponOrder) {
   }
 }
 
+// 9. 3.31.0: frame pacing (render/pacing.js): a phone with a screen over 100 Hz draws every other refresh, evenly; 60 and
+// 90 Hz keep every frame; nothing is halved where it is not allowed (desktop, Saver)
+{
+  const { makePacer, paceFrame } = await import("../src/render/pacing.js");
+  let seed = 3;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const rate = (hz, halve) => {
+    const p = makePacer();
+    let drawn = 0,
+      lastDrawn = null,
+      worst = 0;
+    for (let f = 0; f < hz * 10; f++) {
+      const t = (f / hz) * 1000 + (rnd() - 0.5) * 1.5;
+      if (paceFrame(p, t, halve)) {
+        if (f > hz && lastDrawn !== null) worst = Math.max(worst, t - lastDrawn);
+        lastDrawn = t;
+        drawn++;
+      }
+    }
+    return { fps: Math.round(drawn / 10), worst: +worst.toFixed(1) };
+  };
+  const r = {
+    60: rate(60, true),
+    90: rate(90, true),
+    120: rate(120, true),
+    144: rate(144, true),
+    off: rate(120, false),
+  };
+  line(
+    r[60].fps === 60 &&
+      r[90].fps === 90 &&
+      Math.abs(r[120].fps - 60) <= 1 &&
+      Math.abs(r[144].fps - 72) <= 1 &&
+      r[120].worst < 18.5 &&
+      r.off.fps === 120,
+    "frame pacing on fast phone screens",
+    JSON.stringify(r),
+  );
+}
+
 console.log(
   `\nSIM (node): ${fails ? fails + " FAIL" : "all checks passed"} in ${((performance.now() - t0) / 1000).toFixed(1)} s`,
 );

@@ -207,16 +207,28 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
 
 ### CURRENT STATE (10.10.2026, evening, 3.31.0; read this first when the work goes on)
 
-- **Live:** 3.30.0 (3.29.2 and 3.30.0 merged as #59 and #61). **Open:** 3.31.0 (this branch, `claude/quality-3310`).
+- **Live:** 3.30.0 (3.29.2 and 3.30.0 merged as #59 and #61). **Open:** 3.31.0 (this branch, `claude/quality-3310`) and #60 (docs
+  only: the strategy audit of 10.10.2026 with its decisions for the owner; 3.31.0 does its first item, the frame pacing on
+  fast phone screens; its readability, art and audio items wait for the owner's eyes and ears). Both touch this roadmap,
+  so the second to be merged needs a merge of `main`.
 - **The owner's request of 10.10.2026 (evening):** a full audit and the biggest improvements, with easy access on phones,
   tablets and PCs through a URL as the first requirement. Done in 3.31.0 (see the QA report):
   - Smooth motion (the open item of the morning's audit): `render/interp.js` draws between the last two 60 Hz steps.
     Measured with a model of the main loop: without it 15 to 25 % of the frames repeated the picture on a 60 Hz screen
     (the accumulator sits on the step boundary), 33 % on 90 Hz, 50 % on 120 Hz; with it none. Still to be judged on a
     real phone (the owner's eyes): it should feel smoother, nothing else should change.
+  - Frame pacing, the first item of the strategy audit (PR #60): phones and tablets with a screen over 100 Hz draw every
+    other refresh in a run (120 Hz: 60 even frames); 60 and 90 Hz, desktops and Saver unchanged. Open for the owner (from
+    the audit's list): whether desktops should be paced too, and whether players want a "Max" setting.
   - Phone fixes from a review of the touch and lifecycle code: a pause tap with a second finger while a thumb holds the
     stick did nothing; a custom button layout could be dropped after turning the phone in a run; the wake lock could stay
     on behind the pause menu.
+  - Gameplay fixes from a review of the simulation (each reproduced in Node first): Thermite did nothing for the Ember
+    Jet, Emergency Shield threw away the Aegis recharge, Rear Guard rockets blasted at full damage, Targeting Chip's
+    auto-aim range outgrew the shots' reach (+8 % against +6 %), burn ticks skipped Apex Hunter and corrode; Iron Hide's
+    text now says bosses are exempt. Left as they are (design, for the owner): Overload's burst does not scale with
+    damage upgrades, rocket splash gets no crit, Chrono Dash also slows the drone's own Singularity, killing a splitter
+    after the drone died still splits it.
   - `npm run balance` runs in Node (seconds, no browser) with seeded card picks.
 - **Engine decision (again, with sources):** stay on three.js and plain JavaScript. Godot's web export is WebGL2-only
   (Compatibility renderer) and its low-latency web audio mode does not support procedural audio, while every sound and

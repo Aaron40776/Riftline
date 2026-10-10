@@ -62,6 +62,7 @@ import { weaponOrder, weaponDefs } from "./data/weapons.js";
 import { waveEvents, spawnWeights, heavyEnemies } from "./core/waves.js";
 import { World, rlStep } from "./core/world.js";
 import { interpCapture, interpApply, interpRestore, interpReset } from "./render/interp.js";
+import { makePacer, paceFrame } from "./render/pacing.js";
 import { MUTATORS } from "./core/mutators.js";
 import { threatMods, milestones, workshopModules, threatLevels } from "./data/progression.js";
 import { upgradeList, upgradesById } from "./data/upgrades.js";
@@ -901,9 +902,14 @@ function startLoop() {
     loopFrameId = requestAnimationFrame(loopTick);
   }
 }
+const framePacer = makePacer();
 function loopTick(now) {
   loopFrameId = requestAnimationFrame(loopTick);
   let dt = (now - (game.last || now)) / 1e3;
+  // 3.31.0: phones and tablets draw every other refresh of a screen faster than 100 Hz during a run (render/pacing.js;
+  // the menu draws every other frame already)
+  const halve = !qualityPreset.fps && game.mode === "game" && document.body.dataset.device !== "desktop";
+  if (!paceFrame(framePacer, now, halve)) return;
   if (!(qualityPreset.fps && dt < 1 / qualityPreset.fps - 0.004)) {
     game.last = now;
     dt = Math.min(0.1, Math.max(0, dt));
