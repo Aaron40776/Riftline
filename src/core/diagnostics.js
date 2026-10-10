@@ -1311,6 +1311,23 @@ function rlUiButtonGuardSelfTest() {
     click(button, 300, 300);
     if (count !== 9) pass = false;
     steps++;
+    // 9. 3.31.0: a tap of a second finger (another one holds a stick) activates a button no other touch is on
+    RL_TOUCH_CLICK_GUARD.until = 0;
+    RL_TOUCH_CLICK_GUARD.key = "";
+    button = make("second-finger");
+    for (const type of ["pointerdown", "pointerup"])
+      button.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          pointerId: 90,
+          pointerType: "touch",
+          isPrimary: false,
+          clientX: 500,
+          clientY: 40,
+        }),
+      );
+    if (count !== 10) pass = false;
+    steps++;
   } catch (err) {
     pass = false;
   }
@@ -1476,7 +1493,7 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
       ok(
         "ui-input-dedupe",
         guard.ok,
-        `${guard.steps}/8 pointer-gesture cases · ${guard.count}/9 expected activations · ghost clicks after screen changes are dropped`,
+        `${guard.steps}/9 pointer-gesture cases · ${guard.count}/10 expected activations · ghost clicks after screen changes are dropped`,
       );
     } else {
       rlHealthAdd("ui-input-dedupe", "WARN", "PointerEvent or MouseEvent unavailable in this browser");

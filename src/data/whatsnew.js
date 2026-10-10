@@ -2,6 +2,21 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.31.0",
+    title: "Smoother motion and fixes",
+    items: [
+      "Movement is smooth on every screen: the game now draws between its steps, so a 90 or 120 Hz phone no longer repeats every other picture, and 60 Hz screens no longer stutter now and then.",
+      "Phones and tablets with a 120 Hz screen draw 60 even frames a second in a run instead of 120: about half the graphics work and heat, and just as smooth.",
+      "On a phone, tapping pause with a second finger while your thumb holds the stick works now.",
+      "A custom button layout is no longer dropped after turning the phone during a run.",
+      "The screen no longer stays awake behind the pause menu when a run was paused right after it started.",
+      "Thermite now strengthens the Ember Jet's burn, and burns count for Apex Hunter and for enemies in acid.",
+      "Emergency Shield no longer resets your Aegis Shell's recharge.",
+      "Rear Guard rockets blast at the 60% the card says, and Targeting Chip's range matches how far shots really fly.",
+      "Overload's burst grows with your damage, a rocket's blast can crit with its hit, and Chrono Dash no longer slows your own Singularity.",
+    ],
+  },
+  {
     version: "3.30.0",
     title: "Smoother wave starts",
     items: [

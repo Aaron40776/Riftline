@@ -110,8 +110,9 @@ function computeStats(weaponId, run, workshop) {
   // 2.5.0 A: the retired copies are folded into the upgrade they copied (their lines above now
   // read 0), and the six new upgrades expose their level for the World hooks in core/world.js.
   const overcharge = level("overcharge");
-  // Targeting Chip took over Dead Focus and Deadeye Lens: +5% range per level
-  stats.range *= 1 + 0.08 * level("crit");
+  // Targeting Chip took over Dead Focus and Deadeye Lens. 3.31.0: +6% range per level, the reach its +6% projectile
+  // speed really gives (it was +8%: the auto-aim locked onto enemies the shots could not reach)
+  stats.range *= 1 + 0.06 * level("crit");
   // Overcharge (max 4): +25% Nova radius for each of the first two levels, +10% for the next two
   stats.novaR *= (1 + 0.25 * Math.min(2, overcharge) + 0.1 * Math.max(0, overcharge - 2)) / (1 + 0.25 * overcharge);
   // Vector Capacitor took over Cryo Coolant and Afterburner: the Aegis recharges faster too

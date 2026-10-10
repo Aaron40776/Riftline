@@ -22,7 +22,7 @@ const PACTS = [
     id: "ironhide",
     name: "Iron Hide",
     icon: "shield",
-    desc: "Enemies have 30% more health",
+    desc: "Enemies have 30% more health (bosses keep theirs)",
     shards: 0.2,
   },
   {

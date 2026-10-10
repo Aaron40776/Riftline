@@ -1,3 +1,87 @@
+RIFTLINE v3.31.0 – SMOOTH MOTION; PHONE AND GAMEPLAY FIXES FROM A FULL AUDIT
+Base: v3.30.0 · Build r3310a1010a-r1 · 10.10.2026
+
+The owner, 10.10.2026 (evening): a full audit and the biggest improvements, with easy access on phones, tablets and PCs
+through a plain URL as the first requirement. Baseline on 3.30.0: npm test all ok (6 min 57 s).
+
+1) Engine and language (decision: stay on three.js and JavaScript)
+   - Godot 4.5's web export is WebGL2-only (Compatibility renderer), and its low-latency web audio mode does not support
+     procedural audio (docs.godotengine.org, "Exporting for the Web"); every sound and note of Riftline is synthesised in
+     WebAudio. Babylon.js would mean rewriting about 15 000 lines of rendering without a feature the game lacks. three.js's
+     WebGPURenderer (Safari 26 ships WebGPU) would need the custom shaders (floor, skins) rewritten in TSL and gives
+     little to a low-poly scene. TypeScript: no build step and migration now; JSDoc checks could come file by file.
+   - Download: 1.3 MB of JavaScript, 405 KB gzipped (three.js 578 KB of it, the self-test 93 KB, the diagnostics 35 KB).
+
+2) Smooth motion at any refresh rate
+   - The renderer drew the last 60 Hz step as it was. A model of the main loop (fixed steps, accumulator, frame clock with
+     and without 1 ms jitter; an object at 6 m/s) counted the frames that repeat the picture: 60 Hz 15 % (25 % with
+     jitter; the accumulator sits on the step boundary), 90 Hz 33 %, 120 Hz 50 %, 144 Hz 58 %; judder (spread of the move
+     per frame) 54 to 118 % of a frame's move. With render/interp.js: no repeated frame, judder 0 (5 to 12 % with jitter).
+   - render/interp.js: before each world.step the positions of the drone, enemies, bosses, shots and pickups are kept;
+     the frame is drawn at acc / rlStep between the step before and the last step, and the exact values are put back
+     before anything else runs (finally). Moves over 2.5 m in a step (portal, new wave) are drawn where they land.
+   - Frame pacing (render/pacing.js; the first item of the strategy audit of 10.10.2026, PR #60, which found no frame cap
+     on Auto and High): on phones and tablets, a screen faster than 100 Hz draws every other refresh during a run. In the
+     Node check (frame clock with jitter): 120 Hz -> 60 frames a second, longest gap 18.2 ms; 144 Hz -> 72; 60 and 90 Hz
+     keep every frame (a 60 fps cap would have dropped a 90 Hz screen to 45 or made the spacing uneven); desktops and
+     Saver unchanged. Expected: about half the GPU work on 120 Hz phones. Not measured on a device (heat, battery).
+   - In Chromium (full QA smooth, software GL, a drone running right): without it 4 of 38 frames repeated the picture,
+     with it 0 of 43, never more than a step away from the simulation.
+
+3) Phone fixes (a review of the touch, HUD and lifecycle code; the fixes reproduced in tests)
+   - Pause tapped with a second finger while a thumb holds the stick did nothing: ui.click armed only on primary pointers
+     and browsers send no click for such a tap. A second finger now arms a button no other touch is on (a second finger
+     on a pressed button still does not take it over). Full QA second-finger fails on 3.30.0 and passes now.
+   - A custom button layout could be dropped for the session after turning the phone in a run (measured while the page
+     still had the classes and button sizes of the old orientation); the check now waits for the classes.
+   - The wake lock: one request at a time; a lock that arrives after the run was paused is given back.
+   - Checked and correct: stick release on cancel and lost capture, resets on pause, blur and the upgrade screen, the
+     AudioContext on hide and show (also iOS "interrupted"), the service worker update only in the menu.
+
+4) Gameplay fixes (a review of the simulation; each reproduced with the real World in Node, now checks in sim-node)
+   - Thermite did nothing for the Ember Jet (its per-hit burn was always below the weapon's own): it raises the flame's
+     burn by its share. Burn 10.0/s; with Thermite 3 now 16.0/s (was 10.0/s).
+   - Emergency Shield threw away the Aegis recharge: it goes on behind the barrier (the Aegis is up after the barrier
+     when the time is reached).
+   - Rear Guard rockets blasted at full damage: rear 30.6 against front 51.0 (was 41.4).
+   - Targeting Chip gave the auto-aim +8 % range per level, the shots only +6 % reach: at level 8 the aim locked onto
+     enemies up to 1.9 m beyond the shots (pulse 31.9 against 30.0). Now +6 %; the card says so.
+   - Burn ticks skipped Apex Hunter and corrode: a burn of 100/s on an elite with Hunter 3 now does 145 (was 100).
+   - Iron Hide's text says bosses keep their health (the code and the medal par already did).
+   - Three more the owner confirmed as bugs after the first report ("those aren't intended"), fixed the same way (each check
+     fails on the code before): Overload's burst grows with the damage factor (60 -> 92.4 with three damage cards; it
+     stayed flat and faded in Endless); a rocket's blast crits with its hit (51.0 -> 102.0 with a sure crit; was 75.0, only
+     the direct hit) and keeps the damage it was fired with (Slipstream); Chrono Dash no longer slows the drone's own
+     Singularity (0.40 s of 0.40 s instead of 0.18 s). Left as it is: a splitter killed after the drone died still splits.
+   - Determinism: the fixture is updated (the stat table and the seven bot runs change through the auto-aim range and the
+     fixes); arena layouts and wave plans are unchanged.
+
+5) Balance (measured, not changed)
+   - npm run balance runs in Node now (no browser), with seeded card picks. 4 seeds, Threat 0: the plain bot dies at the
+     first boss in most runs; the weapons clear ordinary waves within 1.2x of each other (28 to 34 s), boss waves within
+     1.6x (30 to 49 s): no outlier.
+   - Why the bot dies at the Warden: a boss's body hits for its full damage (25) each time the 0.65 s of invulnerability
+     after a hit run out, and the push back (7 m/s against a floor grip of 16) is gone after about 0.4 m; a boss walking
+     into a cornered drone empties a 100 hull in about 2.6 s. A dash is the way out. The bot does not dodge, so this is for
+     the owner to judge by playing (the levers are in World.contactDamage and hurtPlayer).
+
+6) Tests and results (headless Chromium, software WebGL; no real device was used)
+   - npm test on the final state: ok (sim in Node with checks 7 and 8, deep test, files, data audit, determinism 15/15).
+   - npm run release-check on 3.31.0: ALL steps ok (format, sim (node), build, deep test, data audit, determinism 15/15
+     against the updated fixture, full QA with the new sections smooth and second-finger, e2e, world and run audit,
+     screens pc and land, biome shots pc and land, attack shots pc), 34 min 47 s. Screenshots looked at (the new Targeting
+     Chip card fits a phone card; the boss intros and the upgrade choice as before).
+   - After the owner's three confirmed fixes (Overload, rocket blast crit, Chrono Dash): npm run release-check again: every
+     step ok (sim, deep test, data audit, determinism 15/15 against the updated fixture, full QA, e2e, world and run audit,
+     all screenshot steps; 37 min 43 s) except format: the longer Overload card text passed the line width. Formatted with
+     Prettier (layout only), then format check and npm test ok.
+
+7) Not done, for the owner
+   - Judge on a real phone: the smoother motion (60, 90 and 120 Hz screens), the heat with the pacing on a 120 Hz phone
+     (and whether desktops with fast screens should be paced too, or players want a "Max" setting), the second-finger pause, a turn with a
+     custom layout. The first boss's contact damage on a phone.
+   - Nothing of the look and the sound was changed: both need the owner's eyes and ears on a device (the lesson of Ultra).
+
 RIFTLINE v3.30.0 – THE SIMULATION IN NODE; NO HITCH WHEN A CARD IS PICKED
 Base: v3.29.2 · Build r3300a1005a-r1 · 10.10.2026
 

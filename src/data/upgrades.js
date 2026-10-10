@@ -21,7 +21,7 @@ const upgradeList = [
     rarity: 1,
     max: 8,
     icon: "crosshair",
-    desc: () => "+10% critical hit chance, +0.06 crit multiplier (x2 base), +8% range and +6% projectile speed",
+    desc: () => "+10% critical hit chance, +0.06 crit multiplier (x2 base), +6% projectile speed and range",
   },
   {
     id: "heal",
@@ -366,7 +366,8 @@ upgradeList.push(
     rarity: 2,
     max: 3,
     icon: "burst",
-    desc: (level, count = level + 1) => `Every 5th shot releases a close-range burst (${45 + 15 * count} damage)`,
+    desc: (level, count = level + 1) =>
+      `Every 5th shot releases a close-range burst (${45 + 15 * count} damage, grows with your damage)`,
   },
   {
     id: "resonance",

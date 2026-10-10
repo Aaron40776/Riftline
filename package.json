@@ -1,6 +1,6 @@
 {
   "name": "riftline",
-  "version": "3.30.0",
+  "version": "3.31.0",
   "private": true,
   "type": "module",
   "description": "Riftline – a 3D arena roguelite shooter for the browser (three.js, WebAudio), playable on desktop and on phones and tablets in landscape.",
@@ -10,7 +10,7 @@
     "url": "git+https://github.com/Aaron40776/Riftline.git"
   },
   "riftline": {
-    "build": "r3300a1005a-r1"
+    "build": "r3310a1010a-r1"
   },
   "scripts": {
     "build": "node build.js",
@@ -26,7 +26,7 @@
     "sim": "node build.js && node tools/qa.js sim",
     "soak": "node build.js && node tools/qa.js soak",
     "fuzz": "node build.js && node tools/qa.js fuzz",
-    "balance": "node build.js && node tools/qa.js balance",
+    "balance": "node tests/balance.mjs",
     "screens": "node build.js && node tools/qa.js screens pc && node tools/qa.js screens land && node tools/qa.js biome-shots pc && node tools/qa.js biome-shots land && node tools/qa.js attack-shots pc",
     "format": "prettier --write \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.js\" build.js",
     "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.js\" build.js"

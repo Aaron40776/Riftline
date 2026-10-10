@@ -141,6 +141,10 @@ function fitHudLayout(settings, radius) {
     layout = layoutOf(settings, orient),
     hud = getById("hud");
   if (!layout || hud.hidden || hud.classList.contains("editing")) return false;
+  // 3.31.0: right after a turn the page may still wear the classes (and button sizes) of the old orientation; a layout
+  // measured then looked broken and was dropped for the session. The caller asks again a frame later.
+  const cls = document.body.classList;
+  if (cls.contains(orient === "landscape" ? "is-portrait" : "is-landscape")) return "later";
   applyHudLayout(settings, layout);
   const stick = settings.stickFixed ? { ...fixedStickCenter(settings, radius, layout), r: radius } : null;
   if (!layoutProblems(stick).size) return false;

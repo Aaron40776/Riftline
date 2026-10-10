@@ -84,7 +84,8 @@ The browser tests drive the real game in Chromium through Playwright. Install th
 ```bash
 npm run build          # src/ -> dist/ (the deployable site)
 npm run serve          # serve dist/ on http://localhost:8124
-npm run test:sim       # the simulation in Node, no browser (~30 s): determinism, bot runs, Banish, resume
+npm run test:sim       # the simulation in Node, no browser (~30 s): determinism, bot runs, Banish, resume,
+                       # drawing between steps, gameplay regressions
 npm test               # sim in Node, build, deep self-test, file/PWA contract, data audit, determinism (CI runs this)
 npm run check          # quick check while developing: format + the npm test steps (~2 min with cached sounds);
                        # full-QA sections can be added by name: npm run check -- run-desktop codex
@@ -97,7 +98,7 @@ node tools/qa.js scape-preview   # every biome's soundscape as WAV/MP3 -> tests/
 npm run sim -- pulse,rail 31   # weapon simulation to wave 31 (| python3 tools/summarize-sim.py)
 npm run soak -- flame 120      # an Endless run of 120 waves: heap, GPU objects and lists must settle, no hang
 npm run fuzz -- 3 200          # a monkey over the interface (seed 3, 200 steps per window size)
-npm run balance -- 4 0,2 50    # how far a plain bot gets with each weapon, and how fast each clears waves
+npm run balance -- 4 0,2 50    # in Node: how far a plain bot gets with each weapon, how fast each clears waves
 npm run format         # Prettier (width 120); CI runs npm run format:check
 ```
 

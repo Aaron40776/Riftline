@@ -4475,6 +4475,113 @@ await section("checkup-3281", async (L) => {
   await P.close();
 });
 
+// 3.31.0: the drawing is placed between the last two steps of the simulation (render/interp.js). While the drone runs at
+// full speed, the drawn drone moves in every frame (without it, frames where the 60 Hz simulation took no step repeat
+// the picture), it is never more than one step away from the simulation, and the simulation keeps its own positions.
+await section("smooth", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(() => window.__riftTest.game.world?.state === "fight", null, { timeout: 30000 });
+  const measure = (off) =>
+    P.ev(
+      (off) =>
+        new Promise((done) => {
+          const T = window.__riftTest,
+            g = T.game,
+            w = g.world;
+          g.noInterp = off;
+          // the wave goes on (enemies stay, the drone cannot be hurt); a cleared wave would stop the simulation
+          w.god = true;
+          w.player.x = -8;
+          w.player.y = 0;
+          let n = 0,
+            last = null,
+            frozen = 0,
+            moving = 0,
+            far = 0,
+            exact = true;
+          const step = () => {
+            // a steady run to the right through the empty arena (the D key is held)
+            const drawn = T.renderer.player.group.position.x,
+              sim = w.player.x;
+            // every frame once the drone is under way counts: a frame where the simulation took no step must still move
+            if (last !== null && w.state === "fight" && (moving || Math.abs(sim - last.sim) > 1e-6) && sim < 6) {
+              moving++;
+              if (Math.abs(drawn - last.drawn) < 1e-6) frozen++;
+              if (Math.abs(drawn - sim) > 0.35) far++;
+            }
+            if (!Number.isFinite(sim)) exact = false;
+            last = { drawn, sim };
+            if (++n < 150 && sim < 6) requestAnimationFrame(step);
+            else {
+              g.noInterp = false;
+              done({ moving, frozen, far, exact });
+            }
+          };
+          requestAnimationFrame(step);
+        }),
+      off,
+    );
+  await P.page.keyboard.down("d");
+  await P.page.waitForTimeout(400);
+  const raw = await measure(true),
+    smooth = await measure(false);
+  await P.page.keyboard.up("d");
+  check(
+    L,
+    "the drone was measured while it ran",
+    smooth.moving >= 20 && raw.moving >= 20,
+    JSON.stringify({ raw, smooth }),
+  );
+  check(
+    L,
+    "with the drawing between two steps no frame repeats the picture of a moving drone",
+    smooth.frozen === 0 && smooth.far === 0 && smooth.exact,
+    `frozen frames: ${smooth.frozen} of ${smooth.moving} (without: ${raw.frozen} of ${raw.moving}); farther than a step: ${smooth.far}`,
+  );
+  const pos = await P.ev(() => {
+    const p = window.__riftTest.game.world.player;
+    return [p.x, p.y].every(Number.isFinite);
+  });
+  check(L, "the simulation keeps finite positions", pos);
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.31.0: a thumb holds the move stick and another finger taps pause: the run pauses (the tap of a second finger was
+// ignored, and browsers send no click for it), and the stick does not take over the pause button
+await section("second-finger", async (L) => {
+  const P = await open("phone", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(() => window.__riftTest.game.world?.state === "fight", null, { timeout: 30000 });
+  await P.ev(() => (window.__riftTest.game.world.god = true));
+  const cdp = await P.ctx.newCDPSession(P.page),
+    stick = { x: P.prof.viewport.width * 0.22, y: P.prof.viewport.height * 0.62, id: 1 },
+    box = await (await P.page.$("#pauseBtn")).boundingBox(),
+    tap = { x: box.x + box.width / 2, y: box.y + box.height / 2, id: 2 };
+  const send = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points });
+  await send("touchStart", [stick]);
+  for (let i = 1; i <= 3; i++) {
+    await send("touchMove", [{ ...stick, x: stick.x + 20 * i }]);
+    await P.page.waitForTimeout(40);
+  }
+  const held = { ...stick, x: stick.x + 60 };
+  const moving = await P.ev(() => window.__riftTest.game.input.move.active);
+  await send("touchStart", [held, tap]);
+  await P.page.waitForTimeout(60);
+  // (CDP: touchEnd lifts the points it lists; the thumb stays on the stick)
+  await send("touchEnd", [tap]);
+  await P.page.waitForTimeout(400);
+  const paused = await P.ev(() => window.__riftTest.game.paused);
+  await send("touchEnd", [held]);
+  check(L, "the stick was held", moving);
+  check(L, "a tap of a second finger on pause pauses the run", paused);
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));
