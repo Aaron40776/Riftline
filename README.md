@@ -87,7 +87,7 @@ npm run serve          # serve dist/ on http://localhost:8124
 npm run test:sim       # the simulation in Node, no browser (~30 s): determinism, bot runs, Banish, resume,
                        # drawing between steps, gameplay regressions
 npm test               # sim in Node, build, deep self-test, file/PWA contract, data audit, determinism (CI runs this)
-npm run check          # quick check while developing: format + the npm test steps (~2 min with cached sounds);
+npm run check          # quick check while developing: format + the npm test steps (~3 min with cached sounds, ~6 without);
                        # full-QA sections can be added by name: npm run check -- run-desktop codex
 npm run release-check  # everything a release needs, one step after another, with a time per step (~35-45 min)
 npm run qa             # full QA: saves, settings, workshop, runs on PC and phone, layouts, buttons (~15 min)
@@ -122,15 +122,18 @@ src/
   core/            simulation and services: world, arena, waves, AI, stats, traps, boss cards, walker, difficulty,
                    mutators, medals, daily (the Daily Rift), run-hooks (the simulation's link to the run monitor), save, diagnostics (runtime log and monitor), selftest
                    (deep self-test), util
-  data/            tables: weapons, enemies, upgrades, progression, pacts, biomes, hud, whatsnew (the News tab)
-  render/          three.js renderer, models, biome visuals, traps, hazards, attacks, boss cards, 2D overlay
+  data/            tables: weapons, enemies (with the spawn weights), upgrades, progression, pacts, biomes, hud, whatsnew
+                   (the What's new tab)
+  render/          three.js renderer, models, biome visuals and props, traps, hazards, attacks, boss cards, 2D overlay,
+                   interp (drawing between simulation steps) and pacing (frame rate on fast phone screens)
   audio/           sound effects, music and the sounds of the place
   ui/              DOM UI (screens, HUD, dialogs), input, gamepad and the button layout editor
   index.html       page shell, all CSS, device detection, rotate screen, layout audit
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)
 public/            icons, fonts, web manifest, third-party licenses (copied to dist/ unchanged)
-tests/             browser tests (Playwright), shared helpers in tests/lib, fixtures with real old saves
+tests/             tests in Node (sim-node, balance) and in the browser (Playwright), shared helpers in tests/lib,
+                   fixtures with real old saves
 tools/             test runner and check chains, static server, sim summary
 docs/              development notes, roadmap, QA report of every release, README pictures
 build.js           src/ -> dist/

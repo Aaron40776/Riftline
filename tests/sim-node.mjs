@@ -2,7 +2,9 @@
 // core/run-hooks.js; only the two version constants that build.js fills in are defined here.
 //   node tests/sim-node.mjs      (npm run test:sim; part of npm test)
 // Checks: no Math.random in the simulation, the same seed and inputs give the same run, a bot plays every weapon without a
-// crash, a non-finite number or a stalled wave, Banish keeps its cards out of the offers, and a snapshot resumes the run.
+// crash, a non-finite number or a stalled wave, Banish keeps its cards out of the offers, a snapshot resumes the run, and
+// (3.31) drawing between steps, frame pacing, the gameplay fixes of 3.31.0, shots at enemies against a wall and ids
+// that are names inherited from Object.prototype.
 globalThis.__RL_VERSION__ = "0.0.0";
 globalThis.__RL_BUILD__ = "node";
 const { World, rlStep } = await import("../src/core/world.js");

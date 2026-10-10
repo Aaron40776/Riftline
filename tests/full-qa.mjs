@@ -1,6 +1,6 @@
 // Riftline full QA runner — criteria-based, step by step.
 // Usage: node full-qa.mjs [baseUrl] [sectionFilter]
-//   sections: files, saves, ui, run, buttons
+//   sections: see the section() calls below, e.g. files, saves, run-desktop, codex-phone, smooth, save-foreign
 // Every check states its criterion; the run fails if any check fails.
 import { chromium } from "playwright";
 import fs from "fs";
