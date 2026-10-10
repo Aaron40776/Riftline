@@ -27,10 +27,14 @@ the release, so the code was turned back into readable sources step by step:
   `a && f()` as a statement …) are plain statements; the self-tests have their own module
   (`core/selftest.js`); `window.__riftTest` uses the real names; Prettier (`.prettierrc`, width
   120) formats everything and CI checks it.
+- 3.30.0: `World` and its modules load in Node (`core/run-hooks.js` carries the link to the run monitor);
+  `tests/sim-node.mjs` (`npm run test:sim`) is the first step of `npm test`.
+- 3.31.0: the renderer draws between the last two simulation steps (`render/interp.js`), and phones with a fast
+  screen are paced (`render/pacing.js`).
 
 ## Working rules
 
-- Every file starts with a comment that says what it contains. `main.js` imports every module.
+- Every file starts with a comment that says what it contains. Every module is reached from `main.js` through imports.
 - Change classes and functions directly, in the module that owns them; nothing is patched from
   outside. Keep a version comment (`// 2.5.1: …`) only where it explains why code looks the way
   it does.

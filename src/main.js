@@ -1,7 +1,7 @@
 // Entry point: boot and wiring. Creates the save store, sound, renderer, input, overlay and UI,
 // holds the game controller (game) and the main loop, and connects everything (page visibility,
-// service worker, wake lock, save export/import). Imports every other module, so their code runs
-// in the original order.
+// service worker, wake lock, save export/import). Every other module is reached from here through
+// imports.
 
 import { rumble } from "./ui/gamepad.js";
 import { dailySpec, recordDaily } from "./core/daily.js";

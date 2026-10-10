@@ -5,7 +5,7 @@ export const WHATS_NEW = [
     version: "3.31.0",
     title: "Smoother motion and fixes",
     items: [
-      "Movement is smooth on every screen: the game now draws between its steps, so a 90 or 120 Hz phone no longer repeats every other picture, and 60 Hz screens no longer stutter now and then.",
+      "Movement is smooth on every screen: the game now draws between its steps, so 90 and 120 Hz phones no longer repeat pictures, and 60 Hz screens no longer stutter now and then.",
       "Phones and tablets with a 120 Hz screen draw 60 even frames a second in a run instead of 120: about half the graphics work and heat, and just as smooth.",
       "On a phone, tapping pause with a second finger while your thumb holds the stick works now.",
       "A custom button layout is no longer dropped after turning the phone during a run.",
