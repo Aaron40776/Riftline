@@ -854,7 +854,8 @@ const rlStep = 1 / 60,
               this.updateTrails(dt);
               updateBossCards(this, dt);
               this.updatePBullets(dt);
-              this.updateSingularities(slowDt);
+              // 3.31.0: Chrono Dash slows the enemies' world, not the drone's own Singularity
+              this.updateSingularities(dt);
               this.updateEBullets(slowDt);
               this.updateBeams(slowDt);
               this.updateHazards(slowDt);
@@ -1338,8 +1339,10 @@ const rlStep = 1 / 60,
                 age: 0,
                 homing: stats.homing,
               };
-            // 3.31.0: a weaker side or rear shot (Rear Guard) also blasts weaker (its splash was at full damage)
+            // 3.31.0: a weaker side or rear shot (Rear Guard) also blasts weaker (its splash was at full damage), and an
+            // exploding shot keeps the damage it was fired with (Slipstream, Attunement) for its blast on impact
             if (mul !== 1) bullet.mul = mul;
+            if (weapon.explode) bullet.dm = stats.dmgMul;
             if (heavy && mul >= 1) {
               bullet.dmg *= 2;
               bullet.r *= 2;
@@ -1388,7 +1391,8 @@ const rlStep = 1 / 60,
             this.player.x + Math.cos(angle) * 0.9,
             this.player.y + Math.sin(angle) * 0.9,
             1.6,
-            45 + 15 * stats.overload,
+            // 3.31.0: the burst grows with the drone's damage like every other hit (it stayed flat and faded in Endless)
+            (45 + 15 * stats.overload) * stats.dmgMul,
             { enemies: true, knock: 2, kind: "overload" },
           );
         if (stats.echo > 0 && this.rng.chance(Math.min(0.28, 0.08 * stats.echo))) {
@@ -2320,7 +2324,7 @@ const rlStep = 1 / 60,
             enemy.x - x,
             enemy.y - y,
             opts.knock || 3,
-            false,
+            !!opts.crit,
             blastSources[opts.kind] || "weapon",
           );
           if (opts.burn && !enemy.dead && !enemy.shielded && !enemy.ghost) {
@@ -2534,6 +2538,8 @@ const rlStep = 1 / 60,
         crit = this.rng.chance(stats.crit),
         dmg = bullet.dmg * (crit ? stats.critMul : 1);
       bullet.hits.push(enemy.id);
+      // 3.31.0: the blast of an exploding shot crits with its hit (bulletBurst)
+      bullet.crit = crit;
       this.hurtEnemy(
         enemy,
         dmg,
@@ -2628,25 +2634,31 @@ const rlStep = 1 / 60,
         weapon = weaponDefs[bullet.w],
         x = enemy ? enemy.x : bullet.x,
         y = enemy ? enemy.y : bullet.y;
+      // 3.31.0: the blast is as strong as the shot was when fired and crits with its hit (a wall impact rolls its own);
+      // it used the damage of the moment of impact and never crit
+      const power = (bullet.dm ?? stats.dmgMul) * (bullet.mul || 1);
+      let crit = false;
+      if (weapon?.explode && !bullet.wing && !bullet.bomblet && Number.isFinite(weapon.explodeDmg))
+        crit = enemy ? !!bullet.crit : this.rng.chance(stats.crit);
+      const critMul = crit ? stats.critMul : 1;
       if (bullet.bomblet) {
         this.explode(x, y, 1.4, bullet.dmg, { enemies: true, knock: 1.5, kind: "payload" });
         return;
       }
       if (weapon?.explode && bullet.w !== "rocket" && !bullet.wing) {
-        let dmg = Number.isFinite(weapon.explodeDmg)
-            ? weapon.explodeDmg * stats.dmgMul * (bullet.mul || 1)
-            : bullet.dmg,
+        let dmg = Number.isFinite(weapon.explodeDmg) ? weapon.explodeDmg * power * critMul : bullet.dmg,
           size = stats.sizeMul > 1 ? 1.15 : 1;
-        this.explode(x, y, weapon.explode * size, dmg, { enemies: true, knock: 3, kind: bullet.w });
+        this.explode(x, y, weapon.explode * size, dmg, { enemies: true, knock: 3, kind: bullet.w, crit });
       }
       if (bullet.w === "rocket" && !bullet.wing) {
         let hellfire = stats.hellfire,
-          blast = weapon.explodeDmg * stats.dmgMul * (bullet.mul || 1);
-        this.explode(x, y, weapon.explode * (stats.sizeMul > 1 ? 1.25 : 1) * (hellfire ? 1.35 : 1), blast, {
+          blast = weapon.explodeDmg * power;
+        this.explode(x, y, weapon.explode * (stats.sizeMul > 1 ? 1.25 : 1) * (hellfire ? 1.35 : 1), blast * critMul, {
           enemies: true,
           knock: 4,
           kind: "rocket",
           burn: hellfire ? blast * 0.35 : 0,
+          crit,
         });
       }
       if (stats.payloadR) {

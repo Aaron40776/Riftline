@@ -48,8 +48,11 @@ through a plain URL as the first requirement. Baseline on 3.30.0: npm test all o
      enemies up to 1.9 m beyond the shots (pulse 31.9 against 30.0). Now +6 %; the card says so.
    - Burn ticks skipped Apex Hunter and corrode: a burn of 100/s on an elite with Hunter 3 now does 145 (was 100).
    - Iron Hide's text says bosses keep their health (the code and the medal par already did).
-   - Left as they are (design, for the owner): Overload's burst does not scale with damage upgrades, rocket splash gets no
-     crit, Chrono Dash also slows the drone's own Singularity, a splitter killed after the drone died still splits.
+   - Three more the owner confirmed as bugs after the first report ("those aren't intended"), fixed the same way (each check
+     fails on the code before): Overload's burst grows with the damage factor (60 -> 92.4 with three damage cards; it
+     stayed flat and faded in Endless); a rocket's blast crits with its hit (51.0 -> 102.0 with a sure crit; was 75.0, only
+     the direct hit) and keeps the damage it was fired with (Slipstream); Chrono Dash no longer slows the drone's own
+     Singularity (0.40 s of 0.40 s instead of 0.18 s). Left as it is: a splitter killed after the drone died still splits.
    - Determinism: the fixture is updated (the stat table and the seven bot runs change through the auto-aim range and the
      fixes); arena layouts and wave plans are unchanged.
 
@@ -68,6 +71,10 @@ through a plain URL as the first requirement. Baseline on 3.30.0: npm test all o
      against the updated fixture, full QA with the new sections smooth and second-finger, e2e, world and run audit,
      screens pc and land, biome shots pc and land, attack shots pc), 34 min 47 s. Screenshots looked at (the new Targeting
      Chip card fits a phone card; the boss intros and the upgrade choice as before).
+   - After the owner's three confirmed fixes (Overload, rocket blast crit, Chrono Dash): npm run release-check again: every
+     step ok (sim, deep test, data audit, determinism 15/15 against the updated fixture, full QA, e2e, world and run audit,
+     all screenshot steps; 37 min 43 s) except format: the longer Overload card text passed the line width. Formatted with
+     Prettier (layout only), then format check and npm test ok.
 
 7) Not done, for the owner
    - Judge on a real phone: the smoother motion (60, 90 and 120 Hz screens), the heat with the pacing on a 120 Hz phone

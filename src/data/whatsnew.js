@@ -13,6 +13,7 @@ export const WHATS_NEW = [
       "Thermite now strengthens the Ember Jet's burn, and burns count for Apex Hunter and for enemies in acid.",
       "Emergency Shield no longer resets your Aegis Shell's recharge.",
       "Rear Guard rockets blast at the 60% the card says, and Targeting Chip's range matches how far shots really fly.",
+      "Overload's burst grows with your damage, a rocket's blast can crit with its hit, and Chrono Dash no longer slows your own Singularity.",
     ],
   },
   {

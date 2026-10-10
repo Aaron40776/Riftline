@@ -366,7 +366,8 @@ upgradeList.push(
     rarity: 2,
     max: 3,
     icon: "burst",
-    desc: (level, count = level + 1) => `Every 5th shot releases a close-range burst (${45 + 15 * count} damage)`,
+    desc: (level, count = level + 1) =>
+      `Every 5th shot releases a close-range burst (${45 + 15 * count} damage, grows with your damage)`,
   },
   {
     id: "resonance",

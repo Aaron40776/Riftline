@@ -226,9 +226,9 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   - Gameplay fixes from a review of the simulation (each reproduced in Node first): Thermite did nothing for the Ember
     Jet, Emergency Shield threw away the Aegis recharge, Rear Guard rockets blasted at full damage, Targeting Chip's
     auto-aim range outgrew the shots' reach (+8 % against +6 %), burn ticks skipped Apex Hunter and corrode; Iron Hide's
-    text now says bosses are exempt. Left as they are (design, for the owner): Overload's burst does not scale with
-    damage upgrades, rocket splash gets no crit, Chrono Dash also slows the drone's own Singularity, killing a splitter
-    after the drone died still splits it.
+    text now says bosses are exempt. The owner confirmed three more as bugs (fixed): Overload's burst grows with damage, a
+    rocket's blast crits with its hit and keeps its Slipstream, Chrono Dash no longer slows the drone's own Singularity.
+    Left as it is: killing a splitter after the drone died still splits it.
   - `npm run balance` runs in Node (seconds, no browser) with seeded card picks.
 - **Engine decision (again, with sources):** stay on three.js and plain JavaScript. Godot's web export is WebGL2-only
   (Compatibility renderer) and its low-latency web audio mode does not support procedural audio, while every sound and

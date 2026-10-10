@@ -374,6 +374,73 @@ for (const weapon of weaponOrder) {
     }
     line(!worst, "Targeting Chip range within the shots' reach", worst || "all four weapons");
   }
+  // the owner, 10.10.2026: Overload grows with damage, rocket blasts crit, Chrono Dash does not slow the Singularity
+  {
+    const burst = (up) => {
+      const w = arena("pulse", up);
+      let got = 0;
+      const explode = w.explode.bind(w);
+      w.explode = (x, y, r, dmg, opts) => {
+        if (opts && opts.kind === "overload") got = dmg;
+        return explode(x, y, r, dmg, opts);
+      };
+      dummy(w, 6, 2);
+      w.player.x = 0;
+      w.player.y = 2;
+      w.player.shotN = 4;
+      w.fire(0);
+      return got;
+    };
+    const plain = burst({ overload: 1 }),
+      strong = burst({ overload: 1, dmg: 3 });
+    line(
+      plain > 0 && strong > plain * 1.2,
+      "Overload grows with damage",
+      `burst ${plain.toFixed(1)}, with 3 damage cards ${strong.toFixed(1)}`,
+    );
+  }
+  {
+    const blast = (critChance) => {
+      const w = arena("rocket", {}),
+        e = dummy(w, 5, 2);
+      w.stats.crit = critChance;
+      w.player.x = 0;
+      w.player.y = 2;
+      w.fire(0);
+      for (let i = 0; i < 120; i++) {
+        w.hash.build(w.enemies);
+        w.updatePBullets(rlStep);
+        w.sweep();
+      }
+      return { taken: 1e7 - e.hp, critMul: w.stats.critMul };
+    };
+    const a = blast(0),
+      b = blast(1);
+    line(
+      Math.abs(b.taken - a.taken * b.critMul) < 0.5,
+      "a rocket's blast crits with its hit",
+      `no crit ${a.taken.toFixed(1)}, crit ${b.taken.toFixed(1)} (x${b.critMul.toFixed(2)})`,
+    );
+  }
+  {
+    const opened = (chrono) => {
+      const w = arena("pulse", {});
+      w.chronoT = chrono ? 9 : 0;
+      w.singularities.push({ fx: 0, fy: 2, tx: 4, ty: 2, t: 0, dur: 0.5, pullT: -1 });
+      for (let i = 0; i < 24; i++) {
+        w.step(rlStep, {});
+        w.fx.length = 0;
+      }
+      return w.singularities.length ? w.singularities[0].t : -1;
+    };
+    const free = opened(false),
+      slowed = opened(true);
+    line(
+      Math.abs(free - slowed) < 1e-9 && free > 0.39,
+      "Chrono Dash leaves the Singularity at full speed",
+      `after 0.4 s: ${free.toFixed(3)} s, with Chrono Dash ${slowed.toFixed(3)} s`,
+    );
+  }
   // a burn counts for Apex Hunter like a hit
   {
     const w = arena("flame", { hunter: 3 }),
