@@ -2,7 +2,7 @@
 // rendering.
 
 import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByBiome, BOSS_SLOT_HP } from "../data/enemies.js";
-import { clamp, TAU, turnToward, hashString, angleDiff, makeRng, dampFactor } from "./util.js";
+import { clamp, TAU, turnToward, hashString, angleDiff, makeRng, dampFactor, own } from "./util.js";
 import { updateEnemy, updateBoss, initBoss } from "./ai.js";
 import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
@@ -157,7 +157,7 @@ const rlStep = 1 / 60,
     constructor(opts) {
       let snap = opts.snap || null;
       this.seed = (snap ? snap.seed : opts.seed) >>> 0;
-      this.weapon = weaponDefs[snap ? snap.weapon : opts.weapon] ? (snap ? snap.weapon : opts.weapon) : "pulse";
+      this.weapon = own(weaponDefs, snap ? snap.weapon : opts.weapon) ? (snap ? snap.weapon : opts.weapon) : "pulse";
       this.threat = clamp((snap ? snap.threat : opts.threat) | 0, 0, 5);
       // 3.27.0: the pacts of the run (kept in the snapshot): the enemies' side changes the threat numbers, the drone's side
       // is read by computeStats from the ws keys pact_<id>
@@ -275,7 +275,7 @@ const rlStep = 1 / 60,
       // (the snapshot is taken at the wave start); a resumed upgrade choice throws the wave away anyway
       this.startWave(this.wave, snap ? snap.nova : null, !!snap && !Array.isArray(snap.offer));
       if (snap && Array.isArray(snap.offer)) {
-        let offer = snap.offer.filter((id) => upgradesById[id]);
+        let offer = snap.offer.filter((id) => own(upgradesById, id));
         this.fx.length = 0;
         this.plan = [];
         this.planIdx = 0;
@@ -2417,6 +2417,7 @@ const rlStep = 1 / 60,
         bullet.x += bullet.vx * dt;
         bullet.y += bullet.vy * dt;
         let hitWall = false,
+          wallFrac = 1,
           travel = Math.hypot(bullet.vx, bullet.vy) * dt,
           steps = travel > 0.4 ? Math.ceil(travel / 0.4) : 1,
           pierceWalls = stats.lance && bullet.w === "rail";
@@ -2428,10 +2429,26 @@ const rlStep = 1 / 60,
             bullet.x = sx;
             bullet.y = sy;
             hitWall = true;
+            wallFrac = frac;
             break;
           }
         }
-        if (hitWall) {
+        // 3.31.1: the enemies on the way to the wall are tested first (only along the part of the step before the
+        // wall); the shot used to end at the wall untested, so an enemy pressed against a wall could not be hit
+        let reach = Math.hypot(bullet.vx, bullet.vy) * dt * wallFrac,
+          probes = Math.max(hitWall ? 2 : 1, reach > 0.5 ? Math.ceil(reach / 0.5) : 1),
+          rail = !!weaponDefs[bullet.w].rail,
+          bounces = bullet.bounce,
+          back = bullet.back;
+        for (let i = 0; i < probes && bullet.life > 0; i++) {
+          let frac = probes > 1 ? ((i + 1) / probes - 1) * wallFrac : 0,
+            sx = bullet.x + bullet.vx * dt * frac,
+            sy = bullet.y + bullet.vy * dt * frac;
+          this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => this.probeHit(bullet, enemy, sx, sy, rail));
+        }
+        // a shot sent off on a new course by a hit on the way (a ricochet, a boomerang turned by a shield) is no longer at
+        // the wall
+        if (hitWall && bullet.life > 0 && bullet.bounce === bounces && bullet.back === back) {
           if (bullet.boom && !bullet.back) {
             bullet.back = true;
             bullet.hits.length = 0;
@@ -2454,61 +2471,55 @@ const rlStep = 1 / 60,
           }
           continue;
         }
-        let reach = Math.hypot(bullet.vx, bullet.vy) * dt,
-          probes = reach > 0.5 ? Math.ceil(reach / 0.5) : 1,
-          rail = !!weaponDefs[bullet.w].rail;
-        for (let i = 0; i < probes && bullet.life > 0; i++) {
-          let frac = probes > 1 ? (i + 1) / probes - 1 : 0,
-            sx = bullet.x + bullet.vx * dt * frac,
-            sy = bullet.y + bullet.vy * dt * frac;
-          this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => {
-            if (bullet.life <= 0) return true;
-            if (enemy.dead || enemy.spawnT > 0.15 || enemy.ghost) return;
-            let dx = enemy.x - sx,
-              dy = enemy.y - sy;
-            if (enemy.type === "bulwark" && !rail && enemy.guardDown <= 0 && !bullet.hits.includes(enemy.id)) {
-              let dist = Math.hypot(dx, dy),
-                guardR = enemy.r + 0.75 + bullet.r;
-              if (dist < guardR && Math.abs(angleDiff(enemy.face, Math.atan2(-dy, -dx))) < 1.15) {
-                let gx = enemy.x + Math.cos(enemy.face) * (enemy.r + 0.45),
-                  gy = enemy.y + Math.sin(enemy.face) * (enemy.r + 0.45);
-                if (bullet.boom && !bullet.back) {
-                  bullet.back = true;
-                  bullet.hits.length = 0;
-                } else {
-                  if (bullet.drag) {
-                    bullet.hits.push(enemy.id);
-                    if (bullet.pierce-- <= 0) {
-                      bullet.life = 0;
-                    }
-                  } else {
-                    bullet.life = 0;
-                    if (bullet.w === "rocket" || bullet.bomblet || weaponDefs[bullet.w]?.explode || stats.payloadR) {
-                      bullet.x = gx;
-                      bullet.y = gy;
-                      this.bulletBurst(bullet, null);
-                    }
-                  }
-                }
-                enemy.guard -= bullet.dmg;
-                enemy.guardFlash = 1;
-                if (enemy.guard <= 0) {
-                  enemy.guardDown = 4;
-                  this.emit("guardBreak", { x: gx, y: gy });
-                } else {
-                  if (!bullet.drag || this.rng.chance(0.2)) {
-                    this.emit("block", { x: gx, y: gy });
-                  }
-                }
-                return true;
+      }
+    }
+    // one enemy near a sample point of a player shot: the bulwark's shield or a hit (returns true to stop the query)
+    probeHit(bullet, enemy, sx, sy, rail) {
+      const stats = this.stats;
+      if (bullet.life <= 0) return true;
+      if (enemy.dead || enemy.spawnT > 0.15 || enemy.ghost) return;
+      let dx = enemy.x - sx,
+        dy = enemy.y - sy;
+      if (enemy.type === "bulwark" && !rail && enemy.guardDown <= 0 && !bullet.hits.includes(enemy.id)) {
+        let dist = Math.hypot(dx, dy),
+          guardR = enemy.r + 0.75 + bullet.r;
+        if (dist < guardR && Math.abs(angleDiff(enemy.face, Math.atan2(-dy, -dx))) < 1.15) {
+          let gx = enemy.x + Math.cos(enemy.face) * (enemy.r + 0.45),
+            gy = enemy.y + Math.sin(enemy.face) * (enemy.r + 0.45);
+          if (bullet.boom && !bullet.back) {
+            bullet.back = true;
+            bullet.hits.length = 0;
+          } else {
+            if (bullet.drag) {
+              bullet.hits.push(enemy.id);
+              if (bullet.pierce-- <= 0) {
+                bullet.life = 0;
+              }
+            } else {
+              bullet.life = 0;
+              if (bullet.w === "rocket" || bullet.bomblet || weaponDefs[bullet.w]?.explode || stats.payloadR) {
+                bullet.x = gx;
+                bullet.y = gy;
+                this.bulletBurst(bullet, null);
               }
             }
-            let hitR = enemy.r + bullet.r;
-            if (!(dx * dx + dy * dy > hitR * hitR || bullet.hits.includes(enemy.id))) {
-              this.bulletHit(bullet, enemy);
+          }
+          enemy.guard -= bullet.dmg;
+          enemy.guardFlash = 1;
+          if (enemy.guard <= 0) {
+            enemy.guardDown = 4;
+            this.emit("guardBreak", { x: gx, y: gy });
+          } else {
+            if (!bullet.drag || this.rng.chance(0.2)) {
+              this.emit("block", { x: gx, y: gy });
             }
-          });
+          }
+          return true;
         }
+      }
+      let hitR = enemy.r + bullet.r;
+      if (!(dx * dx + dy * dy > hitR * hitR || bullet.hits.includes(enemy.id))) {
+        this.bulletHit(bullet, enemy);
       }
     }
     home(bullet, dt) {

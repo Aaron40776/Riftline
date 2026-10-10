@@ -2,7 +2,9 @@
 // core/run-hooks.js; only the two version constants that build.js fills in are defined here.
 //   node tests/sim-node.mjs      (npm run test:sim; part of npm test)
 // Checks: no Math.random in the simulation, the same seed and inputs give the same run, a bot plays every weapon without a
-// crash, a non-finite number or a stalled wave, Banish keeps its cards out of the offers, and a snapshot resumes the run.
+// crash, a non-finite number or a stalled wave, Banish keeps its cards out of the offers, a snapshot resumes the run, and
+// (3.31) drawing between steps, frame pacing, the gameplay fixes of 3.31.0, shots at enemies against a wall and ids
+// that are names inherited from Object.prototype.
 globalThis.__RL_VERSION__ = "0.0.0";
 globalThis.__RL_BUILD__ = "node";
 const { World, rlStep } = await import("../src/core/world.js");
@@ -490,6 +492,119 @@ for (const weapon of weaponOrder) {
       r.off.fps === 120,
     "frame pacing on fast phone screens",
     JSON.stringify(r),
+  );
+}
+
+// 10. 3.31.1: a shot fired at an enemy pressed against a wall hits it (the wall test ended a fast shot before the enemy
+// test of the same step, so an enemy hugging a wall could not be hit at close range; a bot pinned in a corner stalled)
+{
+  const { computeStats } = await import("../src/core/stats.js");
+  const missed = [];
+  for (const weapon of weaponOrder)
+    for (const gap of [0.05, 0.3, 0.6]) {
+      const w = new World({ seed: 1, weapon, threat: 0, ws: {}, pacts: [] });
+      w.startWave(3);
+      w.state = "fight";
+      w.hold = true;
+      w.enemies = [];
+      w.markers = [];
+      w.plan = [];
+      w.planIdx = 0;
+      w.championPending = null;
+      w.bossPending = null;
+      w.traps = [];
+      w.arena.obs = [];
+      w.stats = computeStats(weapon, {}, {});
+      const e = w.spawnEnemy("mite", 0, 0);
+      e.spawnT = 0;
+      e.hp = e.maxHp = 1e7;
+      const pin = () => {
+        e.x = w.arena.W - e.r;
+        e.y = 0;
+        e.vx = e.vy = 0;
+      };
+      pin();
+      w.player.x = e.x - e.r - w.player.r - gap;
+      w.player.y = 0;
+      for (let i = 0; i < 30 && e.hp === 1e7; i++) {
+        w.hash.build(w.enemies);
+        w.fire(0);
+        w.updatePBullets(rlStep);
+        w.sweep();
+        pin();
+      }
+      if (e.hp === 1e7) missed.push(`${weapon} at ${gap} m`);
+    }
+  line(
+    !missed.length,
+    "an enemy against a wall can be shot",
+    missed.length ? "missed by " + missed.join(", ") : "all weapons hit",
+  );
+}
+
+// 11. 3.31.1: names inherited from Object.prototype ("constructor", "toString") are not pacts, weapons or cards (a
+// crafted or broken save gave a NaN payout and a World without a weapon)
+{
+  const { cleanPacts, pactBonus } = await import("../src/data/pacts.js");
+  const pacts = cleanPacts(["constructor", "toString", "glass", "__proto__"]),
+    bonus = pactBonus(["constructor", "hasOwnProperty"]);
+  const w = new World({ seed: 3, weapon: "constructor", threat: 0, ws: {}, pacts: ["toString"] });
+  line(
+    JSON.stringify(pacts) === '["glass"]' &&
+      bonus === 0 &&
+      w.weapon === "pulse" &&
+      Number.isFinite(w.stats.damage ?? 0),
+    "inherited names are not game ids",
+    `pacts ${JSON.stringify(pacts)}, bonus ${bonus}, weapon ${w.weapon}`,
+  );
+}
+
+// 12. 3.31.1: a ricochet off an enemy against a wall flies on to the next enemy (the wall test of the same step ended the
+// redirected shot, so the bounce was spent and shown but never flew)
+{
+  const { computeStats } = await import("../src/core/stats.js");
+  const w = new World({ seed: 1, weapon: "rail", threat: 0, ws: {}, pacts: [] });
+  w.startWave(3);
+  w.state = "fight";
+  w.hold = true;
+  w.enemies = [];
+  w.markers = [];
+  w.plan = [];
+  w.planIdx = 0;
+  w.championPending = null;
+  w.bossPending = null;
+  w.traps = [];
+  w.arena.obs = [];
+  w.stats = computeStats("rail", {}, {});
+  w.stats.bounce = 2;
+  w.stats.pierce = 0;
+  const pinned = w.spawnEnemy("mite", 0, 0),
+    next = w.spawnEnemy("brute", 0, 0);
+  for (const e of [pinned, next]) {
+    e.spawnT = 0;
+    e.hp = e.maxHp = 1e7;
+  }
+  const hold = () => {
+    pinned.x = w.arena.W - pinned.r;
+    pinned.y = 0;
+    next.x = w.arena.W - 6;
+    next.y = 4;
+    for (const e of [pinned, next]) e.vx = e.vy = 0;
+  };
+  hold();
+  w.player.x = pinned.x - pinned.r - w.player.r - 0.05;
+  w.player.y = 0;
+  w.fire(0);
+  for (let i = 0; i < 90; i++) {
+    w.hash.build(w.enemies);
+    w.updatePBullets(rlStep);
+    w.sweep();
+    hold();
+  }
+  line(
+    pinned.hp < 1e7 && next.hp < 1e7,
+    "a ricochet off an enemy at a wall flies on",
+    `pinned enemy hit: ${pinned.hp < 1e7}, next enemy hit: ${next.hp < 1e7}`,
   );
 }
 

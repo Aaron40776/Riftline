@@ -205,6 +205,24 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
   (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
 
+### AUDIT (10.10.2026, late evening; on top of 3.31.0)
+
+The owner's audit request (structure, bugs, outdated code and docs, the self-tests in the long run; report before big
+changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its short form:
+- **Fixed in the draft PR `claude/audit-fixes` (stacked on #62), each with a test that fails before:** shots could not hit
+  an enemy pressed against a wall at close range (a bot pinned in a corner by the Warden stalled for minutes); an import
+  or a reset was undone when another tab had saved meanwhile; inherited names ("constructor") passed as pacts, weapons
+  and cards (NaN payout); the scorch-mark shader was compiled at the first blast of every new biome; plus instance
+  uploads only of the instances in use, model materials disposed on a weapon change, biome-event accents below the
+  fight in voice priority, a circular import (spawn weights moved to `data/enemies.js`), and doc drift.
+- **Plans waiting for the owner's go (P1-P7):** saves that survive versions, the service worker under test, one Endless
+  entry for game and tests, faster and steadier tests and CI (sound cache, real-time waits, nightly checks), workflow
+  hardening, module injection and file splits, the self-test as a lazy chunk.
+- **Decisions for the owner:** the self-test in the player build, saves across versions, CI minutes, frame pacing on
+  desktops, the first boss's contact damage, pacts against threat levels, the Frost Prism's skin, dependency bumps.
+- **Skills:** PR #63 adds third-party Claude Code skills under `.claude/skills/` (graphics, profiling, QA, UI, game feel,
+  audio and art checklists); none covers procedural WebAudio sound design.
+
 ### CURRENT STATE (10.10.2026, evening, 3.31.0; read this first when the work goes on)
 
 - **Live:** 3.30.0 (3.29.2 and 3.30.0 merged as #59 and #61). **Open:** 3.31.0 (this branch, `claude/quality-3310`) and #60 (docs
@@ -310,6 +328,7 @@ Shard Field (Frost Prism), Brood (Hive Queen), Event Collapse (Rift Core). The n
   Rift Core „Singularität" (Sog-Nova).
 
 ### 2. Läufer statt Drohne (3.6.0) und Umgebungssounds
+Done: the walker in 3.17.0, the sounds of the place in 3.9.0 and 3.13.0. The notes below are the original plan.
 - Die Drohne wird ein **laufender Roboter mit zwei Beinen** (entschieden: zwei, nicht vier); Beine animiert beim
   Laufen, Steuerung unverändert, Dash als Schub oder Sprung, auch in der Startbildschirm-Vorschau.
 - **Schritt-Sounds je Untergrund**: nasser Asphalt (Platschen), Eis (Knirschen und Rutschen), Metallgitter, Schlamm,
@@ -361,7 +380,7 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
    Regeneration, Aufsammelradius, Granaten) mit Grund- und Bonuswert.
 3. (Done in 3.22.0.) Vorschau auf die nächste Welle in der Upgrade-Wahl (Boss, Ereignis, Mutator, ab wann Fallen kommen): man wählt
    passend, statt blind.
-4. Kurze Einführung für Granate und Fallen in den Wellen 1–6, Codex-Einträge für Mutatoren und Overdrive-Angriffe.
+4. (Codex entries done in 3.28.0; tips for the Singularity and traps exist, see A4 above.) Kurze Einführung für Granate und Fallen in den Wellen 1–6, Codex-Einträge für Mutatoren und Overdrive-Angriffe.
 
 **B. Bedienung (neutral)**
 5. (Done in 3.23.0, tested with a faked controller only.) Gamepad (Sticks, Schultertasten, Start für Pause; Menüs zuerst weiter mit Maus/Touch) und Tastenbelegung am PC.
@@ -372,15 +391,15 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
    Gegnerschüsse und Warnungen (zusätzlich zu „Clear warnings").
 
 **C. Herausforderung (macht es freiwillig schwerer, belohnt Können)**
-9. Pakte vor dem Run: bis zu zwei Nachteile wählen (zum Beispiel halbe Hülle, schnellere Gegner, keine Nova, Nebel)
+9. (Done in 3.27.0.) Pakte vor dem Run: bis zu zwei Nachteile wählen (zum Beispiel halbe Hülle, schnellere Gegner, keine Nova, Nebel)
    für mehr Shards und ein Abzeichen in der Run-Historie; Meilensteine für Siege mit Pakten.
-10. Tägliche Herausforderung: fester Seed, feste Waffe und feste Mutatoren für alle; eigener Bestwert (später die
+10. (Done in 3.26.0; the leaderboard waits for Cloudflare.) Tägliche Herausforderung: fester Seed, feste Waffe und feste Mutatoren für alle; eigener Bestwert (später die
     Cloudflare-Bestenliste).
 11. (Done in 3.24.0.) Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex.
 12. Training gegen bereits besiegte Bosse (keine Belohnung): üben, ohne den Run leichter zu machen.
 
 **D. Mit Vorsicht (macht es etwas leichter, nur begrenzt)**
-13. „Verbannen" in der Upgrade-Wahl: eine Karte für den Run aus dem Pool nehmen, höchstens ein- bis zweimal pro Run
+13. (Done in 3.25.0, Banish Protocol.) „Verbannen" in der Upgrade-Wahl: eine Karte für den Run aus dem Pool nehmen, höchstens ein- bis zweimal pro Run
     über ein Werkstatt-Modul freigeschaltet.
 
 Empfehlung zur Reihenfolge: 3.8.0 Boss-Belohnungen (wie geplant), dann ein Paket „Lernen und Überblick" (1–3, klein bis
@@ -403,9 +422,9 @@ mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad 
 **Endless und Herausforderung**
 - Mutatoren vertiefen (3.3.0 hat sechs): Gegner-Elite-Eigenschaften stapeln, Herausforderungswellen (z. B. nur
   Schwarmgegner, nur Fernkämpfer), Welle mit Zeitlimit, Abyss-Gegner jenseits von Welle 100, Gravitationsquellen.
-- **Pakte und Relikte** (Vor- und Nachteil wählen, gelten für den Run), Gadget-Wahl vor dem Run, weitere Gadgets
+- (Pacts done in 3.27.0.) **Pakte und Relikte** (Vor- und Nachteil wählen, gelten für den Run), Gadget-Wahl vor dem Run, weitere Gadgets
   (Wächter-Geschütz, Abstoßer, Schildkuppel).
-- **Tägliche Herausforderung** mit festem Seed und eigener Bestenliste (passt zur Cloudflare-D1); wöchentlicher Mutator.
+- (Daily Rift done in 3.26.0; the leaderboard waits for Cloudflare.) **Tägliche Herausforderung** mit festem Seed und eigener Bestenliste (passt zur Cloudflare-D1); wöchentlicher Mutator.
 - Boss-Variationen pro Run (zufälliger Overdrive-Zusatz), Mini-Bosse in Endless alle 25 Wellen.
 
 **Look**

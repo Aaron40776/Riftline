@@ -88,6 +88,8 @@ function easeOutBack(x) {
   return 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);
 }
 const BUILD_ID = __RL_BUILD__;
+// 3.31.1: an id from a save or a snapshot is looked up as the table's own key ("constructor" or "toString" are not ids)
+const own = (table, key) => typeof key === "string" && Object.prototype.hasOwnProperty.call(table, key);
 
 export {
   smoothstep,
@@ -105,4 +107,5 @@ export {
   rlAgo,
   formatTime,
   dampFactor,
+  own,
 };

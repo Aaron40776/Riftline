@@ -1,6 +1,6 @@
 // Riftline full QA runner — criteria-based, step by step.
 // Usage: node full-qa.mjs [baseUrl] [sectionFilter]
-//   sections: files, saves, ui, run, buttons
+//   sections: see the section() calls below, e.g. files, saves, run-desktop, codex-phone, smooth, save-foreign
 // Every check states its criterion; the run fails if any check fails.
 import { chromium } from "playwright";
 import fs from "fs";
@@ -4578,6 +4578,82 @@ await section("second-finger", async (L) => {
   await send("touchEnd", [held]);
   check(L, "the stick was held", moving);
   check(L, "a tap of a second finger on pause pauses the run", paused);
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.31.1: an import or a reset is the player's own choice: a save another tab wrote meanwhile (store.foreign, set by the
+// storage event while a dialog is open) must not take its place at the save that follows
+await section("save-foreign", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  const res = await P.ev((key) => {
+    const T = window.__riftTest,
+      store = T.store,
+      other = () => {
+        // what another tab wrote: the same save with 500 shards
+        const data = JSON.parse(localStorage.getItem(key));
+        data.shards = 500;
+        localStorage.setItem(key, JSON.stringify(data));
+        store.foreign = true;
+      };
+    const out = {};
+    const text = JSON.stringify({ ...store.data, shards: 99999 });
+    other();
+    const parsed = store.parse(text);
+    store.data = parsed.data;
+    store.save("import");
+    out.imported = [store.data.shards, JSON.parse(localStorage.getItem(key)).shards];
+    other();
+    store.reset();
+    out.reset = [store.data.shards, JSON.parse(localStorage.getItem(key)).shards];
+    // a normal save during a run still takes over the other tab's progress
+    other();
+    store.save("wave");
+    out.synced = store.data.shards;
+    return out;
+  }, KEY);
+  check(L, "an import is not undone by another tab's save", res.imported.join() === "99999,99999", JSON.stringify(res));
+  check(L, "a reset is not undone by another tab's save", res.reset.join() === "0,0", JSON.stringify(res));
+  check(L, "an ordinary save still takes over the other tab's progress", res.synced === 500, JSON.stringify(res));
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.31.1: the scorch-mark atlas is painted again for every biome; the painting material is kept, so a biome change
+// compiles no shader (it was built and thrown away each time: a shader compile at the first blast in a new biome)
+// (three.js deletes a program when no material uses it any more, so disposing the painting material after each bake
+// made the next bake compile it again; counting compileShader calls shows that)
+await section("mark-bake", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.page.addInitScript(() => {
+    window.__qaCompiles = 0;
+    for (const proto of [window.WebGL2RenderingContext?.prototype, window.WebGLRenderingContext?.prototype])
+      if (proto && proto.compileShader) {
+        const real = proto.compileShader;
+        proto.compileShader = function (...args) {
+          window.__qaCompiles++;
+          return real.apply(this, args);
+        };
+      }
+  });
+  await P.boot();
+  const res = await P.ev(() => {
+    const view = window.__riftTest.renderer.attackView;
+    view.markPool();
+    view.bakeMarks(0);
+    const first = window.__qaCompiles;
+    view.bakeMarks(1);
+    view.bakeMarks(4);
+    view.bakeMarks(0);
+    return { first, more: window.__qaCompiles - first, baked: view.baked };
+  });
+  check(
+    L,
+    "painting the marks of three more biomes compiles no shader",
+    res.more === 0 && res.baked === 0,
+    JSON.stringify(res),
+  );
   check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
   await P.close();
 });

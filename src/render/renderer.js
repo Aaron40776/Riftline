@@ -60,6 +60,12 @@ import { AttackView, MARK_LOOK } from "./attacks-view.js";
 const LIGHTNING_COLOR = new Color(0xcfe0ff),
   SIREN_RED = new Color(0xff2a3a),
   SIREN_BLUE = new Color(0x2a6bff);
+// the first `count` values of an instance attribute go to the GPU at the next draw
+function upload(attr, count) {
+  attr.clearUpdateRanges();
+  attr.addUpdateRange(0, count);
+  attr.needsUpdate = true;
+}
 const tmpColor = new Color(),
   InstancePool = class {
     constructor(geo, mat, max, opts = {}) {
@@ -89,13 +95,11 @@ const tmpColor = new Color(),
       this.mesh.count = this.n;
       // 2.8.1: an empty pool is not drawn at all (it used to cost a draw call per pool and frame)
       this.mesh.visible = this.n > 0;
-      this.mesh.instanceMatrix.needsUpdate = true;
-      if (this.c) {
-        this.mesh.instanceColor.needsUpdate = true;
-      }
-      if (this.f) {
-        this.fAttr.needsUpdate = true;
-      }
+      // 3.31.1: only the instances in use go to the GPU (the whole buffer did, up to 2200 instances a pool and frame)
+      if (!this.n) return;
+      upload(this.mesh.instanceMatrix, this.n * 16);
+      if (this.c) upload(this.mesh.instanceColor, this.n * 3);
+      if (this.f) upload(this.fAttr, this.n);
     }
     y(x, y, z, angle, sx, sy = sx, sz = sx) {
       if (this.n >= this.max) return -1;
@@ -671,9 +675,13 @@ const MAX_PARTICLES = 1400,
       if (!(this.playerWeapon === weapon && this.player)) {
         if (this.player) {
           this.scene.remove(this.player.group);
+          // 3.31.1: the materials of the old model go too (each model builds its own)
           this.player.group.traverse((obj) => {
             if (obj.geometry) {
               obj.geometry.dispose();
+            }
+            if (obj.material) {
+              [].concat(obj.material).forEach((mat) => mat.dispose());
             }
           });
         }

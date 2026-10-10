@@ -1,6 +1,6 @@
 // Wave planning: spawn plans, wave events and upgrade offers.
 
-import { enemyDefs, enemyOrder } from "../data/enemies.js";
+import { enemyDefs, enemyOrder, spawnWeights, heavyEnemies } from "../data/enemies.js";
 import { clamp, weightedPick } from "./util.js";
 import { rarityWeights, bossRarityWeights, upgradeList } from "../data/upgrades.js";
 import { RL_BIOME_INFO } from "../data/biomes.js";
@@ -120,23 +120,6 @@ function countRarity(list, rarity) {
   }
   return count;
 }
-const spawnWeights = {
-    swarmer: 5,
-    grunt: 4,
-    gunner: 3,
-    bomber: 2.4,
-    splitter: 2,
-    brute: 1.3,
-    sniper: 1.5,
-    hive: 0.6,
-    bulwark: 1.3,
-    striker: 1.6,
-    mortar: 1.1,
-    mender: 1,
-    leaper: 1.5,
-    turret: 0.9,
-  },
-  heavyEnemies = { brute: 1, hive: 1, sniper: 1, bulwark: 1, mortar: 1, mender: 1, turret: 1 };
 function waveBudget(wave, tm) {
   return (16 + 8 * wave + 0.3 * wave * wave) * tm.budget;
 }
