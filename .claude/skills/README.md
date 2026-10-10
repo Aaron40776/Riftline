@@ -14,8 +14,14 @@ added.
 | `threejs-gameplay-systems` | same (only `SKILL.md` and `references/`) | game feel (hitstop, shake, feedback stacks), encounter and difficulty design |
 | `game-audio` | [davila7/claude-code-templates](https://github.com/davila7/claude-code-templates) @ `a2c1531` | a short checklist for sound design, mix hierarchy, adaptive music |
 | `game-art` | same | a short checklist for style, colour, readability, animation principles |
+| `shader-and-dsp-recipes` | [MiniMax-AI/skills](https://github.com/MiniMax-AI/skills) `shader-dev` @ `60aaae5` (six of its technique files, with an index written for Riftline) | noise, Voronoi, anti-aliasing and palettes for the floor and surface shaders; DSP recipes to translate into WebAudio |
 
 The licence of each source sits next to its skills (`LICENSE.*`).
+
+10.10.2026 (later): searched [travisvn/awesome-claude-skills](https://github.com/travisvn/awesome-claude-skills) and the GitHub topic
+`claude-code-skills` (2 099 repositories) through its three largest catalogues (VoltAgent/awesome-agent-skills,
+sickn33/agentic-awesome-skills with 8 300 skill files, alirezarezvani/claude-skills) for audio, WebAudio, synthesis,
+three.js, WebGL, shaders, game development, performance, PWA and testing. Only `shader-and-dsp-recipes` was added.
 
 ## Riftline's own rules come first
 
@@ -41,4 +47,12 @@ decisions, those win. In particular:
 - The Vite + TypeScript scaffold of `threejs-gameplay-systems` (`assets/`, `scripts/`): Riftline has its own structure.
 - `web-games`, `mobile-games`, `3d-games` of claude-code-templates: shallow, partly out of date, and `mobile-games` argues
   against forced landscape.
-- Neither source has a skill for procedural WebAudio synthesis and mixing; `game-audio` is the closest.
+- Neither source has a skill for procedural WebAudio synthesis and mixing; `game-audio` is the closest. The later search
+  (about 9 000 skills) found none either: every audio skill there calls a paid speech or music generation API.
+- `CloudAI-X/threejs-skills` (ten three.js reference skills, MIT): read; generic API notes written for r160, partly out of
+  date for r186 (the `uv2` channel for AO maps, the WebGL1 `extensions` flags) and adding nothing over what the graphics
+  builder and the code already hold.
+- The rest of MiniMax `shader-dev` (ray marching, path tracing, volumetrics, fractals, terrain, 1.6 MB): ShaderToy
+  techniques for full-screen effects, not a low-poly game on phones.
+- `playwright-pro` (alirezarezvani): a plugin with hooks and settings; its `fix` skill is written for the `@playwright/test`
+  runner (Riftline drives Playwright from its own scripts) and recommends CI retries, which hide flaky tests.
