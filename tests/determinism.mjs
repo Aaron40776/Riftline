@@ -98,7 +98,7 @@ const SIMS = [
     ws: { hull: 5, power: 5, droneBay: 2, insight: 1, reroll: 2 },
     to: 12,
   },
-  // through the Rift Core (wave 20), the victory state and continueEndless() into Endless
+  // through the Rift Core (wave 20), the victory state and enterEndless() into Endless
   {
     name: "sim-pulse-t2-endless",
     seed: 0x2201,
@@ -255,7 +255,7 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
       } else if (w.state === "victory") {
         if (w.stateT === 0) trace.push(H(snap(w)));
         if (w.wave >= c.to) break;
-        if (w.stateT > 1) w.continueEndless(); // like the Endless button after the victory screen
+        if (w.stateT > 1) w.enterEndless(); // the Endless button after the victory screen
       }
       w.step(1 / 60, botInput(w, steps));
       steps++;

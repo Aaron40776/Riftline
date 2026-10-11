@@ -220,7 +220,10 @@ for (const prof of PROFILES) {
     await page.waitForTimeout(500);
     await page.reload();
     await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
-    await page.waitForTimeout(1500);
+    // 3.32.0: wait for the button itself (a fixed 1.5 s pause before)
+    await page
+      .waitForFunction(() => !document.getElementById("continueBtn").hidden, null, { timeout: 20000 })
+      .catch(() => {});
     ok(
       "continue offered after reload",
       await vis("continueBtn"),
@@ -248,7 +251,8 @@ for (const prof of PROFILES) {
     });
     await waitScreenGame(page, "over", 6);
     ok("game over screen", await vis("over"));
-    await page.waitForTimeout(1200);
+    // 3.32.0: the post-run audit is written when the end screen comes up; wait for it (a fixed 1.2 s pause before)
+    await page.waitForFunction(() => !!window.__riftTest.lastRunAudit, null, { timeout: 20000 }).catch(() => {});
     await audit("over");
     await page.screenshot({ path: `${SHOTS}/${prof.name}-over.png` });
     const aud = await page.evaluate(() => window.__riftTest.lastRunAudit);
