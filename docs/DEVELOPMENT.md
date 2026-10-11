@@ -25,12 +25,14 @@ the release, so the code was turned back into readable sources step by step:
   eight times) are folded into the classes and functions, so every method is in one place; local
   variables have readable names; the syntax tricks of the minifier (`!0`, comma chains,
   `a && f()` as a statement …) are plain statements; the self-tests have their own module
-  (`core/selftest.js`); `window.__riftTest` uses the real names; Prettier (`.prettierrc`, width
-  120) formats everything and CI checks it.
+  (`core/selftest.js`); `window.__riftTest` uses the real names; Prettier (`.prettierrc`, width 120) formats everything and CI checks it.
 - 3.30.0: `World` and its modules load in Node (`core/run-hooks.js` carries the link to the run monitor);
   `tests/sim-node.mjs` (`npm run test:sim`) is the first step of `npm test`.
 - 3.31.0: the renderer draws between the last two simulation steps (`render/interp.js`), and phones with a fast
   screen are paced (`render/pacing.js`).
+- 3.32.0: `core/save.js` loads in Node (it logs through `core/run-hooks.js` and gets the store passed in), and
+  `tests/save-node.mjs` (`npm run test:save`) checks it. A save carries the version that wrote it (`ver`); an older
+  build keeps what a newer one stored (`keptOf`, `withKept`).
 - 3.32.0: the service worker runs in a test (full QA `offline`, part of `npm test`): the section serves `dist/` itself
   (`tools/serve.js` takes an `intercept`) and lets the server drop or answer 503; the cached game must start.
 
