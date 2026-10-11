@@ -25,6 +25,8 @@ const steps = [
   ["deep test", qa("deep-test", ...(full ? ["--full"] : []))],
   // the full QA of a release contains the files section
   ...(release ? [] : [["full-qa files", qa("full-qa", "files")]]),
+  // 3.32.0: the service worker at work (offline start, a host's error page)
+  ...(release ? [] : [["full-qa offline", qa("full-qa", "offline")]]),
   ["data audit", qa("data-audit")],
   ["determinism", qa("determinism")],
   ...sections.map((name) => [`full-qa ${name}`, qa("full-qa", name)]),
