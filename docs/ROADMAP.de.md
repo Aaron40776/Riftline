@@ -221,7 +221,9 @@ changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its sh
 - **Decisions for the owner:** the self-test in the player build, saves across versions, CI minutes, frame pacing on
   desktops, the first boss's contact damage, pacts against threat levels, the Frost Prism's skin, dependency bumps.
 - **Skills:** PR #63 adds third-party Claude Code skills under `.claude/skills/` (graphics, profiling, QA, UI, game feel,
-  audio and art checklists); none covers procedural WebAudio sound design.
+  audio and art checklists); none covers procedural WebAudio sound design. #65 adds shader and DSP recipes; the PR of
+  11.10.2026 adds `riftline-sound`, written for this engine (a map, recipes with their checks, the audio decisions and
+  the measured mix targets).
 
 ### CURRENT STATE (10.10.2026, evening, 3.31.0; read this first when the work goes on)
 
