@@ -1,20 +1,21 @@
 # Claude Code skills for Riftline
 
-Third-party skills that Claude Code sessions in this repository load automatically (`.claude/skills/<name>/SKILL.md`).
+Skills that Claude Code sessions in this repository load automatically (`.claude/skills/<name>/SKILL.md`).
 They are guidance only: nothing here is part of the game, the build or the tests. Added on 10.10.2026 at the owner's
 request ("can you acquire the needed skills? Like for graphics / sound design?"). Every file was read before it was
 added.
 
-| Skill | Source (MIT) | Use for |
-| --- | --- | --- |
-| `threejs-aaa-graphics-builder` | [majidmanzarpour/threejs-game-skills](https://github.com/majidmanzarpour/threejs-game-skills) @ `8286774` | art direction, models, materials, lighting, VFX, render budgets, the visual scorecard |
-| `threejs-debug-profiler` | same | render and runtime bugs, profiling draw calls, fill rate, memory, bundle size |
-| `threejs-qa-release` | same | QA passes, mobile checks, release traps, canvas pixel metrics (`scripts/inspect-threejs-canvas.mjs`) |
-| `threejs-game-ui-designer` | same | HUD, menus, touch controls, safe areas, text fit |
-| `threejs-gameplay-systems` | same (only `SKILL.md` and `references/`) | game feel (hitstop, shake, feedback stacks), encounter and difficulty design |
-| `game-audio` | [davila7/claude-code-templates](https://github.com/davila7/claude-code-templates) @ `a2c1531` | a short checklist for sound design, mix hierarchy, adaptive music |
-| `game-art` | same | a short checklist for style, colour, readability, animation principles |
-| `shader-and-dsp-recipes` | [MiniMax-AI/skills](https://github.com/MiniMax-AI/skills) `shader-dev` @ `60aaae5` (six of its technique files, with an index written for Riftline) | noise, Voronoi, anti-aliasing and palettes for the floor and surface shaders; DSP recipes to translate into WebAudio |
+| Skill                          | Source (MIT)                                                                                                                                        | Use for                                                                                                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `threejs-aaa-graphics-builder` | [majidmanzarpour/threejs-game-skills](https://github.com/majidmanzarpour/threejs-game-skills) @ `8286774`                                           | art direction, models, materials, lighting, VFX, render budgets, the visual scorecard                                                                       |
+| `threejs-debug-profiler`       | same                                                                                                                                                | render and runtime bugs, profiling draw calls, fill rate, memory, bundle size                                                                               |
+| `threejs-qa-release`           | same                                                                                                                                                | QA passes, mobile checks, release traps, canvas pixel metrics (`scripts/inspect-threejs-canvas.mjs`)                                                        |
+| `threejs-game-ui-designer`     | same                                                                                                                                                | HUD, menus, touch controls, safe areas, text fit                                                                                                            |
+| `threejs-gameplay-systems`     | same (only `SKILL.md` and `references/`)                                                                                                            | game feel (hitstop, shake, feedback stacks), encounter and difficulty design                                                                                |
+| `game-audio`                   | [davila7/claude-code-templates](https://github.com/davila7/claude-code-templates) @ `a2c1531`                                                       | a short checklist for sound design, mix hierarchy, adaptive music                                                                                           |
+| `game-art`                     | same                                                                                                                                                | a short checklist for style, colour, readability, animation principles                                                                                      |
+| `shader-and-dsp-recipes`       | [MiniMax-AI/skills](https://github.com/MiniMax-AI/skills) `shader-dev` @ `60aaae5` (six of its technique files, with an index written for Riftline) | noise, Voronoi, anti-aliasing and palettes for the floor and surface shaders; DSP recipes to translate into WebAudio                                        |
+| `riftline-sound`               | written for Riftline (11.10.2026)                                                                                                                   | a map of the sound engine, recipes for a new effect, place sound or music layer with their checks, the owner's audio decisions and the measured mix targets |
 
 The licence of each source sits next to its skills (`LICENSE.*`).
 
@@ -27,6 +28,7 @@ three.js, WebGL, shaders, game development, performance, PWA and testing. Only `
 
 These skills are written for new Vite + TypeScript games. Where they disagree with `CLAUDE.md`, the roadmap or the owner's
 decisions, those win. In particular:
+
 - Riftline is plain JavaScript with esbuild and three.js pinned at 0.186.0; there is no Vite, TypeScript or scaffold. The
   shader cookbook targets three.js r184: check every recipe against r186.
 - All sound and music are synthesised in WebAudio; nothing calls a paid or external generation service (the roadmap keeps
