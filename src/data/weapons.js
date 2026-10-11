@@ -138,6 +138,9 @@ const weaponDefs = {
     shake: 0,
   },
 };
-const weaponOrder = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
+// the carousel and the Daily pick follow the unlock price (sorted here, so Node and the browser agree)
+const weaponOrder = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"].sort(
+  (a, b) => weaponDefs[a].cost - weaponDefs[b].cost,
+);
 
 export { weaponOrder, weaponDefs };

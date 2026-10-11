@@ -721,6 +721,28 @@ const rlStep = 1 / 60,
         this.beginChoice();
       }
     }
+    /* 3.32.0: the Endless button after the victory screen. The counters of the summary start again (shards, kills,
+       bosses, damage, the death recap of the Endless part: 3.28.1), and so does the clock (restartClock). It lived in
+       main.js until 3.32.0, and the tests called continueEndless() alone, so they played a different Endless than the
+       players (the old clock and counters). Game and tests now use this. */
+    enterEndless() {
+      if (this.state !== "victory") return false;
+      this.shards = 0;
+      this.kills = 0;
+      this.bossKills = [];
+      this.legendaries = 0;
+      this.flawless = 0;
+      this.restartClock();
+      this.evolved = 0;
+      this.dmgSrc = {};
+      this.hitLog = [];
+      this.takenBy = {};
+      this.dmgDealt = 0;
+      this.bestCombo = 0;
+      this.runStats = { dmgTaken: 0, dashes: 0, critHits: 0 };
+      this.continueEndless();
+      return true;
+    }
     // 3.7.1: the Endless part of a run starts its clock at 0 (game.endless: its summary counts only the Endless part).
     // A time stamp of the old clock moves with it: the last dash would otherwise lie in the future, and with Cryo Skates
     // the dash stayed locked for as long as the run had lasted

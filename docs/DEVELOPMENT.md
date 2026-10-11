@@ -31,6 +31,10 @@ the release, so the code was turned back into readable sources step by step:
   `tests/sim-node.mjs` (`npm run test:sim`) is the first step of `npm test`.
 - 3.31.0: the renderer draws between the last two simulation steps (`render/interp.js`), and phones with a fast
   screen are paced (`render/pacing.js`).
+- 3.32.0: the Endless button is `World.enterEndless()`, used by the game and by the tests (determinism, sim), so the
+  tests play the Endless the players get. The start-up patches of the data (`rlApplyDataFixes` in `main.js`: enemy
+  colours, the weapon order, a workshop text, an icon, the Cryo Vault palette) now live in the data files, so Node and
+  the browser see the same data.
 
 ## Working rules
 

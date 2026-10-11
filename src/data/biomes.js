@@ -1,33 +1,5 @@
 // Biome tables, palettes and the per-run biome route.
 
-/* ---- biome palettes (2.3.1). The 2.0–2.2 biome packs shipped scrambled
- colours (neon-green floors, bright fog, clashing grids), so a wave looked
- like several biomes mixed together. Every biome now follows one rule set:
- dark floor/fog/ground in the biome hue, a bright grid, a contrasting accent,
- a mid-bright sky and a dark wall tone. rlPaletteIssues() enforces it. ---- */
-/* 2.3.3: grid colours re-spread so every biome is recognisable at a glance —
- in 2.3.1 Tempest/Aurora looked like Neon Yard (ΔE 6–20) and Catacombs like Requiem.
- Minimum grid distance between any two of the 19 biomes is now ΔE ≥ 30 (checked by
- rlBiomeDistinct in the deep test). Floor/fog/walls/light take the grid's hue. */
-const RL_PALETTES = {
-  vault: {
-    floor: 0x0e1718,
-    grid: 0xbfdfe3,
-    accent: 0x5cc8ff,
-    fog: 0x080e0f,
-    sky: 0x476c70,
-    ground: 0x0a1112,
-    wall: 0x1c2a2c,
-  },
-};
-function rlApplyBiomeFixes() {
-  for (const [id, palette] of Object.entries(RL_PALETTES)) {
-    if (biomesById[id]) {
-      Object.assign(biomesById[id], palette);
-    }
-  }
-}
-
 /* ---- one hazard theme per biome (2.3.1). The wave director used to drop a
  rotating vent/ice/acid pool into EVERY biome, so lava vents appeared in the
  Cryo Vault and ice in Ember Works. Each biome now owns one hazard type. ---- */
@@ -85,13 +57,15 @@ const biomeList = [
     name: "Cryo Vault",
     W: 18,
     H: 18,
-    floor: 398361,
-    grid: 9431295,
-    accent: 15268863,
-    fog: 266266,
-    sky: 4885160,
-    ground: 397336,
-    wall: 993846,
+    // 2.3.3: the palette that keeps every biome recognisable at a glance (grid ΔE ≥ 30 to any other biome, checked
+    // by rlBiomeDistinct in the deep test); until 3.32.0 main.js patched it in at start-up
+    floor: 0x0e1718,
+    grid: 0xbfdfe3,
+    accent: 0x5cc8ff,
+    fog: 0x080e0f,
+    sky: 0x476c70,
+    ground: 0x0a1112,
+    wall: 0x1c2a2c,
     obstacles: [
       { t: "b", x: -9, y: 0, w: 0.8, h: 3 },
       { t: "b", x: 9, y: 0, w: 0.8, h: 3 },
@@ -195,4 +169,4 @@ for (const [id, info] of Object.entries(RL_BIOME_INFO)) {
   }
 }
 
-export { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList, rlApplyBiomeFixes };
+export { RL_BIOME_HAZARD, RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList };

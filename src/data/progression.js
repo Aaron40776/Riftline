@@ -262,7 +262,13 @@ workshopModules.push(
     desc: "Start each wave with +10% Nova charge",
     costs: [260, 540, 980],
   },
-  { id: "droneBay", name: "Drone Bay", icon: "drone", desc: "+1 Wingman slot per level", costs: [950, 1800] },
+  {
+    id: "droneBay",
+    name: "Drone Bay",
+    icon: "drone",
+    desc: "+1 Wingman slot per level (needs the Wingman upgrade)",
+    costs: [950, 1800],
+  },
 );
 modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
 milestones.push(

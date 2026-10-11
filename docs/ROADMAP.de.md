@@ -218,6 +218,10 @@ changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its sh
 - **Plans waiting for the owner's go (P1-P7):** saves that survive versions, the service worker under test, one Endless
   entry for game and tests, faster and steadier tests and CI (sound cache, real-time waits, nightly checks), workflow
   hardening, module injection and file splits, the self-test as a lazy chunk.
+  - **P3 done** (PR `claude/endless-entry`): `World.enterEndless()` for the Endless button and the tests (sim-node
+    check 13); the determinism fixture changed once, on purpose, in its Endless case only (from the Endless start: the
+    tests now restart the clock and the counters like the game). The start-up data patches of `main.js` live in the
+    data files.
 - **Decisions for the owner:** the self-test in the player build, saves across versions, CI minutes, frame pacing on
   desktops, the first boss's contact damage, pacts against threat levels, the Frost Prism's skin, dependency bumps.
 - **Skills:** PR #63 adds third-party Claude Code skills under `.claude/skills/` (graphics, profiling, QA, UI, game feel,
