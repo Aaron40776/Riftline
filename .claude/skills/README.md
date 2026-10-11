@@ -19,6 +19,29 @@ added.
 
 The licence of each source sits next to its skills (`LICENSE.*`).
 
+## Capability system (written for Riftline, 11.10.2026)
+
+Eleven skills written at the owner's request for a capability system: an orchestrator for multi-discipline tasks and
+specialists with tested helper scripts. They are generic by design; their "In Riftline" notes (in
+`capability-orchestrator`) put Riftline's rules first: models are built in code, sound is live WebAudio, phones first.
+The scripts need only what CI and a normal dev machine have (Python 3 with numpy and Pillow, Node, ffmpeg, Playwright);
+the Blender scripts need Blender (tested with the portable 5.2.2 LTS build, not installed in the repo). Nothing was added to
+`package.json`.
+
+| Skill                         | Use for                                                                     | Tested scripts                                                              |
+| ----------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `capability-orchestrator`     | entry point: split a large task, pick skills and tools, validate the whole | -                                                                           |
+| `toolchain-audit`             | what is installed, what a missing tool would add, safe install paths       | `audit_tools.sh`                                                            |
+| `3d-asset-pipeline`           | prototype shapes, materials, budgets, GLB inspection, preview renders      | `glb_inspect.py`, `glb_write.py`, `blender/procedural_prop.py`, `blender/render_preview.py` |
+| `visual-art-ui-vfx`           | art direction, readability, textures, HUD, VFX, image checks                | `image_report.py` (blank frames, contrast, palette, tiling, diff, contact sheet) |
+| `animation-rigging`           | rigs, clips, blending, runtime checks                                       | `blender/rig_creature.py`                                                   |
+| `audio-production`            | layering, loops, mix targets, encoding, measurements                        | `sfx_synth.py`, `audio_report.py`, `encode_for_web.sh`                      |
+| `game-engine-selection`       | engine questions decided against the real requirements                      | -                                                                           |
+| `game-development`            | systems, loop, input, saves, AI, tests                                      | -                                                                           |
+| `asset-integration-licensing` | getting assets into the game, provenance and licences                       | `three_load_check.mjs`, `asset_manifest.py`                                 |
+| `visual-qa-performance`       | screenshots and frame times on desktop/phone/tablet profiles, errors        | `capture.mjs`                                                               |
+| `skill-maintenance`           | auditing and extending these skills                                         | `validate_skills.py`                                                        |
+
 10.10.2026 (later): searched [travisvn/awesome-claude-skills](https://github.com/travisvn/awesome-claude-skills) and the GitHub topic
 `claude-code-skills` (2 099 repositories) through its three largest catalogues (VoltAgent/awesome-agent-skills,
 sickn33/agentic-awesome-skills with 8 300 skill files, alirezarezvani/claude-skills) for audio, WebAudio, synthesis,
