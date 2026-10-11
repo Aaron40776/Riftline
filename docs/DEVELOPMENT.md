@@ -35,6 +35,10 @@ the release, so the code was turned back into readable sources step by step:
   build keeps what a newer one stored (`keptOf`, `withKept`).
 - 3.32.0: the service worker runs in a test (full QA `offline`, part of `npm test`): the section serves `dist/` itself
   (`tools/serve.js` takes an `intercept`) and lets the server drop or answer 503; the cached game must start.
+- 3.32.0: the Endless button is `World.enterEndless()`, used by the game and by the tests (determinism, sim), so the
+  tests play the Endless the players get. The start-up patches of the data (`rlApplyDataFixes` in `main.js`: enemy
+  colours, the weapon order, a workshop text, an icon, the Cryo Vault palette) now live in the data files, so Node and
+  the browser see the same data.
 
 ## Working rules
 

@@ -110,7 +110,7 @@ for (const wpn of weapons) {
           } else if (w.state === "victory") {
             out.waves.push({ wave: w.wave, secs: +(waveSteps / 60).toFixed(1), victory: true });
             if (w.wave >= maxWave) break;
-            w.continueEndless();
+            w.enterEndless();
             waveSteps = 0;
           }
         }

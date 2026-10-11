@@ -227,6 +227,10 @@ changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its sh
     then starts the game with the server down and with the server answering 503: the cached game must start. The 503
     case failed: a quick error page of the host won the race against the cached game. Now an error page (and an error
     instead of `build-info.json`) falls back to the cache.
+  - **P3 done** (PR `claude/endless-entry`): `World.enterEndless()` for the Endless button and the tests (sim-node
+    check 13); the determinism fixture changed once, on purpose, in its Endless case only (from the Endless start: the
+    tests now restart the clock and the counters like the game). The start-up data patches of `main.js` live in the
+    data files.
 - **Decisions for the owner:** the self-test in the player build, frame pacing on desktops, the first boss's contact damage, pacts against threat levels, the Frost Prism's skin, dependency bumps.
 - **Skills:** PR #63 adds third-party Claude Code skills under `.claude/skills/` (graphics, profiling, QA, UI, game feel,
   audio and art checklists); none covers procedural WebAudio sound design. #65 adds shader and DSP recipes; the PR of

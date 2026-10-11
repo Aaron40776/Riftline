@@ -4,7 +4,7 @@
 // Checks: no Math.random in the simulation, the same seed and inputs give the same run, a bot plays every weapon without a
 // crash, a non-finite number or a stalled wave, Banish keeps its cards out of the offers, a snapshot resumes the run, and
 // (3.31) drawing between steps, frame pacing, the gameplay fixes of 3.31.0, shots at enemies against a wall and ids
-// that are names inherited from Object.prototype.
+// that are names inherited from Object.prototype, and (3.32) the Endless button.
 globalThis.__RL_VERSION__ = "0.0.0";
 globalThis.__RL_BUILD__ = "node";
 const { World, rlStep } = await import("../src/core/world.js");
@@ -605,6 +605,32 @@ for (const weapon of weaponOrder) {
     pinned.hp < 1e7 && next.hp < 1e7,
     "a ricochet off an enemy at a wall flies on",
     `pinned enemy hit: ${pinned.hp < 1e7}, next enemy hit: ${next.hp < 1e7}`,
+  );
+}
+
+// 13. 3.32.0: the Endless button (World.enterEndless, used by the game and the tests): the summary counters and the clock of
+// the Endless part start again, a dash time moves with the clock, and the run goes on with an upgrade choice
+{
+  const w = new World({ seed: 21, weapon: "pulse", threat: 0, ws: {} });
+  w.state = "victory";
+  w.wave = 20;
+  Object.assign(w, { shards: 900, kills: 400, legendaries: 2, flawless: 3, evolved: 1, dmgDealt: 5e4, bestCombo: 60 });
+  w.bossKills = ["warden"];
+  w.time = 700;
+  w.player.dashAt = 698;
+  const entered = w.enterEndless(),
+    again = w.enterEndless();
+  line(
+    entered &&
+      !again &&
+      w.endless &&
+      w.state === "choose" &&
+      w.time === 0 &&
+      w.player.dashAt === -2 &&
+      w.shards + w.kills + w.legendaries + w.flawless + w.evolved + w.dmgDealt + w.bestCombo === 0 &&
+      w.bossKills.length === 0,
+    "the Endless button starts the counters and the clock of the Endless part",
+    `state ${w.state}, time ${w.time}, dashAt ${w.player.dashAt}, kills ${w.kills}, second call ${again}`,
   );
 }
 

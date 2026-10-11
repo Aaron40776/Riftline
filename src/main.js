@@ -57,7 +57,7 @@ import {
 } from "./data/enemies.js";
 import { BUILD_ID, GAME_VERSION, formatCount } from "./core/util.js";
 import { RL_KITERS, updateEnemy, OVERDRIVE } from "./core/ai.js";
-import { RL_BIOME_HAZARD, biomesById, biomeList, rlApplyBiomeFixes } from "./data/biomes.js";
+import { RL_BIOME_HAZARD, biomesById, biomeList } from "./data/biomes.js";
 import { weaponOrder, weaponDefs } from "./data/weapons.js";
 import { waveEvents, spawnWeights, heavyEnemies } from "./core/waves.js";
 import { World, rlStep } from "./core/world.js";
@@ -111,25 +111,6 @@ function rlIntroEvents(world) {
   }
 }
 
-/* ---- content data fixes found by the data audit (2.3.2). Runs once, after all
- content packs are merged and before the save store and renderer are built. ---- */
-function rlApplyDataFixes() {
-  // Distinct silhouettes need distinct colours: Sentinel shared Bomber's yellow,
-  // Repair Beacon shared Mender's green.
-  enemyDefs.sentinel.color = 0xe8e8ff;
-  enemyDefs.beacon.color = 0x00ffa2;
-  // The weapon carousel follows unlock price (it jumped 2400 → 1450 → … before).
-  weaponOrder.sort((a, b) => weaponDefs[a].cost - weaponDefs[b].cost);
-  // 2.3.2: workshop texts must say what the module really does (full QA "workshop" section).
-  // Drone Bay only works together with the Wingman upgrade. (Field Supply and Route Scanner
-  // had the same effect until 2.3.5; their texts now live with their data.)
-  const mod = (id) => workshopModules.find((entry) => entry.id === id);
-  mod("droneBay").desc = "+1 Wingman slot per level (needs the Wingman upgrade)";
-  // 2.5.0 B: Nova Cell's text lives with its data; Rift Battery and Reactor Core were merged into it.
-  // Route Scanner referenced a "map" icon that did not exist (fell back to "info"); Field Supply uses it now.
-  iconPaths.map = '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>';
-  rlApplyBiomeFixes();
-}
 const isStandaloneBuild = true;
 function registerServiceWorker(onUpdate) {
   if (
@@ -234,7 +215,6 @@ if (noJsNotice) {
   noJsNotice.remove();
 }
 setLogContext({ version: GAME_VERSION, build: BUILD_ID, mode: isStandaloneBuild ? "standalone" : "artifact" });
-rlApplyDataFixes();
 let qualityPresets = {
     high: { dpr: 2, particles: 1400, fps: 0 },
     battery: { dpr: 1, particles: 500, fps: 30 },
@@ -523,22 +503,8 @@ const overlay = new Overlay(elementById("ov")),
       if (!(!world || world.state !== "victory")) {
         ui.hideOver();
         this.overShown = false;
-        world.shards = 0;
-        world.kills = 0;
-        world.bossKills = [];
-        world.legendaries = 0;
-        world.flawless = 0;
-        world.restartClock();
-        world.evolved = 0;
-        world.dmgSrc = {};
-        // 3.28.1: the death recap of Endless shows the hits of the Endless part only (the clock starts again)
-        world.hitLog = [];
-        world.takenBy = {};
-        // 2.8.1: the Endless summary counts only the Endless part, like shards and kills above
-        world.dmgDealt = 0;
-        world.bestCombo = 0;
-        world.runStats = { dmgTaken: 0, dashes: 0, critHits: 0 };
-        world.continueEndless();
+        // the counters and the clock of the Endless part start again (World.enterEndless, shared with the tests)
+        world.enterEndless();
         ui.showHud(true);
         placeHud();
         this.chooseShown = false;
