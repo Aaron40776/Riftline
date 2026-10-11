@@ -4658,6 +4658,98 @@ await section("mark-bake", async (L) => {
   await P.close();
 });
 
+/* ======================= 3.32.0: the service worker at work ======================= */
+// The "files" section reads sw.js; here the worker really runs. The section serves dist/ itself, so it can make the
+// server fail: down (the connection drops) or broken (every request answers 503 with an error page, the way a host
+// fails). Either way a returning player must get the cached game, not an error page. The worker raced the network
+// against a 3 s timer and took the first answer, so a quick 503 page won over the cached game.
+await section("offline", async (L) => {
+  const { serve } = await import("../tools/serve.js");
+  let mode = "ok";
+  const { server, url } = await serve(new URL("../dist/", import.meta.url).pathname, 0, {
+    intercept(req, res) {
+      if (mode === "down") {
+        req.socket.destroy();
+        return true;
+      }
+      if (mode === "503") {
+        res.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        res.end("<!doctype html><title>503 Service Unavailable</title><h1>503 Service Unavailable</h1>");
+        return true;
+      }
+      return false;
+    },
+  });
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    liveContexts.add(ctx);
+    const page = await ctx.newPage(),
+      errors = [];
+    page.on("pageerror", (e) => errors.push(String(e.message).split("\n")[0]));
+    const boots = (timeout = 60000) =>
+      page
+        .waitForFunction(
+          () => window.__riftTest && window.__riftTest.game && window.__riftTest.RL_HEALTH.length > 5,
+          null,
+          {
+            timeout,
+          },
+        )
+        .then(
+          () => true,
+          () => false,
+        );
+    await page.goto(url + "index.html");
+    await boots(90000);
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.reload();
+    await boots(90000);
+    const state = await page.evaluate(async () => {
+      const keys = (await caches.keys()).filter((k) => k.startsWith("riftline-")),
+        cache = keys.length ? await caches.open(keys[0]) : null;
+      return {
+        controlled: !!navigator.serviceWorker.controller,
+        caches: keys.length,
+        files: cache ? (await cache.keys()).map((r) => new URL(r.url).pathname.replace(/^\//, "")) : [],
+      };
+    });
+    const sw = await (await page.request.get(url + "sw.js")).text(),
+      wanted = JSON.parse(sw.match(/const FILES = (\[[^\]]*\])/)[1]).map((f) => (f === "./" ? "" : f)),
+      missing = wanted.filter((f) => !state.files.includes(f));
+    check(
+      L,
+      "the worker controls the page after a reload",
+      state.controlled && state.caches === 1,
+      JSON.stringify(state).slice(0, 120),
+    );
+    check(L, "every precached file is in the cache", !missing.length, missing.join(", "));
+    // the server is down: the game starts from the cache
+    mode = "down";
+    await page.reload().catch(() => {});
+    const down = await boots(20000);
+    check(L, "server down: the cached game starts", down, await page.title());
+    // the host answers with an error page: the cached game still starts (and the error page is not stored)
+    mode = "503";
+    await page.reload().catch(() => {});
+    const broken = await boots(20000);
+    check(L, "server error (503): the cached game starts, not the error page", broken, await page.title());
+    mode = "ok";
+    await page.reload();
+    const back = await boots(60000),
+      kept = await page.evaluate(async () => {
+        const keys = (await caches.keys()).filter((k) => k.startsWith("riftline-")),
+          hit = await (await caches.open(keys[0])).match("index.html");
+        const text = hit ? await hit.text() : "";
+        return text.length > 5000 && !text.includes("503 Service Unavailable");
+      });
+    check(L, "server back: the game starts and the cached page is still the game", back && kept);
+    check(L, "no page errors", !errors.length, errors.slice(0, 2).join(" | "));
+  } finally {
+    mode = "ok";
+    server.close();
+  }
+});
+
 if (!sectionsRun) log("filter", "FAIL", `no section matches "${ONLY}"`);
 await browser.close();
 console.log(out.join("\n"));

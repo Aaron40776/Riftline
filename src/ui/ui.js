@@ -867,6 +867,9 @@ const getById = (id) => document.getElementById(id),
         btn.classList.toggle("on", Math.abs(+btn.dataset.v - settings.zoom) < 0.01);
       getById("qualityNote").textContent = this.g.qualityNote();
       getById("storageWarn").hidden = this.g.store.storageOk;
+      getById("storageWarnText").textContent = this.g.store.held
+        ? "the old save is kept unread (storage full): progress is not saved"
+        : "storage is blocked in this browser";
       getById("verText").textContent = `v${GAME_VERSION}`;
       this.renderLog();
       // 2.4.2: run timer and FPS counter
