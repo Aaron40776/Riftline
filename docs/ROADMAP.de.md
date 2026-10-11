@@ -228,6 +228,9 @@ changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its sh
   audio and art checklists); none covers procedural WebAudio sound design. #65 adds shader and DSP recipes; the PR of
   11.10.2026 adds `riftline-sound`, written for this engine (a map, recipes with their checks, the audio decisions and
   the measured mix targets).
+  The PR of 11.10.2026 (`claude/capability-skills`) adds eleven skills of a capability system (an orchestrator plus 3D,
+  art/UI/VFX, animation, audio, engine choice, game code, asset integration and licences, visual QA, skill maintenance)
+  with tested helper scripts; Riftline's rules come first (models in code, live WebAudio, phones first).
 
 ### CURRENT STATE (10.10.2026, evening, 3.31.0; read this first when the work goes on)
 
