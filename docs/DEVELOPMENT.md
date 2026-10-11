@@ -31,6 +31,10 @@ the release, so the code was turned back into readable sources step by step:
   `tests/sim-node.mjs` (`npm run test:sim`) is the first step of `npm test`.
 - 3.31.0: the renderer draws between the last two simulation steps (`render/interp.js`), and phones with a fast
   screen are paced (`render/pacing.js`).
+- 3.32.0: faster and steadier tests. The sound cache keys a data file on what the sound engine can read (not the card
+  texts) and keeps four results; the place-music, track-switch and bloom checks are cached too. The risky real-time
+  waits of the full QA and the E2E wait on the game's state. CI runs once per pull request push (no second run on
+  push), plays a wave (`full-qa run-desktop`), and `nightly.yml` runs the long checks every night.
 
 ## Working rules
 

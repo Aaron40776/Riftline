@@ -218,6 +218,12 @@ changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its sh
 - **Plans waiting for the owner's go (P1-P7):** saves that survive versions, the service worker under test, one Endless
   entry for game and tests, faster and steadier tests and CI (sound cache, real-time waits, nightly checks), workflow
   hardening, module injection and file splits, the self-test as a lazy chunk.
+  - **P4 done** (PR `claude/faster-tests`): the sound cache no longer renders every sound again after a card text edit
+    (a data file counts by what the sound engine reads), keeps four results and caches three more checks; nine risky
+    real-time waits of the full QA and the E2E wait on state (one of them, "an abandoned run is not saved again",
+    passed whatever happened and now really checks that the run is not stepped); CI runs once per push of a pull
+    request and plays a wave; `nightly.yml` (owner's yes, 11.10.2026) runs E2E, a short fuzz, the audits and the
+    screenshots every night.
 - **Decisions for the owner:** the self-test in the player build, saves across versions, CI minutes, frame pacing on
   desktops, the first boss's contact damage, pacts against threat levels, the Frost Prism's skin, dependency bumps.
 - **Skills:** PR #63 adds third-party Claude Code skills under `.claude/skills/` (graphics, profiling, QA, UI, game feel,

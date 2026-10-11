@@ -33,8 +33,8 @@ rules and release steps. Read them first. In short:
   (`npm run release-check` runs all of it in order), and look at the screenshots.
 - All changes go through pull requests: work on a branch, open a PR against `main`, and let the
   owner merge it. Never push to `main` directly.
-- A push to `main` deploys the game to GitHub Pages. Other branches and pull requests only run
-  the tests (`.github/workflows/test.yml`).
+- A push to `main` deploys the game to GitHub Pages. Pull requests only run the tests
+  (`.github/workflows/test.yml`); the long checks run every night on `main` (`.github/workflows/nightly.yml`).
 - Saves use the `localStorage` keys `riftline.*`. Riftdeck shares the GitHub Pages origin and uses
   `riftdeck.*`; never read or write those.
 - Everything is written in English (the owner's wish since 03.10.2026): player-facing texts, commit messages, README,

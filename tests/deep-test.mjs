@@ -55,7 +55,7 @@ const res = await page.evaluate(() => {
 // 2.7.0: render every sound offline (mono, 44.1 kHz, at most 2 s): no exception, finite samples, not silent,
 // below full scale, and every voice has ended when the render does (nothing stays alive)
 lap("selftest");
-const cache = soundCache(),
+const cache = await soundCache(),
   cached = cache.data;
 const sound = cached
   ? cached.sound
@@ -626,50 +626,53 @@ const music = cached
 lap(cached ? "sound (cached)" : "sound");
 // 3.14.0: the music of the place: each calm theme keeps its quiet start and adds the rhythm of its place as the fight
 // swells (8 s at intensity 0.1 against 0.9, from the first bar, with the music log)
-const placeMusic = await page.evaluate(async () => {
-  const E = window.__riftTest.game.sound.constructor,
-    fail = [],
-    out = {},
-    voices = async (biome, intensity) =>
-      (await E.renderOffline({ music: "fight", biome, intensity, log: true, seed: 3, room: false }, 8)).musicLog,
-    // what each place adds: Blackout City a walking bass (short low notes on the pump bus), Ember Works pistons and a
-    // conveyor (noises), Toxin Marsh a log drum (short low notes on the pump bus), Void Core a choir and glitches
-    // (the choir bus, short high notes)
-    want = {
-      yard: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 130 && v.dur < 0.6).length,
-      works: (log) => log.filter((v) => v.kind === "n").length,
-      marsh: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 200 && v.dur < 0.5).length,
-      void: (log) => log.filter((v) => v.bus === "c" || (v.kind === "t" && v.pitch > 900 && v.dur < 0.05)).length,
-      // 3.17.0 (in 3.16.0): Cryo Vault icicles on the off-beats (short high notes on the music bus) and the ice creaks
-      vault: (log) =>
-        log.filter((v) => v.bus === "m" && ((v.kind === "t" && v.pitch > 1000 && v.dur <= 0.06) || v.kind === "n"))
-          .length,
+// 3.32.0: this check, the track switch and the bloom below hear only the sound engine: they are kept in the sound cache
+const placeMusic =
+  cached?.placeMusic ??
+  (await page.evaluate(async () => {
+    const E = window.__riftTest.game.sound.constructor,
+      fail = [],
+      out = {},
+      voices = async (biome, intensity) =>
+        (await E.renderOffline({ music: "fight", biome, intensity, log: true, seed: 3, room: false }, 8)).musicLog,
+      // what each place adds: Blackout City a walking bass (short low notes on the pump bus), Ember Works pistons and a
+      // conveyor (noises), Toxin Marsh a log drum (short low notes on the pump bus), Void Core a choir and glitches
+      // (the choir bus, short high notes)
+      want = {
+        yard: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 130 && v.dur < 0.6).length,
+        works: (log) => log.filter((v) => v.kind === "n").length,
+        marsh: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 200 && v.dur < 0.5).length,
+        void: (log) => log.filter((v) => v.bus === "c" || (v.kind === "t" && v.pitch > 900 && v.dur < 0.05)).length,
+        // 3.17.0 (in 3.16.0): Cryo Vault icicles on the off-beats (short high notes on the music bus) and the ice creaks
+        vault: (log) =>
+          log.filter((v) => v.bus === "m" && ((v.kind === "t" && v.pitch > 1000 && v.dur <= 0.06) || v.kind === "n"))
+            .length,
+      };
+    for (const [biome, count] of Object.entries(want)) {
+      const quiet = count(await voices(biome, 0.1)),
+        busy = count(await voices(biome, 0.9));
+      out[biome] = { quiet, busy };
+      if (!(busy >= quiet + 4)) fail.push(`${biome}: the rhythm of the place does not come in (${quiet} -> ${busy})`);
+    }
+    // 3.16.0: the boss tracks of the Frost Prism, Hive Queen and Rift Core take the sounds of their place into the drums
+    // (ice cracks and icicles, frogs and bubbles, glitches): 8 s of the drop must hold a handful of them
+    const boss = {
+      // icicles: short high notes on the music bus (before 3.16.0 there were none in the drop)
+      vault: (log) => log.filter((v) => v.bus === "m" && v.kind === "t" && v.pitch > 1000 && v.dur < 0.2).length,
+      // frogs and bubbles: short notes on the music bus
+      marsh: (log) => log.filter((v) => v.bus === "m" && v.kind === "t" && v.dur <= 0.08).length,
+      // glitches: very short high notes on the music bus
+      void: (log) => log.filter((v) => v.bus === "m" && v.kind === "t" && v.pitch > 900 && v.dur < 0.08).length,
     };
-  for (const [biome, count] of Object.entries(want)) {
-    const quiet = count(await voices(biome, 0.1)),
-      busy = count(await voices(biome, 0.9));
-    out[biome] = { quiet, busy };
-    if (!(busy >= quiet + 4)) fail.push(`${biome}: the rhythm of the place does not come in (${quiet} -> ${busy})`);
-  }
-  // 3.16.0: the boss tracks of the Frost Prism, Hive Queen and Rift Core take the sounds of their place into the drums
-  // (ice cracks and icicles, frogs and bubbles, glitches): 8 s of the drop must hold a handful of them
-  const boss = {
-    // icicles: short high notes on the music bus (before 3.16.0 there were none in the drop)
-    vault: (log) => log.filter((v) => v.bus === "m" && v.kind === "t" && v.pitch > 1000 && v.dur < 0.2).length,
-    // frogs and bubbles: short notes on the music bus
-    marsh: (log) => log.filter((v) => v.bus === "m" && v.kind === "t" && v.dur <= 0.08).length,
-    // glitches: very short high notes on the music bus
-    void: (log) => log.filter((v) => v.bus === "m" && v.kind === "t" && v.pitch > 900 && v.dur < 0.08).length,
-  };
-  for (const [biome, count] of Object.entries(boss)) {
-    const n = count(
-      (await E.renderOffline({ music: "boss", biome, intensity: 0.9, log: true, seed: 3, room: false }, 8)).musicLog,
-    );
-    out["boss-" + biome] = n;
-    if (!(n >= 4)) fail.push(`${biome}: the boss track has no sounds of its place in the drums (${n})`);
-  }
-  return { ...out, fail };
-});
+    for (const [biome, count] of Object.entries(boss)) {
+      const n = count(
+        (await E.renderOffline({ music: "boss", biome, intensity: 0.9, log: true, seed: 3, room: false }, 8)).musicLog,
+      );
+      out["boss-" + biome] = n;
+      if (!(n >= 4)) fail.push(`${biome}: the boss track has no sounds of its place in the drums (${n})`);
+    }
+    return { ...out, fail };
+  }));
 res.placeMusic = placeMusic;
 // 3.16.0: the ambience stays well below the music (the 3.13.0 plan): 20 s of each biome's soundscape (the real
 // scheduler with the steady layer, the far sounds and the hazards of the arena) against 20 s of its calm theme, both at
@@ -714,97 +717,101 @@ res.ambience = ambience;
 // 3.18.1: a track change silences the old track: the notes still sounding, the echoes and the room are gone shortly
 // after the change (the calm theme used to ring on under the first bars of a boss)
 const SWITCH_UNDER = 0.12;
-const switched = await page.evaluate(async (under) => {
-  const E = window.__riftTest.game.sound.constructor,
-    out = {},
-    fail = [],
-    rms = (x, a, b) => {
-      let sum = 0;
-      const i0 = Math.floor(a * 44100),
-        i1 = Math.floor(b * 44100);
-      for (let i = i0; i < i1; i++) sum += x[i] * x[i];
-      return Math.sqrt(sum / (i1 - i0));
-    };
-  for (const [music, biome] of [
-    ["fight", "yard"],
-    ["fight", "void"],
-    ["boss", "works"],
-    ["boss", "vault"],
-  ]) {
-    const spec = { music, biome, intensity: 0.9, heat: 0.5, wav: true, seed: 5, musicEnd: 6, noBed: true },
-      kept = (await E.renderOffline(spec, 10)).samples,
-      cut = (await E.renderOffline({ ...spec, quietAt: 6 }, 10)).samples,
-      // the music plays 0.25 s into the render: 4 to 6 s of the music is the level before the change; 0.3 to 1.75 s after it
-      before = rms(cut, 4.25, 6.25),
-      after = rms(cut, 6.55, 8),
-      ringing = rms(kept, 6.55, 8);
-    out[`${music}:${biome}`] = { before: +before.toFixed(4), after: +after.toFixed(4), ringing: +ringing.toFixed(4) };
-    if (!(after < before * under))
-      fail.push(`${music}:${biome}: ${(after / before).toFixed(2)} of the level is still heard after the change`);
-    if (!(ringing > after * 2))
-      fail.push(
-        `${music}:${biome}: the test shows nothing (without the cut ${ringing.toFixed(4)}, with it ${after.toFixed(4)})`,
-      );
-  }
-  return { ...out, fail };
-}, SWITCH_UNDER);
+const switched =
+  cached?.switched ??
+  (await page.evaluate(async (under) => {
+    const E = window.__riftTest.game.sound.constructor,
+      out = {},
+      fail = [],
+      rms = (x, a, b) => {
+        let sum = 0;
+        const i0 = Math.floor(a * 44100),
+          i1 = Math.floor(b * 44100);
+        for (let i = i0; i < i1; i++) sum += x[i] * x[i];
+        return Math.sqrt(sum / (i1 - i0));
+      };
+    for (const [music, biome] of [
+      ["fight", "yard"],
+      ["fight", "void"],
+      ["boss", "works"],
+      ["boss", "vault"],
+    ]) {
+      const spec = { music, biome, intensity: 0.9, heat: 0.5, wav: true, seed: 5, musicEnd: 6, noBed: true },
+        kept = (await E.renderOffline(spec, 10)).samples,
+        cut = (await E.renderOffline({ ...spec, quietAt: 6 }, 10)).samples,
+        // the music plays 0.25 s into the render: 4 to 6 s of the music is the level before the change; 0.3 to 1.75 s after it
+        before = rms(cut, 4.25, 6.25),
+        after = rms(cut, 6.55, 8),
+        ringing = rms(kept, 6.55, 8);
+      out[`${music}:${biome}`] = { before: +before.toFixed(4), after: +after.toFixed(4), ringing: +ringing.toFixed(4) };
+      if (!(after < before * under))
+        fail.push(`${music}:${biome}: ${(after / before).toFixed(2)} of the level is still heard after the change`);
+      if (!(ringing > after * 2))
+        fail.push(
+          `${music}:${biome}: the test shows nothing (without the cut ${ringing.toFixed(4)}, with it ${after.toFixed(4)})`,
+        );
+    }
+    return { ...out, fail };
+  }, SWITCH_UNDER));
 // 3.19.0: the ambient bloom: every calm theme has single notes that ring out in the ping-pong echo (BLOOM): enough of them
 // to be noticed and few enough to be subtle, at a level under the theme, each biome with a voice and a register of its
 // own, and the whole thing wide (the two channels differ)
-const bloomRes = await page.evaluate(async () => {
-  const E = window.__riftTest.game.sound.constructor,
-    out = {},
-    fail = [],
-    rms = (x) => {
-      let sum = 0;
-      for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
-      return Math.sqrt(sum / x.length);
-    },
-    // how wide: the energy of the difference of the channels against that of their sum
-    width = (l, r) => {
-      let side = 0,
-        mid = 0;
-      for (let i = 0; i < l.length; i++) {
-        side += (l[i] - r[i]) ** 2;
-        mid += (l[i] + r[i]) ** 2;
-      }
-      return Math.sqrt(side / (mid || 1));
-    };
-  for (const biome of ["yard", "works", "vault", "marsh", "void"]) {
-    const info = E.trackInfo("fight", biome),
-      seconds = (8 * 240) / info.bpm,
-      spec = { music: "fight", biome, intensity: 0.2, wav: true, log: true, seed: 11, stereo: true, noBed: true },
-      withB = await E.renderOffline(spec, seconds),
-      without = await E.renderOffline({ ...spec, bloom: false }, seconds),
-      notes = withB.musicLog.filter((n) => n.bus === "b"),
-      onlyPitches = notes.map((n) => n.pitch);
-    const rw = rms(withB.samples),
-      ro = rms(without.samples),
-      share = Math.sqrt(Math.max(0, rw * rw - ro * ro)) / ro,
-      wW = width(withB.samples, withB.samplesR),
-      wO = width(without.samples, without.samplesR);
-    out[biome] = {
-      notes: notes.length,
-      lowHz: Math.round(Math.min(...onlyPitches)),
-      highHz: Math.round(Math.max(...onlyPitches)),
-      share: +share.toFixed(2),
-      widthWith: +wW.toFixed(2),
-      widthWithout: +wO.toFixed(2),
-    };
-    // (a note is two to four tones: its partials)
-    if (notes.length < 8) fail.push(`${biome}: only ${notes.length} bloom tones in 8 bars`);
-    if (notes.length > 70) fail.push(`${biome}: ${notes.length} bloom tones in 8 bars is not subtle`);
-    if (share < 0.08) fail.push(`${biome}: the bloom is not noticeable (${share.toFixed(2)} of the theme)`);
-    if (share > 0.9) fail.push(`${biome}: the bloom is louder than the theme allows (${share.toFixed(2)})`);
-    if (!(wW > wO)) fail.push(`${biome}: the bloom does not widen the sound (${wO.toFixed(2)} -> ${wW.toFixed(2)})`);
-    if (withB.musicSkipped || withB.musicShed) fail.push(`${biome}: notes refused with the bloom`);
-  }
-  // each biome has its own register
-  const centre = (b) => Math.sqrt(out[b].lowHz * out[b].highHz);
-  if (!(centre("vault") > centre("works") * 1.8))
-    fail.push("the glass of the Cryo Vault is not clearly above the pipes of the Ember Works");
-  return { ...out, fail };
-});
+const bloomRes =
+  cached?.bloom ??
+  (await page.evaluate(async () => {
+    const E = window.__riftTest.game.sound.constructor,
+      out = {},
+      fail = [],
+      rms = (x) => {
+        let sum = 0;
+        for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
+        return Math.sqrt(sum / x.length);
+      },
+      // how wide: the energy of the difference of the channels against that of their sum
+      width = (l, r) => {
+        let side = 0,
+          mid = 0;
+        for (let i = 0; i < l.length; i++) {
+          side += (l[i] - r[i]) ** 2;
+          mid += (l[i] + r[i]) ** 2;
+        }
+        return Math.sqrt(side / (mid || 1));
+      };
+    for (const biome of ["yard", "works", "vault", "marsh", "void"]) {
+      const info = E.trackInfo("fight", biome),
+        seconds = (8 * 240) / info.bpm,
+        spec = { music: "fight", biome, intensity: 0.2, wav: true, log: true, seed: 11, stereo: true, noBed: true },
+        withB = await E.renderOffline(spec, seconds),
+        without = await E.renderOffline({ ...spec, bloom: false }, seconds),
+        notes = withB.musicLog.filter((n) => n.bus === "b"),
+        onlyPitches = notes.map((n) => n.pitch);
+      const rw = rms(withB.samples),
+        ro = rms(without.samples),
+        share = Math.sqrt(Math.max(0, rw * rw - ro * ro)) / ro,
+        wW = width(withB.samples, withB.samplesR),
+        wO = width(without.samples, without.samplesR);
+      out[biome] = {
+        notes: notes.length,
+        lowHz: Math.round(Math.min(...onlyPitches)),
+        highHz: Math.round(Math.max(...onlyPitches)),
+        share: +share.toFixed(2),
+        widthWith: +wW.toFixed(2),
+        widthWithout: +wO.toFixed(2),
+      };
+      // (a note is two to four tones: its partials)
+      if (notes.length < 8) fail.push(`${biome}: only ${notes.length} bloom tones in 8 bars`);
+      if (notes.length > 70) fail.push(`${biome}: ${notes.length} bloom tones in 8 bars is not subtle`);
+      if (share < 0.08) fail.push(`${biome}: the bloom is not noticeable (${share.toFixed(2)} of the theme)`);
+      if (share > 0.9) fail.push(`${biome}: the bloom is louder than the theme allows (${share.toFixed(2)})`);
+      if (!(wW > wO)) fail.push(`${biome}: the bloom does not widen the sound (${wO.toFixed(2)} -> ${wW.toFixed(2)})`);
+      if (withB.musicSkipped || withB.musicShed) fail.push(`${biome}: notes refused with the bloom`);
+    }
+    // each biome has its own register
+    const centre = (b) => Math.sqrt(out[b].lowHz * out[b].highHz);
+    if (!(centre("vault") > centre("works") * 1.8))
+      fail.push("the glass of the Cryo Vault is not clearly above the pipes of the Ember Works");
+    return { ...out, fail };
+  }));
 res.bloom = bloomRes;
 if (bloomRes.fail.length) res.ok = false;
 res.trackSwitch = switched;
@@ -831,7 +838,12 @@ if (distinct.fail.length) res.ok = false;
 if (sound.fail.length) res.ok = false;
 res.timing = timing;
 if (cached) res.soundCache = `reused the sound results of ${cached.at} (inputs unchanged; --full renders them again)`;
-else if (!sound.fail.length && !distinct.fail.length && !music.fail.length) cache.save({ sound, distinct, music });
+// a result from before 3.32.0 lacks the three place checks: it is completed and stored again
+if (
+  (!cached || !cached.placeMusic || !cached.switched || !cached.bloom) &&
+  ![sound, distinct, music, placeMusic, switched, bloomRes].some((part) => part.fail.length)
+)
+  cache.save({ sound, distinct, music, placeMusic, switched, bloom: bloomRes });
 console.log(JSON.stringify(res, null, 1));
 console.log(res.ok ? "DEEP TEST: ok" : "DEEP TEST: FAIL");
 await browser.close();
