@@ -7,7 +7,7 @@ import { SAVE_KEY, cleanRun } from "./save.js";
 import { RL_MESH_TYPES } from "../render/models.js";
 import { enemyDefs, RL_ENEMY_TIPS, bossDefs } from "../data/enemies.js";
 import { ui, store, game, safeAreaInsets, input, renderer } from "../main.js";
-import { runHooks } from "./run-hooks.js";
+import { runHooks, setLogHook } from "./run-hooks.js";
 import { BUILD_ID, GAME_VERSION, formatTime } from "./util.js";
 import { biomesById, biomeList } from "../data/biomes.js";
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
@@ -292,6 +292,7 @@ let RL_REQUIRED_DOM = [
     "shieldPip",
     "statGrid",
     "storageWarn",
+    "storageWarnText",
     "tDesc",
     "tName",
     "tNext",
@@ -1805,6 +1806,7 @@ window.addEventListener("unhandledrejection", (event) => logError("promise", eve
 runHooks.step = rlMonStep;
 runHooks.issue = rlMonIssue;
 runHooks.beginWave = rlMonBeginWave;
+setLogHook(logError);
 
 export {
   RL_EVENT_KINDS,

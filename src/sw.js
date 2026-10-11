@@ -28,19 +28,26 @@ self.addEventListener('fetch', (e) => {
       }
       return res;
     });
-    const slow = new Promise((resolve) => setTimeout(resolve, 3000)).then(cached).then((hit) => hit || net);
-    e.respondWith(Promise.race([net, slow]).catch(() => cached()));
+    // 3.32.0: an error page of the host (a 5xx, a 404) is not the game: the cached page wins over it
+    const good = net.then((res) => (res && res.ok ? res : cached().then((hit) => hit || res)));
+    const slow = new Promise((resolve) => setTimeout(resolve, 3000)).then(cached).then((hit) => hit || good);
+    e.respondWith(Promise.race([good, slow]).catch(() => cached()));
     e.waitUntil(net.catch(() => null));
     return;
   }
   if (url.pathname.endsWith('/build-info.json')) {
+    const stored = () => caches.open(CACHE).then(c => c.match('build-info.json'));
     e.respondWith(fetch(req, { cache: 'no-store' }).then((res) => {
-      if (res && res.ok && res.type === 'basic') {
-        const copy = res.clone();
-        e.waitUntil(caches.open(CACHE).then(c => c.put('build-info.json', copy)).catch(() => {}));
+      if (res && res.ok) {
+        if (res.type === 'basic') {
+          const copy = res.clone();
+          e.waitUntil(caches.open(CACHE).then(c => c.put('build-info.json', copy)).catch(() => {}));
+        }
+        return res;
       }
-      return res;
-    }).catch(() => caches.open(CACHE).then(c => c.match('build-info.json'))));
+      // 3.32.0: an error page of the host is not the build info: the stored one answers (as when offline)
+      return stored().then((hit) => hit || res);
+    }).catch(stored));
     return;
   }
   e.respondWith(caches.open(CACHE).then((c) => c.match(req, { ignoreSearch: true }).then((hit) => hit || fetch(req).then((res) => {

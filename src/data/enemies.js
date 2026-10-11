@@ -387,7 +387,8 @@ Object.assign(enemyDefs, {
     cost: 6,
     shards: 8,
     from: 21,
-    color: 16769354,
+    // 2.3.2: distinct silhouettes need distinct colours (the Sentinel shared the Bomber's yellow)
+    color: 0xe8e8ff,
   },
   carrier: {
     id: "carrier",
@@ -442,7 +443,8 @@ Object.assign(enemyDefs, {
     cost: 7,
     shards: 10,
     from: 26,
-    color: 7208904,
+    // 2.3.2: the Repair Beacon shared the Mender's green
+    color: 0x00ffa2,
   },
   weaver: {
     id: "weaver",

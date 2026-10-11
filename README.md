@@ -86,7 +86,8 @@ npm run build          # src/ -> dist/ (the deployable site)
 npm run serve          # serve dist/ on http://localhost:8124
 npm run test:sim       # the simulation in Node, no browser (~30 s): determinism, bot runs, Banish, resume,
                        # drawing between steps, gameplay regressions
-npm test               # sim in Node, build, deep self-test, file/PWA contract, data audit, determinism (CI runs this)
+npm run test:save      # the save store in Node (~1 s): newer saves opened by an older build, imports, broken saves
+npm test               # sim and saves in Node, build, deep self-test, file/PWA contract, offline start, data audit, determinism (CI runs this)
 npm run check          # quick check while developing: format + the npm test steps (~3 min with cached sounds, ~6 without);
                        # full-QA sections can be added by name: npm run check -- run-desktop codex
 npm run release-check  # everything a release needs, one step after another, with a time per step (~35-45 min)
@@ -132,7 +133,7 @@ src/
   sw.js            service worker (offline cache, update handshake)
   build-info.json  version, build id, feature and change list (fetched by the game)
 public/            icons, fonts, web manifest, third-party licenses (copied to dist/ unchanged)
-tests/             tests in Node (sim-node, balance) and in the browser (Playwright), shared helpers in tests/lib,
+tests/             tests in Node (sim-node, save-node, balance) and in the browser (Playwright), shared helpers in tests/lib,
                    fixtures with real old saves
 tools/             test runner and check chains, static server, sim summary
 docs/              development notes, roadmap, QA report of every release, README pictures
