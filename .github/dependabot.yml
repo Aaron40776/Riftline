@@ -1,0 +1,11 @@
+# 3.32.0: the GitHub Actions of the workflows are pinned to a commit (a moved tag cannot change what runs); Dependabot
+# opens a pull request when a new version comes out, with the new commit and its tag in the comment. The npm packages
+# are left out on purpose: three stays pinned, and Playwright follows the browser of the cloud image.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "CI"

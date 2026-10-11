@@ -147,7 +147,8 @@ Every push to `main` runs `.github/workflows/pages.yml`: it installs, runs `npm 
 `dist/` on GitHub Pages at <https://aaron40776.github.io/Riftline/>. Pull requests run the format check, the same
 tests and one played wave without deploying (`.github/workflows/test.yml`; a branch without a pull request can be
 tested by hand from the Actions tab). Every night the long checks run on `main` (`.github/workflows/nightly.yml`:
-end-to-end, a short UI fuzz, the world and run audits, the screenshots as an artifact).
+end-to-end, a short UI fuzz, the world and run audits, the screenshots as an artifact). The GitHub Actions are pinned to a commit;
+Dependabot proposes their updates (`.github/dependabot.yml`).
 
 `dist/` is a static site that works in any sub-path. The service worker caches only files of its own folder and
 removes old `riftline-*` caches on update. A new version is downloaded in the background and applied when no run is

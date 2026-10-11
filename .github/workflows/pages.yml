@@ -6,21 +6,25 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# 3.32.0: each job gets only what it needs: the build (which runs npm ci and the tests) reads the code; only the deploy
+# job may write to Pages and ask for the OIDC token
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
+# 3.32.0: a deploy that has started finishes and the next one waits; with cancel-in-progress a second merge cancelled
+# a deploy that was already under way (GitHub's own Pages example keeps it false)
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
@@ -31,16 +35,19 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Build and test
         run: npm test
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

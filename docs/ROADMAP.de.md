@@ -237,6 +237,10 @@ changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its sh
     passed whatever happened and now really checks that the run is not stepped); CI runs once per push of a pull
     request and plays a wave; `nightly.yml` (owner's yes, 11.10.2026) runs E2E, a short fuzz, the audits and the
     screenshots every night.
+  - **P5 done** (PR `claude/workflow-hardening`): in `pages.yml` only the deploy job may write to Pages and get the
+    OIDC token (the build job, which runs npm ci and the tests, only reads); a running deploy is no longer cancelled
+    by the next merge; every GitHub Action is pinned to a commit with its version in a comment, and Dependabot
+    (`.github/dependabot.yml`) proposes updates weekly.
 - **Decisions for the owner:** the self-test in the player build, frame pacing on desktops, the first boss's contact damage, pacts against threat levels, the Frost Prism's skin, dependency bumps.
 - **Skills:** PR #63 adds third-party Claude Code skills under `.claude/skills/` (graphics, profiling, QA, UI, game feel,
   audio and art checklists); none covers procedural WebAudio sound design. #65 adds shader and DSP recipes; the PR of
