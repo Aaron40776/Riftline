@@ -144,7 +144,8 @@ CLAUDE.md          working rules for Claude Code sessions in this repository
 
 Every push to `main` runs `.github/workflows/pages.yml`: it installs, runs `npm test` (which builds) and publishes
 `dist/` on GitHub Pages at <https://aaron40776.github.io/Riftline/>. Pull requests and other branches run the format
-check and the same tests without deploying (`.github/workflows/test.yml`).
+check and the same tests without deploying (`.github/workflows/test.yml`). The GitHub Actions are pinned to a commit;
+Dependabot proposes their updates (`.github/dependabot.yml`).
 
 `dist/` is a static site that works in any sub-path. The service worker caches only files of its own folder and
 removes old `riftline-*` caches on update. A new version is downloaded in the background and applied when no run is

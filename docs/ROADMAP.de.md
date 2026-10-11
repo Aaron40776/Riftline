@@ -218,6 +218,10 @@ changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its sh
 - **Plans waiting for the owner's go (P1-P7):** saves that survive versions, the service worker under test, one Endless
   entry for game and tests, faster and steadier tests and CI (sound cache, real-time waits, nightly checks), workflow
   hardening, module injection and file splits, the self-test as a lazy chunk.
+  - **P5 done** (PR `claude/workflow-hardening`): in `pages.yml` only the deploy job may write to Pages and get the
+    OIDC token (the build job, which runs npm ci and the tests, only reads); a running deploy is no longer cancelled
+    by the next merge; every GitHub Action is pinned to a commit with its version in a comment, and Dependabot
+    (`.github/dependabot.yml`) proposes updates weekly.
 - **Decisions for the owner:** the self-test in the player build, saves across versions, CI minutes, frame pacing on
   desktops, the first boss's contact damage, pacts against threat levels, the Frost Prism's skin, dependency bumps.
 - **Skills:** PR #63 adds third-party Claude Code skills under `.claude/skills/` (graphics, profiling, QA, UI, game feel,
