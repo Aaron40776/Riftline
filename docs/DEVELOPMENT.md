@@ -39,6 +39,10 @@ the release, so the code was turned back into readable sources step by step:
   tests play the Endless the players get. The start-up patches of the data (`rlApplyDataFixes` in `main.js`: enemy
   colours, the weapon order, a workshop text, an icon, the Cryo Vault palette) now live in the data files, so Node and
   the browser see the same data.
+- 3.32.0: faster and steadier tests. The sound cache keys a data file on what the sound engine can read (not the card
+  texts) and keeps four results; the place-music, track-switch and bloom checks are cached too. The risky real-time
+  waits of the full QA and the E2E wait on the game's state. CI runs once per pull request push (no second run on
+  push), plays a wave (`full-qa run-desktop`), and `nightly.yml` runs the long checks every night.
 
 ## Working rules
 

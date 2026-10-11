@@ -1,0 +1,55 @@
+# 3.32.0: the long checks, every night on main (about 25-35 minutes; the owner agreed on 11.10.2026). They are too slow
+# for every pull request: the end-to-end test with real input on four screen sizes, a short UI fuzz, the world and run
+# audits, and the screenshots (kept as an artifact for a week, to look at). A failure shows on the Actions tab.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 2 * * *" # 03:17 CET / 04:17 CEST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Build
+        run: node build.js
+      - name: End-to-end
+        run: node tools/qa.js e2e
+      - name: UI fuzz (short)
+        if: always()
+        run: node tools/qa.js fuzz 7 300
+      - name: World and run audits
+        if: always()
+        run: |
+          node tools/qa.js world-audit
+          node tools/qa.js run-audit
+      - name: Screenshots
+        if: always()
+        run: |
+          node tools/qa.js screens pc
+          node tools/qa.js screens land
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: tests/shots/
+          retention-days: 7
+          if-no-files-found: ignore

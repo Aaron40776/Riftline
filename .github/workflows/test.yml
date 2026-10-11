@@ -1,11 +1,11 @@
-# Runs the tests on pull requests and on pushes to branches other than main, so a change is
-# checked before it is merged. main itself is tested by pages.yml right before it deploys.
+# Runs the tests on pull requests, so a change is checked before it is merged. main itself is tested by
+# pages.yml right before it deploys; the long checks run every night (nightly.yml).
+# 3.32.0: no longer also on push: a push to a branch with a pull request ran the same tests twice (the two runs had
+# different concurrency groups). A branch without a pull request can still be tested by hand (workflow_dispatch).
 name: Test
 
 on:
   pull_request:
-  push:
-    branches-ignore: [main]
   workflow_dispatch:
 
 permissions:
@@ -33,3 +33,7 @@ jobs:
         run: npm run format:check
       - name: Build and test
         run: npm test
+      # 3.32.0: npm test only boots the menu; this plays a wave on a PC (about 40 s), so a crash while a wave is drawn
+      # shows up before the merge
+      - name: Play a wave
+        run: node tools/qa.js full-qa run-desktop

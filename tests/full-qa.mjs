@@ -111,6 +111,18 @@ async function open(profName, { save = null, block = false, draw = DRAW_ALWAYS }
     await page.waitForTimeout(800);
   };
   P.ev = (fn, arg) => page.evaluate(fn, arg);
+  // 3.32.0: state waits instead of fixed real-time pauses (a slow machine passed or failed them by luck): the run that
+  // Continue resumes is there (and its cards are shown when it waits on an upgrade choice); the end screen is up
+  P.resumed = () =>
+    page.waitForFunction(
+      () => {
+        const w = window.__riftTest.game.world;
+        return !!w && (w.state !== "choose" || document.querySelectorAll("#cards .card").length > 0);
+      },
+      null,
+      { timeout: 20000 },
+    );
+  P.overShown = () => page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 20000 });
   P.vis = (id) =>
     page.evaluate((i) => {
       const e = document.getElementById(i);
@@ -451,7 +463,7 @@ await section("saves", async (L) => {
     );
     check(L, `${label}: unfinished run offered`, d.run && (await P.vis("continueBtn")));
     await P.tap("#continueBtn");
-    await P.page.waitForTimeout(1200);
+    await P.resumed();
     const r = await P.ev(() => {
       const w = window.__riftTest.game.world;
       return (
@@ -478,7 +490,7 @@ await section("saves", async (L) => {
     const w2 = await P.ev(() => window.__riftTest.game.world?.wave);
     check(L, `${label}: picking the upgrade starts the next wave`, w2 === src.run.wave + 1, "wave " + w2);
     await P.ev(() => window.__riftTest.game.abandon());
-    await P.page.waitForTimeout(1200);
+    await P.overShown();
     check(L, `${label}: abandon shows the run summary`, await P.vis("over"));
     await P.tap("#homeBtn");
     await common(P, label);
@@ -852,7 +864,7 @@ await section("workshop-merge", async (L) => {
     await P.back("workshop");
     check(L, `${profName}: unfinished run offered`, await P.vis("continueBtn"));
     await P.tap("#continueBtn");
-    await P.page.waitForTimeout(1200);
+    await P.resumed();
     const r = await P.ev(() => {
       const w = window.__riftTest.game.world;
       return (
@@ -888,11 +900,12 @@ await section("workshop-merge", async (L) => {
       JSON.stringify(w2),
     );
     await P.ev(() => window.__riftTest.game.abandon());
-    await P.page.waitForTimeout(1200);
+    await P.overShown();
     // reload: the notice is not shown a second time and nothing is refunded twice
     await P.page.reload();
     await P.page.waitForFunction(() => window.__riftTest && window.__riftTest.ui, null, { timeout: 90000 });
-    await P.page.waitForTimeout(2500);
+    // the notice would come 1.1 s after the start (rlModuleToast): wait on the page's own clock until well past it
+    await P.page.waitForFunction(() => performance.now() > 3000, null, { timeout: 20000 });
     const again = await P.ev(() => ({
       toast: /Workshop update/.test(document.getElementById("toasts").innerText),
       ws: window.__riftTest.store.data.workshop,
@@ -2511,7 +2524,7 @@ await section("upgrades250A", async (L) => {
       JSON.stringify(d.build),
     );
     await P.tap("#continueBtn");
-    await P.page.waitForTimeout(1200);
+    await P.resumed();
     const r = await P.ev(() => {
       const w = window.__riftTest.game.world;
       return (
@@ -2533,10 +2546,14 @@ await section("upgrades250A", async (L) => {
       timeout: 5000,
     });
     await P.tap('#cards [data-pick="overcharge"]');
-    await P.ev(() => {
+    const t0 = await P.ev(() => {
       window.__riftTest.game.world.god = true;
+      return window.__riftTest.game.world.time;
     });
-    await P.page.waitForTimeout(3000);
+    // the run plays on: a second of game time passes (not three seconds of real time)
+    await P.page
+      .waitForFunction((t) => window.__riftTest.game.world.time > t + 1, t0, { timeout: 30000 })
+      .catch(() => {});
     const g = await P.ev(() => {
       const w = window.__riftTest.game.world;
       return { wave: w.wave, state: w.state, oc: w.up.overcharge, hp: w.player.hp };
@@ -4201,7 +4218,15 @@ for (const profName of ["desktop", "phone"]) {
       w.hurtPlayer(500, null, null, "turret");
     });
     await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 });
-    await P.page.waitForTimeout(3500); // the total counts up
+    // the total counts up: wait until it has settled (the same text over 20 frames)
+    await P.ev(async () => {
+      const el = document.getElementById("payTotal");
+      for (let same = 0, last = "", n = 0; same < 20 && n < 2000; n++) {
+        await new Promise((r) => requestAnimationFrame(r));
+        same = el.textContent === last ? same + 1 : 0;
+        last = el.textContent;
+      }
+    });
     const pay = await P.ev(() => ({
       rows: document.getElementById("payRows").textContent,
       total: document.getElementById("payTotal").textContent,
@@ -4412,12 +4437,20 @@ await section("checkup-3281", async (L) => {
   await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 30000 });
   const chip = await P.ev(() => document.getElementById("overDaily").textContent);
   check(L, "an uncounted Daily says so on the end screen", /not counted/.test(chip) && !/wave 12/.test(chip), chip);
-  // an abandoned run stays gone: it no longer runs on behind the end screen and saves itself again at its next wave
-  await P.page.waitForTimeout(4000);
+  // an abandoned run stays gone: it no longer runs on behind the end screen and saves itself again at its next wave.
+  // 3.32.0: this waited 4 s of real time (about one game second) and passed whether the run ran on or not; now the
+  // abandoned world must not be stepped at all over 30 frames
+  const behind = await P.ev(async () => {
+    const w = window.__riftTest.game.world,
+      t0 = w ? w.time : null;
+    for (let i = 0; i < 30; i++) await new Promise((r) => requestAnimationFrame(r));
+    return { t0, t1: w ? w.time : null, saved: !!window.__riftTest.store.data.run };
+  });
   check(
     L,
-    "an abandoned run is not saved again behind the end screen",
-    await P.ev(() => !window.__riftTest.store.data.run),
+    "an abandoned run is not stepped or saved again behind the end screen",
+    behind.t0 === behind.t1 && !behind.saved,
+    JSON.stringify(behind),
   );
   // a cleared Daily unlocks no threat level and counts as no weapon's clear
   await P.ev(() => window.__riftTest.game.startRun({ daily: true, dailyKey: "2026-10-07" }));
