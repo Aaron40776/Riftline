@@ -18,9 +18,11 @@ const TYPES = {
   ".txt": "text/plain; charset=utf-8",
 };
 
-export function serve(dir, port = 8124, { base = "/", quiet = true } = {}) {
+// `intercept(req, res)` may answer a request itself and return true (tests: a server error page, a dropped connection)
+export function serve(dir, port = 8124, { base = "/", quiet = true, intercept = null } = {}) {
   const root = path.resolve(dir);
   const server = http.createServer((req, res) => {
+    if (intercept && intercept(req, res)) return;
     let p;
     try {
       p = decodeURIComponent(new URL(req.url, "http://x").pathname);

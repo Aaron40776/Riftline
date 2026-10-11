@@ -33,6 +33,8 @@ the release, so the code was turned back into readable sources step by step:
 - 3.32.0: `core/save.js` loads in Node (it logs through `core/run-hooks.js` and gets the store passed in), and
   `tests/save-node.mjs` (`npm run test:save`) checks it. A save carries the version that wrote it (`ver`); an older
   build keeps what a newer one stored (`keptOf`, `withKept`).
+- 3.32.0: the service worker runs in a test (full QA `offline`, part of `npm test`): the section serves `dist/` itself
+  (`tools/serve.js` takes an `intercept`) and lets the server drop or answer 503; the cached game must start.
 
 ## Working rules
 

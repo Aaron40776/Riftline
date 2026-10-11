@@ -223,6 +223,10 @@ changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its sh
     newer one stored (weapons, modules, milestones, stats, settings, fields, a run it cannot play) and writes it back; a
     broken save that cannot be backed up (full storage) is not overwritten, the menu and a toast say so; another tab's
     unusable save no longer replaces this tab's progress. `core/save.js` loads in Node: `tests/save-node.mjs`.
+  - **P2 done** (PR `claude/sw-offline-test`): the full QA section `offline` (in `npm test`) installs the service worker,
+    then starts the game with the server down and with the server answering 503: the cached game must start. The 503
+    case failed: a quick error page of the host won the race against the cached game. Now an error page (and an error
+    instead of `build-info.json`) falls back to the cache.
 - **Decisions for the owner:** the self-test in the player build, frame pacing on desktops, the first boss's contact damage, pacts against threat levels, the Frost Prism's skin, dependency bumps.
 - **Skills:** PR #63 adds third-party Claude Code skills under `.claude/skills/` (graphics, profiling, QA, UI, game feel,
   audio and art checklists); none covers procedural WebAudio sound design. #65 adds shader and DSP recipes; the PR of
