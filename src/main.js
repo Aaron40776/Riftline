@@ -728,7 +728,7 @@ const overlay = new Overlay(elementById("ov")),
         }
       if (pre)
         try {
-          rlRecordRun(world, pre, !!win, !!abandoned);
+          rlRecordRun(store, world, pre, !!win, !!abandoned);
         } catch (err) {
           logError("history", err);
         }
@@ -1569,7 +1569,7 @@ document.addEventListener(
 /* v1.6.0 merged polish: save backup + tutorial replay (the run metrics are in GameUI.renderRunExtra) */
 (function () {
   const makeBackup = function () {
-    return JSON.stringify(store.data, null, 2);
+    return store.text(2);
   };
   const exportSave = async function () {
     const value = makeBackup();
@@ -1617,6 +1617,7 @@ document.addEventListener(
     )
       return;
     store.data = parsed.data;
+    store.kept = parsed.kept;
     store.save("import");
     // 2.4.2: apply the imported settings (volume, controls, graphics, camera) right away;
     // they used to wait for the next reload or settings change.
@@ -1958,6 +1959,15 @@ function rlModuleToast() {
   store.save("modules");
 }
 setTimeout(rlModuleToast, 1100);
+// 3.32.0: the save could not be read and not be backed up either (full storage): this tab keeps it and saves nothing
+setTimeout(() => {
+  if (store.held)
+    ui.toast(
+      "Your save could not be read or backed up because the storage is full. Free some space and reload; until then, progress is not saved.",
+      "warn",
+      12000,
+    );
+}, 1300);
 store.onChange((json, why) => {
   if (why === "import" && RL_MODULE_NOTE) {
     setTimeout(rlModuleToast, 300);
