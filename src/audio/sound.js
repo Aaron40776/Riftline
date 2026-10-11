@@ -3515,6 +3515,7 @@ const musicChords = {
       try {
         this.accentOf(name, now);
       } finally {
+        this.curPri = 1;
         this.curBus = null;
       }
     }
