@@ -1,10 +1,9 @@
 // Save store (localStorage key riftline.save.v1): defaults, loading and sanitizing, migrations,
-// settings, run history and backups.
+// settings, run history and backups. It loads without the DOM and main.js (tests/save-node.mjs runs it in Node).
 
-import { logError } from "./diagnostics.js";
-import { own } from "./util.js";
+import { hookLog as logError } from "./run-hooks.js";
+import { own, GAME_VERSION } from "./util.js";
 import { bossOrder } from "../data/enemies.js";
-import { store } from "../main.js";
 import { weaponDefs } from "../data/weapons.js";
 import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rlRetired } from "../data/progression.js";
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
@@ -14,8 +13,8 @@ import { cleanPacts } from "../data/pacts.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
- save existed). Retry without the unfinished run, then fall back to a fresh
- profile while keeping the raw save in a backup key. */
+ save existed). Retry without the unfinished run; null when nothing could be used (3.32.0: the caller backs the
+ raw save up and decides what to do: start a fresh profile, or keep this tab's progress). */
 function rlLoadSave(raw) {
   try {
     return cleanSave(raw);
@@ -29,8 +28,7 @@ function rlLoadSave(raw) {
   } catch (err) {
     logError("load", err);
   }
-  rlBackupSave(JSON.stringify(raw));
-  return newSave();
+  return null;
 }
 /* 2.3.2: a save that cannot be used at all (broken JSON, oversized, not an
  object) is copied to a backup key before the fresh profile's first autosave
@@ -47,8 +45,10 @@ function rlBackupSave(text) {
     old.sort((a, b) => Number(a.slice(prefix.length)) - Number(b.slice(prefix.length)));
     for (const key of old.slice(0, Math.max(0, old.length - 2))) localStorage.removeItem(key);
     localStorage.setItem(prefix + Date.now(), String(text));
+    return true;
   } catch (err) {
     logError("backup", err);
+    return false;
   }
 }
 /* 2.3.2: numeric settings get the range of their control (volume 0–1, zoom
@@ -101,7 +101,7 @@ function rlSanitizeHistory(history) {
   }
   return out;
 }
-function rlRecordRun(world, pre, win, abandoned) {
+function rlRecordRun(store, world, pre, win, abandoned) {
   const data = store.data,
     up = Object.entries(world.up || {})
       .filter(([id]) => own(upgradesById, id) && !upgradesById[id].repeat)
@@ -215,6 +215,8 @@ function newSave() {
   return {
     v: 1,
     game: "riftline",
+    // 3.32.0: the build that wrote the save (see keptOf)
+    ver: GAME_VERSION,
     created: Date.now(),
     savedAt: 0,
     shards: 0,
@@ -456,6 +458,57 @@ function cleanSave(input) {
   }
   return save;
 }
+/* 3.32.0: a save written by a newer build (an installed app on one version, a tab already on the next) keeps what this
+   build does not know. cleanSave drops every unknown weapon, module, milestone, stat, setting and field, and the next
+   autosave used to write that loss back, so the newer build lost them for good. keptOf collects them from the raw save
+   (only when its `ver` is newer than this build: what an older build left behind is still cleaned away) and withKept
+   puts them back into every save this build writes. A run this build cannot play is kept as it is until this build
+   starts a run of its own. */
+const KEPT_PARTS = ["weapons", "workshop", "milestones", "stats", "settings"],
+  KEPT_KEY = /^[A-Za-z0-9_-]{1,40}$/;
+function newerVersion(ver) {
+  if (typeof ver !== "string") return false;
+  const a = ver.split(".").map(Number),
+    b = String(GAME_VERSION).split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (!Number.isFinite(a[i]) || !Number.isFinite(b[i])) return false;
+    if (a[i] !== b[i]) return a[i] > b[i];
+  }
+  return false;
+}
+function keptOf(raw) {
+  raw = asObject(raw);
+  if (!newerVersion(raw.ver)) return null;
+  const known = newSave(),
+    kept = { ver: raw.ver },
+    extra = (from, isKnown) => {
+      const out = {};
+      for (const key of Object.keys(asObject(from))) if (KEPT_KEY.test(key) && !isKnown(key)) out[key] = from[key];
+      return Object.keys(out).length ? out : null;
+    },
+    knownIn = {
+      weapons: (id) => own(weaponDefs, id) || own(RL_RETIRED_WEAPONS, id),
+      workshop: (id) => workshopModules.some((mod) => mod.id === id) || own(RL_RETIRED_MODULES, id),
+      milestones: (id) => milestones.some((m) => m.id === id),
+      stats: (key) => own(known.stats, key),
+      settings: (key) => own(defaultSettings, key),
+    };
+  kept.top = extra(raw, (key) => own(known, key));
+  for (const part of KEPT_PARTS) kept[part] = extra(raw[part], knownIn[part]);
+  let playable = null;
+  try {
+    playable = cleanRun(raw.run);
+  } catch {}
+  if (raw.run && typeof raw.run === "object" && !playable) kept.run = raw.run;
+  return kept;
+}
+function withKept(data, kept) {
+  if (!kept) return data;
+  const out = { ...kept.top, ...data, ver: kept.ver };
+  for (const part of KEPT_PARTS) if (kept[part]) out[part] = { ...kept[part], ...data[part] };
+  if (kept.run && data.run === null) out.run = kept.run;
+  return out;
+}
 const safeStorage = {
     ok: null,
     get(key) {
@@ -496,15 +549,21 @@ const safeStorage = {
         } catch (err) {
           logError("load", err);
         }
-      if (text && (!data || typeof data != "object")) {
-        rlBackupSave(text);
-      }
-      this.data = data && typeof data == "object" ? rlLoadSave(data) : newSave();
+      // 3.32.0: a save that cannot be used is backed up; when even the backup fails (full storage), `held` stops this
+      // tab from writing over it (the menu warns) until the player makes room and reloads
+      let loaded = data && typeof data == "object" ? rlLoadSave(data) : null;
+      if (text && !loaded) this.held = !rlBackupSave(text);
+      this.data = loaded || newSave();
+      this.kept = loaded ? keptOf(data) : null;
       this.persistent = safeStorage.get(SAVE_KEY) !== null || safeStorage.set("riftline.probe", "1");
       safeStorage.del("riftline.probe");
     }
     get storageOk() {
-      return safeStorage.ok !== false;
+      return safeStorage.ok !== false && !this.held;
+    }
+    /* the save as it is written (with what a newer build stored, see keptOf); `indent` for the export */
+    text(indent) {
+      return JSON.stringify(withKept(this.data, this.kept), null, indent);
     }
     onChange(listener) {
       this.listeners.add(listener);
@@ -520,9 +579,11 @@ const safeStorage = {
         data = JSON.parse(safeStorage.get(SAVE_KEY) || "null");
       } catch {}
       if (!data || typeof data != "object") return false;
+      // 3.32.0: a save of another tab that cannot be used no longer replaces this tab's progress with a fresh profile
       const mine = this.data,
         fresh = rlLoadSave(data);
       if (!fresh || typeof fresh != "object") return false;
+      this.kept = keptOf(data);
       if (keepMine) {
         fresh.run = mine.run;
         fresh.settings = mine.settings;
@@ -536,9 +597,12 @@ const safeStorage = {
       // (a storage event while the dialog was open) used to take its place here
       if (reason === "import" || reason === "reset") this.foreign = false;
       else this.syncForeign();
+      if (reason === "reset") this.kept = null;
+      // a run of this build replaces the run of a newer build for good
+      if (this.kept && this.data.run !== null) this.kept.run = null;
       this.data.savedAt = Date.now();
-      let text = JSON.stringify(this.data);
-      safeStorage.set(SAVE_KEY, text);
+      let text = this.text();
+      if (!this.held) safeStorage.set(SAVE_KEY, text);
       for (let listener of this.listeners)
         try {
           listener(text, reason);
@@ -555,7 +619,9 @@ const safeStorage = {
       } catch {
         return { ok: false };
       }
-      return !data || data.game !== "riftline" || data.v !== 1 ? { ok: false } : { ok: true, data: cleanSave(data) };
+      return !data || data.game !== "riftline" || data.v !== 1
+        ? { ok: false }
+        : { ok: true, data: cleanSave(data), kept: keptOf(data) };
     }
     reset() {
       let settings = this.data.settings;
