@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-As of 12.10.2026, with 3.32.0. New entries are written in English (the owner's wish since 03.10.2026).
+As of 12.10.2026, with 3.33.0. New entries are written in English (the owner's wish since 03.10.2026).
 
 Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
@@ -217,7 +217,7 @@ Three PRs, stacked, each a release (merge in this order):
   its scroll area), fixed with a test; Frost mortars did nothing (the variant's chill only rode on bullets): their shells
   now warn, burst and chill as frost; the Sound notes layout on phones when nothing was heard; `npm run screens` pictures
   the six screens it missed (Pacts, Daily Rift, What's new, Codex, victory, Sound notes).
-- **3.33.0** (planned): the Cryo Vault gets a beam of its own (the Frost Prism's three beam attacks and the sentinel were
+- **3.33.0** (`claude/vault-beams`, done): the Cryo Vault gets a beam of its own (the Frost Prism's three beam attacks and the sentinel were
   the plain beam of 2.4.6 while Blackout City and the Void Core had theirs since 3.16.0); sentinels in the Ember Works and
   the Toxin Marsh (Endless) fire a beam of their place; a Frost shot looks and sounds icy (it looked like any shot).
 - **3.34.0** (planned): Blackout City gets a variant ("Shorted": a kill leaves a short electric patch) and a champion pool

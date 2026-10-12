@@ -1909,16 +1909,16 @@ const musicChords = {
         case "bwAcid":
           // a jet of bile: a wet gurgle that builds into a hiss
           if (this.gate(id, 0.2)) {
-            this.tone(140, 0.5, "sawtooth", 0.035 * size, { to: 70, lp: 600, attack: 0.1 });
-            this.noise(0.55, 0.06 * size, { type: "bandpass", f: 900, to: 3200, q: 2, attack: 0.25 });
-            this.tone(420, 0.3, "sine", 0.02 * size, { to: 900, attack: 0.05 });
+            this.tone(140, 0.5, "sawtooth", 0.075 * size, { to: 70, lp: 600, attack: 0.1 });
+            this.noise(0.55, 0.13 * size, { type: "bandpass", f: 900, to: 3200, q: 2, attack: 0.25 });
+            this.tone(420, 0.3, "sine", 0.045 * size, { to: 900, attack: 0.05 });
           }
           break;
         case "bwFlame":
           // a flame jet lighting: a soft whump and a rushing roar
           if (this.gate(id, 0.2)) {
-            this.tone(110, 0.3, "sine", 0.08 * size, { to: 55 });
-            this.noise(0.6, 0.07 * size, { type: "lowpass", f: 600, to: 1800, attack: 0.15 });
+            this.tone(110, 0.3, "sine", 0.095 * size, { to: 55 });
+            this.noise(0.6, 0.085 * size, { type: "lowpass", f: 600, to: 1800, attack: 0.15 });
           }
           break;
         case "eshotFrost":
