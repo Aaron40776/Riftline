@@ -115,8 +115,10 @@ const RL_BOSS_ATK = {
 };
 const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse"]);
 /* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
-   choice as the look in render/attacks-view.js); null: the generic explosion ("boom") */
-function attackVoice(kind, src, biome) {
+   choice as the look in render/attacks-view.js); null: the generic explosion ("boom"). 3.32.0: a blast that chills (a
+   Frost mortar's shell) cracks like ice whatever its kind */
+function attackVoice(kind, src, biome, chill) {
+  if (chill) return "aIce";
   switch (kind) {
     case "stomp":
     case "drill":
@@ -2771,8 +2773,8 @@ const musicChords = {
             // Combo Surge ("surge")
             if (ev.kind === "trap" || ev.kind === "surge") break;
             // 3.10.0: the attacks of enemies and bosses sound like what they are
-            if (attackVoice(ev.kind, ev.src, this.biome)) {
-              this.play(attackVoice(ev.kind, ev.src, this.biome), ev.r);
+            if (attackVoice(ev.kind, ev.src, this.biome, ev.chill)) {
+              this.play(attackVoice(ev.kind, ev.src, this.biome, ev.chill), ev.r);
               break;
             }
             // 3.15.0: the boss cards: the Crucible Hammer's slam, a larva of the Brood bursting

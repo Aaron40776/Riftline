@@ -2,6 +2,17 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.32.0",
+    title: "Safer saves and icy mortars",
+    items: [
+      "Frost mortars now fire icy shells: the blast chills you like the Frost Prism's ice, so dash out of the frosty ring.",
+      "An installed app that has not updated yet no longer drops progress made in a newer version of the game.",
+      "When the storage is full and a save cannot be read, the game keeps it untouched and tells you so.",
+      "The game starts offline more reliably: an error page of the server no longer beats the stored game.",
+      "Sound notes look right on a phone when nothing has been heard yet.",
+    ],
+  },
+  {
     version: "3.31.0",
     title: "Smoother motion and fixes",
     items: [

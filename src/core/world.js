@@ -2364,7 +2364,14 @@ const rlStep = 1 / 60,
         }
       }
       // 3.10.0: src (who made the blast) lets a shared kind (rain, mortar, stomp) look like its maker
-      this.emit("boom", { x: x, y: y, r: radius, kind: opts.kind || "boom", src: opts.src || null });
+      this.emit("boom", {
+        x: x,
+        y: y,
+        r: radius,
+        kind: opts.kind || "boom",
+        src: opts.src || null,
+        chill: !!opts.chill,
+      });
     }
     chainFrom(from, jumps, dmg, hits, src = "weapon") {
       let cur = from,
@@ -2971,16 +2978,18 @@ const rlStep = 1 / 60,
         src: this._src,
         sx: opts.sx,
         sy: opts.sy,
+        // 3.32.0: a Frost mortar's shell chills where it lands (look, sound and the slow of a Glacier zone)
+        chill: !!opts.chill,
       };
       this.hazards.push(hazard);
       return hazard;
     }
     updateHazards(dt) {
       // 2.4.6: the Frost Prism's Glacier zones chill the player they catch (slower for 1.6 s, like a
-      // frost shot). A dash through the zone avoids it, as it avoids the hit.
+      // frost shot). A dash through the zone avoids it, as it avoids the hit. 3.32.0: so do the shells of Frost mortars.
       let cold = null;
       for (const hazard of this.hazards) {
-        if (hazard.kind === "glacier" && !hazard.done) {
+        if ((hazard.kind === "glacier" || hazard.chill) && !hazard.done) {
           (cold || (cold = [])).push(hazard);
         }
       }
@@ -2993,6 +3002,7 @@ const rlStep = 1 / 60,
             dmgPlayer: hazard.dmg,
             kind: hazard.kind,
             src: hazard.src,
+            chill: hazard.chill,
           });
         }
       }

@@ -1,6 +1,6 @@
 # Riftline – Wünsche des Eigentümers und Plan
 
-As of 10.10.2026, with 3.31.0. New entries are written in English (the owner's wish since 03.10.2026).
+As of 12.10.2026, with 3.32.0. New entries are written in English (the owner's wish since 03.10.2026).
 
 Diese Datei sammelt, was der Eigentümer sich gewünscht hat, was entschieden ist und
 welche Ideen noch offen sind. Zu Beginn einer Sitzung lesen, nach jeder Änderung des Plans aktualisieren (im selben PR).
@@ -205,6 +205,28 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
   (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
 
+### SKILLS AUDIT (12.10.2026; read this first when the work goes on)
+
+The owner, 12.10.2026: "I got you some new skills, look through them and see if you can now improve Riftline (check for
+bugs, see if things are maybe not as updated as others ...) first propose the plan". Checked with the capability skills
+(code tables per biome, enemy and boss; screenshots of every screen and biome measured with `image_report.py`; the CI
+runs). The owner said go for all of it (12.10.2026), with the Frost mortar's chilling blast and the "Shorted" variant.
+Three PRs, stacked, each a release (merge in this order):
+- **3.32.0** (`claude/release-3320`): the release of P1-P5 (on `main` since #68-#71 but still called 3.31.0, without a
+  What's new entry); the first nightly was red: a false alarm of the layout audit (a button centred exactly on the edge of
+  its scroll area), fixed with a test; Frost mortars did nothing (the variant's chill only rode on bullets): their shells
+  now warn, burst and chill as frost; the Sound notes layout on phones when nothing was heard; `npm run screens` pictures
+  the six screens it missed (Pacts, Daily Rift, What's new, Codex, victory, Sound notes).
+- **3.33.0** (planned): the Cryo Vault gets a beam of its own (the Frost Prism's three beam attacks and the sentinel were
+  the plain beam of 2.4.6 while Blackout City and the Void Core had theirs since 3.16.0); sentinels in the Ember Works and
+  the Toxin Marsh (Endless) fire a beam of their place; a Frost shot looks and sounds icy (it looked like any shot).
+- **3.34.0** (planned): Blackout City gets a variant ("Shorted": a kill leaves a short electric patch) and a champion pool
+  (it had neither, so its Endless visits were the softest); the Codex lists the biome events, the variants and the elite
+  affixes, with a first-time tip for variants and affixes.
+- **For the owner's eyes:** the Cryo Vault measures twice as bright as any other biome with the least colour, and its
+  snow-skinned enemies blend into the floor; before/after pictures of a darker Vault come with the report, nothing is
+  changed without his word. The Dependabot PRs #73-#75 move the CI actions off the deprecated Node 20.
+
 ### AUDIT (10.10.2026, late evening; on top of 3.31.0)
 
 The owner's audit request (structure, bugs, outdated code and docs, the self-tests in the long run; report before big
@@ -250,7 +272,7 @@ changes). The report is a Claude Docs page ("Riftline audit 10.10.2026"); its sh
   art/UI/VFX, animation, audio, engine choice, game code, asset integration and licences, visual QA, skill maintenance)
   with tested helper scripts; Riftline's rules come first (models in code, live WebAudio, phones first).
 
-### CURRENT STATE (10.10.2026, evening, 3.31.0; read this first when the work goes on)
+### CURRENT STATE (10.10.2026, evening, 3.31.0; history, see SKILLS AUDIT above)
 
 - **Live:** 3.30.0 (3.29.2 and 3.30.0 merged as #59 and #61). **Open:** 3.31.0 (this branch, `claude/quality-3310`) and #60 (docs
   only: the strategy audit of 10.10.2026 with its decisions for the owner; 3.31.0 does its first item, the frame pacing on

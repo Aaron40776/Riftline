@@ -1606,6 +1606,8 @@ const getById = (id) => document.getElementById(id),
       getById("snMusic").textContent = items.length
         ? ""
         : "Nothing played lately: pause right after you hear something.";
+      // 3.32.0: an empty list gets the one-column layout (on a phone held sideways the list's half stayed empty)
+      document.querySelector("#sndNotes .center-col").classList.toggle("empty", !items.length);
       getById("snList").innerHTML = items
         .map(
           (item) =>

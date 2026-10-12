@@ -55,6 +55,17 @@ for (const s of ["workshop", "records", "settings"]) {
   }, s);
   await shot("03-" + s + "-bottom");
 }
+// 3.32.0: the pages added since 3.21.0 (they were never pictured: the Sound notes layout broke unseen)
+for (const s of ["pacts", "daily", "news"]) {
+  await ev((s) => window.__riftTest.ui.show(s), s);
+  await shot("02-" + s);
+}
+await ev(() => {
+  window.__riftTest.ui.show("records");
+  window.__riftTest.ui.recordsTab("codex");
+});
+await shot("02-codex");
+await ev(() => window.__riftTest.ui.recordsTab("stats"));
 await ev(() => window.__riftTest.ui.show("home"));
 await ev(() => window.__riftTest.game.startRun({}));
 await shot("04-run-tutorial");
@@ -121,6 +132,24 @@ await ev(() => {
   o && (o.scrollTop = 1e6);
 });
 await shot("10-over-death-bottom");
+// 3.32.0: the victory screen (wave 20 beaten), with its Endless button
+await ev(() => {
+  const g = window.__riftTest.game;
+  g.goHome();
+  g.startRun({});
+  if (g.tut) g.tut.step = 4;
+  const w = g.world;
+  w.god = true;
+  w.wave = 20;
+  w.kills = 640;
+  w.shards = 820;
+  w.bossKills = ["warden", "forge", "prism", "core"];
+  w.state = "victory";
+  w.stateT = 0;
+});
+await p.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 }).catch(() => {});
+await p.waitForTimeout(1500);
+await shot("10b-over-victory");
 await ev(() => window.__riftTest.game.goHome());
 await ev(() => window.__riftTest.ui.show("settings"));
 await p.click("#backupBtn", { force: true });
@@ -141,5 +170,21 @@ await ev(() => {
   window.__riftTest.ui.setUpdate && window.__riftTest.ui.setUpdate(true);
 });
 await shot("14-toast-update");
+// 3.32.0: the Sound notes, from the settings: with the menu music to note, and with nothing heard lately
+await ev(() => {
+  for (const t of document.querySelectorAll(".toast")) t.remove();
+  window.__riftTest.ui.show("settings");
+  window.__riftTest.ui.openSoundNotes(false);
+});
+await shot("15-sound-notes");
+await ev(() => {
+  const sound = window.__riftTest.game.sound,
+    keep = [sound.musicNow, sound.recentSounds];
+  sound.musicNow = () => null;
+  sound.recentSounds = () => [];
+  window.__riftTest.ui.renderSoundNotes();
+  [sound.musicNow, sound.recentSounds] = keep;
+});
+await shot("15b-sound-notes-empty");
 console.log(NAME, "errors:", errs.length ? errs : "none");
 await b.close();

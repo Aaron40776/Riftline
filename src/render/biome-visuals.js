@@ -216,7 +216,7 @@ void main() {
             hovering monoliths
    border   jersey barriers (3.4.0, was a fence) · steel wall with hazard stripes · ice wall with crystals · reeds and rocks
             on a mud bank · energy barrier over the abyss
-   air      neon dust · rising embers and chimney sparks · snowfall · spores and marsh haze ·
+   air      rain and splashes (3.4.0, was neon dust) · rising embers and chimney sparks · snowfall · spores and marsh haze ·
             rising void motes
    light    sun colour, sky and fog density (the marsh is foggy, the void dark)
  ---- */

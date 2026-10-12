@@ -2,6 +2,7 @@ node_modules/
 dist/
 shots/
 *.log
+__pycache__/
 .DS_Store
 Thumbs.db
 .vscode/
