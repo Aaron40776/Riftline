@@ -3982,7 +3982,8 @@ function selfTestV3280(result) {
   const fail = [];
   try {
     const empty = rlCodexEntries(newSave());
-    if (empty.events.length !== MUTATOR_IDS.length + Object.keys(OVERDRIVE).length)
+    // 3.34.0: + the wave events (Elite Surge, Shard Rain, the five biome events)
+    if (empty.events.length !== MUTATOR_IDS.length + Object.keys(OVERDRIVE).length + Object.keys(waveEvents).length)
       fail.push("count:" + empty.events.length);
     if (empty.events.some((e) => e.seen)) fail.push("seen-at-start");
     for (const id of MUTATOR_IDS) if (!empty.events.some((e) => e.key === "mut_" + id)) fail.push("mutator:" + id);

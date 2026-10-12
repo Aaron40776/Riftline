@@ -2926,8 +2926,16 @@ for (const profName of ["desktop", "phone"])
       return {
         shown: !document.getElementById("codexList").hidden && document.getElementById("recStats").hidden,
         rows: rows.length,
-        // + the 6 Endless mutators and the 5 Overdrive attacks (3.28.0)
-        want: Object.keys(d.enemyDefs).length + Object.keys(d.data.bossDefs).length + d.data.upgradeList.length + 11,
+        // + the 6 Endless mutators and the 5 Overdrive attacks (3.28.0); 3.34.0: + the wave events, the biome variants
+        // and the elite affixes
+        want:
+          Object.keys(d.enemyDefs).length +
+          Object.keys(d.data.bossDefs).length +
+          d.data.upgradeList.length +
+          11 +
+          Object.keys(d.data.waveEvents).length +
+          Object.keys(d.data.biomeVariants).length +
+          3,
         unseen: rows.filter((r) => r.classList.contains("unseen")).length,
         grunt: txt("enemy_grunt"),
         warden: txt("boss_warden"),
