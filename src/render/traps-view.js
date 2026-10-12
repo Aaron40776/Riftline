@@ -35,6 +35,9 @@ const LOOK = {
   laser: { main: hex(0xff3346), alt: hex(0xffd0a0), dust: hex(0x9fb4c8) },
   flame: { main: hex(0xff7a1f), alt: hex(0xffd27a), dust: hex(0x9a8f80) },
   rift: { main: hex(0x9a5bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
+  // 3.33.0: the beams of the Cryo Vault (the Frost Prism, the sentinel) and of the Toxin Marsh (the sentinel)
+  cryo: { main: hex(0x8fe0ff), alt: hex(0xe8fbff), dust: hex(0xdff6ff) },
+  acid: { main: hex(0x8fd62a), alt: hex(0xe0ff7a), dust: hex(0x4a7a1a) },
   mine: { main: hex(0xff8a3a), alt: hex(0xffe0a0), dust: hex(0x6a6a72), led: hex(0xff3b2f) },
   frost: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff), led: hex(0xc8f6ff) },
   spore: { main: hex(0xa8f03a), alt: hex(0xe6ff8a), dust: hex(0x4a7a1a), led: hex(0xd7ff4a) },
@@ -857,6 +860,74 @@ class TrapView {
           0.22,
           Math.random() < 0.3 ? look.alt : look.main,
           { drag: 1 },
+        );
+      }
+    } else if (beam.skin === "cryo") {
+      // 3.33.0: a lance of ice: a pale glassy body with a white core, frost needles growing out of both edges along
+      // the shaft (their places drift slowly, so the lance looks grown, not drawn), flakes that sink off it
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * (0.92 + flick * 0.08), beam.w * 0.7), look.main, 0.55);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.42, beam.w * 0.36), look.alt, 0.85);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.16, beam.w * 0.16), WHITE, 1);
+      const n = Math.max(4, Math.round(len / 1.4)),
+        reach = Math.max(0.22, beam.w * 0.75),
+        thin = Math.max(0.05, beam.w * 0.09);
+      for (let i = 1; i < n; i++) {
+        const along = (len * (i + 0.3 * Math.sin(i * 2.7 + time * 0.6))) / n;
+        for (const side of [-1, 1]) {
+          const out = side * (beam.w * 0.45),
+            tip = side * (beam.w * 0.45 + reach * (0.55 + 0.45 * Math.abs(Math.sin(i * 1.9 + side)))),
+            back = -reach * 0.55,
+            x0 = beam.x + ca * along - sa * out,
+            z0 = beam.y + sa * along + ca * out,
+            x1 = beam.x + ca * (along + back) - sa * tip,
+            z1 = beam.y + sa * (along + back) + ca * tip;
+          b.colC(b.seg(x0, z0, x1, z1, 1, thin, thin * 0.5), look.alt, 0.8);
+        }
+      }
+      if (Math.random() < 0.7) {
+        const d = Math.random() * len,
+          o = (Math.random() - 0.5) * beam.w * 2;
+        r.emit(
+          beam.x + ca * d - sa * o,
+          1 + Math.random() * 0.3,
+          beam.y + sa * d + ca * o,
+          (Math.random() - 0.5) * 0.6,
+          -0.4 - Math.random() * 0.6,
+          (Math.random() - 0.5) * 0.6,
+          0.9,
+          0.12,
+          Math.random() < 0.5 ? look.alt : WHITE,
+          { drag: 2 },
+        );
+      }
+    } else if (beam.skin === "acid") {
+      // 3.33.0: a jet of bile: a body that swells and narrows in slow pulses down its length, a pale core, drops that
+      // fall off it and splash on the floor
+      let px = beam.x,
+        pz = beam.y;
+      for (let i = 1; i <= 6; i++) {
+        const along = (len * i) / 6,
+          qx = beam.x + ca * along,
+          qz = beam.y + sa * along,
+          swell = 0.8 + 0.3 * Math.sin(time * 14 - i * 1.6);
+        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * swell * flick, beam.w * 0.6), look.main, 0.7);
+        px = qx;
+        pz = qz;
+      }
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), look.alt, 1);
+      if (Math.random() < 0.7) {
+        const d = Math.random() * len;
+        r.emit(
+          beam.x + ca * d,
+          1,
+          beam.y + sa * d,
+          (Math.random() - 0.5) * 1.2,
+          0.5,
+          (Math.random() - 0.5) * 1.2,
+          0.6,
+          0.16,
+          Math.random() < 0.3 ? look.alt : look.main,
+          { grav: 9, drag: 0.5 },
         );
       }
     } else {

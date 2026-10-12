@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.33.0",
+    title: "Beams of ice and bile",
+    items: [
+      "The Frost Prism's beams are lances of ice now, with frost needles along them and a glassy sound of their own.",
+      "Sentinels fire the beam of their place: ice in the Cryo Vault, bile in the Toxin Marsh, flame in the Ember Works.",
+      "Frost enemies' shots glow icy and ring with a chime, so you can see which shots will slow you.",
+    ],
+  },
+  {
     version: "3.32.0",
     title: "Safer saves and icy mortars",
     items: [

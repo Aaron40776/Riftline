@@ -3466,13 +3466,19 @@ function selfTestV3160(result) {
       }
       if (!called) fail.push("summon-portal-no-boss");
     }
-    // the sentinel's beam is the security laser in Blackout City
-    {
+    // the sentinel's beam is the beam of its place (3.33.0: in every biome; the laser in Blackout City since 3.16.0)
+    for (const [biome, want] of Object.entries({
+      yard: "laser",
+      works: "flame",
+      vault: "cryo",
+      marsh: "acid",
+      void: "rift",
+    })) {
       const world = new World({ seed: 0x3161, weapon: "pulse", threat: 0, ws: {} });
       world.startWave(2);
       world.state = "fight";
       world.god = true;
-      world.arena.biome = { ...world.arena.biome, id: "yard" };
+      world.arena.biome = { ...world.arena.biome, id: biome };
       world.arena.obs = [];
       for (const enemy of world.enemies) enemy.dead = true;
       world.enemies.length = 0;
@@ -3487,7 +3493,7 @@ function selfTestV3160(result) {
         const beam = world.beams.find((b) => b.src === "sentinel");
         if (beam) skin = beam.skin || "none";
       }
-      if (skin !== "laser") fail.push("sentinel-skin:" + skin);
+      if (skin !== want) fail.push("sentinel-skin:" + biome + ":" + skin);
     }
     // the shots of an ordinary enemy stay what they were
     const world = new World({ seed: 1, weapon: "pulse", threat: 0, ws: {} });
