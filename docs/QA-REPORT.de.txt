@@ -1,3 +1,60 @@
+RIFTLINE v3.32.0 – SAVES ACROSS VERSIONS, OFFLINE START, FIXES FROM THE SKILLS AUDIT
+Base: v3.31.0 · Build r3320a1012a-r1 · 12.10.2026
+
+The owner, 12.10.2026: "I got you some new skills, look through them and see if you can now improve Riftline (check for
+bugs, see if things are maybe not as updated as others ...) first propose the plan". He said go for all of it the same
+day. This release is the first of three (3.32.0, 3.33.0, 3.34.0). Baseline on main (a0dee47): npm test all ok.
+
+1) The release of the audit plans P1-P5 (merged as #68-#71 on 11.10.2026, live since then but still called 3.31.0)
+   - P1 saves across versions, P2 the service worker under test, P3 one Endless entry, P4 faster and steadier tests,
+     P5 workflow hardening: see the roadmap (AUDIT 10.10.2026) and build-info.json. They had no What's new entry, and
+     an installed app saw no new version; the version is 3.32.0 now and What's new says what changed for players.
+
+2) The first nightly was red (12.10.2026, 04:35): a false alarm of the layout audit
+   - node tools/qa.js fuzz 7 300 failed the same way every time: "Near covered by settings" after the fuzz had shrunk
+     the window to 1252 x 449. The middle of the button lay exactly on the bottom edge of the settings list (y 435 =
+     the list's bottom); the audit counted it as on screen, and the page behind the list answered the hit test.
+   - Fix in index.html: a middle within a pixel of the edge of its scroll area counts as scrolled away.
+   - Test: full QA layout-pc/small/land scroll a button so that its middle sits on the top and on the bottom edge;
+     the bottom case failed before the fix on both phone profiles, passes now. fuzz 7 300: 1500 steps, no failure.
+
+3) Frost mortars did nothing (found by a table check: every variant against what its enemies fire)
+   - The Frost variant lists gunner, sniper and mortar, but its chill only rode on bullets (World.shoot); a mortar
+     fires shells (zones), so a Frost mortar was a plain mortar in a blue tint.
+   - Now a Frost mortar's shell carries chill: the zone warns with the frost look, the shell glows icy and trails frost
+     mist, the blast is the ice burst with its ice voice, and it chills the drone it lands on for 1.6 s like a Glacier
+     zone (a dash avoids it). sim-node check 14 fails before, passes now. Determinism: the fixture changes in the two
+     bot runs that meet Frost mortars (sim-tesla-t5, sim-rail-t0, from checkpoint 11); with the chill turned off again
+     all 15 cases are identical, so nothing else moved.
+
+4) Sound notes on a phone
+   - With nothing heard lately the phone layout kept its two columns: the buttons sat in the right half beside an
+     empty list and "Copy notes" broke onto two lines; on wide screens the hint hugged the left edge.
+   - Now an empty list gives one column in the middle with the hint; no button text wraps. Full QA soundnotes-desktop
+     and -phone check it (the Back button was off by 182 px on the phone before the last fix).
+
+5) Screens never pictured
+   - npm run screens pictures Pacts, Daily Rift, What's new, the Codex, the victory screen and the Sound notes (with
+     and without sounds). The Sound notes layout above had broken unseen.
+
+6) A test that lost a race (also on main)
+   - Full QA tabs failed in the release check: "a running tab says that the game is open in another tab". The same
+     section failed 3 of 3 times on main (a0dee47) and passed whenever the test was slowed down: it waited a fixed
+     400 ms for the other tab's storage event. It waits for the warning itself now (up to 10 s): 3 of 3 passes.
+
+7) Tests and results (headless Chromium, software WebGL; no real device was used)
+   - npm run release-check on 3.32.0: every step ok except full QA tabs (point 6): format, sim (node) with check 14,
+     save (node), build, deep test, data audit, determinism 15/15 against the updated fixture, full QA with the new
+     checks, e2e (4 devices, TOTAL FAIL 0), world audit, run audit (wave 22), screens pc and land, biome shots pc and
+     land, attack shots pc; 43 min 26 s. Then full QA tabs 3 of 3 ok and fuzz 7 300 ok.
+   - Screenshots looked at: the new pages (Pacts, Daily Rift, What's new, Codex, victory, Sound notes) on PC and phone,
+     the Frost mortar's warning and blast next to a plain mortar in the Cryo Vault.
+
+8) Not done, for the owner
+   - The two other releases of the plan follow in their own pull requests (3.33.0: the Cryo Vault's beams and icy
+     Frost shots; 3.34.0: the Shorted variant, Blackout City's champions and a fuller Codex).
+   - The Dependabot PRs #73-#75 move the CI actions off Node 20 (the nightly log warns about it).
+
 RIFTLINE v3.31.0 – SMOOTH MOTION; PHONE AND GAMEPLAY FIXES FROM A FULL AUDIT
 Base: v3.30.0 · Build r3310a1010a-r1 · 10.10.2026
 
