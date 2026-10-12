@@ -1,3 +1,41 @@
+RIFTLINE v3.33.0 – BEAMS OF ICE AND BILE, ICY FROST SHOTS
+Base: v3.32.0 · Build r3330a1012a-r1 · 12.10.2026
+
+The second release of the skills audit of 12.10.2026 (the owner: go for all of it). Found by a table check of every
+biome against the skins of its attacks: Blackout City and the Void Core got beams of their own in 3.16.0 (the security
+laser, the rift ribbon), the Cryo Vault never did.
+
+1) The Cryo Vault's beam
+   - The Frost Prism's Frost Beam, Ice Lances and Shard Field beams were the plain beam of 2.4.6 in an ice colour: a
+     flat cyan slab with a white core (screenshot beam-vault, 12.10.2026). The Vault's own sentinel fired the plain
+     beam in its own colour (a flat orange bar).
+   - New skin cryo (render/traps-view.js drawBeam): a pale glassy body, a white core, frost needles out of both edges
+     along the shaft that drift slowly, flakes that sink off it. The Prism's three beam attacks wear it; the warning
+     stays the red line of every beam.
+2) Sentinels in every biome
+   - SENTINEL_SKIN covered Blackout City and the Void Core only; in Endless the sentinel also comes to the Ember Works
+     and the Toxin Marsh (and in the Vault from its first wave). Now: works flame (the jet of the flame traps), vault
+     cryo, marsh acid (new: a jet of bile that swells in pulses, drops that fall and splash).
+3) The beams sound like what they are
+   - Every beam warned with the same whine. beamWarn carries the skin now; cryo, acid and flame have a voice of their
+     own (bwCryo, bwAcid, bwFlame); the laser and the rift keep the whine of 2.x. Measured against the old voices
+     (offline render, seed 1, no room): beam RMS 0.0057, bwCryo 0.0060; small beam 0.0037, bwCryo 0.0038, bwAcid
+     0.0033 (was 0.0016: raised), bwFlame 0.0036 (was 0.0030).
+4) Frost shots
+   - A Frost gunner's or sniper's shot slows the drone it hits, but glowed in its maker's colour like any shot. It
+     glows icy now, carries a spinning shell of ice and sheds frost mist; its sound gets a glassy chime on top
+     (eshotFrost, RMS 0.0012 like the shot itself).
+5) Tests and results (headless Chromium, software WebGL; no real device was used)
+   - sim-node check 15: every beam of the Prism is cryo and its warning says so; a Frost gunner's shot and its sound
+     event are frost. Both fail on 3.32.0, pass now. Self-test v3160 checks the sentinel's beam in all five biomes.
+   - npm run release-check on 3.33.0: all ok (format, sim, save, build, deep test with the new voices, data audit,
+     determinism 15/15 unchanged: the skins do not touch the simulation, full QA, e2e, world and run audit, every
+     screenshot step), 42 min 39 s. After the voice levels: npm test ok.
+   - Screenshots looked at: the beams of all five biomes side by side (sentinel and Prism beams) and a Frost shot next
+     to a plain one.
+6) Not done, for the owner
+   - Hear the new beam voices and see the ice lance on a phone; the levels above are measured, not heard.
+
 RIFTLINE v3.32.0 – SAVES ACROSS VERSIONS, OFFLINE START, FIXES FROM THE SKILLS AUDIT
 Base: v3.31.0 · Build r3320a1012a-r1 · 12.10.2026
 
