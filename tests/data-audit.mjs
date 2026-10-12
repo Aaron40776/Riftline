@@ -3,6 +3,8 @@ const browser = await chromium.launch({ args: ["--use-angle=swiftshader"] });
 const page = await browser.newPage();
 await page.goto(process.argv[2] || "http://localhost:8124/index.html");
 await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 60000 });
+// 3.35.0: the palette checks come with the self-test file
+await page.evaluate(() => window.__riftTest.loadSelfTest());
 const out = await page.evaluate(() => {
   const T = window.__riftTest,
     D = T.data,

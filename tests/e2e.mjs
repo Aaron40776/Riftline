@@ -269,15 +269,13 @@ for (const prof of PROFILES) {
     ok("save: run cleared after death", saved && saved.run === null);
     await tap("#homeBtn");
     ok("home after run", await vis("home"));
-    // diagnostics dialog
+    // 3.35.0: the settings open with the game's own settings only (no developer tools)
     await tap('[data-go="settings"]');
-    await tap("#logBtn");
-    await page
-      .waitForFunction(() => !document.getElementById("dialog").hidden, null, { timeout: 60000 })
-      .catch(() => {});
-    ok("diagnostics dialog opens", await vis("dialog"));
-    const logText = await page.evaluate(() => document.querySelector("#dlgBody textarea")?.value || "");
-    fs.writeFileSync(`${SHOTS}/${prof.name}-diagnostics.txt`, logText);
+    ok("settings open", await vis("settings"));
+    ok(
+      "no developer tools in the settings",
+      await page.evaluate(() => !document.getElementById("logBtn") && !document.getElementById("musicPreview")),
+    );
     await page.keyboard.press("Escape");
     await page.waitForTimeout(200);
   } catch (e) {

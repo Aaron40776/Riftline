@@ -43,6 +43,12 @@ the release, so the code was turned back into readable sources step by step:
   texts) and keeps four results; the place-music, track-switch and bloom checks are cached too. The risky real-time
   waits of the full QA and the E2E wait on the game's state. CI runs once per pull request push (no second run on
   push), plays a wave (`full-qa run-desktop`), and `nightly.yml` runs the long checks every night.
+- 3.35.0: a clean player build. The deep self-test is built to a file of its own (`dist/selftest-v<version>.js`) that only
+  the tests load (`window.__riftTest.loadSelfTest()`, `selftest()`): its imports are left out of that bundle and read
+  from the running game through `core/selftest-link.js`, so it still tests the game's own objects, and `build.js` fails
+  if the link module misses one. The layout audit of `index.html` runs only when a test calls it. Gone with the
+  developer tools of the settings (the music jukebox, the sound notes, the diagnostics dialog): the engine's memory of
+  recent sounds and its live music preview; the crash screen keeps its report.
 
 ## Working rules
 

@@ -268,7 +268,6 @@ class HudEditor {
     getById("hePanel").classList.remove("faded");
     this.fold(false);
     this.render();
-    requestAnimationFrame(() => window.__riftLayoutAudit?.());
   }
   close(save) {
     if (!this.isOpen) return;
@@ -297,7 +296,6 @@ class HudEditor {
     applyHudLayout(settings);
     if (save) this.onSave();
     this.ui.renderSettings();
-    requestAnimationFrame(() => window.__riftLayoutAudit?.());
   }
   /* the window changed (a turn of the phone): a drag in progress goes back where it started */
   onResize() {

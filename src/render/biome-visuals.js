@@ -39,55 +39,6 @@ void main() {
   gl_Position = projectionMatrix * mvPosition;
   #include <fog_vertex>
 }`,
-  floorFragmentShader = `
-#include <common>
-#include <fog_pars_fragment>
-uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
-uniform vec2 uHalf; uniform vec2 uPlayer; uniform float uTime; uniform float uPulse; uniform float uDeco;
-uniform vec4 uL[6]; uniform vec3 uLC[6];
-varying vec2 vW;
-float gridLine(vec2 p, float w) {
-  vec2 g = abs(fract(p - 0.5) - 0.5) / (fwidth(p) * w);
-  return 1.0 - min(min(g.x, g.y), 1.0);
-}
-void main() {
-  vec2 p = vW;
-  float minor = gridLine(p, 1.2);
-  float major = gridLine(p / 4.0, 1.6);
-  vec2 d = uHalf - abs(p);
-  float edge = min(d.x, d.y);
-  float inside = step(0.0, edge);
-  float edgeGlow = exp(-max(edge, 0.0) * 1.1);
-  vec2 dp = p - uPlayer;
-  float pl = exp(-dot(dp, dp) * 0.018);
-  // slow scanning wave across the floor
-  float scan = smoothstep(0.0, 1.0, 1.0 - abs(fract(length(p) * 0.05 - uTime * 0.08) - 0.5) * 2.0);
-  vec3 col = uBase * (0.75 + 0.7 * pl);
-  col += uGrid * (minor * 0.07 + major * (0.22 + 0.12 * scan)) * (0.6 + 0.6 * pl) * inside;
-  col += uAccent * edgeGlow * 0.28 * inside;
-  col += uGrid * uPulse * 0.12 * inside;
-  col *= 1.0 - 0.72 * uDark;
-  // floor markings that change with the layout: 1 rings, 2 hazard stripes along the edge, 3 cross lanes, 4 hex dots
-  if (uDeco > 0.5) {
-    float m = 0.0;
-    if (uDeco < 1.5) { float rr = length(p); m = smoothstep(0.455, 0.49, abs(fract(rr / 5.5) - 0.5)) * step(4.0, rr); }
-    else if (uDeco < 2.5) { float band = step(edge, 2.2) * step(0.5, edge); m = band * step(0.5, fract((p.x + p.y) * 0.35)); }
-    else if (uDeco < 3.5) { vec2 a = abs(p); m = (smoothstep(1.7, 1.5, a.x) + smoothstep(1.7, 1.5, a.y)) * 0.45 * step(4.5, length(p)); }
-    else { vec2 g = vec2(p.x * 0.5774 + p.y, p.x * 1.1547) / 3.0; vec2 f = fract(g) - 0.5; m = smoothstep(0.1, 0.06, length(f)) * 0.8; }
-    col += uGrid * m * 0.05 * inside; // subtle: markings, not paint
-  }
-  // transient light pools: muzzle flashes and explosions light up the grid
-  for (int i = 0; i < 6; i++) {
-    if (uL[i].w <= 0.0) continue;
-    vec2 d2 = p - uL[i].xy;
-    float fall = exp(-dot(d2, d2) / max(0.01, uL[i].z * uL[i].z));
-    col += uLC[i] * uL[i].w * fall * (0.35 + minor * 0.5 + major * 0.9);
-  }
-  col *= mix(0.3, 1.0, inside);
-  gl_FragColor = vec4(col, 1.0);
-  #include <fog_fragment>
-  #include <colorspace_fragment>
-}`,
   ArenaView = class {
     constructor(scene) {
       this.scene = scene;
@@ -103,7 +54,8 @@ void main() {
           uPlayer: { value: new Vector2() },
           uTime: { value: 0 },
           uPulse: { value: 0 },
-          uDeco: { value: 0 },
+          // 2.4.0: the floor of each biome is a style of one shader (RL_FLOOR_FRAG)
+          uStyle: { value: 0 },
           // 3.4.0: how dark the Blackout makes the floor (0..1); the lights of blasts and arcs still light it
           uDark: { value: 0 },
           // 3.29.0: the colour of the floor: how saturated (1 = as the palette says) and how bright it is, per biome
@@ -116,7 +68,7 @@ void main() {
       this.floorMat = new ShaderMaterial({
         uniforms: this.uniforms,
         vertexShader: floorVertexShader,
-        fragmentShader: floorFragmentShader,
+        fragmentShader: RL_FLOOR_FRAG,
         fog: true,
       });
       this.biomeId = null;
@@ -127,18 +79,6 @@ void main() {
       layout = layout || { key: biome.id + ":classic", W: biome.W, H: biome.H, obs: biome.obstacles, deco: 0 };
       if (this.layKey === layout.key) return;
       const first = this.layKey == null;
-      if (!this.rlFloor) {
-        // same uniforms, new fragment shader with one branch per biome style
-        this.uniforms.uStyle = { value: 0 };
-        this.floorMat.dispose();
-        this.floorMat = new ShaderMaterial({
-          uniforms: this.uniforms,
-          vertexShader: floorVertexShader,
-          fragmentShader: RL_FLOOR_FRAG,
-          fog: true,
-        });
-        this.rlFloor = true;
-      }
       this.layKey = layout.key;
       this.biomeId = biome.id;
       this.group.traverse((obj) => {
@@ -160,7 +100,6 @@ void main() {
       uniforms.uGrid.value.setHex(biome.grid);
       uniforms.uAccent.value.setHex(biome.accent);
       uniforms.uHalf.value.set(layout.W, layout.H);
-      uniforms.uDeco.value = look.style === 0 ? layout.deco || 0 : 0;
       uniforms.uStyle.value = look.style;
       uniforms.uVivid.value = look.vivid || 1;
       uniforms.uGain.value = look.gain || 1;
@@ -279,7 +218,7 @@ const RL_FLOOR_FRAG = `
 #include <common>
 #include <fog_pars_fragment>
 uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
-uniform vec2 uHalf; uniform vec2 uPlayer; uniform float uTime; uniform float uPulse; uniform float uDeco;
+uniform vec2 uHalf; uniform vec2 uPlayer; uniform float uTime; uniform float uPulse;
 uniform float uStyle; uniform float uDark; uniform float uVivid; uniform float uGain;
 uniform vec4 uL[6]; uniform vec3 uLC[6];
 varying vec2 vW;
@@ -403,18 +342,8 @@ void main() {
     col = mix(col, uGrid * 0.4, lane * wear * inside * (1.0 - puddle * 0.6));
     lit = 0.4 + 0.75 * puddle + lane * 0.3;
   } else {
-    // Neon Yard (until 3.4.0, the style is kept): the neon grid with a slow scan wave and layout markings
-    float scan = smoothstep(0.0, 1.0, 1.0 - abs(fract(length(p) * 0.05 - uTime * 0.08) - 0.5) * 2.0);
+    // (every biome has its style; a plain floor if one ever had none)
     col = uBase * (0.75 + 0.7 * pl);
-    col += uGrid * (minor * 0.07 + major * (0.22 + 0.12 * scan)) * (0.6 + 0.6 * pl) * inside;
-    if (uDeco > 0.5) {
-      float mk = 0.0;
-      if (uDeco < 1.5) { float rr = length(p); mk = smoothstep(0.455, 0.49, abs(fract(rr / 5.5) - 0.5)) * step(4.0, rr); }
-      else if (uDeco < 2.5) { float band = step(edge, 2.2) * step(0.5, edge); mk = band * step(0.5, fract((p.x + p.y) * 0.35)); }
-      else if (uDeco < 3.5) { vec2 aa = abs(p); mk = (smoothstep(1.7, 1.5, aa.x) + smoothstep(1.7, 1.5, aa.y)) * 0.45 * step(4.5, length(p)); }
-      else { vec2 gg = vec2(p.x * 0.5774 + p.y, p.x * 1.1547) / 3.0; vec2 ff = fract(gg) - 0.5; mk = smoothstep(0.1, 0.06, length(ff)) * 0.8; }
-      col += uGrid * mk * 0.05 * inside;
-    }
   }
   col += uAccent * edgeGlow * 0.28 * inside;
   col += uGrid * uPulse * 0.12 * inside;

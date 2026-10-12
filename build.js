@@ -1,6 +1,8 @@
 // Build: turns the readable sources into the deployable game in dist/.
 //   src/main.js + the modules it imports (src/core, data, render, audio, ui) and three.js from
 //   npm             -> dist/game-v<version>-final.js  (one file, bundled and minified by esbuild)
+//   src/core/selftest.js -> dist/selftest-v<version>.js  (3.35.0: the deep self-test, loaded only by the tests; its
+//                      imports are the running game's modules, see src/core/selftest-link.js)
 //   src/index.html, src/sw.js, src/build-info.json -> dist/ (placeholders filled in)
 //   public/*          -> dist/ (icons, fonts, manifest; copied as they are)
 // Version and build id live only in package.json ("version", "riftline.build"). The sources use
@@ -73,6 +75,42 @@ async function build() {
     define: { __RL_VERSION__: JSON.stringify(m.version), __RL_BUILD__: JSON.stringify(m.build) },
   });
 
+  // 3.35.0: the deep self-test, a file of its own that players never download. Every module it imports stays outside
+  // the bundle and is read from the running game (globalThis.__riftModules, set by main.js from selftest-link.js), so it
+  // tests the game's own objects; a specifier the link module does not provide fails the build.
+  const link = fs.readFileSync(r("src/core/selftest-link.js"), "utf8"),
+    linked = [];
+  await esbuild.build({
+    entryPoints: [r("src/core/selftest.js")],
+    outfile: path.join(DIST, `selftest-v${m.version}.js`),
+    bundle: true,
+    format: "iife",
+    globalName: "__riftSelfTest",
+    minify: !watch && !process.env.RL_NO_MINIFY,
+    target: "es2020",
+    legalComments: "none",
+    charset: "utf8",
+    logLevel: "warning",
+    define: { __RL_VERSION__: JSON.stringify(m.version), __RL_BUILD__: JSON.stringify(m.build) },
+    banner: {
+      js: 'var require = (p) => { const mod = globalThis.__riftModules && globalThis.__riftModules[p]; if (!mod) throw new Error("self-test: " + p + " is not linked"); return mod; };',
+    },
+    plugins: [
+      {
+        name: "riftline-game-modules",
+        setup(b) {
+          b.onResolve({ filter: /.*/ }, (args) => {
+            if (args.kind === "entry-point") return null;
+            linked.push(args.path);
+            return { path: args.path, external: true };
+          });
+        },
+      },
+    ],
+  });
+  const unlinked = [...new Set(linked)].filter((p) => !link.includes(`"${p}"`));
+  if (unlinked.length) throw new Error(`selftest-link.js does not provide: ${unlinked.join(", ")}`);
+
   for (const f of ["index.html", "sw.js", "build-info.json"]) {
     fs.writeFileSync(path.join(DIST, f), fill(fs.readFileSync(r("src", f), "utf8"), m, f));
   }
@@ -99,7 +137,7 @@ async function build() {
 
   const kb = (f) => `${(fs.statSync(path.join(DIST, f)).size / 1024).toFixed(0)} KB`;
   console.log(
-    `built Riftline ${m.version} (${m.build}) in ${Date.now() - t0}ms  ${m.gameFile} ${kb(m.gameFile)}, index.html ${kb("index.html")}`,
+    `built Riftline ${m.version} (${m.build}) in ${Date.now() - t0}ms  ${m.gameFile} ${kb(m.gameFile)}, index.html ${kb("index.html")}, self-test ${kb(`selftest-v${m.version}.js`)}`,
   );
 }
 

@@ -1,5 +1,5 @@
-// Error log, runtime counters, health checks, the live run monitor and the post-run audit
-// (Settings → Diagnostics). The deep self-test lives in selftest.js.
+// Error log, runtime counters, health checks, the live run monitor and the post-run audit. Their report goes with the
+// crash screen's "Copy" and to the tests (window.__riftTest); 3.35.0: the Diagnostics dialog of the settings is gone.
 
 import { GameUI, RL_TOUCH_CLICK_GUARD } from "../ui/ui.js";
 import { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices } from "../audio/sound.js";
@@ -329,9 +329,8 @@ function set_RL_LAST_RUN_AUDIT(value) {
  rlRunAudit      final-state sanity of the world when a run ends (2.2.x checks)
  RL_MON          live run monitor: invariants, waves, events, snapshots, perf
  rlMonFinish     post-run audit = final state + monitor + save/economy checks
- rlRunHealth     fast health checks; the heavy simulation self-test only runs
-                 on demand ({deep:true}) so startup and run end never block
-                 the UI thread.
+ rlRunHealth     fast health checks (the simulation self-test is a file of its
+                 own that only the tests load, see build.js)
  ========================================================================== */
 function rlRunAudit(world, outcome, abandoned) {
   const fail = [],
@@ -1074,13 +1073,6 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
         } catch (err) {
           audit.checks.push({ st: "WARN", id: "end-screen", msg: err.message });
         }
-        if (audit.fail.length) {
-          ui.toast(
-            `Diagnostics: ${audit.fail.length} problem${audit.fail.length === 1 ? "" : "s"} in this run — Settings › Diagnostics`,
-            "warn",
-            6000,
-          );
-        }
         rlRunHealth({ context: "post-run" }).catch((err) => logError("health", err));
       }),
     );
@@ -1342,26 +1334,22 @@ function rlUiButtonGuardSelfTest() {
   return { ok: pass, count, steps };
 }
 
-/* Health checks. Cheap by default; {deep:true} adds the simulation self-test.
- Concurrent calls share one run so the report never contains duplicates. */
+/* Health checks, all cheap. Concurrent calls share one run so the report never contains duplicates. */
 let RL_HEALTH_BUSY = null;
 function rlRunHealth(opts) {
   const options = typeof opts === "object" && opts ? opts : { context: opts || "startup" };
-  if (RL_HEALTH_BUSY) {
-    if (!options.deep) return RL_HEALTH_BUSY;
-    return RL_HEALTH_BUSY.then(() => rlRunHealth(options));
-  }
+  if (RL_HEALTH_BUSY) return RL_HEALTH_BUSY;
   RL_HEALTH_BUSY = rlRunHealthNow(options).finally(() => {
     RL_HEALTH_BUSY = null;
   });
   return RL_HEALTH_BUSY;
 }
-async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
+async function rlRunHealthNow({ context = "startup" } = {}) {
   RL_HEALTH = [];
   let ok = (id, pass, detail) => rlHealthAdd(id, pass ? "OK" : "FAIL", detail),
     warn = (id, detail) => rlHealthAdd(id, "WARN", detail),
     info = (id, detail) => rlHealthAdd(id, "INFO", detail);
-  info("context", `${context}${deep ? " · deep" : ""} · ${new Date().toISOString()}`);
+  info("context", `${context} · ${new Date().toISOString()}`);
   try {
     ok(
       "version-bundle",
@@ -1504,34 +1492,6 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     }
   } catch (err) {
     rlHealthAdd("ui-input-dedupe", "FAIL", err.message);
-  }
-  try {
-    if (deep) {
-      if (!RL_DEEP_SELFTEST) throw new Error("self-test module not loaded");
-      const result = RL_DEEP_SELFTEST(),
-        expansionFails = [
-          ...(result.expansion21?.fail || []),
-          ...(result.expansion22?.fail || []),
-          ...(result.expansion23?.fail || []),
-        ],
-        all = [...result.fail, ...expansionFails];
-      RL_SELFTEST_LAST = { r: result, at: Date.now() };
-      rlHealthAdd(
-        "self-test",
-        result.ok ? "OK" : "FAIL",
-        `${result.worlds} arena cases · ${result.expansion23?.planWaves || 0} wave plans / ${result.expansion23?.spawned || 0} spawns · ${result.expansion23?.eventKinds || 0} event kinds · ${result.weapons} weapons · ${result.bosses} bosses · ${result.enemyTypes} enemy probes · ${result.biomeCases} biome cases · ${result.threatCases} threat cases · ${result.upgradeChecks} upgrade checks · ${result.frames} sim frames · ${result.ms} ms` +
-          (all.length ? ` · ${all.slice(0, 4).join(" | ")}` : " · deterministic + runtime checks passed"),
-      );
-    } else if (RL_SELFTEST_LAST) {
-      const result = RL_SELFTEST_LAST.r;
-      rlHealthAdd(
-        "self-test",
-        result.ok ? "OK" : "FAIL",
-        `last deep run ${new Date(RL_SELFTEST_LAST.at).toLocaleTimeString()} · ${result.ok ? "passed" : "failed: " + [...result.fail, ...(result.expansion21?.fail || []), ...(result.expansion22?.fail || []), ...(result.expansion23?.fail || [])].slice(0, 3).join(" | ")} · ${result.expansion23?.planWaves || 0} wave plans · ${result.expansion23?.spawned || 0} spawns · ${result.frames} sim frames (tap “Deep test” to re-run)`,
-      );
-    } else info("self-test", "not run in quick checks — tap “Deep test” in this dialog (takes a few seconds)");
-  } catch (err) {
-    rlHealthAdd("self-test", "FAIL", err.message);
   }
   try {
     if (RL_LAST_RUN_AUDIT) {
@@ -1692,18 +1652,6 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
     warn("fonts", err.message);
   }
   try {
-    let audit = window.__riftLayoutAudit?.() || null;
-    rlHealthAdd(
-      "layout-hit-test",
-      audit?.ok ? "OK" : "FAIL",
-      audit
-        ? `${audit.checked} visible controls checked on “${ui?.screen || "?"}” · ${audit.bad || 0} covered/misaligned${audit.bad ? ": " + audit.findings.slice(0, 3).join("; ") : ""}`
-        : `layout audit unavailable`,
-    );
-  } catch (err) {
-    rlHealthAdd("layout-hit-test", "FAIL", err.message);
-  }
-  try {
     let hasPointer = typeof PointerEvent !== "undefined";
     ok(
       "device-input",
@@ -1766,13 +1714,6 @@ async function rlRunHealthNow({ context = "startup", deep = false } = {}) {
   } catch {}
   return RL_HEALTH;
 }
-let RL_SELFTEST_LAST = null;
-/* The deep self-test (rlSelfTest) lives in selftest.js, which registers it here when it loads, so
- this module does not import the self-test (2.5.0 refactor). */
-let RL_DEEP_SELFTEST = null;
-function setDeepSelfTest(fn) {
-  RL_DEEP_SELFTEST = fn;
-}
 function rlHealthSummary() {
   let oks = RL_HEALTH.filter((check) => check.status === "OK").length,
     warns = RL_HEALTH.filter((check) => check.status === "WARN").length,
@@ -1833,7 +1774,6 @@ export {
   rlUiButtonGuardSelfTest,
   RL_BOSS_EVENTS,
   rlEventPayloadError,
-  setDeepSelfTest,
   onLogChange,
   set_RL_LAST_RUN_AUDIT,
   getErrorLog,

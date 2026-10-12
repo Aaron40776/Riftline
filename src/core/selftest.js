@@ -1,5 +1,5 @@
 // The deep self-test (rlSelfTest: the base test plus one part per release) and its palette checks.
-// Used by the tests (window.__riftTest) and the "Deep test" button of the diagnostics dialog.
+// Used by the tests only: 3.35.0: it is a file of its own (selftest-v<version>.js, see build.js), not part of the game.
 
 import { GameUI, rlCodexEntries, rlBiomeCardInfo, iconPaths } from "../ui/ui.js";
 import { Input } from "../ui/input.js";
@@ -70,13 +70,7 @@ import { computeStats, buildStatRows } from "./stats.js";
 import { bossMedal } from "./medals.js";
 import { PACTS, PACT_MAX, cleanPacts, pactBonus, applyPactsToThreat } from "../data/pacts.js";
 import { dailyKey, dayBefore, dailySpec, recordDaily, liveStreak } from "./daily.js";
-import {
-  RL_EVENT_KINDS,
-  RL_BOSS_EVENTS,
-  rlEventPayloadError,
-  rlUiButtonGuardSelfTest,
-  setDeepSelfTest,
-} from "./diagnostics.js";
+import { RL_EVENT_KINDS, RL_BOSS_EVENTS, rlEventPayloadError, rlUiButtonGuardSelfTest } from "./diagnostics.js";
 
 let RL_SELFTEST = null;
 function selfTestBase() {
@@ -480,7 +474,6 @@ function rlSelfTest() {
   result = selfTestV3150(result);
   result = selfTestV3160(result);
   result = selfTestV3170(result);
-  result = selfTestV3172(result);
   result = selfTestV3210(result);
   result = selfTestV3220(result);
   result = selfTestV3240(result);
@@ -1886,8 +1879,7 @@ function selfTestV270Sound(result) {
         if (engine.beds[bed]) fail.push("bed-kept:" + bed);
       }
       // 3.1.0: the boss track starts on the spot with an impact (not with the wave), a phase change or the enrage sends
-      // it back to its drop, it resolves into the calm theme when the boss is dead, and a preview of the settings
-      // screen plays a track until it is stopped or the game takes over the music
+      // it back to its drop, and it resolves into the calm theme when the boss is dead
       {
         const eng = new SoundEngine();
         eng.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
@@ -1927,21 +1919,6 @@ function selfTestV270Sound(result) {
           fail.push("boss-end-without-last-hit");
         eng.setMusic("menu");
         if (eng.playKind !== "menu") fail.push("menu-music-not-selected");
-        eng.preview("boss", "void");
-        const pv = eng.previewing();
-        if (!pv || pv.mode !== "boss" || pv.biome !== "void" || eng.playKind !== "boss")
-          fail.push("preview-not-playing");
-        eng.setMusic("menu");
-        if (!eng.previewing()) fail.push("preview-stopped-by-the-menu-music");
-        eng.stopPreview();
-        if (eng.previewing() || eng.playKind !== "menu") fail.push("preview-not-stopped");
-        eng.preview("fight", "yard");
-        if (eng.playKind !== "fight" || eng.playBiome !== "yard") fail.push("calm-preview-not-playing");
-        eng.setMusic("fight", "vault");
-        if (eng.previewing() || eng.playBiome !== "vault") fail.push("preview-not-ended-by-the-game");
-        eng.preview("fight", "nowhere");
-        if (eng.playBiome !== "yard") fail.push("preview-of-an-unknown-biome");
-        eng.stopPreview();
         // muted music: no transition sounds
         eng.setVolumes(1, 0);
         const muted = eng.musicLog.length;
@@ -2408,9 +2385,6 @@ function selfTestV300(result) {
   }
   return { ...result, ok: result.ok && fail.length === 0, v300: { ok: fail.length === 0, fail } };
 }
-
-// the "Deep test" button of the diagnostics dialog (rlRunHealth({deep:true})) runs this
-setDeepSelfTest(rlSelfTest);
 
 export { rlSelfTest, rlPaletteIssues, rlBiomeDistinct };
 
@@ -4006,48 +3980,4 @@ function selfTestV3280(result) {
     fail.push("exception:" + (err && err.message));
   }
   return { ...result, ok: result.ok && fail.length === 0, v3280: { ok: fail.length === 0, fail } };
-}
-
-/* ---- 3.17.2: the engine's memory of what was heard lately (the sound notes in the pause menu): one entry per distinct
-   sound, counted, most recent first, forgotten after half a minute; the music that plays now ---- */
-function selfTestV3172(result) {
-  const fail = [];
-  try {
-    if (typeof OfflineAudioContext !== "undefined") {
-      const engine = new SoundEngine();
-      engine.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
-      if (engine.recentSounds().length) fail.push("heard-from-the-start");
-      engine.heard("step", { ground: "ice" });
-      engine.heard("step", { ground: "ice" });
-      engine.heard("step", { ground: "mud" });
-      engine.heard("eshot", { type: "boss", boss: "warden" });
-      engine.heard("pick", 6);
-      engine.heard("place:siren");
-      engine.heard("nova");
-      const list = engine.recentSounds(),
-        by = Object.fromEntries(list.map((e) => [e.key, e]));
-      if (by["step:ice"]?.n !== 2 || by["step:mud"]?.n !== 1) fail.push("counts:" + JSON.stringify(by));
-      if (!by["eshot:warden"] || !by["pick:6"] || !by["place:siren"] || !by.nova) fail.push("keys:" + Object.keys(by));
-      if (list.length !== 6) fail.push("distinct:" + list.length);
-      if (list.some((e, i) => i && e.ago < list[i - 1].ago)) fail.push("order");
-      if (engine.recentSounds(0).length > 0 && engine.recentSounds(0).some((e) => e.ago > 0)) fail.push("window");
-      // a flood of different sounds does not grow the memory without bound
-      for (let i = 0; i < 300; i++) engine.heard("flood" + i);
-      if (engine.recent.size > 80) fail.push("unbounded:" + engine.recent.size);
-      if (engine.musicNow() !== null) fail.push("music-off");
-      engine.playKind = "boss";
-      engine.playBiome = "works";
-      engine.intensity = 0.6;
-      const now = engine.musicNow();
-      if (!now || now.kind !== "boss" || now.biome !== "works" || now.paused) fail.push("music-now");
-      // paused in a fight the game plays the menu music but holds the track: that is the one that counts
-      engine.playKind = "menu";
-      engine.held = { kind: "fight", biome: "works" };
-      const held = engine.musicNow();
-      if (!held || held.kind !== "fight" || held.biome !== "works" || !held.paused) fail.push("music-held");
-    }
-  } catch (err) {
-    fail.push("exception:" + (err && err.message));
-  }
-  return { ...result, ok: result.ok && fail.length === 0, v3172: { ok: fail.length === 0, fail } };
 }

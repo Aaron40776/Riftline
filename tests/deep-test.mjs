@@ -11,8 +11,9 @@ const lap = (name) => {
   timing[name] = +((Date.now() - lapStart) / 1000).toFixed(1);
   lapStart = Date.now();
 };
-const res = await page.evaluate(() => {
-  const r = window.__riftTest.selftest();
+// 3.35.0: the self-test is a file of its own, loaded on demand
+const res = await page.evaluate(async () => {
+  const r = await window.__riftTest.selftest();
   return {
     ok: r.ok,
     ms: r.ms,
@@ -42,7 +43,6 @@ const res = await page.evaluate(() => {
     v3150: r.v3150?.fail,
     v3160: r.v3160?.fail,
     v3170: r.v3170?.fail,
-    v3172: r.v3172?.fail,
     v3210: r.v3210?.fail,
     v3220: r.v3220?.fail,
     v3240: r.v3240?.fail,

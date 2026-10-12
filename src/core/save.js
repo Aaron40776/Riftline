@@ -559,6 +559,8 @@ const safeStorage = {
       this.kept = loaded ? keptOf(data) : null;
       this.persistent = safeStorage.get(SAVE_KEY) !== null || safeStorage.set("riftline.probe", "1");
       safeStorage.del("riftline.probe");
+      // 3.35.0: the sound notes are gone; their list is not left behind in the browser
+      safeStorage.del("riftline.soundNotes");
     }
     get storageOk() {
       return safeStorage.ok !== false && !this.held;
