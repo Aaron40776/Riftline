@@ -4380,7 +4380,85 @@ await section("codex-events", async (L) => {
       /THE WARDEN/.test(cx.lockdown) &&
       /\?\?\?/.test(cx.armored) &&
       /\?\?\?/.test(cx.collapse) &&
-      cx.head.some((h) => /^Rift events 3\/11/.test(h)),
+      // 3.34.0: 11 + the seven wave events
+      cx.head.some((h) => /^Rift events 3\/18/.test(h)),
+    JSON.stringify(cx),
+  );
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.34.0: the biome variants, the elite affixes and the wave events go into the Codex when first met, and the first
+// variant and affix of each kind say what they do
+await section("codex-variants", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => window.__riftTest.game.startRun({}));
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    { timeout: 30000 },
+  );
+  const keys = () =>
+    P.ev(() =>
+      Object.keys(window.__riftTest.store.data.seen)
+        .filter((k) => /^(var|aff|ev)_/.test(k))
+        .sort(),
+    );
+  check(L, "no variant, affix or wave event is known at the start", !(await keys()).length, (await keys()).join());
+  await P.ev(() => {
+    const w = window.__riftTest.game.world;
+    w.god = true;
+    w.event = "blackout";
+    w.emit("spawn", { x: 3, y: 3, type: "grunt", elite: false, variant: "shorted", affix: null });
+    w.emit("spawn", { x: -3, y: 3, type: "gunner", elite: true, variant: null, affix: "volatile" });
+  });
+  await P.page.waitForTimeout(600);
+  const seen = await keys();
+  check(
+    L,
+    "the Shorted variant, the Volatile affix and the Blackout are kept as seen",
+    seen.join() === "aff_volatile,ev_blackout,var_shorted",
+    seen.join(),
+  );
+  const toasts = await P.ev(() => [...document.querySelectorAll("#toasts .toast")].map((t) => t.textContent));
+  check(
+    L,
+    "the first Shorted enemy and the first Volatile elite say what they do",
+    toasts.some((t) => /^SHORTED enemies: .*arcs/.test(t)) && toasts.some((t) => /^VOLATILE elites: Explodes/.test(t)),
+    toasts.join(" | "),
+  );
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.game.goHome();
+    T.ui.show("records");
+    T.ui.recordsTab("codex");
+  });
+  const cx = await P.ev(() => {
+    const txt = (k) => document.querySelector(`#codexList [data-cx="${k}"]`)?.textContent || "";
+    return {
+      shorted: txt("var_shorted"),
+      frost: txt("var_frost"),
+      volatile: txt("aff_volatile"),
+      blackout: txt("ev_blackout"),
+      rain: txt("ev_rain"),
+      head: [...document.querySelectorAll("#codexList .section-h")].map((h) =>
+        h.textContent.replace(/\s+/g, " ").trim(),
+      ),
+    };
+  });
+  check(
+    L,
+    "the Codex shows them with what they do, the others stay ???",
+    /Shorted/.test(cx.shorted) &&
+      /Blackout City/.test(cx.shorted) &&
+      /Volatile elite/.test(cx.volatile) &&
+      /Blackout/.test(cx.blackout) &&
+      /Blackout City/.test(cx.blackout) &&
+      /\?\?\?/.test(cx.frost) &&
+      /\?\?\?/.test(cx.rain) &&
+      cx.head.some((h) => /^Variants and elites 2\/8/.test(h)) &&
+      cx.head.some((h) => /^Rift events 1\/18/.test(h)),
     JSON.stringify(cx),
   );
   check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));

@@ -284,6 +284,8 @@ function cleanRun(raw) {
     up: {},
     hp: Math.max(1, Math.round(cleanNumber(raw.hp, 1, 1, 1e6))),
     shards: Math.floor(cleanNumber(raw.shards, 0, 0, 1e9)),
+    // 3.34.0: the part of a shard owed by the kills so far
+    shardFrac: cleanNumber(raw.shardFrac, 0, 0, 0.999999),
     kills: Math.floor(cleanNumber(raw.kills, 0, 0, 1e9)),
     time: cleanNumber(raw.time, 0, 0, 1e8),
     rerolls: Math.floor(cleanNumber(raw.rerolls, 0, 0, 99)),

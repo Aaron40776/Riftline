@@ -4,7 +4,7 @@
 // Checks: no Math.random in the simulation, the same seed and inputs give the same run, a bot plays every weapon without a
 // crash, a non-finite number or a stalled wave, Banish keeps its cards out of the offers, a snapshot resumes the run, and
 // (3.31) drawing between steps, frame pacing, the gameplay fixes of 3.31.0, shots at enemies against a wall and ids
-// that are names inherited from Object.prototype, and (3.32) the Endless button and the shells of Frost mortars, and (3.33) the Frost Prism's ice beams and Frost shots.
+// that are names inherited from Object.prototype, and (3.32) the Endless button and the shells of Frost mortars, and (3.33) the Frost Prism's ice beams and Frost shots,\n// and (3.34) the Shorted variant and Blackout City's champions.
 globalThis.__RL_VERSION__ = "0.0.0";
 globalThis.__RL_BUILD__ = "node";
 const { World, rlStep } = await import("../src/core/world.js");
@@ -733,6 +733,82 @@ for (const weapon of weaponOrder) {
     !!shot && shot.frost === true && !!sound && sound.frost === true,
     "a Frost gunner's shot is frost, and its sound event says so",
     `shot ${shot ? shot.frost : "none"}, sound ${sound ? sound.frost : "none"}`,
+  );
+}
+
+// 16. 3.34.0: Blackout City's variant: a Shorted enemy's spot crackles, then arcs once: the drone in it is hurt and
+// slowed (a dash avoids it), an enemy in it is shocked; Blackout City has a champion pool of its own
+{
+  const arena = (seed) => {
+    const w = new World({ seed, weapon: "pulse", threat: 0, ws: {}, pacts: [] });
+    w.startWave(3);
+    w.state = "fight";
+    w.hold = true;
+    w.enemies = [];
+    w.markers = [];
+    w.plan = [];
+    w.planIdx = 0;
+    w.championPending = null;
+    w.bossPending = null;
+    w.traps = [];
+    w.hazards = [];
+    w.arena.vents = [];
+    w.player.x = 0;
+    w.player.y = 0;
+    return w;
+  };
+  const arc = (dash) => {
+    const w = arena(41),
+      victim = w.spawnEnemy("grunt", 1.5, 0, { noVariant: true }),
+      // (out of the drone's reach: its touch would make the drone invulnerable right before the arc)
+      bystander = w.spawnEnemy("brute", 2.6, 0.6, { noVariant: true });
+    victim.variant = "shorted";
+    victim.spawnT = bystander.spawnT = 0;
+    bystander.maxHp = bystander.hp = 1e6;
+    bystander.speed = 0;
+    const hp0 = (w.player.hp = w.player.maxHp = w.stats.maxHp = 1e4);
+    w.killEnemy(victim);
+    const zone = w.hazards.find((h) => h.kind === "shorted"),
+      armed = w.fx.some((ev) => ev.k === "shortArm");
+    let before = null,
+      stunned = false;
+    for (let i = 0; i < 60 * 1.6; i++) {
+      w.player.x = 0.9;
+      w.player.y = 0;
+      w.player.vx = w.player.vy = 0;
+      bystander.x = 2.6;
+      bystander.y = 0.6;
+      if (dash) w.player.dashT = 0.2;
+      if (zone && !zone.done && zone.t > 0.9 && !before) before = { hp: w.player.hp, slow: w.player.slowT };
+      w.step(rlStep, { mx: 0, my: 0 });
+      if (w.fx.some((ev) => ev.k === "stun")) stunned = true;
+      w.fx.length = 0;
+    }
+    return {
+      zone: !!zone,
+      armed,
+      delay: zone && zone.delay,
+      hurt: Math.round(hp0 - w.player.hp),
+      slowed: w.player.slowKind === "shock" && stunned,
+      early: before ? Math.round(hp0 - before.hp) : -1,
+      shocked: bystander.burnSrc === "shock" && bystander.slowT > 0,
+    };
+  };
+  const hit = arc(false),
+    dodged = arc(true);
+  line(
+    hit.zone && hit.armed && hit.early === 0 && hit.hurt > 0 && hit.slowed && hit.shocked && dodged.hurt === 0,
+    "a Shorted enemy's spot warns, then arcs: the drone is hurt and slowed (not when dashing), an enemy in it is shocked",
+    `hit ${JSON.stringify(hit)} · dash ${JSON.stringify(dodged)}`,
+  );
+  const w = arena(42),
+    picks = new Set();
+  for (let i = 0; i < 200; i++) picks.add(w.championType("yard", 30, w.rng));
+  const { biomeVariants } = await import("../src/data/enemies.js");
+  line(
+    !!biomeVariants.yard && biomeVariants.yard.id === "shorted" && picks.size >= 4 && !picks.has("grunt"),
+    "Blackout City has a variant and a champion pool of its own (not only grunts and gunners)",
+    `variant ${biomeVariants.yard && biomeVariants.yard.id}, champions at wave 30: ${[...picks].sort().join(", ")}`,
   );
 }
 

@@ -245,16 +245,53 @@ const enemyOrder = [
   "leaper",
   "turret",
 ];
+// 3.34.0: every biome has its variant (Blackout City had none, so its Endless visits were the softest), and every
+// variant and elite affix says what it does (the Codex and the first-time tips read desc)
 const biomeVariants = {
-  works: { id: "scorch", name: "Scorched", types: ["grunt", "brute", "splitter"], color: 16738858 },
-  vault: { id: "frost", name: "Frost", types: ["gunner", "sniper", "mortar"], color: 11462911 },
-  void: { id: "phase", name: "Phase", types: ["swarmer", "grunt", "gunner"], color: 16732120 },
-  marsh: { id: "toxic", name: "Toxic", types: ["grunt", "splitter", "swarmer", "bomber"], color: 11861821 },
+  yard: {
+    id: "shorted",
+    name: "Shorted",
+    types: ["grunt", "gunner", "bomber"],
+    color: 0x8fd0ff,
+    desc: "Crackles with stolen current. Where one dies, the ground arcs a moment later: step away, or lure others in.",
+  },
+  works: {
+    id: "scorch",
+    name: "Scorched",
+    types: ["grunt", "brute", "splitter"],
+    color: 16738858,
+    desc: "Leaves burning ground behind it as it walks.",
+  },
+  vault: {
+    id: "frost",
+    name: "Frost",
+    types: ["gunner", "sniper", "mortar"],
+    color: 11462911,
+    desc: "Its icy shots and shells slow you for a moment.",
+  },
+  void: {
+    id: "phase",
+    name: "Phase",
+    types: ["swarmer", "grunt", "gunner"],
+    color: 16732120,
+    desc: "Blinks a few steps towards you every couple of seconds.",
+  },
+  marsh: {
+    id: "toxic",
+    name: "Toxic",
+    types: ["grunt", "splitter", "swarmer", "bomber"],
+    color: 11861821,
+    desc: "Bursts into an acid pool when it dies.",
+  },
 };
 const eliteAffixes = {
-  shielded: { name: "Shielded", color: 7325951 },
-  hasted: { name: "Hasted", color: 16773754 },
-  volatile: { name: "Volatile", color: 16734778 },
+  shielded: { name: "Shielded", color: 7325951, desc: "A barrier soaks the first hits. Elites from wave 10." },
+  hasted: { name: "Hasted", color: 16773754, desc: "Moves a third faster. Elites from wave 10." },
+  volatile: {
+    name: "Volatile",
+    color: 16734778,
+    desc: "Explodes when it dies: keep your distance. Elites from wave 10.",
+  },
 };
 const bossDefs = {
   warden: {

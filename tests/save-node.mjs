@@ -160,5 +160,24 @@ const newer = () => ({
   check("with room, the broken save is backed up and the game saves", backups.length === 1 && stored().v === 1);
 }
 
+// 3.34.0: a stored run keeps the part of a shard its kills owe (a resumed run started it at 0 and dropped shards
+// differently); a broken value falls back to 0
+{
+  const run = (frac) => ({
+    ...newSave(),
+    ver: "3.31.0",
+    run: { v: 1, seed: 5, weapon: "pulse", wave: 7, hp: 80, threat: 0, up: {}, shardFrac: frac },
+  });
+  reset(JSON.stringify(run(0.4)));
+  const kept = new SaveStore().data.run;
+  reset(JSON.stringify(run("lots")));
+  const broken = new SaveStore().data.run;
+  check(
+    "a stored run keeps its shard remainder; a broken one is 0",
+    kept && kept.shardFrac === 0.4 && broken && broken.shardFrac === 0,
+    `${kept && kept.shardFrac} / ${broken && broken.shardFrac}`,
+  );
+}
+
 console.log(failed ? `\nSAVE (node): ${failed} check(s) failed` : "\nSAVE (node): all checks passed");
 process.exit(failed ? 1 : 0);

@@ -619,10 +619,14 @@ function selfTestExpansion23(result) {
     }
     for (const issue of rlBiomeDistinct()) bad("biome-lookalike", issue);
     for (const [biomeId, variant] of Object.entries(biomeVariants)) {
-      if (!["scorch", "frost", "phase", "toxic"].includes(variant.id)) {
+      if (!["scorch", "frost", "phase", "toxic", "shorted"].includes(variant.id)) {
         bad("variant-dead", `${biomeId} → ${variant.id}`);
       }
+      // 3.34.0: the Codex and the first-time tip read what it does
+      if (!variant.desc) bad("variant-desc", variant.id);
     }
+    // 3.34.0: every biome has its variant (Blackout City had none)
+    for (const biome of biomeList) if (!biomeVariants[biome.id]) bad("variant-missing", biome.id);
     for (const [biomeId, variant] of Object.entries(biomeVariants))
       for (const type of variant.types) {
         if (!enemyDefs[type]) {

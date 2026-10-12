@@ -71,6 +71,8 @@ const WHITE = new Color(0xffffff),
     riftorb: new Color(0xb070ff),
   },
   SIREN_BLUE = new Color(0x3d7bff),
+  // 3.34.0: the current of a Shorted enemy (the cold blue-white of Blackout City's live manholes)
+  ARC = new Color(0x8fd0ff),
   // 3.33.0: the shot of a Frost enemy (it slows the drone it hits) glows icy, not in its maker's colour
   FROST_SHOT = new Color(0x8fe8ff),
   RIFT_RIM_SHOT = new Color(0x7ae8ff);
@@ -99,6 +101,7 @@ function lookOf(kind, src, biome, chill) {
     case "stomp":
       return src === "forge" ? Z.lavaCrack : Z.crack;
     case "drill":
+    case "shorted":
       return Z.crack;
     case "slag":
       return Z.molten;
@@ -686,6 +689,31 @@ class AttackView {
           });
       }
     }
+    // 3.34.0: a Shorted enemy's spot: jagged arcs flicker across it, more and brighter as it is about to strike
+    if (hazard.kind === "shorted") {
+      const b = r.beams;
+      if (chance(10 + 40 * k))
+        for (let j = 0; j < 1 + Math.round(2 * k); j++) {
+          let a = Math.random() * TAU,
+            d = rr * Math.random() * 0.3,
+            px = x + Math.cos(a) * d,
+            pz = z + Math.sin(a) * d;
+          for (let i = 0; i < 4; i++) {
+            a += (Math.random() - 0.5) * 1.6;
+            const step = rr * (0.18 + Math.random() * 0.12),
+              qx = px + Math.cos(a) * step,
+              qz = pz + Math.sin(a) * step;
+            b.colC(b.seg(px, pz, qx, qz, 0.12, 0.05, 0.05), Math.random() < 0.4 ? WHITE : ARC, 0.6 + 0.4 * k);
+            px = qx;
+            pz = qz;
+          }
+        }
+      if (chance(6 + 20 * k))
+        r.emit(x + (Math.random() - 0.5) * rr, 0.15, z + (Math.random() - 0.5) * rr, 0, 1.6, 0, 0.25, 0.1, ARC, {
+          spark: true,
+          drag: 2,
+        });
+    }
     switch (look) {
       case Z.lavaCrack:
       case Z.molten:
@@ -860,10 +888,21 @@ class AttackView {
         "fire",
         "volatile",
         "bomber",
+        "shorted",
       ].includes(kind)
     )
       return false;
     const shake = (amount) => r.addShake(amount * shakeK);
+    if (kind === "shorted") {
+      // 3.34.0: the arc of a Shorted enemy's spot: a burst of white and blue sparks, a cold flash, a scorched crack
+      r.burst(x, z, 0.3, 22, 6, WHITE, 0.3, 0.26, { up: 6, spark: true, drag: 1 });
+      r.burst(x, z, 0.3, 12, 3.5, ARC, 0.45, 0.3, { up: 3, spark: true });
+      r.ring(x, z, rr * 0.3, rr * 1.3, ARC, 0.28);
+      r.flash(x, z, rr * 2.6, 1.3, ARC, 4);
+      this.mark(x, z, rr * 0.9, M.burn);
+      shake(0.08);
+      return true;
+    }
     switch (look) {
       case Z.crack:
       case Z.lavaCrack: {

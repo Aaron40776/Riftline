@@ -132,6 +132,8 @@ function attackVoice(kind, src, biome, chill) {
       return "aIce";
     case "fire":
       return "aFire";
+    case "shorted":
+      return "aShort";
     case "mortar":
       return src === "forge" ? "aLava" : null;
     case "rain": {
@@ -300,6 +302,7 @@ const RL_SOUND_EVENTS = {
     { kind: "rain", src: "core", r: 2.2 },
     { kind: "fire", r: 1 },
     { kind: "mortar", src: "mortar", r: 2, chill: true },
+    { kind: "shorted", src: "grunt", r: 1.6 },
   ],
   boss: [{ id: "warden" }, { id: "forge" }, { id: "prism" }, { id: "queen" }, { id: "core" }],
   bossAtk: [{ id: "warden", atk: "ring" }],
@@ -312,6 +315,7 @@ const RL_SOUND_EVENTS = {
   charge: [{ type: "brute" }],
   chill: [{}],
   stun: [{ skin: "plate" }, { skin: "riftburst" }],
+  shortArm: [{ r: 1.6 }],
   cleared: [{}, { boss: true }],
   combo: [{ n: 20 }],
   comboEnd: [{ n: 20 }],
@@ -2561,6 +2565,25 @@ const musicChords = {
             this.tone(2200 + r() * 2500, 0.09, "sine", 0.03, { to: 1400 + r() * 600, at: 0.02 + i * 0.035 });
           for (let i = 0; i < 4; i++) this.tone(3000 + r() * 2200, 0.4, "sine", 0.014, { at: 0.5 + i * 0.07 });
           break;
+        case "aShort":
+          // 3.34.0: a Shorted enemy's spot arcs: a dry snap, a short mains buzz (the 100 Hz of the city's manholes)
+          // that dies, a falling zap and a few crackles
+          if (!this.gate(id, 0.08)) break;
+          this.noise(0.025, 0.16, { type: "highpass", f: 3200, attack: 0.001 });
+          this.tone(100, 0.28, "sawtooth", 0.045, { lp: 1300, attack: 0.004, hold: 0.1 });
+          this.tone(101.5, 0.28, "square", 0.02, { lp: 900, attack: 0.004, hold: 0.1 });
+          this.tone(2600 * pitch, 0.2, "sawtooth", 0.03, { to: 240, lp: 5000, at: 0.01 });
+          for (let i = 0; i < 4; i++)
+            this.noise(0.018, 0.05, { type: "bandpass", f: 2600 + r() * 4500, q: 6, at: 0.03 + i * 0.05 });
+          break;
+        case "shortFizz":
+          // 3.34.0: the warning of a Shorted enemy's spot: a thin crackling fizz that swells over the second before it
+          // arcs, a faint rising buzz under it
+          if (!this.gate(id, 0.12)) break;
+          for (let i = 0; i < 7; i++)
+            this.noise(0.015, 0.012 + i * 0.004, { type: "bandpass", f: 3000 + r() * 4000, q: 7, at: i * 0.13 });
+          this.tone(100, 1.0, "sawtooth", 0.012, { lp: 900, to: 120, attack: 0.7 });
+          break;
         case "aAcid":
           // a wet splash: a slap of water, blobs that rise, a thump under it and a sizzle that lingers
           if (!this.gate(id, 0.06)) break;
@@ -3001,6 +3024,9 @@ const musicChords = {
             break;
           case "stun":
             this.play("stun", ev.skin);
+            break;
+          case "shortArm":
+            this.play("shortFizz");
             break;
           case "championDown":
             this.play("bigkill");
@@ -5268,6 +5294,9 @@ function rlSoundCatalog() {
   // 3.10.0: the blasts of the attacks of enemies and bosses
   ids(["aQuake", "aLava", "aIce", "aAcid", "aRift"], 2);
   ids(["aFire"], 1);
+  // 3.34.0: a Shorted enemy's spot arcs, and its warning
+  ids(["aShort"], 1.6);
+  ids(["shortFizz"]);
   for (const boss of Object.keys(BOSS_ROOT)) {
     ids(["bossIntro"], boss);
     for (const id of [
