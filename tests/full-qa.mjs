@@ -3133,10 +3133,12 @@ await section("tabs", async (L) => {
   await P.tap("#playBtn");
   await P.page.waitForTimeout(600);
   await addInB(1000);
-  await P.page.waitForTimeout(400);
-  const warned = await P.ev(() =>
-    [...document.querySelectorAll("#toasts .toast")].some((t) => t.textContent.includes("another tab")),
-  );
+  // 3.32.0: wait for the other tab's storage event itself (a fixed 400 ms lost the race now and then under software GL,
+  // also on main: the nightly and the release check of 12.10.2026)
+  const warnedIn = () =>
+    [...document.querySelectorAll("#toasts .toast")].some((t) => t.textContent.includes("another tab"));
+  await P.page.waitForFunction(warnedIn, null, { timeout: 10000 }).catch(() => {});
+  const warned = await P.ev(warnedIn);
   check(L, "a running tab says that the game is open in another tab", warned);
   await P.ev(() => {
     const g = window.__riftTest.game;
