@@ -90,8 +90,9 @@ const M = { burn: 0, crack: 1, slag: 2, frost: 3, slime: 4, rift: 5 },
   MARK_LIFE = [7, 6, 8, 5, 6, 5];
 
 /* which look a zone has: by its kind, and where the kind is shared (rain, mortar, stomp) by who made it, else by the
-   biome */
-function lookOf(kind, src, biome) {
+   biome; 3.32.0: a zone that chills (a Frost mortar's shell) is frost whatever its kind */
+function lookOf(kind, src, biome, chill) {
+  if (chill) return Z.frost;
   switch (kind) {
     case "stomp":
       return src === "forge" ? Z.lavaCrack : Z.crack;
@@ -614,7 +615,7 @@ class AttackView {
         x = hazard.x,
         z = hazard.y,
         rr = hazard.r,
-        look = lookOf(hazard.kind, hazard.src, biome);
+        look = lookOf(hazard.kind, hazard.src, biome, hazard.chill);
       let seed = this.seeds.get(hazard);
       if (seed == null) this.seeds.set(hazard, (seed = Math.random()));
       // a soft dark pool under it keeps the warning readable on a pale floor (Cryo Vault)
@@ -671,10 +672,16 @@ class AttackView {
             spark: true,
           });
       } else {
-        const P = this.get("shell");
+        // 3.32.0: a Frost mortar's shell glows icy and trails frost mist instead of smoke
+        const P = this.get("shell"),
+          cold = hazard.chill;
         P.body.yr(hx, hy, hz, yaw, 1.2, 1.2, 1.2, pitch, time * 8);
-        P.glow.colC(P.glow.yr(hx, hy, hz, yaw, 1.2, 1.2, 1.2, pitch, time * 8), FIRE, 1);
-        if (Math.random() < 0.5) r.emit(hx, hy, hz, 0, 0.3, 0, 0.45, 0.4, SMOKE, { drag: 1, grow: 1.4 });
+        P.glow.colC(P.glow.yr(hx, hy, hz, yaw, 1.2, 1.2, 1.2, pitch, time * 8), cold ? ICE : FIRE, cold ? 1.4 : 1);
+        if (Math.random() < 0.5)
+          r.emit(hx, hy, hz, 0, cold ? -0.2 : 0.3, 0, 0.45, cold ? 0.3 : 0.4, cold ? ICE : SMOKE, {
+            drag: 1,
+            grow: 1.4,
+          });
       }
     }
     switch (look) {
@@ -836,7 +843,7 @@ class AttackView {
       biome = world && world.arena ? world.arena.biome.id : this.biomeId(),
       dust = DUST[biome] || DUST.yard,
       kind = ev.kind,
-      look = kind === "bomber" ? Z.target : lookOf(kind, ev.src, biome);
+      look = kind === "bomber" ? Z.target : lookOf(kind, ev.src, biome, ev.chill);
     if (
       ![
         "stomp",

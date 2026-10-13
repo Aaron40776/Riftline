@@ -1686,6 +1686,37 @@ for (const [name, vp, touch] of [
       !badRows.length,
       badRows.join(", "),
     );
+    // 3.32.0: a button whose middle sits exactly on the edge of its scroll area is scrolled away, not covered (the
+    // nightly fuzz of 12.10.2026 failed on "Near covered by settings" at 1252 x 449)
+    const edge = await P.ev(() => {
+      const btn = document.querySelector("#setZoom button"),
+        box = btn.closest(".scroll");
+      const edges = [];
+      for (const side of ["bottom", "top"]) {
+        const r = btn.getBoundingClientRect(),
+          s = box.getBoundingClientRect(),
+          mid = r.top + r.height / 2;
+        box.scrollTop += side === "bottom" ? mid - s.bottom : mid - s.top;
+        const r2 = btn.getBoundingClientRect(),
+          s2 = box.getBoundingClientRect();
+        const audit = window.__riftLayoutAudit();
+        edges.push({
+          side,
+          off: Math.round((r2.top + r2.height / 2 - (side === "bottom" ? s2.bottom : s2.top)) * 10) / 10,
+          bad: audit.findings.filter((f) => /covered/.test(f)),
+        });
+      }
+      box.scrollTop = 0;
+      return edges;
+    });
+    // (only where the list is long enough to scroll the button there)
+    for (const e of edge.filter((e) => Math.abs(e.off) < 1))
+      check(
+        L,
+        `layout audit: a button centred on the ${e.side} edge of its scroll area is not "covered"`,
+        !e.bad.length,
+        e.bad.join("; "),
+      );
     // menu pages: no row stretched across a huge screen (readability)
     for (const [pg, sel] of [
       ["workshop", ".row"],
@@ -2380,6 +2411,36 @@ for (const profName of ["desktop", "phone"])
       (await Q.ev(() => [...document.querySelectorAll("#snList .sn-item")].map((e) => e.dataset.key))).join() ===
         "music:menu:yard",
     );
+    // 3.32.0: nothing heard lately: one column in the middle (on a phone held sideways the buttons sat in the right half
+    // beside an empty list, and "Copy notes" broke onto two lines)
+    const empty = await Q.ev(() => {
+      const ui = window.__riftTest.ui,
+        sound = window.__riftTest.game.sound,
+        keep = [sound.musicNow, sound.recentSounds];
+      sound.musicNow = () => null;
+      sound.recentSounds = () => [];
+      ui.renderSoundNotes();
+      [sound.musicNow, sound.recentSounds] = keep;
+      const row = document.querySelector("#sndNotes .btn-row").getBoundingClientRect(),
+        back = document.getElementById("snBack").getBoundingClientRect(),
+        lines = (el) => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+        };
+      return {
+        off: Math.round(Math.abs((row.left + row.right) / 2 - innerWidth / 2)),
+        backOff: Math.round(Math.abs((back.left + back.right) / 2 - innerWidth / 2)),
+        copyLines: lines(document.getElementById("snCopy").firstChild.parentNode.childNodes[0]),
+        hint: document.querySelector("#sndNotes .note").getBoundingClientRect().height > 0,
+      };
+    });
+    check(
+      L,
+      "nothing to list: the buttons sit in the middle, one line each, with the hint",
+      empty.off < 12 && empty.backOff < 12 && empty.copyLines === 1 && empty.hint,
+      JSON.stringify(empty),
+    );
     await Q.tap("#snBack");
     check(L, "Back returns to the settings", (await Q.vis("settings")) && !(await Q.vis("sndNotes")));
     check(L, "no page errors in the menu", !Q.errors.length, Q.errors.slice(0, 3).join(" | "));
@@ -3072,10 +3133,12 @@ await section("tabs", async (L) => {
   await P.tap("#playBtn");
   await P.page.waitForTimeout(600);
   await addInB(1000);
-  await P.page.waitForTimeout(400);
-  const warned = await P.ev(() =>
-    [...document.querySelectorAll("#toasts .toast")].some((t) => t.textContent.includes("another tab")),
-  );
+  // 3.32.0: wait for the other tab's storage event itself (a fixed 400 ms lost the race now and then under software GL,
+  // also on main: the nightly and the release check of 12.10.2026)
+  const warnedIn = () =>
+    [...document.querySelectorAll("#toasts .toast")].some((t) => t.textContent.includes("another tab"));
+  await P.page.waitForFunction(warnedIn, null, { timeout: 10000 }).catch(() => {});
+  const warned = await P.ev(warnedIn);
   check(L, "a running tab says that the game is open in another tab", warned);
   await P.ev(() => {
     const g = window.__riftTest.game;

@@ -4,7 +4,7 @@
 // Checks: no Math.random in the simulation, the same seed and inputs give the same run, a bot plays every weapon without a
 // crash, a non-finite number or a stalled wave, Banish keeps its cards out of the offers, a snapshot resumes the run, and
 // (3.31) drawing between steps, frame pacing, the gameplay fixes of 3.31.0, shots at enemies against a wall and ids
-// that are names inherited from Object.prototype, and (3.32) the Endless button.
+// that are names inherited from Object.prototype, and (3.32) the Endless button and the shells of Frost mortars.
 globalThis.__RL_VERSION__ = "0.0.0";
 globalThis.__RL_BUILD__ = "node";
 const { World, rlStep } = await import("../src/core/world.js");
@@ -631,6 +631,56 @@ for (const weapon of weaponOrder) {
       w.bossKills.length === 0,
     "the Endless button starts the counters and the clock of the Endless part",
     `state ${w.state}, time ${w.time}, dashAt ${w.player.dashAt}, kills ${w.kills}, second call ${again}`,
+  );
+}
+
+// 14. 3.32.0: a Frost mortar's shell chills the drone where it lands (the Frost variant only chilled with bullets, and a
+// mortar fires none); a plain mortar's shell does not
+{
+  const lob = (variant) => {
+    const w = new World({ seed: 5, weapon: "pulse", threat: 0, ws: {}, pacts: [] });
+    w.startWave(12);
+    w.state = "fight";
+    w.hold = true;
+    w.enemies = [];
+    w.markers = [];
+    w.plan = [];
+    w.planIdx = 0;
+    w.championPending = null;
+    w.bossPending = null;
+    w.traps = [];
+    w.hazards = [];
+    w.player.x = 0;
+    w.player.y = 0;
+    w.player.hp = w.player.maxHp = 1e6;
+    w.stats.maxHp = 1e6;
+    const m = w.spawnEnemy("mortar", 12, 0, { noVariant: true });
+    m.variant = variant;
+    m.spawnT = 0;
+    m.t = 0;
+    m.los = true;
+    let shell = null,
+      chilled = false,
+      cold = false;
+    for (let i = 0; i < 60 * 4 && !chilled; i++) {
+      w.player.x = 0;
+      w.player.y = 0;
+      w.player.vx = w.player.vy = 0;
+      w.player.iT = 0;
+      w.step(rlStep, { mx: 0, my: 0 });
+      shell = shell || w.hazards.find((h) => h.kind === "mortar");
+      for (const ev of w.fx) if (ev.k === "boom" && ev.kind === "mortar" && ev.chill) cold = true;
+      w.fx.length = 0;
+      if (w.player.slowT > 0 && w.player.slowKind === "chill") chilled = true;
+    }
+    return { shell: !!shell, chill: !!shell?.chill, chilled, cold };
+  };
+  const frost = lob("frost"),
+    plain = lob(null);
+  line(
+    frost.shell && frost.chill && frost.chilled && frost.cold && plain.shell && !plain.chill && !plain.chilled,
+    "a Frost mortar's shell lands as frost and chills the drone; a plain mortar's does not",
+    `frost ${JSON.stringify(frost)} · plain ${JSON.stringify(plain)}`,
   );
 }
 

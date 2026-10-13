@@ -422,6 +422,9 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 @keyframes cardIn { from { opacity: 0; transform: translateY(10px); } }
 .choose-foot { display: flex; gap: 10px; }
 .sn { width: min(600px, 94vw); }
+/* 3.32.0: the hint sits in the middle like the title (it hugged the left edge of the column), and no button text wraps */
+.center-col.sn .note { align-self: center; }
+.center-col.sn .btn-row .btn { white-space: nowrap; padding: 0 12px; }
 .sn-music { font: 600 13px/1.3 var(--display); letter-spacing: 0.08em; color: var(--cyan); margin: 2px 0 8px; text-align: center; }
 .sn-list { display: grid; gap: 6px; width: 100%; max-height: 38vh; overflow-y: auto; margin-bottom: 8px; }
 .sn-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; padding: 9px 12px; background: var(--panel2); border: 1px solid var(--line2); color: inherit; font: 600 14px/1.2 var(--display); letter-spacing: 0.03em; }
@@ -441,6 +444,10 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
   .center-col.sn .btn-row { grid-column: 2; grid-row: 4; }
   #snBack { grid-column: 2; grid-row: 5; align-self: start; }
   .sn-item { padding: 7px 10px; }
+  /* 3.32.0: nothing to list: one column in the middle with the hint, not an empty left half */
+  .center-col.sn.empty { display: flex; width: min(460px, 92vw); }
+  .center-col.sn.empty .eyebrow, .center-col.sn.empty .note { display: block; }
+  .center-col.sn.empty #snBack { align-self: stretch; }
 }
 .build-strip, .build-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 460px; }
 .bi { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; font: 600 12px/1 var(--display); color: var(--text); background: rgba(255, 255, 255, 0.05); border-left: 2px solid var(--rc, var(--r1)); }
@@ -1413,7 +1420,9 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
           if(r.width<1||r.height<1||st.display==='none'||st.visibility==='hidden') continue;
           const x=r.left+r.width/2, y=r.top+r.height/2;
           const sp=scrollParent(b);
-          if(sp){const pr=sp.getBoundingClientRect();if(y<pr.top||y>pr.bottom||x<pr.left||x>pr.right){scrolled++;continue}}
+          // 3.32.0: a middle on the very edge of the scroll area (or within a pixel of it) counts as scrolled away: the point
+          // there belongs to the page behind the list (the nightly fuzz of 12.10.2026)
+          if(sp){const pr=sp.getBoundingClientRect();if(y<pr.top+1||y>pr.bottom-1||x<pr.left+1||x>pr.right-1){scrolled++;continue}}
           if(x<0||y<0||x>innerWidth||y>innerHeight){findings.push(`${b.id||b.textContent.trim().slice(0,20)} offscreen`);continue;}
           const hit=document.elementFromPoint(x,y);
           // 3.18.2: a button under a modal dialog or under another screen on top of its own (the pause menu behind the

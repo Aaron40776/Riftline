@@ -495,6 +495,8 @@ function updateEnemyCore(game, enemy, dt) {
             kind: "mortar",
             sx: enemy.x,
             sy: enemy.y,
+            // 3.32.0: the Frost variant's shells chill (the variant only touched bullets before, and a mortar fires none)
+            chill: enemy.variant === "frost",
           });
         }
         game.emit("lob", { x: enemy.x, y: enemy.y });
