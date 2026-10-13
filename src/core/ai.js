@@ -77,7 +77,7 @@ function updateEnemyCore(game, enemy, dt) {
             shotSpeed = 8.2 + game.wave * 0.06;
           for (let k = 0; k < shots; k++)
             game.shoot(enemy.x, enemy.y, ang + (k - (shots - 1) / 2) * 0.2, shotSpeed, enemy.dmg);
-          game.emit("eshot", { x: enemy.x, y: enemy.y, type: "gunner" });
+          game.emit("eshot", { x: enemy.x, y: enemy.y, type: "gunner", frost: enemy.variant === "frost" });
           enemy.st = 0;
           enemy.t = 2.2 + game.rng.next() * 0.9;
         }
@@ -198,7 +198,7 @@ function updateEnemyCore(game, enemy, dt) {
             kind: "fast",
             r: 0.2,
           });
-          game.emit("eshot", { x: enemy.x, y: enemy.y, type: "sniper" });
+          game.emit("eshot", { x: enemy.x, y: enemy.y, type: "sniper", frost: enemy.variant === "frost" });
           enemy.st = 0;
           enemy.t = 3 + game.rng.next() * 1.2;
         }
@@ -817,12 +817,14 @@ function updateBoss(game, boss, dt) {
               follow: boss,
               len: 34,
               color: PRISM_ICE,
+              // 3.33.0: a lance of ice (it was the plain beam of 2.4.6 in the Prism's colour)
+              skin: "cryo",
             };
           game.beam({ ...beam, a: angle });
           if (rage) {
             game.beam({ ...beam, a: angle + Math.PI });
           }
-          game.emit("beamWarn", { x: boss.x, y: boss.y });
+          game.emit("beamWarn", { x: boss.x, y: boss.y, skin: "cryo" });
         }
         if (boss.t > 3.4) {
           endBossAttack(boss, 1.2);
@@ -893,9 +895,11 @@ function updateBoss(game, boss, dt) {
             dmg: boss.dmg,
             len: 34,
             color: PRISM_ICE,
+            // 3.33.0: a lance of ice (it was the plain beam of 2.4.6 in the Prism's colour)
+            skin: "cryo",
           });
           boss.n++;
-          game.emit("beamWarn", { x: boss.x, y: boss.y, small: true });
+          game.emit("beamWarn", { x: boss.x, y: boss.y, small: true, skin: "cryo" });
         }
         if (boss.t > 0.2 + count * 0.45 + 0.8) {
           endBossAttack(boss, 1.2);
@@ -1088,7 +1092,9 @@ function updateBoss(game, boss, dt) {
   }
   endBossAttack(boss, 1);
 }
-const SENTINEL_SKIN = { yard: "laser", void: "rift" };
+// 3.33.0: every place has its beam: the security laser, the flame jet of the Ember Works, a lance of ice, a jet of bile, the
+// rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Cryo Vault and the Toxin Marsh)
+const SENTINEL_SKIN = { yard: "laser", works: "flame", vault: "cryo", marsh: "acid", void: "rift" };
 /* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
    telegraphed portals around the player: 2 at the first boss, up to 5 later */
 function bossReinforce(game, boss) {
@@ -1185,8 +1191,10 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
             follow: boss,
             len: 34,
             color: PRISM_ICE,
+            // 3.33.0: a lance of ice (it was the plain beam of 2.4.6 in the Prism's colour)
+            skin: "cryo",
           });
-        game.emit("beamWarn", { x: boss.x, y: boss.y });
+        game.emit("beamWarn", { x: boss.x, y: boss.y, skin: "cryo" });
       }
       if (boss.t >= 1.4 + (boss.n - 1) * 0.5 && boss.n <= 6) {
         game.shoot(boss.x, boss.y, aim + (boss.n - 3.5) * 0.5, 5.5, shotDmg, {
@@ -1750,7 +1758,12 @@ function updateEnemy(game, enemy, dt) {
           // 3.16.0: the beam of its place where the place has one (the security laser, the rift ribbon)
           skin: SENTINEL_SKIN[game.arena.biome.id] || null,
         });
-        game.emit("beamWarn", { x: enemy.x, y: enemy.y, small: true });
+        game.emit("beamWarn", {
+          x: enemy.x,
+          y: enemy.y,
+          small: true,
+          skin: SENTINEL_SKIN[game.arena.biome.id] || null,
+        });
         enemy.st = 2;
         enemy.t2 = 2.5 + game.rng.next() * 1.2;
       }

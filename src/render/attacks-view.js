@@ -71,6 +71,8 @@ const WHITE = new Color(0xffffff),
     riftorb: new Color(0xb070ff),
   },
   SIREN_BLUE = new Color(0x3d7bff),
+  // 3.33.0: the shot of a Frost enemy (it slows the drone it hits) glows icy, not in its maker's colour
+  FROST_SHOT = new Color(0x8fe8ff),
   RIFT_RIM_SHOT = new Color(0x7ae8ff);
 
 // the dust of each biome (stomps and cracks throw it), the index of its marks in the shader
@@ -986,7 +988,7 @@ class AttackView {
       basis = r.B;
     for (const shot of world.eb) {
       const kind = shot.kind,
-        color = SHOT[kind] || SHOT.orb,
+        color = shot.frost ? FROST_SHOT : SHOT[kind] || SHOT.orb,
         angle = Math.atan2(shot.vy, shot.vx);
       switch (kind) {
         case "fast":
@@ -1102,6 +1104,28 @@ class AttackView {
             core = r.ebCore.y(shot.x, 0.75, shot.y, 0, shot.r * 0.85 * pulse);
           r.ebCore.col(core, 1, 0.82 + color.g * 0.2, 0.9 + color.b * 0.1);
         }
+      }
+      if (shot.frost) {
+        // 3.33.0: a Frost shot carries a spinning shell of ice and sheds frost mist, so the slow it brings is seen
+        // before it hits
+        const P = this.get("crystal"),
+          s = shot.r * 1.25;
+        P.glow.col(P.glow.yr(shot.x, 0.75, shot.y, angle, s, s, s, 0, time * 11 + shot.y), 0.75, 0.95, 1.1);
+        if (Math.random() < 0.5)
+          r.emit(
+            shot.x,
+            0.75,
+            shot.y,
+            (Math.random() - 0.5) * 0.4,
+            -0.3,
+            (Math.random() - 0.5) * 0.4,
+            0.45,
+            0.16,
+            ICE,
+            {
+              drag: 2,
+            },
+          );
       }
       const halo = r.sprites.bb(shot.x, 0.75, shot.y, shot.r * 7.5, basis);
       r.sprites.colC(halo, color, 0.95);

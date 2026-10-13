@@ -113,6 +113,8 @@ const RL_BOSS_ATK = {
   plague: "bSummon",
   collapse: "bRain",
 };
+// 3.33.0: the warning voice of a beam by its skin (the rest keep "beam" / "beamSmall")
+const BEAM_VOICE = { cryo: "bwCryo", acid: "bwAcid", flame: "bwFlame" };
 const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse"]);
 /* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
    choice as the look in render/attacks-view.js); null: the generic explosion ("boom"). 3.32.0: a blast that chills (a
@@ -285,7 +287,7 @@ const RL_MINE_BEEP = {
 const RL_SOUND_EVENTS = {
   aim: [{}, { type: "turret" }],
   barrier: [{}],
-  beamWarn: [{}, { small: true }],
+  beamWarn: [{}, { small: true }, { skin: "cryo" }, { small: true, skin: "acid" }, { small: true, skin: "flame" }],
   blink: [{}],
   blinkWarn: [{}],
   block: [{}],
@@ -297,6 +299,7 @@ const RL_SOUND_EVENTS = {
     { kind: "rain", src: "queen", r: 1.5 },
     { kind: "rain", src: "core", r: 2.2 },
     { kind: "fire", r: 1 },
+    { kind: "mortar", src: "mortar", r: 2, chill: true },
   ],
   boss: [{ id: "warden" }, { id: "forge" }, { id: "prism" }, { id: "queen" }, { id: "core" }],
   bossAtk: [{ id: "warden", atk: "ring" }],
@@ -324,6 +327,7 @@ const RL_SOUND_EVENTS = {
   erupt: [{}],
   eshot: [
     { type: "gunner" },
+    { type: "gunner", frost: true },
     { type: "turret" },
     { type: "drone" },
     { type: "boss" },
@@ -1888,6 +1892,38 @@ const musicChords = {
             this.tone(180, 0.3, "square", 0.03, { to: 90, lp: 1200 });
           }
           break;
+        // 3.33.0: the voices of the beams by their skin (the size is 0.6 for a sentinel's, 1 for a boss's)
+        case "bwCryo":
+          // a lance of ice: a glassy shimmer that rises, crackling frost, and a cold hollow tone underneath
+          if (this.gate(id, 0.2)) {
+            this.tone(1500, 0.55, "sine", 0.03 * size, { to: 3800, attack: 0.12 });
+            this.tone(2250, 0.5, "triangle", 0.014 * size, { to: 5200, attack: 0.18 });
+            this.noise(0.45, 0.05 * size, { type: "highpass", f: 5200, to: 2600, attack: 0.1 });
+            this.tone(190, 0.6, "sine", 0.05 * size, { to: 260, attack: 0.2 });
+          }
+          break;
+        case "bwAcid":
+          // a jet of bile: a wet gurgle that builds into a hiss
+          if (this.gate(id, 0.2)) {
+            this.tone(140, 0.5, "sawtooth", 0.075 * size, { to: 70, lp: 600, attack: 0.1 });
+            this.noise(0.55, 0.13 * size, { type: "bandpass", f: 900, to: 3200, q: 2, attack: 0.25 });
+            this.tone(420, 0.3, "sine", 0.045 * size, { to: 900, attack: 0.05 });
+          }
+          break;
+        case "bwFlame":
+          // a flame jet lighting: a soft whump and a rushing roar
+          if (this.gate(id, 0.2)) {
+            this.tone(110, 0.3, "sine", 0.095 * size, { to: 55 });
+            this.noise(0.6, 0.085 * size, { type: "lowpass", f: 600, to: 1800, attack: 0.15 });
+          }
+          break;
+        case "eshotFrost":
+          // the glassy chime on a Frost enemy's shot
+          if (this.gate(id, 0.08)) {
+            this.tone(2600 * pitch, 0.18, "sine", 0.022, { to: 2300 });
+            this.tone(3900 * pitch, 0.12, "triangle", 0.01, { to: 3500 });
+          }
+          break;
         case "beamSmall":
           if (this.gate(id, 0.2)) {
             this.tone(800, 0.5, "sine", 0.04, { to: 2400, attack: 0.15 });
@@ -2830,6 +2866,13 @@ const musicChords = {
             break;
           case "eshot":
             this.play((ev.type === "boss" && BOSS_ESHOT[ev.boss]) || RL_ESHOT_VOICE[ev.type] || "eshot");
+            // 3.33.0: a Frost enemy's shot rings with a glassy chime on top (its shot slows the drone it hits)
+            if (ev.frost) this.play("eshotFrost");
+            break;
+          case "beamWarn":
+            // 3.33.0: the beams of the Cryo Vault, the Toxin Marsh and the Ember Works sound like what they are; the
+            // laser and the rift ribbon keep the whine of 2.x
+            this.play(BEAM_VOICE[ev.skin] || (ev.small ? "beamSmall" : "beam"), ev.small ? 0.6 : 1);
             break;
           case "aim":
             this.play(ev.type === "turret" ? "servo" : "lock");
@@ -2857,9 +2900,6 @@ const musicChords = {
             break;
           case "thud":
             this.play("thud");
-            break;
-          case "beamWarn":
-            this.play(ev.small ? "beamSmall" : "beam");
             break;
           case "revive":
             this.play("nova");
@@ -5151,6 +5191,10 @@ function rlSoundCatalog() {
     "eshotForge",
     "eshotWeaver",
     "eshotCarrier",
+    "eshotFrost",
+    "bwCryo",
+    "bwAcid",
+    "bwFlame",
     "warn",
     "fuse",
     "spawn",

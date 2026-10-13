@@ -4,7 +4,7 @@
 // Checks: no Math.random in the simulation, the same seed and inputs give the same run, a bot plays every weapon without a
 // crash, a non-finite number or a stalled wave, Banish keeps its cards out of the offers, a snapshot resumes the run, and
 // (3.31) drawing between steps, frame pacing, the gameplay fixes of 3.31.0, shots at enemies against a wall and ids
-// that are names inherited from Object.prototype, and (3.32) the Endless button and the shells of Frost mortars.
+// that are names inherited from Object.prototype, and (3.32) the Endless button and the shells of Frost mortars, and (3.33) the Frost Prism's ice beams and Frost shots.
 globalThis.__RL_VERSION__ = "0.0.0";
 globalThis.__RL_BUILD__ = "node";
 const { World, rlStep } = await import("../src/core/world.js");
@@ -681,6 +681,58 @@ for (const weapon of weaponOrder) {
     frost.shell && frost.chill && frost.chilled && frost.cold && plain.shell && !plain.chill && !plain.chilled,
     "a Frost mortar's shell lands as frost and chills the drone; a plain mortar's does not",
     `frost ${JSON.stringify(frost)} · plain ${JSON.stringify(plain)}`,
+  );
+}
+
+// 15. 3.33.0: the beams of the Cryo Vault: every beam of the Frost Prism is a lance of ice (it was the plain beam of
+// 2.4.6) and its warning names the skin; a Frost gunner's shot and its sound event say they are frost
+{
+  let wave = 5;
+  const w = new World({ seed: 33, weapon: "pulse", threat: 0, ws: {}, pacts: [] });
+  while (w.bossFor(wave) !== "prism" && wave < 200) wave += 5;
+  w.startWave(wave);
+  w.state = "fight";
+  w.god = true;
+  const skins = new Set(),
+    warns = new Set();
+  for (let i = 0; i < 60 * 90 && skins.size + warns.size < 99; i++) {
+    w.step(rlStep, { mx: Math.cos(i / 50), my: Math.sin(i / 70) });
+    for (const b of w.beams) if (b.src === "prism") skins.add(b.skin || "none");
+    for (const ev of w.fx) if (ev.k === "beamWarn") warns.add(ev.skin || "none");
+    w.fx.length = 0;
+    if (i > 60 * 40 && skins.size) break;
+  }
+  line(
+    skins.size === 1 && skins.has("cryo") && warns.size === 1 && warns.has("cryo"),
+    "every beam of the Frost Prism is a lance of ice, and its warning says so",
+    `beams [${[...skins]}] warnings [${[...warns]}] at wave ${wave}`,
+  );
+  const g = new World({ seed: 34, weapon: "pulse", threat: 0, ws: {}, pacts: [] });
+  g.startWave(12);
+  g.state = "fight";
+  g.hold = true;
+  g.enemies = [];
+  g.markers = [];
+  g.plan = [];
+  g.planIdx = 0;
+  g.championPending = null;
+  g.bossPending = null;
+  g.god = true;
+  const gunner = g.spawnEnemy("gunner", g.player.x + 7, g.player.y, { noVariant: true });
+  gunner.variant = "frost";
+  gunner.spawnT = 0;
+  let shot = null,
+    sound = null;
+  for (let i = 0; i < 60 * 8 && !(shot && sound); i++) {
+    g.step(rlStep, { mx: 0, my: 0 });
+    shot = shot || g.eb.find((b) => b.src === "gunner");
+    sound = sound || g.fx.find((ev) => ev.k === "eshot" && ev.type === "gunner");
+    g.fx.length = 0;
+  }
+  line(
+    !!shot && shot.frost === true && !!sound && sound.frost === true,
+    "a Frost gunner's shot is frost, and its sound event says so",
+    `shot ${shot ? shot.frost : "none"}, sound ${sound ? sound.frost : "none"}`,
   );
 }
 
