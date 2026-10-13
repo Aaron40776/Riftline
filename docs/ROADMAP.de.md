@@ -224,12 +224,12 @@ Three PRs, stacked, each a release (merge in this order):
   (it had neither, so its Endless visits were the softest); the Codex lists the biome events, the variants and the elite
   affixes, with a first-time tip for variants and affixes.
 - **3.35.0** (`claude/cleanup-3350`): the owner, 12.10.2026: "remove stuff like the sound notes (all that isn't really
-  necessary) ... I want a clean game with core functionality and design". With his picks: the Sound notes, the music
-  jukebox and the Diagnostics dialog are gone (the crash screen keeps its report), the deep self-test is a file of its
-  own that only the tests load, the layout audit runs only in tests, dead floor-shader code is gone.
+  necessary) ... I want a clean game with core functionality and design". With the owner's picks: the Sound notes, the
+  music jukebox and the Diagnostics dialog are gone (the crash screen keeps its report), the deep self-test is a file of
+  its own that only the tests load, the layout audit runs only in tests, dead floor-shader code is gone.
 - **Branches:** the owner said delete the merged `claude/*` branches; this session's GitHub access refuses deleting
-  branches, so the 46 branches whose work is in `main` are for him to delete on GitHub (Branches page). Kept on purpose:
-  `claude/music-lab`, `claude/strategy-audit`, and two whose work never reached `main`
+  branches, so the 46 branches whose work is in `main` are for the owner to delete on GitHub (Branches page). Kept on
+  purpose: `claude/music-lab`, `claude/strategy-audit`, and two whose work never reached `main`
   (`claude/biome-waffen-reduktion-9zi5la`, `claude/riftdeck-github-repo-9rotaq`).
 - **For the owner's eyes:** the Cryo Vault measures twice as bright as any other biome with the least colour, and its
   snow-skinned enemies blend into the floor; before/after pictures of a darker Vault come with the report, nothing is

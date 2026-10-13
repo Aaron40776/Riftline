@@ -2,9 +2,9 @@ RIFTLINE v3.35.0 – A CLEAN PLAYER BUILD
 Base: v3.34.0 · Build r3350a1012a-r1 · 12.10.2026
 
 The owner, 12.10.2026: "remove stuff like the sound notes (all that isn't really necessary) and despite full features
-also check the code and repo for such stuff (I want a clean game with core functionality and design)". His picks from
-the inventory: also the Diagnostics button and the music jukebox; test code out of the player's download; the merged
-branches deleted.
+also check the code and repo for such stuff (I want a clean game with core functionality and design)". The owner's picks
+from the inventory: also the Diagnostics button and the music jukebox; test code out of the player's download; the
+merged branches deleted.
 
 1) Gone from the game
    - Sound notes: the overlay, its buttons in the pause menu and the settings, the code in ui.js and main.js, the
@@ -29,8 +29,8 @@ branches deleted.
 4) Size: game file 1308 KB -> 1212 KB.
 5) Repository
    - The owner said delete the merged claude/* branches. This session's GitHub access refuses deleting branches (a
-     push of a deletion is cut off), so the 46 branches whose work is fully in main are listed in the roadmap for him to
-     delete on GitHub. Kept: claude/music-lab, claude/strategy-audit, and two branches whose work never reached main.
+     push of a deletion is cut off), so the 46 branches whose work is in main are listed in the roadmap for the owner
+     to delete on GitHub. Kept: claude/music-lab, claude/strategy-audit, and two branches whose work never reached main.
 6) Tests and results (headless Chromium, software WebGL; no real device was used)
    - Full QA settings: the jukebox, sound notes and diagnostics are gone (buttons, overlay and engine functions); e2e:
      no developer tools in the settings; save-node: the old notes are cleared. The sound notes section, the jukebox
