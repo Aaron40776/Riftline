@@ -10,7 +10,15 @@ import {
   buildReport,
   logError,
 } from "../core/diagnostics.js";
-import { enemyDefs, bossDefs, enemyOrder, bossByBiome, RL_ENEMY_TIPS } from "../data/enemies.js";
+import {
+  enemyDefs,
+  bossDefs,
+  enemyOrder,
+  bossByBiome,
+  RL_ENEMY_TIPS,
+  biomeVariants,
+  eliteAffixes,
+} from "../data/enemies.js";
 import { biomeList, biomesById } from "../data/biomes.js";
 import { store } from "../main.js";
 import { clamp, GAME_VERSION, formatCount, rlAgo, formatTime } from "../core/util.js";
@@ -1959,7 +1967,7 @@ const getById = (id) => document.getElementById(id),
     }
     renderCodex() {
       const codex = rlCodexEntries(this.save),
-        all = [...codex.enemies, ...codex.bosses, ...codex.events, ...codex.upgrades],
+        all = [...codex.enemies, ...codex.bosses, ...codex.variants, ...codex.events, ...codex.upgrades],
         found = all.filter((entry) => entry.seen).length,
         rows = (list, hint) =>
           list
@@ -1973,9 +1981,10 @@ const getById = (id) => document.getElementById(id),
         part = (title, list, hint) =>
           `<h3 class="section-h">${title} <span class="cx-count">${list.filter((entry) => entry.seen).length}/${list.length}</span></h3><div class="codex-grid">${rows(list, hint)}</div>`;
       getById("codexList").innerHTML =
-        `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies and bosses unlock when you meet them, mutators and Overdrive attacks when you see them, upgrades when a run offers them.</p>` +
+        `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies, bosses, variants and elites unlock when you meet them, events, mutators and Overdrive attacks when you see them, upgrades when a run offers them.</p>` +
         part("Enemies", codex.enemies, "Not encountered yet") +
         part("Bosses", codex.bosses, "Not encountered yet") +
+        part("Variants and elites", codex.variants, "Not encountered yet") +
         part("Rift events", codex.events, "Not seen yet") +
         part("Upgrades", codex.upgrades, "Not offered yet");
     }
@@ -2181,7 +2190,48 @@ function rlCodexEntries(save) {
       icon: "target",
     })),
   ];
-  return { enemies, bosses, upgrades, events };
+  // 3.34.0: the wave events (Elite Surge, Shard Rain and the five biome events) join them
+  for (const [id, ev] of Object.entries(waveEvents)) {
+    const biome = ev.biome && biomesById[ev.biome];
+    events.push({
+      key: "ev_" + id,
+      id,
+      seen: seen["ev_" + id] === true,
+      name: "Wave event \xB7 " + ev.name.charAt(0) + ev.name.slice(1).toLowerCase(),
+      desc: ev.desc,
+      extra: biome ? "Once a visit, in " + biome.name : "Any biome",
+      color: biome ? rlHex(biome.accent) : "",
+      icon: "bolt",
+    });
+  }
+  // 3.34.0: the biome variants and the elite affixes (only a tint and a ring until now, never explained)
+  const variants = [
+    ...biomeList
+      .filter((biome) => biomeVariants[biome.id])
+      .map((biome) => {
+        const v = biomeVariants[biome.id];
+        return {
+          key: "var_" + v.id,
+          id: v.id,
+          seen: seen["var_" + v.id] === true,
+          name: v.name,
+          desc: v.desc,
+          extra: biome.name + " \xB7 " + v.types.map((t) => (enemyDefs[t] ? enemyDefs[t].name : t)).join(", "),
+          color: rlHex(v.color),
+          icon: "skull",
+        };
+      }),
+    ...Object.entries(eliteAffixes).map(([id, a]) => ({
+      key: "aff_" + id,
+      id,
+      seen: seen["aff_" + id] === true,
+      name: a.name + " elite",
+      desc: a.desc,
+      color: rlHex(a.color),
+      icon: "shield",
+    })),
+  ];
+  return { enemies, bosses, variants, upgrades, events };
 }
 // 3.28.0: the Overdrive attack of each boss (core/ai.js OVERDRIVE), as the Codex tells it
 const RL_OVERDRIVE_INFO = {

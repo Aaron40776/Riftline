@@ -51,6 +51,7 @@ import {
   bossOrder,
   RL_ENEMY_TIPS,
   biomeVariants,
+  eliteAffixes,
   bossDefs,
   enemyOrder,
   bossByWave,
@@ -87,7 +88,28 @@ function rlIntroEvents(world) {
       store.data.seen["mut_" + id] = true;
       store.save("codex");
     }
+  // 3.34.0: the wave events, the biome variants and the elite affixes go into the Codex when they are first met
+  const seenNow = store.data.seen,
+    found = [];
+  if (world.event && waveEvents[world.event] && !seenNow["ev_" + world.event]) found.push("ev_" + world.event);
+  for (const ev of world.fx)
+    if (ev.k === "spawn") {
+      if (ev.variant && !seenNow["var_" + ev.variant]) found.push("var_" + ev.variant);
+      if (ev.affix && !seenNow["aff_" + ev.affix]) found.push("aff_" + ev.affix);
+    }
+  if (found.length) {
+    for (const key of found) seenNow[key] = true;
+    store.save("codex");
+  }
   if (game.tut) return; // the tutorial coach owns the screen on the first run
+  // ... and the first one of each says what it does, once
+  for (const ev of world.fx)
+    if (ev.k === "spawn") {
+      const variant = ev.variant && Object.values(biomeVariants).find((v) => v.id === ev.variant);
+      if (variant) showTipOnce("var_" + variant.id, `${variant.name.toUpperCase()} enemies: ${variant.desc}`);
+      const affix = ev.affix && eliteAffixes[ev.affix];
+      if (affix) showTipOnce("aff_" + ev.affix, `${affix.name.toUpperCase()} elites: ${affix.desc}`);
+    }
   for (const ev of world.fx) {
     if (
       (ev.k === "spawn" || ev.k === "champion") &&

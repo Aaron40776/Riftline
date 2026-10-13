@@ -1,3 +1,42 @@
+RIFTLINE v3.34.0 – SHORTED, BLACKOUT CITY'S CHAMPIONS, A FULLER CODEX
+Base: v3.33.0 · Build r3340a1012a-r1 · 12.10.2026
+
+The third release of the skills audit of 12.10.2026; the owner picked the variant ("shorted is good").
+
+1) Blackout City's variant: Shorted
+   - Every other biome has had a variant since 2.x (Scorched, Frost, Phase, Toxic); Blackout City had none, and its
+     champions were only grunts and gunners. Endless comes back to it at waves 26-30, 51-55 ..., where it was the
+     softest biome.
+   - Shorted grunts, gunners and bombers (from wave 3, a 35 % chance like the others): a cold blue-white tint, sparks
+     jump off them. Where one dies its spot crackles for 1.1 s (jagged arcs and sparks that grow, a thin fizz), then
+     arcs once in 1.6 m: a snap and a dying 100 Hz buzz (the city's manholes), white and blue sparks, a cold flash, a
+     scorch mark. The arc hurts the drone for 60 % of the enemy's damage and slows it for 0.9 s (a dash avoids it),
+     and shocks the enemies standing in it like a live manhole (slowed, a short burn that counts as a hazard kill).
+   - Levels (offline render, seed 1): the arc RMS 0.0071 against the trap zap 0.0075 and the ice burst 0.0124; the
+     warning fizz 0.0011, about an enemy shot.
+2) Blackout City's champions: gunner, bomber, brute, sniper, sentinel (each from its own first wave).
+3) The Codex
+   - New part "Variants and elites": the five variants with their biome and enemies, and the three elite affixes,
+     each with what it does. "Rift events" adds the seven wave events (Elite Surge, Shard Rain, the five biome
+     events). Each is found when first met; the first variant and the first affix of each kind shows a tip with what
+     it does (they were only a tint and a ring before).
+4) Found on the way: a resumed run lost the part of a shard its kills owed
+   - World.dropShards carries a remainder (shardFrac) that the run snapshot did not keep; sim-node check 5 (a
+     snapshot resumes the same run) began to fail when the waves changed. The snapshot and the stored run keep it now
+     (save-node: a stored run keeps it, a broken value is 0).
+5) Tests and results (headless Chromium, software WebGL; no real device was used)
+   - sim-node check 16 (the arc warns, hurts and slows the drone, not when dashing, shocks an enemy; Blackout City's
+     variant and champions), save-node, full QA codex-variants (seen keys, tips, the Codex) and the Codex counts
+     (116 rows, 18 rift events), self-test (every biome has a variant with a description).
+   - Determinism: the fixture is updated on purpose (the data tables, the wave planner and every bot run change
+     through Blackout City's waves from wave 3); arena layouts are unchanged.
+   - npm run release-check on 3.34.0: every step ok except the deep test and full QA, both on the Codex counts of
+     3.28.0 (11 rift events, 101 rows), which now follow the data; then deep test ok, full QA codex-desktop, -phone,
+     -events and -variants ok, and npm test ok. 37 min 53 s.
+   - Screenshots looked at: Shorted enemies alive, their spots warning, the arcs.
+6) Not done, for the owner
+   - Play Blackout City in Endless: whether the arc is fair at 1.1 s of warning on a phone.
+
 RIFTLINE v3.33.0 – BEAMS OF ICE AND BILE, ICY FROST SHOTS
 Base: v3.32.0 · Build r3330a1012a-r1 · 12.10.2026
 

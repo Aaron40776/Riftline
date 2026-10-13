@@ -2,6 +2,17 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.34.0",
+    title: "Shorted, and a fuller Codex",
+    items: [
+      "Blackout City has its own variant: Shorted enemies crackle with stolen current, and where one dies the ground arcs a moment later.",
+      "The arc slows you and shocks the enemies standing in it, so lure them in. A dash avoids it.",
+      "Blackout City's champions come from its armed gangs now, not just grunts and gunners.",
+      "The Codex lists the enemy variants, the elite affixes and the wave events, and the first of each says what it does.",
+      "A resumed run no longer loses the part of a shard its last kills had earned.",
+    ],
+  },
+  {
     version: "3.33.0",
     title: "Beams of ice and bile",
     items: [

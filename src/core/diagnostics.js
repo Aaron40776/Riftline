@@ -466,6 +466,8 @@ const RL_EVENT_KINDS = new Set([
   "chill",
   // 3.7.1: an electric trap (plate, rift burst) stuns the drone
   "stun",
+  // 3.34.0: a Shorted enemy died: its spot crackles before it arcs
+  "shortArm",
   "cleared",
   "combo",
   "comboEnd",
@@ -524,6 +526,7 @@ const RL_EVENT_FIELDS = {
   surge: ["x", "y", "r", "n"],
   erupt: ["x", "y", "r"],
   stun: ["x", "y"],
+  shortArm: ["x", "y", "r"],
   edash: ["x", "y"],
   blink: ["x", "y"],
   heal: ["x", "y"],

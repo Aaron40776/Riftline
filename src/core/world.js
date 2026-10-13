@@ -45,6 +45,9 @@ function rlCacheShards(world, value) {
    Hazard Seal, so the two modules do not stack on the same damage. */
 // 3.0.0: traps are environment too: the Armor Core does not soften them
 const RL_HAZARD_SRC = new Set(["lava", "shock", "acid", "trap"]);
+// 3.34.0: the arc a Shorted enemy leaves where it dies: its radius and the warning before it strikes
+const SHORT_R = 1.6,
+  SHORT_DELAY = 1.1;
 
 // 2.5.0 A: the six new run upgrades (levels from computeStats: skates, acidCoat, heatSink, slip,
 // surge, reactive). Their parts in step, fire, hurtPlayer, bulletHit, updateFeatures and addCombo
@@ -171,6 +174,7 @@ const rlStep = 1 / 60,
       this.time = (snap && snap.time) || 0;
       this.kills = (snap && snap.kills) || 0;
       this.shards = (snap && snap.shards) || 0;
+      this.shardFrac = (snap && +snap.shardFrac) || 0;
       this.rerolls = snap && snap.rerolls != null ? snap.rerolls | 0 : 1 + (this.ws.reroll || 0);
       // 3.25.0: the upgrades banished in this run (never offered again) and the banishes that are left
       this.banished =
@@ -487,7 +491,10 @@ const rlStep = 1 / 60,
     }
     championType(biome, wave, rng) {
       // 2.4.0: the pack biomes are gone; the five biomes also draw champions from the later enemies
+      // 3.34.0: Blackout City has a pool of its own (its armed gangs; it only had grunts and gunners, the softest champions
+      // of any biome when Endless comes back to it)
       const special = {
+        yard: ["gunner", "bomber", "brute", "sniper", "sentinel"],
         works: ["brute", "grunt", "charger", "minebot", "driller"],
         vault: ["bulwark", "gunner", "sentinel", "turret"],
         void: ["striker", "brute", "phantom", "weaver"],
@@ -584,6 +591,8 @@ const rlStep = 1 / 60,
         up: { ...this.up },
         hp: Math.max(1, Math.round(this.player.hp)),
         shards: this.shards,
+        // 3.34.0: the part of a shard owed by the kills so far (a resumed run started it at 0 and dropped differently)
+        shardFrac: this.shardFrac || 0,
         kills: this.kills,
         time: this.time,
         rerolls: this.rerolls,
@@ -2200,6 +2209,15 @@ const rlStep = 1 / 60,
       if (enemy.variant === "toxic") {
         this.arena.acid.push({ x: enemy.x, y: enemy.y, r: 1.4, life: 5 });
       }
+      // 3.34.0: a Shorted enemy's spot crackles, then arcs once: it hurts and slows the drone, and shocks the enemies
+      // standing in it like a live manhole (see updateHazards)
+      if (enemy.variant === "shorted") {
+        const src = this._src;
+        this._src = enemy.type;
+        this.hazard({ x: enemy.x, y: enemy.y, r: SHORT_R, delay: SHORT_DELAY, dmg: enemy.dmg * 0.6, kind: "shorted" });
+        this._src = src;
+        this.emit("shortArm", { x: enemy.x, y: enemy.y, r: SHORT_R });
+      }
       if (enemy.champion) {
         this.champion = null;
         this.pickups.push(this.mkPickup("heal", enemy.x, enemy.y, 25));
@@ -2997,6 +3015,7 @@ const rlStep = 1 / 60,
         hazard.t += dt;
         if (!hazard.done && hazard.t >= hazard.delay) {
           hazard.done = true;
+          if (hazard.kind === "shorted") this.shortArc(hazard);
           this.explode(hazard.x, hazard.y, hazard.r, 0, {
             player: true,
             dmgPlayer: hazard.dmg,
@@ -3021,6 +3040,31 @@ const rlStep = 1 / 60,
           player.slowKind = "chill";
           this.emit("chill", { x: player.x, y: player.y });
         }
+      }
+    }
+    // 3.34.0: the arc of a Shorted enemy's spot: enemies in it are shocked (slowed, a short burn that counts as a hazard
+    // kill), the drone is slowed if the arc hurts it (a dash avoids both, as with every zone)
+    shortArc(hazard) {
+      this.hash.query(hazard.x, hazard.y, hazard.r, (enemy) => {
+        if (enemy.dead || enemy.boss || Math.hypot(enemy.x - hazard.x, enemy.y - hazard.y) > hazard.r + enemy.r * 0.5)
+          return;
+        const burn = enemy.burnT > 0 ? enemy.burnDps : 0;
+        enemy.burnT = Math.max(enemy.burnT, 1.5);
+        enemy.burnDps = Math.max(burn, enemy.maxHp * 0.1);
+        enemy.burnSrc = "shock";
+        enemy.slowT = Math.max(enemy.slowT, 1.2);
+      });
+      const player = this.player;
+      if (
+        player.alive &&
+        player.dashT <= 0 &&
+        player.iT <= 0 &&
+        this.state === "fight" &&
+        Math.hypot(player.x - hazard.x, player.y - hazard.y) < hazard.r + player.r
+      ) {
+        player.slowT = Math.max(player.slowT, 0.9);
+        player.slowKind = "shock";
+        this.emit("stun", { x: player.x, y: player.y, skin: "plate" });
       }
     }
     updatePickups(dt) {
@@ -3085,7 +3129,15 @@ const rlStep = 1 / 60,
             this.champion = enemy;
             this.emit("champion", { type: marker.type, x: marker.x, y: marker.y });
           }
-          this.emit("spawn", { x: marker.x, y: marker.y, type: marker.type, elite: marker.elite });
+          // 3.34.0: the variant and the affix go with it (the first-time tips and the Codex)
+          this.emit("spawn", {
+            x: marker.x,
+            y: marker.y,
+            type: marker.type,
+            elite: marker.elite,
+            variant: enemy.variant || null,
+            affix: enemy.affix || null,
+          });
           enemy.face = Math.atan2(this.player.y - marker.y, this.player.x - marker.x);
         }
       }

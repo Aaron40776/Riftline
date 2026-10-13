@@ -407,6 +407,7 @@ const MAX_PARTICLES = 1400,
     frost: hexColor(11462911),
     phase: hexColor(16732120),
     toxic: hexColor(11861821),
+    shorted: hexColor(0x8fd0ff),
   },
   beamColor = new Color(16732064),
   // 3.0.0: the grey-white of a hit that the burst cap swallowed
@@ -1794,6 +1795,20 @@ const MAX_PARTICLES = 1400,
         let bodyIdx = pools.body.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll);
         pools.body.flash(bodyIdx, enemy.flash > 0 ? enemy.flash : enemy.slowT > 0 ? 0.25 : 0);
         let tint = enemy.variant ? variantColors[enemy.variant] : null;
+        // 3.34.0: a Shorted enemy crackles: now and then a spark jumps off it (what it will leave where it dies)
+        if (enemy.variant === "shorted" && Math.random() < dt * 5)
+          this.emit(
+            enemy.x + (Math.random() - 0.5) * enemy.r * 1.6,
+            0.4 + Math.random() * 0.8,
+            enemy.y + (Math.random() - 0.5) * enemy.r * 1.6,
+            (Math.random() - 0.5) * 3,
+            2,
+            (Math.random() - 0.5) * 3,
+            0.18,
+            0.12,
+            Math.random() < 0.5 ? whiteColor : tint,
+            { spark: true, drag: 2 },
+          );
         if (enemy.slowT > 0) {
           pools.body.col(bodyIdx, 0.7, 0.9, 1.3);
         } else {
