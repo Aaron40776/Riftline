@@ -79,7 +79,7 @@ RIFTLINE v3.32.0 – SAVES ACROSS VERSIONS, OFFLINE START, FIXES FROM THE SKILLS
 Base: v3.31.0 · Build r3320a1012a-r1 · 12.10.2026
 
 The owner, 12.10.2026: "I got you some new skills, look through them and see if you can now improve Riftline (check for
-bugs, see if things are maybe not as updated as others ...) first propose the plan". He said go for all of it the same
+bugs, see if things are maybe not as updated as others ...) first propose the plan". All of it was approved the same
 day. This release is the first of three (3.32.0, 3.33.0, 3.34.0). Baseline on main (a0dee47): npm test all ok.
 
 1) The release of the audit plans P1-P5 (merged as #68-#71 on 11.10.2026, live since then but still called 3.31.0)
