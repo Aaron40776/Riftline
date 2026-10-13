@@ -55,7 +55,7 @@ for (const s of ["workshop", "records", "settings"]) {
   }, s);
   await shot("03-" + s + "-bottom");
 }
-// 3.32.0: the pages added since 3.21.0 (they were never pictured: the Sound notes layout broke unseen)
+// 3.32.0: the pages added since 3.21.0 (they were never pictured)
 for (const s of ["pacts", "daily", "news"]) {
   await ev((s) => window.__riftTest.ui.show(s), s);
   await shot("02-" + s);
@@ -155,10 +155,6 @@ await ev(() => window.__riftTest.ui.show("settings"));
 await p.click("#backupBtn", { force: true });
 await shot("11-dialog-export");
 await ev(() => window.__riftTest.ui.closeDialog(null));
-await p.click("#logBtn", { force: true });
-await p.waitForFunction(() => !document.getElementById("dialog").hidden, null, { timeout: 60000 });
-await shot("12-dialog-diagnostics");
-await ev(() => window.__riftTest.ui.closeDialog(null));
 await ev(() => {
   window.__riftTest.ui.showCrash("TypeError: example\n  at frame");
 });
@@ -170,21 +166,5 @@ await ev(() => {
   window.__riftTest.ui.setUpdate && window.__riftTest.ui.setUpdate(true);
 });
 await shot("14-toast-update");
-// 3.32.0: the Sound notes, from the settings: with the menu music to note, and with nothing heard lately
-await ev(() => {
-  for (const t of document.querySelectorAll(".toast")) t.remove();
-  window.__riftTest.ui.show("settings");
-  window.__riftTest.ui.openSoundNotes(false);
-});
-await shot("15-sound-notes");
-await ev(() => {
-  const sound = window.__riftTest.game.sound,
-    keep = [sound.musicNow, sound.recentSounds];
-  sound.musicNow = () => null;
-  sound.recentSounds = () => [];
-  window.__riftTest.ui.renderSoundNotes();
-  [sound.musicNow, sound.recentSounds] = keep;
-});
-await shot("15b-sound-notes-empty");
 console.log(NAME, "errors:", errs.length ? errs : "none");
 await b.close();

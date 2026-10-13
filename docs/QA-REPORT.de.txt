@@ -1,3 +1,43 @@
+RIFTLINE v3.35.0 – A CLEAN PLAYER BUILD
+Base: v3.34.0 · Build r3350a1012a-r1 · 12.10.2026
+
+The owner, 12.10.2026: "remove stuff like the sound notes (all that isn't really necessary) and despite full features
+also check the code and repo for such stuff (I want a clean game with core functionality and design)". The owner's picks
+from the inventory: also the Diagnostics button and the music jukebox; test code out of the player's download; the
+merged branches deleted.
+
+1) Gone from the game
+   - Sound notes: the overlay, its buttons in the pause menu and the settings, the code in ui.js and main.js, the
+     engine's memory of recent sounds (SoundEngine.heard, recentSounds, musicNow; heard() ran on every sound played),
+     and the notes list in the browser (the save store clears riftline.soundNotes at start).
+   - The music jukebox of the settings ("Music of the biomes"): its buttons and the engine's live preview (preview,
+     stopPreview, previewing, the pv state in the track switch, previewLevel).
+   - The Diagnostics button and dialog with its "Deep test" (the deep path of the health check), and the toast that
+     told players "Diagnostics: N problems in this run" after a run. The crash screen keeps its report and Copy.
+2) Test code out of the player's file
+   - The deep self-test is a file of its own, selftest-v<version>.js (97 KB), that only the tests load
+     (window.__riftTest.loadSelfTest, selftest). build.js bundles it with every import left out and read from the
+     running game through core/selftest-link.js (live module namespaces), so it still tests the game's own objects;
+     the build fails if the link module misses an import. The deep test ran it in full: 118 wave plans, 2064 spawns,
+     316 sounds, as before.
+   - The layout audit of index.html runs only when a test calls it (it ran at every resize, every screen change, in
+     the layout editor and in the start-up health check).
+3) Dead code
+   - The first floor shader of 2.x (replaced at the first arena build every time) and the Neon Yard style of the floor
+     shader with its markings (no biome has used style 0 since 3.4.0). Checked with a scan of every top-level name:
+     nothing else is unused (two hits were names used after a spread).
+4) Size: game file 1308 KB -> 1212 KB.
+5) Repository
+   - The owner said delete the merged claude/* branches. This session's GitHub access refuses deleting branches (a
+     push of a deletion is cut off), so the 46 branches whose work is in main are listed in the roadmap for the owner
+     to delete on GitHub. Kept: claude/music-lab, claude/strategy-audit, and two branches whose work never reached main.
+6) Tests and results (headless Chromium, software WebGL; no real device was used)
+   - Full QA settings: the jukebox, sound notes and diagnostics are gone (buttons, overlay and engine functions); e2e:
+     no developer tools in the settings; save-node: the old notes are cleared. The sound notes section, the jukebox
+     checks, the diagnostics dialog check, the removed features' self-test parts and their screenshots are gone.
+   - npm test ok; npm run release-check on 3.35.0: all ok (determinism 15/15 unchanged: nothing of the simulation
+     changed), 32 min 06 s. Screenshots looked at: settings and pause menu on PC and phone.
+
 RIFTLINE v3.34.0 – SHORTED, BLACKOUT CITY'S CHAMPIONS, A FULLER CODEX
 Base: v3.33.0 · Build r3340a1012a-r1 · 12.10.2026
 

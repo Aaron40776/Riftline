@@ -179,5 +179,13 @@ const newer = () => ({
   );
 }
 
+// 3.35.0: the list of the removed sound notes is cleared at start
+{
+  reset(JSON.stringify(newSave()));
+  mem.set("riftline.soundNotes", "[]");
+  new SaveStore();
+  check("the old sound notes are cleared at start", !mem.has("riftline.soundNotes"));
+}
+
 console.log(failed ? `\nSAVE (node): ${failed} check(s) failed` : "\nSAVE (node): all checks passed");
 process.exit(failed ? 1 : 0);

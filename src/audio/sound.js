@@ -51,8 +51,6 @@ const RL_DEATH_FAMILY = {
   beacon: "dShatter",
 };
 /* 2.9.0: the shot of an enemy by type (default "eshot", the gunner); the sniper has its own lock-on sound */
-// 3.17.2: how long the sound notes remember a sound (seconds)
-const HEARD_WINDOW = 30;
 const RL_ESHOT_VOICE = {
   sniper: "snipe",
   turret: "eshotTurret",
@@ -621,12 +619,10 @@ const musicChords = {
       this.duckT = -1e9;
       this.musicScheduled = 0;
       this.musicSkipped = 0;
-      // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the preview of the settings screen, the boss
-      // heat (0 calm, 1 after a phase change, 2 enraged), the stage buses and the counters of the voice budget
-      this.pv = null;
+      // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the boss heat (0 calm, 1 after a phase change,
+      // 2 enraged), the stage buses and the counters of the voice budget
       this.playKind = "off";
       this.playBiome = "yard";
-      this.playPv = false;
       this.heat = 0;
       this.jump = false;
       this.fade = null;
@@ -875,7 +871,6 @@ const musicChords = {
     /* 3.9.0: one sound of the place (audio/place.js) at level a.g and pan a.pan, on the ambience bus */
     placePlay(id, a) {
       if (!this.live() || this.ambVol <= 0 || !PLACE[id]) return;
-      this.heard("place:" + id);
       try {
         PLACE[id](this, a);
       } catch (err) {
@@ -1142,7 +1137,6 @@ const musicChords = {
     }
     play(id, arg) {
       if (!this.live() || this.sfxVol <= 0) return;
-      this.heard(id, arg);
       this.curPri = KEY_SOUNDS.has(id) ? 2 : 1;
       this.curRev = SFX_ROOM[id] || 0;
       try {
@@ -1154,49 +1148,6 @@ const musicChords = {
         this.curPri = 1;
         this.curRev = 0;
       }
-    }
-    /* 3.17.2: what the player heard lately (the sound notes in the pause menu): per sound (its id with the thing that makes
-       it a different sound, `step:ice`, `eshotWarden`) how often in the last half minute and when it was last played.
-       One small entry per distinct sound, updated in place, so it costs nothing to keep. */
-    heard(id, arg) {
-      let key = id;
-      if (arg != null) {
-        const part = typeof arg === "object" ? arg.ground || arg.id || arg.kind || arg.boss || arg.type : arg;
-        if (part != null && part !== "" && typeof part !== "object" && typeof part !== "boolean") key = id + ":" + part;
-      }
-      const now = performance.now() / 1000,
-        map = this.recent || (this.recent = new Map());
-      let entry = map.get(key);
-      if (!entry) {
-        if (map.size >= 80) for (const [k, e] of map) if (now - e.t > HEARD_WINDOW) map.delete(k);
-        if (map.size >= 80) return;
-        entry = { key, n: 0, t: now };
-        map.set(key, entry);
-      }
-      if (now - entry.t > HEARD_WINDOW) entry.n = 0;
-      entry.n++;
-      entry.t = now;
-    }
-    /* the sounds of the last `window` seconds, the most recent first: [{ key, n, ago }] */
-    recentSounds(window = HEARD_WINDOW) {
-      const now = performance.now() / 1000,
-        out = [];
-      if (this.recent)
-        for (const e of this.recent.values()) if (now - e.t <= window) out.push({ key: e.key, n: e.n, ago: now - e.t });
-      return out.sort((a, b) => a.ago - b.ago);
-    }
-    /* the music of the moment (null: none): the track and the intensity of the fight. Paused in a fight, the game plays
-       the menu music but keeps the track it paused (`held`): that is the one the player heard and means. */
-    musicNow() {
-      const held = this.held,
-        kind = held ? held.kind : this.playKind;
-      if (!kind || kind === "off") return null;
-      return {
-        kind,
-        biome: (held ? held.biome : this.playBiome) || this.biome,
-        intensity: this.intensity || 0,
-        paused: !!held,
-      };
     }
     /* 2.9.0: a light sidechain: the music gain dips by `depth` (at most 15 %) for about 80 ms and comes back
      (time constant 70 ms), so that a big hit is heard over the music. Nothing is stopped or skipped. */
@@ -3101,8 +3052,6 @@ const musicChords = {
         if (this.sfxVerbOut && SFX_ROOM_BIOME[biome])
           this.sfxVerbOut.gain.setTargetAtTime(SFX_ROOM_BIOME[biome], this.ctx.currentTime, 0.3);
       }
-      // a preview of the settings screen ends when the game takes over the music
-      if (mode !== "menu") this.pv = null;
       this.syncTrack();
       this.resumeWanted = false;
     }
@@ -3117,52 +3066,31 @@ const musicChords = {
       this.heat = level;
       this.jump = true;
     }
-    /* Settings screen: loop the calm theme (mode "fight") or the boss track (mode "boss") of a biome until
-     stopPreview(). The first tap unlocks the audio on phones. */
-    preview(mode, biome) {
-      if (!this.ok) return false;
-      this.unlock();
-      this.pv = { kind: mode === "boss" ? "boss" : "fight", biome: musicChords[biome] ? biome : "yard" };
-      this.syncTrack();
-      return true;
-    }
-    stopPreview() {
-      if (!this.pv) return;
-      this.pv = null;
-      this.syncTrack();
-    }
-    previewing() {
-      return this.pv ? { mode: this.pv.kind, biome: this.pv.biome } : null;
-    }
     /* what should play now: "off", "menu", "fight" (calm) or "boss" */
     wantKind() {
-      if (this.pv) return this.pv.kind;
       if (this.mode === "boss") return this.bossOver ? "fight" : "boss";
       return this.mode;
     }
     wantBiome() {
-      return this.pv ? this.pv.biome : musicChords[this.biome] ? this.biome : "yard";
+      return musicChords[this.biome] ? this.biome : "yard";
     }
     /* Called when the wanted track changes: restarts the step counter on the spot, cuts the notes that were
      already scheduled for the old track and plays the transition: an impact when the boss track starts, a last
      hit when it resolves (the calm theme then fades back in over about 3 s). */
     syncTrack() {
       let kind = this.wantKind(),
-        biome = this.wantBiome(),
-        pv = !!this.pv;
-      if (kind === this.playKind && biome === this.playBiome && pv === this.playPv) return;
+        biome = this.wantBiome();
+      if (kind === this.playKind && biome === this.playBiome) return;
       let from = this.playKind,
-        fromPv = this.playPv,
         track = kind === "fight" || kind === "boss" ? musicTrack(kind, biome) : null;
       // 3.2.0: the pause menu keeps the place of a fight or boss track; resuming the run goes on from there
-      if ((from === "fight" || from === "boss") && kind === "menu" && !fromPv && !pv)
+      if ((from === "fight" || from === "boss") && kind === "menu")
         this.held = { kind: from, biome: this.playBiome, step: this.step, cycle: this.cycle, heat: this.heat };
       let held = this.held,
-        resumed = !!held && this.resumeWanted && !pv && held.kind === kind && held.biome === biome;
+        resumed = !!held && this.resumeWanted && held.kind === kind && held.biome === biome;
       if (kind !== "menu") this.held = null;
       this.playKind = kind;
       this.playBiome = biome;
-      this.playPv = pv;
       this.step = resumed ? held.step : 0;
       this.cycle = resumed ? held.cycle : 0;
       this.heat = resumed ? held.heat : 0;
@@ -3182,7 +3110,7 @@ const musicChords = {
         if (resumed) {
           this.fade.gain.setValueAtTime(0.0001, now);
           this.fade.gain.linearRampToValueAtTime(gain, now + 0.6);
-        } else if (from === "boss" && kind === "fight" && !pv && !fromPv) {
+        } else if (from === "boss" && kind === "fight") {
           // resolve: the boss track ends on a last hit, then silence, then the calm theme fades in
           this.fade.gain.setValueAtTime(1.1, now);
           this.fade.gain.linearRampToValueAtTime(0.0001, now + 0.9);
@@ -3191,8 +3119,7 @@ const musicChords = {
           if (this.live() && this.musVol > 0) musicResolve(this, biome, 0);
         } else {
           this.fade.gain.setValueAtTime(gain, now);
-          if (kind === "boss" && (from === "fight" || pv) && this.live() && this.musVol > 0)
-            musicImpact(this, biome, 0);
+          if (kind === "boss" && from === "fight" && this.live() && this.musVol > 0) musicImpact(this, biome, 0);
         }
       } catch (err) {
         this.fail(err);
@@ -3695,7 +3622,7 @@ const musicChords = {
         let track = musicTrack(kind, biome),
           bar = Math.floor(step / 16),
           [root, quality] = chords[bar % 4],
-          level = kind === "boss" ? 1 : this.pv ? previewLevel(bar) : this.intensity,
+          level = kind === "boss" ? 1 : this.intensity,
           s = step,
           c = {
             s,
@@ -3757,7 +3684,7 @@ const musicChords = {
     /* Test hook: schedules `loops` loops of a track (nothing is rendered) and returns the counters of the voice
        budget (musicPeak: most voices alive at once; musicSkipped and musicShed: notes the budget refused) and the
        log of every voice, so that two runs (for example with a flood of sounds) can be compared note by note.
-       spec: music (fight|boss), biome, loops, intensity, heat, flood (sounds per step), pv (as a preview) */
+       spec: music (fight|boss), biome, loops, intensity, heat, flood (sounds per step) */
     static musicBudget(spec) {
       let Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext,
         ctx = new Offline(1, 44100, 44100),
@@ -3774,7 +3701,6 @@ const musicChords = {
       engine.heat = spec.heat || 0;
       engine.mixFor(spec.music);
       engine.musicLog = [];
-      if (spec.pv) engine.pv = { kind: spec.music, biome: spec.biome };
       for (let n = 0; n < info.steps * (spec.loops || 1); n++) {
         engine.simT = n * len;
         engine.cycle = Math.floor(n / info.steps);
@@ -3849,7 +3775,6 @@ const musicChords = {
           engine.intensity = spec.intensity != null ? spec.intensity : 0.9;
           engine.heat = spec.heat || 0;
           if (spec.log) engine.musicLog = [];
-          if (spec.preview) engine.pv = { kind: spec.music, biome: spec.biome };
           let info = trackInfo(spec.music, spec.biome),
             len = 60 / info.bpm / 4,
             first = (spec.fromBar || 0) * 16;
@@ -5117,11 +5042,6 @@ function musicResolve(e, biome, at) {
   k.p.t(midiToFreq(root + 4), 1.2, "sawtooth", 0.026, { lp: 300, lpTo: 2000, attack: 0.04, hold: 0.5, rev: 0.6 });
   choir(k, [root + 12, root + 16, root + 19], 1.2, 0.03, { fade: 0.3 });
   VOICE[BIOME_VOICE[biome] || "piano"](k.d, midiToFreq(root + 24), 0.06, { rev: 0.8, at: 0.3, lite: true });
-}
-/* the intensity of a preview: it swells and falls over the 16 bars, so that the quiet and the full side of a calm
-   theme can both be heard */
-function previewLevel(bar) {
-  return 0.3 + 0.65 * (0.5 - 0.5 * Math.cos(((bar % 16) / 16) * 2 * Math.PI));
 }
 
 const MUSIC_TRACKS = {

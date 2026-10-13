@@ -122,7 +122,8 @@ src/
   main.js          entry point: boot, game controller, main loop, wiring
   core/            simulation and services: world, arena, waves, AI, stats, traps, boss cards, walker, difficulty,
                    mutators, medals, daily (the Daily Rift), run-hooks (the simulation's link to the run monitor), save, diagnostics (runtime log and monitor), selftest
-                   (deep self-test), util
+                   (deep self-test: a file of its own, selftest-v<version>.js, that only the tests load; selftest-link
+                   hands it the game's modules), util
   data/            tables: weapons, enemies (with the spawn weights), upgrades, progression, pacts, biomes, hud, whatsnew
                    (the What's new tab)
   render/          three.js renderer, models, biome visuals and props, traps, hazards, attacks, boss cards, 2D overlay,

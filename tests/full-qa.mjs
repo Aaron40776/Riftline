@@ -970,66 +970,24 @@ for (const profName of ["desktop", "phone"])
     });
     check(L, "setting contrast takes effect immediately", fx.contrast, JSON.stringify(fx));
     check(L, "no left-handed or reduce-flashes setting any more", fx.gone && fx.rows, JSON.stringify(fx));
-    // 3.1.0: the music block of the settings: a theme and a boss button for each biome; each toggles a looping
-    // preview, only one plays at a time, and it ends when the settings screen closes
-    const mpState = () =>
-      P.ev(() => {
-        const sound = window.__riftTest.game.sound;
-        return {
-          pv: sound.previewing(),
-          kind: sound.playKind,
-          on: [...document.querySelectorAll("#musicPreview button.on")].map(
-            (b) => b.parentElement.dataset.biome + ":" + b.dataset.music,
-          ),
-        };
-      });
-    const mp = await P.ev(() => ({
-      n: document.querySelectorAll("#musicPreview .seg button").length,
-      biomes: [...document.querySelectorAll("#musicPreview .seg")].map((seg) => seg.dataset.biome).join(),
+    // 3.35.0: the developer tools are gone from the settings and the pause menu: the music jukebox, the sound notes,
+    // the diagnostics dialog (the crash screen keeps its report)
+    const gone = await P.ev(() => ({
+      ids: ["musicPreview", "sndNotes", "sndNotesBtn", "pauseSndBtn", "logBtn"].filter((id) =>
+        document.getElementById(id),
+      ),
+      sound: ["preview", "stopPreview", "previewing", "heard", "recentSounds", "musicNow"].filter(
+        (k) => typeof window.__riftTest.game.sound[k] === "function",
+      ),
+      ui: ["openSoundNotes", "showLog", "togglePreview"].filter((k) => typeof window.__riftTest.ui[k] === "function"),
     }));
     check(
       L,
-      "settings: a theme and a boss button for each of the five biomes",
-      mp.n === 10 && mp.biomes === "yard,works,vault,marsh,void",
-      JSON.stringify(mp),
+      "no jukebox, sound notes or diagnostics dialog any more",
+      !gone.ids.length && !gone.sound.length && !gone.ui.length,
+      JSON.stringify(gone),
     );
-    await P.tap('#musicPreview [data-biome="vault"] [data-music="boss"]');
-    let mps = await mpState();
-    check(
-      L,
-      "music preview: a boss button starts the boss track of its biome",
-      mps.pv && mps.pv.mode === "boss" && mps.pv.biome === "vault" && mps.kind === "boss" && eq(mps.on, ["vault:boss"]),
-      JSON.stringify(mps),
-    );
-    await P.tap('#musicPreview [data-biome="yard"] [data-music="fight"]');
-    mps = await mpState();
-    check(
-      L,
-      "music preview: another button replaces it (one plays at a time)",
-      mps.pv &&
-        mps.pv.mode === "fight" &&
-        mps.pv.biome === "yard" &&
-        mps.kind === "fight" &&
-        eq(mps.on, ["yard:fight"]),
-      JSON.stringify(mps),
-    );
-    await P.tap('#musicPreview [data-biome="yard"] [data-music="fight"]');
-    mps = await mpState();
-    check(
-      L,
-      "music preview: the same button stops it",
-      !mps.pv && mps.kind !== "fight" && eq(mps.on, []),
-      JSON.stringify(mps),
-    );
-    await P.tap('#musicPreview [data-biome="marsh"] [data-music="boss"]');
     await P.back("settings");
-    mps = await mpState();
-    check(
-      L,
-      "music preview: leaving the settings screen stops it",
-      !mps.pv && mps.kind !== "boss" && eq(mps.on, []),
-      JSON.stringify(mps),
-    );
     await P.nav("settings");
     await P.tap('#setQuality button[data-v="battery"]');
     await P.tap('#setZoom button[data-v="1.18"]');
@@ -1572,7 +1530,7 @@ await section("visual", async (L) => {
   {
     const P = await open("desktop");
     await P.boot();
-    const q = await P.ev(() => window.__riftTest.data.rlBiomeDistinct());
+    const q = await P.ev(() => window.__riftTest.loadSelfTest().then(() => window.__riftTest.data.rlBiomeDistinct()));
     check(L, "every biome is recognisable (grid colours ΔE ≥ 30 apart)", !q.length, q.join(", "));
     await P.close();
   }
@@ -2308,145 +2266,6 @@ await section("qol", async (L) => {
 });
 
 /* ======================= 5. controls: every button is wired and named ======================= */
-/* ======================= sound notes (3.17.2) ======================= */
-for (const profName of ["desktop", "phone"])
-  await section(`soundnotes-${profName}`, async (L) => {
-    const P = await open(profName, { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
-    await P.boot();
-    const notes = () => P.ev(() => JSON.parse(localStorage.getItem("riftline.soundNotes") || "[]"));
-    // a run, a few sounds heard lately (the engine's memory of them is filled directly: headless audio may not run)
-    await P.ev(() => {
-      const T = window.__riftTest;
-      T.game.startRun({});
-      T.game.sound.heard("eshot", { type: "boss", boss: "warden" });
-      T.game.sound.heard("step", { ground: "ice" });
-      T.game.sound.heard("step", { ground: "ice" });
-      T.game.sound.heard("place:siren");
-      T.game.sound.heard("click");
-    });
-    await P.page.waitForTimeout(600);
-    await P.ev(() => window.__riftTest.game.pause());
-    await P.page.waitForTimeout(400);
-    check(L, "pause menu has the Sound notes button", await P.vis("pauseSndBtn"));
-    await P.tap("#pauseSndBtn");
-    check(L, "sound notes open", await P.vis("sndNotes"));
-    const list = await P.ev(() =>
-      [...document.querySelectorAll("#snList .sn-item")].map(
-        (e) => e.dataset.key + "|" + e.querySelector("small").textContent,
-      ),
-    );
-    check(
-      L,
-      "the list names the sounds heard lately (distinct, counted), not the menu's own clicks",
-      list.some((x) => x.startsWith("step:ice|2×")) &&
-        list.some((x) => x.startsWith("eshot:warden")) &&
-        list.some((x) => x.startsWith("place:siren")) &&
-        !list.some((x) => x.startsWith("click")),
-      list.join(" ; "),
-    );
-    check(L, "no reasons before a sound is picked", !(await P.vis("snReasons")));
-    await P.tap('#snList [data-key="step:ice"]');
-    check(L, "picking a sound shows the reasons", await P.vis("snReasons"));
-    await P.tap('#snReasons [data-reason="loud"]');
-    await P.tap('#snList [data-key="place:siren"]');
-    await P.tap('#snReasons [data-reason="love"]');
-    const saved = await notes();
-    check(
-      L,
-      "the notes are saved with the exact sound, the reason and where it was",
-      saved.length === 2 &&
-        saved[0].key === "step:ice" &&
-        saved[0].reason === "loud" &&
-        saved[1].key === "place:siren" &&
-        saved[1].reason === "love" &&
-        saved[0].wave >= 1 &&
-        !!saved[0].biome,
-      JSON.stringify(saved),
-    );
-    check(L, "the count shows", (await P.ev(() => document.getElementById("snCount").textContent)) === "2");
-    // the copied text (the clipboard may be blocked: the text is what is built)
-    const text = await P.ev(() => {
-      let copied = null;
-      const g = window.__riftTest.ui;
-      g.copy = (t) => (copied = t);
-      g.copySoundNotes();
-      return copied;
-    });
-    check(
-      L,
-      "copy builds one text with a line per note",
-      !!text &&
-        text.split("\n").length === 3 &&
-        /step:ice \| Too loud/.test(text) &&
-        /place:siren \| Love it/.test(text),
-      String(text).replace(/\n/g, " / "),
-    );
-    // back: the button and the Esc key lead to the pause menu
-    await P.tap("#snBack");
-    check(L, "Back returns to the pause menu", (await P.vis("pause")) && !(await P.vis("sndNotes")));
-    await P.tap("#pauseSndBtn");
-    if (!P.prof.touch) {
-      await P.page.keyboard.press("Escape");
-      await P.page.waitForTimeout(300);
-      check(L, "Esc returns to the pause menu", (await P.vis("pause")) && !(await P.vis("sndNotes")));
-      await P.tap("#pauseSndBtn");
-    }
-    await P.tap("#snClear");
-    check(L, "Clear removes the notes", (await notes()).length === 0);
-    await P.tap("#snBack");
-    check(L, "no page errors in the run", !P.errors.length, P.errors.slice(0, 3).join(" | "));
-    await P.close();
-    // from the settings of the main menu (no run: the notes can be copied and cleared there)
-    const Q = await open(profName, {
-      save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }),
-    });
-    await Q.boot();
-    await Q.nav("settings");
-    check(L, "settings have the Sound notes button in the menu", await Q.vis("sndNotesBtn"));
-    await Q.tap("#sndNotesBtn");
-    check(L, "sound notes open from the settings", await Q.vis("sndNotes"));
-    check(
-      L,
-      "no run: the music of the menu is the one thing to note",
-      (await Q.ev(() => [...document.querySelectorAll("#snList .sn-item")].map((e) => e.dataset.key))).join() ===
-        "music:menu:yard",
-    );
-    // 3.32.0: nothing heard lately: one column in the middle (on a phone held sideways the buttons sat in the right half
-    // beside an empty list, and "Copy notes" broke onto two lines)
-    const empty = await Q.ev(() => {
-      const ui = window.__riftTest.ui,
-        sound = window.__riftTest.game.sound,
-        keep = [sound.musicNow, sound.recentSounds];
-      sound.musicNow = () => null;
-      sound.recentSounds = () => [];
-      ui.renderSoundNotes();
-      [sound.musicNow, sound.recentSounds] = keep;
-      const row = document.querySelector("#sndNotes .btn-row").getBoundingClientRect(),
-        back = document.getElementById("snBack").getBoundingClientRect(),
-        lines = (el) => {
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
-        };
-      return {
-        off: Math.round(Math.abs((row.left + row.right) / 2 - innerWidth / 2)),
-        backOff: Math.round(Math.abs((back.left + back.right) / 2 - innerWidth / 2)),
-        copyLines: lines(document.getElementById("snCopy").firstChild.parentNode.childNodes[0]),
-        hint: document.querySelector("#sndNotes .note").getBoundingClientRect().height > 0,
-      };
-    });
-    check(
-      L,
-      "nothing to list: the buttons sit in the middle, one line each, with the hint",
-      empty.off < 12 && empty.backOff < 12 && empty.copyLines === 1 && empty.hint,
-      JSON.stringify(empty),
-    );
-    await Q.tap("#snBack");
-    check(L, "Back returns to the settings", (await Q.vis("settings")) && !(await Q.vis("sndNotes")));
-    check(L, "no page errors in the menu", !Q.errors.length, Q.errors.slice(0, 3).join(" | "));
-    await Q.close();
-  });
-
 await section("buttons", async (L) => {
   const P = await open("desktop");
   await P.boot();

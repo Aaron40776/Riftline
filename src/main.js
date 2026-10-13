@@ -26,7 +26,7 @@ import {
   buildReport,
   logError,
 } from "./core/diagnostics.js";
-import { rlSelfTest, rlPaletteIssues, rlBiomeDistinct } from "./core/selftest.js";
+import { SELFTEST_MODULES } from "./core/selftest-link.js";
 import { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml } from "./ui/ui.js";
 import { Input, RL_INPUT } from "./ui/input.js";
 import { HudEditor, applyHudLayout, fitHudLayout, fixedStickCenter } from "./ui/hud-layout.js";
@@ -827,7 +827,7 @@ input.onPause = () => {
     return;
   }
   // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
-  if (ui.rlSoundNotes || ui.rlFromPause) return ui.back();
+  if (ui.rlFromPause) return ui.back();
   if (game.mode === "menu") {
     if (
       input._rlKey === "escape" &&
@@ -1735,23 +1735,9 @@ function rlRetireToast() {
   // ---- settings from the pause menu
   ui.click(getById("pauseSetBtn"), () => ui.openPauseSettings());
 
-  // ---- 3.17.2: the sound notes (from the pause menu and from the settings)
   ui.click(getById("banishBtn"), () => {
     ui.banishMode = !ui.banishMode;
     ui.renderCards(game.world);
-  });
-  ui.click(getById("pauseSndBtn"), () => ui.openSoundNotes(true));
-  ui.click(getById("sndNotesBtn"), () => ui.openSoundNotes(false));
-  ui.click(getById("snBack"), () => ui.back());
-  ui.click(getById("snCopy"), () => ui.copySoundNotes());
-  ui.click(getById("snClear"), () => ui.clearSoundNotes());
-  getById("snList").addEventListener("click", (ev) => {
-    const item = ev.target.closest && ev.target.closest("[data-key]");
-    if (item) ui.selectSoundNote(item.dataset.key);
-  });
-  getById("snReasons").addEventListener("click", (ev) => {
-    const reason = ev.target.closest && ev.target.closest("[data-reason]");
-    if (reason) ui.saveSoundNote(reason.dataset.reason);
   });
 
   // ---- the button layout editor
@@ -1846,10 +1832,30 @@ window.addEventListener("storage", (ev) => {
     );
   }
 });
+// 3.35.0: the deep self-test and its palette checks are a file of their own (selftest-v<version>.js, see build.js),
+// loaded only when a test asks for them; they read the game's own modules through SELFTEST_MODULES
+let selfTestLoad = null;
+function loadSelfTest() {
+  if (!selfTestLoad)
+    selfTestLoad = new Promise((resolve, reject) => {
+      globalThis.__riftModules = SELFTEST_MODULES;
+      const script = document.createElement("script");
+      script.src = `selftest-v${GAME_VERSION}.js`;
+      script.onload = () =>
+        window.__riftSelfTest ? resolve(window.__riftSelfTest) : reject(new Error("the self-test did not register"));
+      script.onerror = () => reject(new Error("the self-test file is missing"));
+      document.head.appendChild(script);
+    }).catch((err) => {
+      selfTestLoad = null;
+      throw err;
+    });
+  return selfTestLoad;
+}
 // Test interface for the scripts in tests/. The keys are the readable names of the values (they
 // were the short names of the old minified bundle until the test-interface refactor).
 window.__riftTest = {
-  selftest: rlSelfTest,
+  loadSelfTest,
+  selftest: () => loadSelfTest().then((t) => t.rlSelfTest()),
   health: rlRunHealth,
   World,
   computeStats,
@@ -1922,8 +1928,9 @@ window.__riftTest = {
       RL_MESH_TYPES,
       RL_BIOME_HAZARD,
       RL_KITERS,
-      rlPaletteIssues,
-      rlBiomeDistinct,
+      // (after loadSelfTest)
+      rlPaletteIssues: (biome) => window.__riftSelfTest.rlPaletteIssues(biome),
+      rlBiomeDistinct: () => window.__riftSelfTest.rlBiomeDistinct(),
       rlSanitizeHistory,
       RL_EVENT_KINDS,
     };
