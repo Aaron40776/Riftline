@@ -185,12 +185,13 @@ const RL_BIOME_LOOK = {
   },
   vault: {
     style: 2,
-    hemi: 1.5,
+    // 3.36.0: darker, so the white frost and the cyan threats stand out instead of a washed-out floor
+    hemi: 1.1,
     sun: 0xe4f4ff,
     sunI: 2.2,
     fill: [0xff8ad0, 0.75],
     vivid: 1.5,
-    gain: 1.0,
+    gain: 0.9,
     fog: [1.3, 3.2],
   },
   marsh: {
@@ -284,11 +285,11 @@ void main() {
   } else if (st == 2) {
     // Cryo Vault: a lighter frozen sheet, cracks, frost drifts and glints
     float fr = fbm(p * 0.35 + 3.0);
-    col = mix(uBase * 1.7, uGrid * 0.2, fr * 0.8) * (0.8 + 0.6 * pl) + uAccent * 0.035;
+    col = mix(uBase * 1.15, uGrid * 0.16, fr * 0.8) * (0.8 + 0.6 * pl) + uAccent * 0.035;
     vec3 v = voro(p * 0.3 + 11.0);
     col += uGrid * smoothstep(0.03, 0.0, v.y) * 0.2 * inside;
     float frost = smoothstep(0.55, 0.8, fbm(p * 1.1));
-    col = mix(col, uGrid * 0.32, frost * 0.45);
+    col = mix(col, uGrid * 0.28, frost * 0.32);
     vec2 gc = floor(p * 2.0), gf = fract(p * 2.0) - 0.5 - (h22(gc) - 0.5) * 0.6;
     float glint = step(0.97, h21(gc)) * smoothstep(0.1, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 3.0 + h21(gc + 7.0) * 30.0));
     col += vec3(0.9) * glint * 0.45 * inside;
@@ -1355,9 +1356,9 @@ if (rlS == 1) {
   // frost on everything facing up, glints, a cold tint
   float fr = smoothstep(-0.05, 0.6, vRlN.y + (rlN3(vRlP * 6.0) - 0.5) * 0.9);
   outgoingLight = outgoingLight * vec3(0.72, 0.9, 1.15);
-  outgoingLight = mix(outgoingLight, vec3(0.72, 0.9, 1.0) * (0.6 + 0.35 * max(vRlN.y, 0.0)), fr * 0.6);
+  outgoingLight = mix(outgoingLight, vec3(0.72, 0.9, 1.0) * (0.6 + 0.35 * max(vRlN.y, 0.0)), fr * 0.35);
   float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.0);
-  outgoingLight += vec3(0.55, 0.85, 1.0) * rim * 0.5;
+  outgoingLight += vec3(0.55, 0.85, 1.0) * rim * 0.35;
   float gl = step(0.86, rlN3(vRlP * 16.0)) * (0.5 + 0.5 * sin(uSkinT * 5.0 + vRlP.x * 30.0));
   outgoingLight += vec3(0.9, 0.97, 1.0) * gl * (0.25 + fr) * 0.7;
 } else if (rlS == 3) {

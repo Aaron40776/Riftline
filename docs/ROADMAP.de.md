@@ -211,7 +211,7 @@ The owner, 12.10.2026: "I got you some new skills, look through them and see if 
 bugs, see if things are maybe not as updated as others ...) first propose the plan". Checked with the capability skills
 (code tables per biome, enemy and boss; screenshots of every screen and biome measured with `image_report.py`; the CI
 runs). The owner said go for all of it (12.10.2026), with the Frost mortar's chilling blast and the "Shorted" variant.
-Three PRs, stacked, each a release (merge in this order):
+Five PRs, stacked, each a release (merge in this order):
 - **3.32.0** (`claude/release-3320`): the release of P1-P5 (on `main` since #68-#71 but still called 3.31.0, without a
   What's new entry); the first nightly was red: a false alarm of the layout audit (a button centred exactly on the edge of
   its scroll area), fixed with a test; Frost mortars did nothing (the variant's chill only rode on bullets): their shells
@@ -231,9 +231,11 @@ Three PRs, stacked, each a release (merge in this order):
   branches, so the 46 branches whose work is in `main` are for the owner to delete on GitHub (Branches page). Kept on
   purpose: `claude/music-lab`, `claude/strategy-audit`, and two whose work never reached `main`
   (`claude/biome-waffen-reduktion-9zi5la`, `claude/riftdeck-github-repo-9rotaq`).
-- **For the owner's eyes:** the Cryo Vault measures twice as bright as any other biome with the least colour, and its
-  snow-skinned enemies blend into the floor; before/after pictures of a darker Vault come with the report, nothing is
-  changed without the owner's word. The Dependabot PRs #73-#75 move the CI actions off the deprecated Node 20.
+- **3.36.0** (`claude/vault-look`): the darker Cryo Vault from the before/after pictures, which the owner approved on
+  13.10.2026 ("Yea"): less sky light and gain, a deeper ice floor and frost sheets, a thinner frost coat and rim on
+  enemies and props. Measured on the PC biome shots: brightness 0.42 -> 0.38, colour 0.41 -> 0.45 (boss wave 0.35 ->
+  0.32). Still to judge on the phone: whether the Vault is now right, or wants to go darker or back.
+- **For the owner:** the Dependabot PRs #73-#75 move the CI actions off the deprecated Node 20.
 
 ### AUDIT (10.10.2026, late evening; on top of 3.31.0)
 
