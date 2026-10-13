@@ -233,7 +233,7 @@ Three PRs, stacked, each a release (merge in this order):
   (`claude/biome-waffen-reduktion-9zi5la`, `claude/riftdeck-github-repo-9rotaq`).
 - **For the owner's eyes:** the Cryo Vault measures twice as bright as any other biome with the least colour, and its
   snow-skinned enemies blend into the floor; before/after pictures of a darker Vault come with the report, nothing is
-  changed without his word. The Dependabot PRs #73-#75 move the CI actions off the deprecated Node 20.
+  changed without the owner's word. The Dependabot PRs #73-#75 move the CI actions off the deprecated Node 20.
 
 ### AUDIT (10.10.2026, late evening; on top of 3.31.0)
 
