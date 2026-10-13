@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.36.0",
+    title: "A deeper Cryo Vault",
+    items: [
+      "The Cryo Vault is darker and colder: deep blue ice instead of a washed-out white floor.",
+      "Its enemies and their attacks stand out from the ice more clearly.",
+    ],
+  },
+  {
     version: "3.35.0",
     title: "A cleaner game",
     items: [

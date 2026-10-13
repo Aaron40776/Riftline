@@ -1,3 +1,26 @@
+RIFTLINE v3.36.0 – A DEEPER CRYO VAULT
+Base: v3.35.0 · Build r3360a1013a-r1 · 13.10.2026
+
+The skills audit (3.32.0) measured the Cryo Vault twice as bright as any other biome with the least colour; its
+snow-skinned enemies blended into the floor. The owner saw the before/after pictures and approved the darker look on
+13.10.2026 ("Yea").
+
+1) The look (src/render/biome-visuals.js, looks only)
+   - The vault look: sky light 1.5 -> 1.1, gain 1.0 -> 0.9.
+   - Floor style 2 (ice): base x1.7 -> x1.15, grid tint 0.2 -> 0.16, the frost sheen 0.45 -> 0.32 toward a darker grid
+     tint.
+   - Skin style 2 (frost on enemies and props): frost coat 0.6 -> 0.35, rim light 0.5 -> 0.35.
+   - Untouched: the simulation, the biome data colours (floor, fog, walls; the palette check passes unchanged), the
+     frost sheets, the Prism and its beams.
+2) Measured (image_report.py on the PC biome shots, same waves)
+   - Vault wave 7: brightness 0.424 -> 0.381, colour 0.413 -> 0.450.
+   - Vault boss (Frost Prism): brightness 0.349 -> 0.319, colour 0.458 -> 0.487.
+   - Neon Yard for comparison: 0.305. The Vault stays the brightest biome, as ice should, but no longer by double.
+3) Tests and results (headless Chromium, software WebGL; no real device was used)
+   - npm test ok; npm run release-check on 3.36.0: all ok (determinism 15/15 unchanged: looks only), 35 min 29 s.
+   - Screenshots looked at: the Vault wave and its boss on PC and phone, before and after; the Vault attack shots
+     (telegraphs and blasts read clearly on the deeper ice).
+
 RIFTLINE v3.35.0 – A CLEAN PLAYER BUILD
 Base: v3.34.0 · Build r3350a1012a-r1 · 12.10.2026
 
