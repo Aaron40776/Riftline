@@ -535,14 +535,15 @@ const overlay = new Overlay(elementById("ov")),
         this.chooseShown = false;
         // 2.8.1: the victory screen released the wake lock; Endless needs it again
         setWakeLock(true);
-      }
-      // 2.2.3: the endless part is monitored as a new run
-      try {
-        if (this.world && this.world.endless) {
-          rlMonStart(this.world, true);
+        // 2.2.3: the endless part is monitored as a new run (3.43.1: inside the guard - a stray call
+        // used to reset the monitor's baseline in the middle of a running endless run)
+        try {
+          if (this.world && this.world.endless) {
+            rlMonStart(this.world, true);
+          }
+        } catch (err) {
+          logError("monitor", err);
         }
-      } catch (err) {
-        logError("monitor", err);
       }
     },
     goHome() {
@@ -978,18 +979,22 @@ function runFrame(dt) {
       }
       handleWorldEvents(world);
       // 3.9.0: the sounds of the place (hazards and the far sounds of the biome), not while the boss card shows
-      if (!game.intro && (world.state === "fight" || world.state === "cleared")) sound.place(world, dt);
-      rlIntroEvents(world);
-      updateTutorial(dt, world);
-      updateHeartbeat(dt, world);
-      sound.setIntensity(
-        world.state === "fight"
-          ? world.enemies.length / 34 +
-              world.eb.length / 90 +
-              (world.boss ? 0.4 : 0) +
-              (world.player.hp / world.stats.maxHp < 0.3 ? 0.2 : 0)
-          : 0,
-      );
+      // 3.43.1: and not behind the end screen - an abandoned run stayed in its fight, so its soundscape, the
+      // heartbeat and the fight intensity played on under the menu music of the "RUN ENDED" screen
+      if (!game.overShown) {
+        if (!game.intro && (world.state === "fight" || world.state === "cleared")) sound.place(world, dt);
+        rlIntroEvents(world);
+        updateTutorial(dt, world);
+        updateHeartbeat(dt, world);
+        sound.setIntensity(
+          world.state === "fight"
+            ? world.enemies.length / 34 +
+                world.eb.length / 90 +
+                (world.boss ? 0.4 : 0) +
+                (world.player.hp / world.stats.maxHp < 0.3 ? 0.2 : 0)
+            : 0,
+        );
+      }
       updateAutoQuality(dt, settings);
     }
     if (game.paused) return;
@@ -1199,7 +1204,9 @@ function handleWorldEvents(world) {
         sound.setMusic("boss", world.biomeFor(world.wave).id);
         ui.banner(ev.name, ev.title, "boss", 2600);
         showTipOnce("boss", "Bosses telegraph every attack. Marked zones and lines hit hard \u2014 move out.");
-        if (world.boss && renderer) {
+        if (world.player.alive && world.boss && renderer) {
+          // 3.43.1: not on a dead player - the 3 s camera pan used to freeze the death animation and
+          // hold the game-over screen back
           game.intro = { t: 0 };
           renderer.focusOn(world.boss.x, world.boss.y);
           input.settle();
@@ -1245,7 +1252,8 @@ function handleWorldEvents(world) {
         showTipOnce("mender", "Menders heal other enemies. Kill them first.");
         break;
       case "kill":
-        if (ev.elite || ev.r >= 0.8) {
+        // 3.43.1: the escorts a boss death sweeps away vanish, but they no longer punch the screen
+        if ((ev.elite || ev.r >= 0.8) && !ev.cleanup) {
           hitStop(ev.elite ? 0.05 : 0.025);
         }
         break;
@@ -1299,7 +1307,9 @@ function handleWorldEvents(world) {
         break;
       case "bossDown":
         game.slowMo = 1.1;
-        awardBossMedal(ev, world);
+        // 3.43.1: a boss killed by the last burn of a dead player pays no medal (the kill itself pays
+        // nothing after death - the stats agreed, the medal did not)
+        if (world.player.alive) awardBossMedal(ev, world);
         break;
       case "revive":
         ui.banner("SECOND LIFE", "Hull restored", "good", 1600);
@@ -1993,6 +2003,9 @@ store.onChange((json, why) => {
 window.__riftTest.v250B = { migrateModules: rlMigrateModules };
 // 3.37.0: the run monitor (per-step sampling, spawn-plan and event checks, the post-run audit) is test-only:
 // it turns on here, so every script in tests/ still gets it, while a player's run carries none of the work.
-rlMonEnable();
+// 3.43.1: the gate is real now (it never was: the comment promised a test session, the call ran for everyone).
+// Every in-repo harness drives the game through puppeteer/playwright, which set navigator.webdriver;
+// a player's browser does not. A player's run carries none of the per-step sampling again.
+if (navigator.webdriver) rlMonEnable();
 
 export { ui, store, game, safeAreaInsets, input, renderer };

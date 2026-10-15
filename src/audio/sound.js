@@ -616,6 +616,8 @@ const musicChords = {
       this.bossMix = 0;
       this.bossOver = false;
       this.beds = Object.create(null);
+      // 3.43.1: a bed whose build threw once is not rebuilt every tick
+      this.deadBeds = Object.create(null);
       this.liveT = -1e9;
       this.speed = null;
       this.amb = null;
@@ -624,6 +626,7 @@ const musicChords = {
       // 2.9.0: music ducking and counters of the music notes (the tests check that none is dropped)
       this.duckGain = null;
       this.duckT = -1e9;
+      this.duckDepth = 0;
       this.musicScheduled = 0;
       this.musicSkipped = 0;
       // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the boss heat (0 calm, 1 after a phase change,
@@ -1174,8 +1177,11 @@ const musicChords = {
       let gain = this.duckGain;
       if (!gain) return;
       let now = this.ctx.currentTime;
-      if (now - this.duckT < 0.1) return;
+      // 3.43.1: inside the gate a deeper press still goes through (a nova right after a boom used
+      // to be swallowed whole); an equal or lighter one changes nothing, like before
+      if (now - this.duckT < 0.1 && depth <= this.duckDepth) return;
       this.duckT = now;
+      this.duckDepth = depth;
       try {
         gain.gain.cancelScheduledValues(now);
         gain.gain.setTargetAtTime(1 - Math.min(0.15, depth), now, 0.012);
@@ -3118,6 +3124,10 @@ const musicChords = {
      already scheduled for the old track and plays the transition: an impact when the boss track starts, a last
      hit when it resolves (the calm theme then fades back in over about 3 s). */
     syncTrack() {
+      // 3.43.1: the guard comes first - a setMusic before init() used to commit the track state and
+      // skip the audio half, and every later sync saw "no change" and never started the track
+      let ctx = this.ctx;
+      if (!ctx || !this.fade) return;
       let kind = this.wantKind(),
         biome = this.wantBiome();
       if (kind === this.playKind && biome === this.playBiome) return;
@@ -3135,8 +3145,6 @@ const musicChords = {
       this.cycle = resumed ? held.cycle : 0;
       this.heat = resumed ? held.heat : 0;
       this.jump = false;
-      let ctx = this.ctx;
-      if (!ctx || !this.fade) return;
       try {
         let now = ctx.currentTime,
           gain = track ? track.gain : 1;
@@ -3274,6 +3282,8 @@ const musicChords = {
     }
     /* Beds are the quiet loops: the drone hum and the biome event ambience. */
     startBed(name) {
+      // 3.43.1: idempotent - a bed that is already up never builds a second copy on top
+      if (this.beds[name]) return;
       let ctx = this.ctx,
         now = ctx.currentTime,
         gain = ctx.createGain(),
@@ -3285,6 +3295,8 @@ const musicChords = {
       gain.gain.setTargetAtTime(level, now, BED_ATTACK[name] || 0.35);
       // the drone's hum is an effect; the beds of the biome events are the place (3.9.0: ambience bus)
       gain.connect(name === "hum" ? this.sfx : this.ambBus);
+      let bed = { name, gain, nodes, parts };
+      this.beds[name] = bed;
       let osc = (type, freq) => {
           let node = ctx.createOscillator();
           node.type = type;
@@ -3306,134 +3318,144 @@ const musicChords = {
           from.connect(node);
           return node;
         };
-      switch (name) {
-        case "hum": {
-          // two thruster voices, pitch follows the speed (setState)
-          parts.a = osc("sawtooth", 50);
-          parts.b = osc("sine", 100);
-          parts.lp = filter("lowpass", 160, 0.7, parts.a);
-          let mix = ctx.createGain();
-          mix.gain.value = 0.5;
-          parts.b.connect(mix);
-          mix.connect(gain);
-          parts.lp.connect(gain);
-          break;
+      // 3.43.1: registered before the build - if the build throws midway, the catch below stops the
+      // loops that already started (they used to be orphaned forever, and the scheduler retried the
+      // build every tick, stacking a new orphan set each time)
+      try {
+        switch (name) {
+          case "hum": {
+            // two thruster voices, pitch follows the speed (setState)
+            parts.a = osc("sawtooth", 50);
+            parts.b = osc("sine", 100);
+            parts.lp = filter("lowpass", 160, 0.7, parts.a);
+            let mix = ctx.createGain();
+            mix.gain.value = 0.5;
+            parts.b.connect(mix);
+            mix.connect(gain);
+            parts.lp.connect(gain);
+            break;
+          }
+          // 3.7.0: the event beds take pink and brown noise (no white hiss), like the atmospheres of the music
+          case "meltdown": {
+            let rumble = filter("lowpass", 170, 0.8, loop(0.6, "brown")),
+              rumbleAmp = ctx.createGain();
+            rumbleAmp.gain.value = 0.55;
+            rumble.connect(rumbleAmp);
+            rumbleAmp.connect(gain);
+            let sub = osc("sine", 41),
+              amp = ctx.createGain();
+            amp.gain.value = 0.7;
+            sub.connect(amp);
+            amp.connect(gain);
+            // 2.9.0: a rough saw under it and the hiss of hot air
+            let grind = filter("lowpass", 120, 0.8, osc("sawtooth", 41.2)),
+              grindAmp = ctx.createGain();
+            grindAmp.gain.value = 0.3;
+            grind.connect(grindAmp);
+            grindAmp.connect(gain);
+            let hiss = filter("bandpass", 1600, 0.7, loop(1.3, "pink")),
+              hissAmp = ctx.createGain();
+            hissAmp.gain.value = 0.06;
+            hiss.connect(hissAmp);
+            hissAmp.connect(gain);
+            break;
+          }
+          case "whiteout": {
+            // wind: band-passed noise whose centre wanders slowly
+            let wind = filter("bandpass", 700, 0.7, loop(1, "pink")),
+              lfo = osc("sine", 0.13),
+              depth = ctx.createGain(),
+              windAmp = ctx.createGain();
+            depth.gain.value = 320;
+            windAmp.gain.value = 0.75;
+            lfo.connect(depth);
+            depth.connect(wind.frequency);
+            wind.connect(windAmp);
+            windAmp.connect(gain);
+            // 2.9.0: a thin second wind, higher and slower, that whistles
+            let whistle = filter("bandpass", 1700, 12, loop(1.3, "pink")),
+              lfo2 = osc("sine", 0.07),
+              depth2 = ctx.createGain(),
+              whistleAmp = ctx.createGain();
+            depth2.gain.value = 600;
+            whistleAmp.gain.value = 0.35;
+            lfo2.connect(depth2);
+            depth2.connect(whistle.frequency);
+            whistle.connect(whistleAmp);
+            whistleAmp.connect(gain);
+            break;
+          }
+          case "bloom": {
+            // low gurgle under the bubbles
+            let gurgle = filter("lowpass", 320, 1.5, loop(0.5, "brown")),
+              gurgleAmp = ctx.createGain();
+            gurgleAmp.gain.value = 0.25;
+            gurgle.connect(gurgleAmp);
+            gurgleAmp.connect(gain);
+            // 2.9.0: a burbling band of noise whose pitch wobbles about twice a second
+            let burble = filter("bandpass", 200, 3, loop(0.7, "brown")),
+              wobble = osc("sine", 0.55),
+              wobbleDepth = ctx.createGain(),
+              burbleAmp = ctx.createGain();
+            wobbleDepth.gain.value = 70;
+            burbleAmp.gain.value = 0.25;
+            wobble.connect(wobbleDepth);
+            wobbleDepth.connect(burble.frequency);
+            burble.connect(burbleAmp);
+            burbleAmp.connect(gain);
+            break;
+          }
+          case "blackout": {
+            // 3.4.0: a dying transformer: a 50 Hz buzz that flickers, and a crackle that comes and goes
+            let buzz = filter("lowpass", 400, 1.2, osc("sawtooth", 50)),
+              buzzAmp = ctx.createGain(),
+              flicker = osc("square", 5.3),
+              flickerDepth = ctx.createGain();
+            buzzAmp.gain.value = 0.5;
+            flickerDepth.gain.value = 0.35;
+            flicker.connect(flickerDepth);
+            flickerDepth.connect(buzzAmp.gain);
+            buzz.connect(buzzAmp);
+            buzzAmp.connect(gain);
+            let crackle = filter("bandpass", 2600, 4, loop(1.2, "pink")),
+              crackleAmp = ctx.createGain(),
+              swell = osc("sine", 0.23),
+              swellDepth = ctx.createGain();
+            crackleAmp.gain.value = 0.16;
+            swellDepth.gain.value = 0.16;
+            swell.connect(swellDepth);
+            swellDepth.connect(crackleAmp.gain);
+            crackle.connect(crackleAmp);
+            crackleAmp.connect(gain);
+            break;
+          }
+          case "riftstorm": {
+            // two close low tones that beat
+            let a = osc("sine", 55),
+              b = osc("sine", 57.5),
+              c = osc("sine", 110),
+              d = osc("sine", 113.5),
+              upper = ctx.createGain();
+            a.connect(gain);
+            b.connect(gain);
+            // 2.9.0: the same beat an octave higher
+            upper.gain.value = 0.4;
+            c.connect(upper);
+            d.connect(upper);
+            upper.connect(gain);
+            break;
+          }
+          default:
+            break;
         }
-        // 3.7.0: the event beds take pink and brown noise (no white hiss), like the atmospheres of the music
-        case "meltdown": {
-          let rumble = filter("lowpass", 170, 0.8, loop(0.6, "brown")),
-            rumbleAmp = ctx.createGain();
-          rumbleAmp.gain.value = 0.55;
-          rumble.connect(rumbleAmp);
-          rumbleAmp.connect(gain);
-          let sub = osc("sine", 41),
-            amp = ctx.createGain();
-          amp.gain.value = 0.7;
-          sub.connect(amp);
-          amp.connect(gain);
-          // 2.9.0: a rough saw under it and the hiss of hot air
-          let grind = filter("lowpass", 120, 0.8, osc("sawtooth", 41.2)),
-            grindAmp = ctx.createGain();
-          grindAmp.gain.value = 0.3;
-          grind.connect(grindAmp);
-          grindAmp.connect(gain);
-          let hiss = filter("bandpass", 1600, 0.7, loop(1.3, "pink")),
-            hissAmp = ctx.createGain();
-          hissAmp.gain.value = 0.06;
-          hiss.connect(hissAmp);
-          hissAmp.connect(gain);
-          break;
-        }
-        case "whiteout": {
-          // wind: band-passed noise whose centre wanders slowly
-          let wind = filter("bandpass", 700, 0.7, loop(1, "pink")),
-            lfo = osc("sine", 0.13),
-            depth = ctx.createGain(),
-            windAmp = ctx.createGain();
-          depth.gain.value = 320;
-          windAmp.gain.value = 0.75;
-          lfo.connect(depth);
-          depth.connect(wind.frequency);
-          wind.connect(windAmp);
-          windAmp.connect(gain);
-          // 2.9.0: a thin second wind, higher and slower, that whistles
-          let whistle = filter("bandpass", 1700, 12, loop(1.3, "pink")),
-            lfo2 = osc("sine", 0.07),
-            depth2 = ctx.createGain(),
-            whistleAmp = ctx.createGain();
-          depth2.gain.value = 600;
-          whistleAmp.gain.value = 0.35;
-          lfo2.connect(depth2);
-          depth2.connect(whistle.frequency);
-          whistle.connect(whistleAmp);
-          whistleAmp.connect(gain);
-          break;
-        }
-        case "bloom": {
-          // low gurgle under the bubbles
-          let gurgle = filter("lowpass", 320, 1.5, loop(0.5, "brown")),
-            gurgleAmp = ctx.createGain();
-          gurgleAmp.gain.value = 0.25;
-          gurgle.connect(gurgleAmp);
-          gurgleAmp.connect(gain);
-          // 2.9.0: a burbling band of noise whose pitch wobbles about twice a second
-          let burble = filter("bandpass", 200, 3, loop(0.7, "brown")),
-            wobble = osc("sine", 0.55),
-            wobbleDepth = ctx.createGain(),
-            burbleAmp = ctx.createGain();
-          wobbleDepth.gain.value = 70;
-          burbleAmp.gain.value = 0.25;
-          wobble.connect(wobbleDepth);
-          wobbleDepth.connect(burble.frequency);
-          burble.connect(burbleAmp);
-          burbleAmp.connect(gain);
-          break;
-        }
-        case "blackout": {
-          // 3.4.0: a dying transformer: a 50 Hz buzz that flickers, and a crackle that comes and goes
-          let buzz = filter("lowpass", 400, 1.2, osc("sawtooth", 50)),
-            buzzAmp = ctx.createGain(),
-            flicker = osc("square", 5.3),
-            flickerDepth = ctx.createGain();
-          buzzAmp.gain.value = 0.5;
-          flickerDepth.gain.value = 0.35;
-          flicker.connect(flickerDepth);
-          flickerDepth.connect(buzzAmp.gain);
-          buzz.connect(buzzAmp);
-          buzzAmp.connect(gain);
-          let crackle = filter("bandpass", 2600, 4, loop(1.2, "pink")),
-            crackleAmp = ctx.createGain(),
-            swell = osc("sine", 0.23),
-            swellDepth = ctx.createGain();
-          crackleAmp.gain.value = 0.16;
-          swellDepth.gain.value = 0.16;
-          swell.connect(swellDepth);
-          swellDepth.connect(crackleAmp.gain);
-          crackle.connect(crackleAmp);
-          crackleAmp.connect(gain);
-          break;
-        }
-        case "riftstorm": {
-          // two close low tones that beat
-          let a = osc("sine", 55),
-            b = osc("sine", 57.5),
-            c = osc("sine", 110),
-            d = osc("sine", 113.5),
-            upper = ctx.createGain();
-          a.connect(gain);
-          b.connect(gain);
-          // 2.9.0: the same beat an octave higher
-          upper.gain.value = 0.4;
-          c.connect(upper);
-          d.connect(upper);
-          upper.connect(gain);
-          break;
-        }
-        default:
-          break;
+      } catch (err) {
+        // back out cleanly: stop what started, leave the registry (a one-strike dead bed, the
+        // scheduler will not rebuild it every tick), and report like the rest of the engine
+        this.stopBed(name, 0, 0.02);
+        this.deadBeds[name] = true;
+        this.fail(err);
+        return;
       }
-      let bed = { name, gain, nodes, parts };
-      this.beds[name] = bed;
       for (let node of nodes) {
         this.voices.push({ node: node, amp: gain, pri: 3, start: now, end: 1e9, loop: true, bed: bed });
       }
@@ -3467,6 +3489,8 @@ const musicChords = {
       let ctx = this.ctx,
         recipe = MUSIC_BEDS[biome];
       if (!ctx || !recipe || (kind !== "fight" && kind !== "boss")) return;
+      // 3.43.1: same hardening as the beds - an atmosphere that is still up goes before a new one
+      if (this.mbed) this.stopMusicBed();
       let now = ctx.currentTime,
         out = ctx.createGain(),
         nodes = [],
@@ -3637,24 +3661,11 @@ const musicChords = {
           break;
         }
       }
-      console.log(
-        "[toneDBG] startTone",
-        name,
-        "nodes",
-        nodes.length,
-        "gainConn",
-        gain.numberOfOutputs,
-        "ambBus",
-        !!this.ambBus,
-        "ambDuck",
-        !!this.ambDuck,
-      );
       this.toneBed = { name, gain, nodes, boss: false };
     }
     stopTone(name, at = 0, fade = 1.2) {
       let tone = this.toneBed;
       if (!tone || (name && tone.name !== name)) return;
-      console.log("[toneDBG] stopTone", tone.name, "at", at, "fade", fade);
       this.toneBed = null;
       let now = this.ctx.currentTime + at,
         end = now + Math.max(0.3, fade * 2.5);
@@ -3699,7 +3710,7 @@ const musicChords = {
       for (let name of Object.keys(this.beds)) {
         if (name !== "hum" && name !== amb) this.stopBed(name);
       }
-      if (amb && !this.beds[amb]) this.startBed(amb);
+      if (amb && !this.beds[amb] && !this.deadBeds[amb]) this.startBed(amb);
       if (amb && now >= this.accentT) this.accent(amb, now);
       if (this.voices.length > 8) {
         for (let i = this.voices.length - 1; i >= 0; i--)
