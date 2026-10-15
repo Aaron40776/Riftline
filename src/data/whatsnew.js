@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.42.0",
+    title: "A deeper voice",
+    items: [
+      "The weapons lose the arcade chirp: the Pulse lands as a weighty thoom, the Arc Caster crackles like current, the Disc rings lower.",
+      "Enemies die lower and heavier: bubbles, short circuits, glass and ghosts all sound an octave deeper.",
+      "A Whiteout muffles the whole world behind the storm, and lifts when it passes.",
+      "Menus speak softer: clicks and hovers are warm low blips instead of high ticks.",
+    ],
+  },
+  {
     version: "3.41.0",
     title: "The storms arrive",
     items: [
@@ -46,12 +56,4 @@ export const WHATS_NEW = [
     ],
   },
   ,
-  {
-    version: "3.37.0",
-    title: "Faster behind the scenes",
-    items: [
-      "The game checks itself less while you play, so weak phones keep more of their speed for the fight.",
-      "Nothing in the fight, the look or the sound has changed.",
-    ],
-  },
 ];

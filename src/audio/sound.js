@@ -703,6 +703,15 @@ const musicChords = {
       this.limiter.connect(this.master);
       this.master.connect(this.clip);
       this.clip.connect(ctx.destination);
+      // 3.42.0: the muffle: a lowpass between the buses and the limiter. A Whiteout closes it so the whole
+      // world (shots, music, wind) sounds like behind a wall of snow; every other state keeps it open.
+      this.muffle = ctx.createBiquadFilter();
+      this.muffle.type = "lowpass";
+      this.muffle.frequency.value = 18000;
+      this.muffle.Q.value = 0.3;
+      this.comp.disconnect();
+      this.comp.connect(this.muffle);
+      this.muffle.connect(this.limiter);
       this.sfx = ctx.createGain();
       this.sfx.gain.value = this.sfxVol;
       this.sfx.connect(this.comp);
@@ -1168,10 +1177,12 @@ const musicChords = {
       switch (id) {
         // 2.9.0: seven weapons, seven sound families (waveform, pitch range, envelope, tail)
         case "pulse":
-          // bright sci-fi "pew": a fast falling sine with a thin square edge, all above 400 Hz, no tail
-          if (this.gate(id, 0.05)) {
-            this.tone(1500 * pitch, 0.075, "sine", 0.05, { to: 420 });
-            this.tone(2300 * pitch, 0.028, "square", 0.012, { to: 900, lp: 5e3 });
+          // 3.42.0: from the bright arcade "pew" (1500 Hz falling sine + square edge) to a weighty
+          // "thoom": the drop an octave lower, a soft noise transient instead of the square, a sub thump
+          if (this.gate(id, 0.06)) {
+            this.tone(640 * pitch, 0.09, "sine", 0.055, { to: 170 });
+            this.noise(0.05, 0.028, { type: "bandpass", f: 1400, q: 1.2, attack: 0.001 });
+            this.tone(110 * pitch, 0.08, "sine", 0.04, { to: 48 });
           }
           break;
         case "scatter":
@@ -1183,11 +1194,13 @@ const musicChords = {
           }
           break;
         case "tesla":
-          // arc: a stuttering electric crackle, two random square ticks and a hissing spark, no low end
+          // 3.42.0: the crackle leaves the dog-whistle range (2.6-5.8 kHz squares -> 0.7-1.6 kHz, low-passed
+          // hard) and a low arc hum carries it, so the arc sounds like current, not like a fly
           if (this.gate(id, 0.06)) {
-            this.tone(2600 + Math.random() * 2400, 0.022, "square", 0.02, { lp: 7e3 });
-            this.tone(3200 + Math.random() * 2600, 0.022, "square", 0.016, { at: 0.03, lp: 7e3 });
-            this.noise(0.08, 0.06, { type: "bandpass", f: 6500, q: 6 });
+            this.tone(700 + Math.random() * 500, 0.03, "square", 0.022, { lp: 2600 });
+            this.tone(1000 + Math.random() * 600, 0.03, "square", 0.018, { at: 0.03, lp: 2600 });
+            this.noise(0.09, 0.05, { type: "bandpass", f: 3200, q: 4 });
+            this.tone(58, 0.14, "sine", 0.05, { to: 40 });
           }
           break;
         case "rail":
@@ -1209,12 +1222,13 @@ const musicChords = {
           }
           break;
         case "disc":
-          // disc launcher: a metallic "shing" (two inharmonic partials) and a two-note wub of the spinning blade
+          // disc launcher: a metallic "shing" (two inharmonic partials, 3.42.0: an octave lower) and a
+          // heavier two-note wub of the spinning blade
           if (this.gate(id, 0.1)) {
-            this.tone(1245, 0.16, "sine", 0.035);
-            this.tone(2093, 0.12, "sine", 0.022);
-            this.tone(300 * pitch, 0.06, "triangle", 0.07, { to: 500 });
-            this.tone(500 * pitch, 0.07, "triangle", 0.06, { to: 300, at: 0.06 });
+            this.tone(830 * pitch, 0.18, "sine", 0.04);
+            this.tone(1395, 0.14, "sine", 0.024);
+            this.tone(190 * pitch, 0.07, "triangle", 0.08, { to: 320 });
+            this.tone(320 * pitch, 0.08, "triangle", 0.065, { to: 190, at: 0.06 });
           }
           break;
         case "flame":
@@ -1575,7 +1589,8 @@ const musicChords = {
           this.noise(0.8, 0.06, { f: 300, to: 2e3, attack: 0.3 });
           break;
         case "click":
-          this.tone(1800, 0.03, "triangle", 0.04);
+          // 3.42.0: a warm low blip instead of the 1.8 kHz tick
+          this.tone(900, 0.035, "triangle", 0.035);
           break;
         case "event":
           this.eventCue(arg);
@@ -1689,10 +1704,10 @@ const musicChords = {
       switch (id) {
         // ---- enemy deaths: short, quiet, pitch-randomised ----
         case "dPop":
-          // tiny swarmers: a high "bip", a bubble that drops fast
+          // tiny swarmers: a bubble that drops fast (3.42.0: half the pitch, less bird-like)
           if (this.gate(id, 0.03)) {
-            this.tone(1100 * pitch, 0.06, "sine", 0.05 * size, { to: 300 });
-            this.noise(0.025, 0.04, { type: "highpass", f: 6e3 });
+            this.tone(560 * pitch, 0.08, "sine", 0.05 * size, { to: 160 });
+            this.noise(0.025, 0.035, { type: "highpass", f: 3500 });
           }
           break;
         case "dSquelch":
@@ -1721,29 +1736,33 @@ const musicChords = {
           }
           break;
         case "dZap":
-          // short circuit: two square ticks, a falling saw and a spark of noise
+          // short circuit: the power sags away, two soft ticks and a dying hum (3.42.0: everything an octave
+          // lower and low-passed harder, so machines die with a growl, not a whistle; the hum keeps the family
+          // far from the metal clang next door)
           if (this.gate(id, 0.035)) {
-            this.tone(3200 * pitch, 0.1, "sawtooth", 0.035 * size, { to: 150, lp: 6e3 });
-            this.tone(1100, 0.02, "square", 0.025, { lp: 4e3, at: 0.05 });
-            this.tone(1500, 0.02, "square", 0.02, { lp: 4e3, at: 0.08 });
-            this.noise(0.06, 0.08, { type: "bandpass", f: 6e3, q: 3 });
+            this.tone(1200 * pitch, 0.2, "sawtooth", 0.05 * size, { to: 70, lp: 1100 });
+            this.tone(64, 0.24, "sine", 0.09, { to: 38 });
+            this.tone(430, 0.025, "square", 0.024, { lp: 1400, at: 0.05 });
+            this.tone(560, 0.025, "square", 0.02, { lp: 1400, at: 0.09 });
+            this.noise(0.05, 0.04, { type: "bandpass", f: 1800, q: 3 });
           }
           break;
         case "dGhost":
           // ghostly: a detuned pair of sines falling slowly, a thin sigh of noise, no hard edge at all
+          // (3.42.0: the pair starts an octave lower, so the fall ends inside the mix instead of above it)
           if (this.gate(id, 0.04)) {
-            this.tone(2400 * pitch, 0.3, "sine", 0.04 * size, { to: 320, attack: 0.05 });
-            this.tone(2424 * pitch, 0.3, "sine", 0.03, { to: 300, attack: 0.05 });
-            this.noise(0.28, 0.035, { type: "bandpass", f: 4e3, to: 800, q: 8, attack: 0.06 });
+            this.tone(1300 * pitch, 0.34, "sine", 0.04 * size, { to: 180, attack: 0.05 });
+            this.tone(1312 * pitch, 0.34, "sine", 0.03, { to: 172, attack: 0.05 });
+            this.noise(0.28, 0.035, { type: "bandpass", f: 2400, to: 600, q: 8, attack: 0.06 });
           }
           break;
         case "dClang":
-          // metal: a ringing triangle pair and a short low knock
+          // metal: a ringing triangle pair and a short low knock (3.42.0: the ring a fourth lower)
           if (this.gate(id, 0.035)) {
-            this.tone(1240 * pitch, 0.22, "triangle", 0.05 * size);
-            this.tone(1810 * pitch, 0.16, "triangle", 0.032);
-            this.tone(120, 0.1, "sine", 0.09, { to: 60 });
-            this.noise(0.03, 0.05, { type: "bandpass", f: 3e3 });
+            this.tone(830 * pitch, 0.24, "triangle", 0.05 * size);
+            this.tone(1210 * pitch, 0.18, "triangle", 0.032);
+            this.tone(110, 0.12, "sine", 0.09, { to: 55 });
+            this.noise(0.03, 0.05, { type: "bandpass", f: 2400 });
           }
           break;
         case "dRattle":
@@ -1755,11 +1774,11 @@ const musicChords = {
           }
           break;
         case "dShatter":
-          // glass: a burst of high noise and three random high chimes
+          // glass: a burst of noise and three random chimes (3.42.0: the whole thing an octave lower)
           if (this.gate(id, 0.04)) {
-            this.noise(0.22, 0.08 * size, { type: "highpass", f: 4500, attack: 0.001 });
+            this.noise(0.22, 0.08 * size, { type: "highpass", f: 2600, attack: 0.001 });
             for (let i = 0; i < 3; i++) {
-              this.tone((3e3 + Math.random() * 3e3) * pitch, 0.06, "sine", 0.022, { at: 0.02 + i * 0.035 });
+              this.tone((1600 + Math.random() * 1600) * pitch, 0.07, "sine", 0.024, { at: 0.02 + i * 0.035 });
             }
           }
           break;
@@ -2085,7 +2104,7 @@ const musicChords = {
           break;
         case "hover":
           if (this.gate(id, 0.05)) {
-            this.tone(1500, 0.03, "sine", 0.02);
+            this.tone(880, 0.035, "sine", 0.016);
           }
           break;
         case "reroll":
@@ -3046,6 +3065,9 @@ const musicChords = {
       if (mode === "boss" && !resume) this.bossOver = false;
       this.resumeWanted = !!resume;
       this.mode = mode;
+      // 3.42.0: leaving the fight opens the Whiteout muffle (the storm belongs to the fight alone)
+      if (this.ctx && this.muffle && mode !== "fight" && mode !== "boss")
+        this.muffle.frequency.setTargetAtTime(18000, this.ctx.currentTime, 0.3);
       if (biome) {
         this.biome = biome;
         // 3.2.0: the room of the sounds is the room of the biome
@@ -3218,6 +3240,12 @@ const musicChords = {
       this.liveT = this.ctx.currentTime;
       this.speed = speed;
       this.amb = AMBIENCE_LEVEL[ambience] ? ambience : null;
+      // 3.42.0: a Whiteout muffles the world behind the storm; anything else (and every non-fight state)
+      // opens the muffle again. setMusic lifts it too, so a pause or the Home never stays muffled.
+      if (this.muffle) {
+        const want = this.amb === "whiteout" && speed != null ? 850 : 18000;
+        this.muffle.frequency.setTargetAtTime(want, this.ctx.currentTime, want < 2000 ? 0.5 : 0.35);
+      }
       let hum = this.beds.hum;
       if (hum && speed != null) {
         let now = this.ctx.currentTime;
