@@ -27,6 +27,7 @@ import {
   Scene,
   SphereGeometry,
   SRGBColorSpace,
+  NeutralToneMapping,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -325,11 +326,14 @@ function makeGlowTexture() {
   });
 }
 function makeShadowTexture() {
+  // 3.38.0: a tighter core and a faster falloff (the old rim faded so gently that the blobs read as smudges
+  // around the models instead of grounding them; no extra draw cost, the texture is shared)
   return makeCanvasTexture(64, (ctx, size) => {
     let half = size / 2,
       grad = ctx.createRadialGradient(half, half, 0, half, half, half);
-    grad.addColorStop(0, "rgba(0,0,0,0.75)");
-    grad.addColorStop(0.6, "rgba(0,0,0,0.35)");
+    grad.addColorStop(0, "rgba(0,0,0,0.8)");
+    grad.addColorStop(0.52, "rgba(0,0,0,0.44)");
+    grad.addColorStop(0.82, "rgba(0,0,0,0.1)");
     grad.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, size, size);
@@ -424,6 +428,13 @@ const MAX_PARTICLES = 1400,
         stencil: false,
       });
       this.renderer.outputColorSpace = SRGBColorSpace;
+      // 3.38.0: a filmic tone curve on the lit bodies (enemies, walker, props, bosses): highlights roll off
+      // instead of clipping to flat white, so the flat-shaded plastic reads less like a toy. The Khronos
+      // neutral curve keeps saturated colours closer to their hue than ACES. Everything that glows keeps its
+      // own look: every emissive material is built with toneMapped: false, the floor is a ShaderMaterial
+      // (tone mapping never applies), the 2D overlay draws itself — none of them change.
+      this.renderer.toneMapping = NeutralToneMapping;
+      this.renderer.toneMappingExposure = 1.12;
       this.renderer.setClearColor(329485, 1);
       this.dprCap = opts.dpr || 1.5;
       this.zoom = 1;
