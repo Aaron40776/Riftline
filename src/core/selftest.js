@@ -1534,9 +1534,10 @@ function selfTestV250D(result) {
       if (!card.boss || card.boss !== (bossDefs[bossByBiome[biome.id]] || {}).name) fail.push("card-boss:" + biome.id);
       if (!/^#[0-9a-f]{6}$/.test(card.color)) fail.push("card-color:" + biome.id);
     }
-    const count = (codex) => [codex.enemies.length, codex.bosses.length, codex.upgrades.length].join("/"),
-      want = [Object.keys(enemyDefs).length, Object.keys(bossDefs).length, upgradeList.length].join("/"),
-      flat = (codex) => [...codex.enemies, ...codex.bosses, ...codex.upgrades];
+    // 3.39.0: the Codex has no upgrade gallery any more; the count is enemies/bosses only
+    const count = (codex) => [codex.enemies.length, codex.bosses.length].join("/"),
+      want = [Object.keys(enemyDefs).length, Object.keys(bossDefs).length].join("/"),
+      flat = (codex) => [...codex.enemies, ...codex.bosses];
     const none = rlCodexEntries({ seen: {} });
     if (count(none) !== want) fail.push(`codex-count:${count(none)}!=${want}`);
     if (flat(none).some((entry) => entry.seen)) fail.push("codex-unseen");
@@ -1544,7 +1545,7 @@ function selfTestV250D(result) {
     if (new Set(keys).size !== keys.length) fail.push("codex-keys");
     const all = rlCodexEntries({ seen: Object.fromEntries(keys.map((key) => [key, true])) });
     for (const entry of flat(all)) if (!entry.seen || !entry.name || !entry.desc) fail.push("codex-entry:" + entry.key);
-    // an old save: no Codex keys, but a defeated boss, a build in the history and a saved run
+    // an old save: no Codex keys, but a defeated boss (the offered-upgrade fallback went with the gallery)
     const old = rlCodexEntries({
         seen: { tutorial: true },
         stats: { bosses: { warden: 1 } },
@@ -1556,7 +1557,7 @@ function selfTestV250D(result) {
         .map((entry) => entry.key)
         .sort()
         .join(),
-      wantKeys = ["boss_warden", ...upgradeList.slice(0, 3).map((upgrade) => "up_" + upgrade.id)].sort().join();
+      wantKeys = ["boss_warden"].sort().join();
     if (seenKeys !== wantKeys) fail.push(`codex-old-save:${seenKeys}`);
     for (const bad of [null, undefined, {}, { seen: null, history: "x", run: 5, stats: { bosses: null } }])
       rlCodexEntries(bad);
