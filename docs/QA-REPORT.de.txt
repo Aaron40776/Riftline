@@ -1,3 +1,35 @@
+RIFTLINE v3.38.0 – A RICHER LOOK
+Base: v3.37.0 · Build r3380a1015b-r1 · 15.10.2026
+
+The first step of the look & feel overhaul (the owner's checkup request of 15.10.2026; his standing wish of
+05.10.2026: "more professional style"). Two levers that cost nothing per frame and are judged on the pinned
+screenshots, measured with image_report.py like 3.36.0. The bigger levers (model detail pass, PBR on hero
+objects, palette discipline, the Osmos sound direction) stay staged until the owner sends reference pictures
+and has judged this step on his phone — the lesson of the removed Ultra preset (3.20.0-3.28.2): a look change
+must be cheap for everyone and judged on the real device.
+
+1) The look (src/render/renderer.js, looks only)
+   - NeutralToneMapping (the Khronos neutral curve; keeps hues better than ACES) + toneMappingExposure 1.12:
+     the lit bodies (Lambert — enemies, walker, props, bosses) roll off in the highlights instead of clipping
+     to flat white. Nothing else changes: every emissive material is already built with toneMapped: false, the
+     floor is a ShaderMaterial (tone mapping never applies to it), the 2D overlay draws itself.
+   - makeShadowTexture: a tighter core and faster falloff (stops 0.75/0.35/0 -> 0.8/0.44/0.1/0), so the blob
+     shadows ground the models instead of smudging around them; same shared texture, no extra draw cost.
+2) Measured (seed-pinned PC biome shots, same run content in both arms)
+   - New tool tests/look-shots.mjs (node tools/qa.js look-shots <tag>): like biome-shots, but the run seed is
+     pinned, so wave events, spawns and the arena are identical between two builds — a plain biome-shots pair
+     also differs in what the run rolled (the first comparison caught a Blackout in one arm only).
+   - yard lum 0.206 -> 0.215, sat 0.549 -> 0.596 · works 0.208 -> 0.234 (contrast 0.144 -> 0.167) ·
+     vault 0.410 -> 0.382, sat 0.406 -> 0.458 (still the 3.36.0 target of 0.38) · void 0.130 -> 0.127 ·
+     marsh 0.267 -> 0.270. Brightness preserved, colour depth up everywhere.
+3) Cost
+   - None: tone mapping is per-fragment inside the built-in materials (no extra render pass), the shadow
+     texture is the same 64 px canvas. The simulation is untouched; the determinism fixture is unchanged.
+4) Tests and results (headless Chromium, software WebGL)
+   - build, sim-node, save-node, data-audit, determinism (15/15 unchanged), full-qa files/offline: ok.
+   - look-shots before/after runs: no page errors; the screenshots hang in tests/shots/look-before and
+     look-after for the owner's eyes. His phone decides the next step.
+
 RIFTLINE v3.37.0 – FASTER BEHIND THE SCENES
 Base: v3.36.0 · Build r3370a1015a-r1 · 15.10.2026
 
