@@ -240,7 +240,7 @@ const milestones = [
   },
   {
     id: "bosses25",
-    name: "Apex Hunter",
+    name: "Big Game",
     desc: "Defeat 25 bosses total",
     reward: 1200,
     test: (save) => Object.values(save.stats.bosses).reduce((sum, count) => sum + count, 0) >= 25,
@@ -280,13 +280,6 @@ milestones.push(
     test: (save) => save.stats.bestWave >= 100,
   },
   {
-    id: "kills25000",
-    name: "Planet Breaker",
-    desc: "Destroy 25,000 enemies",
-    reward: 1800,
-    test: (save) => save.stats.kills >= 25000,
-  },
-  {
     id: "bosses50",
     name: "Apex Protocol",
     desc: "Defeat 50 bosses total",
@@ -309,13 +302,6 @@ milestones.push(
     reward: 600,
     test: (save) => Object.values(save.stats.clearsBy).filter((count) => count > 0).length >= 4,
   },
-  {
-    id: "combo750",
-    name: "Event Horizon",
-    desc: "Reach a ×750 kill combo",
-    reward: 1600,
-    test: (save) => save.stats.bestCombo >= 750,
-  },
 );
 workshopModules.push(
   // 2.3.5: Arsenal Lab raises the fire rate (it gave +5% damage, the same as Power Core)
@@ -336,28 +322,9 @@ workshopModules.push(
   },
 );
 modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
+// 3.39.0: the milestone ladders end where a goal is still seeable (the deep Endless rungs beyond these
+// were scroll-past filler; a save that earned a removed one keeps it, it only leaves the list)
 milestones.push(
-  {
-    id: "wave125",
-    name: "Deep Horizon",
-    desc: "Reach wave 125",
-    reward: 1200,
-    test: (save) => save.stats.bestWave >= 125,
-  },
-  {
-    id: "wave150",
-    name: "Far Breach",
-    desc: "Reach wave 150",
-    reward: 1600,
-    test: (save) => save.stats.bestWave >= 150,
-  },
-  {
-    id: "bosses100",
-    name: "Apex Archive",
-    desc: "Defeat 100 bosses total",
-    reward: 2200,
-    test: (save) => Object.values(save.stats.bosses).reduce((sum, count) => sum + count, 0) >= 100,
-  },
   {
     id: "shards100k",
     name: "Shard Tycoon",
@@ -390,51 +357,6 @@ workshopModules.push(
   },
 );
 modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
-milestones.push(
-  { id: "wave175", name: "Deep End", desc: "Reach wave 175", reward: 2200, test: (save) => save.stats.bestWave >= 175 },
-  {
-    id: "wave200",
-    name: "Beyond the Rim",
-    desc: "Reach wave 200",
-    reward: 2800,
-    test: (save) => save.stats.bestWave >= 200,
-  },
-  {
-    id: "kills50000",
-    name: "Graveyard Shift",
-    desc: "Destroy 50,000 enemies",
-    reward: 2600,
-    test: (save) => save.stats.kills >= 50000,
-  },
-  {
-    id: "bosses150",
-    name: "Boss Archive",
-    desc: "Defeat 150 bosses total",
-    reward: 3200,
-    test: (save) => Object.values(save.stats.bosses).reduce((sum, count) => sum + count, 0) >= 150,
-  },
-  {
-    id: "shards250k",
-    name: "Shard Industry",
-    desc: "Earn 250,000 total shards",
-    reward: 3500,
-    test: (save) => save.stats.shardsEarned >= 250000,
-  },
-  {
-    id: "evolve20",
-    name: "Evolution Master",
-    desc: "Evolve 20 times",
-    reward: 2200,
-    test: (save) => save.stats.evolved >= 20,
-  },
-  {
-    id: "combo1000",
-    name: "Singularity",
-    desc: "Reach a ×1000 kill combo",
-    reward: 2400,
-    test: (save) => save.stats.bestCombo >= 1000,
-  },
-);
 
 /* ==========================================================================
    RIFTLINE 2.4.0 — fewer biomes and weapons, each clearly different

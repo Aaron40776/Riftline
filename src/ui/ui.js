@@ -1559,6 +1559,12 @@ const getById = (id) => document.getElementById(id),
         )
         .join("");
       getById("overMs").innerHTML =
+        (result.medals || [])
+          .map(
+            (m) =>
+              `<span class="chip">${iconSvg("trophy")} ${escapeHtml(MEDAL_NAMES[m.medal] || "Medal")} medal \u00b7 ${escapeHtml(m.name)} \u00b7 ${m.secs} s (par ${m.par} s)</span>`,
+          )
+          .join("") +
         (result.unlocks || [])
           .map((text) => `<span class="chip">${iconSvg("star")} ${escapeHtml(text)}</span>`)
           .join("") +
@@ -1582,11 +1588,11 @@ const getById = (id) => document.getElementById(id),
         return;
       }
       box.hidden = false;
+      // 3.39.0: the damage totals live in the panels above (Damage dealt as bars, damage taken in the recap
+      // of a lost run), so the grid keeps only what nothing else says
       box.innerHTML =
         '<div class="dh">Run performance</div><div class="run-extra-grid">' +
         [
-          ["Damage dealt", formatCount(Math.round(extra.dmgDealt || 0))],
-          ["Damage taken", formatCount(Math.round(extra.dmgTaken || 0))],
           ["Crits", formatCount(extra.critHits || 0)],
           ["Dashes", formatCount(extra.dashes || 0)],
           ["Best combo", "×" + formatCount(extra.bestCombo || 0)],
@@ -1789,7 +1795,7 @@ const getById = (id) => document.getElementById(id),
     }
     renderCodex() {
       const codex = rlCodexEntries(this.save),
-        all = [...codex.enemies, ...codex.bosses, ...codex.variants, ...codex.events, ...codex.upgrades],
+        all = [...codex.enemies, ...codex.bosses, ...codex.variants, ...codex.events],
         found = all.filter((entry) => entry.seen).length,
         rows = (list, hint) =>
           list
@@ -1803,12 +1809,11 @@ const getById = (id) => document.getElementById(id),
         part = (title, list, hint) =>
           `<h3 class="section-h">${title} <span class="cx-count">${list.filter((entry) => entry.seen).length}/${list.length}</span></h3><div class="codex-grid">${rows(list, hint)}</div>`;
       getById("codexList").innerHTML =
-        `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies, bosses, variants and elites unlock when you meet them, events, mutators and Overdrive attacks when you see them, upgrades when a run offers them.</p>` +
+        `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies, bosses, variants and elites unlock when you meet them, events, mutators and Overdrive attacks when you see them.</p>` +
         part("Enemies", codex.enemies, "Not encountered yet") +
         part("Bosses", codex.bosses, "Not encountered yet") +
         part("Variants and elites", codex.variants, "Not encountered yet") +
-        part("Rift events", codex.events, "Not seen yet") +
-        part("Upgrades", codex.upgrades, "Not offered yet");
+        part("Rift events", codex.events, "Not seen yet");
     }
   };
 // 2.4.2: state of the FPS counter in the HUD
@@ -1864,21 +1869,13 @@ function rlBiomeCardInfo(biome) {
   };
 }
 // Codex entries of a save. Names and texts come from the data tables at run time, so added or
-// removed enemies, bosses and upgrades show up without changes here.
+// removed enemies, bosses and events show up without changes here. 3.39.0: no upgrade entries any
+// more (the gallery is gone); a save that proves offered cards (history, saved run) needs no fallback.
 function rlCodexEntries(save) {
   const data = save || {},
     seen = data.seen || {},
     beaten = (data.stats && data.stats.bosses) || {},
-    medals = (data.stats && data.stats.medals) || {},
-    offered = new Set();
-  // saves from before the Codex never stored up_<id>; builds in the run history and the saved run
-  // show which upgrades the player has been offered already
-  for (const run of Array.isArray(data.history) ? data.history : [])
-    for (const id of (run && Array.isArray(run.build) && run.build) || []) offered.add(id);
-  if (data.run && typeof data.run === "object") {
-    for (const id of Object.keys(data.run.up || {})) offered.add(id);
-    for (const id of Array.isArray(data.run.offer) ? data.run.offer : []) offered.add(id);
-  }
+    medals = (data.stats && data.stats.medals) || {};
   const enemyIds = [
       ...enemyOrder.filter((id) => enemyDefs[id]),
       ...Object.keys(enemyDefs).filter((id) => !enemyOrder.includes(id)),
@@ -1919,30 +1916,10 @@ function rlCodexEntries(save) {
         color: rlHex(boss.color),
         icon: "target",
       };
-    }),
-    upgrades = upgradeList.map((up) => {
-      let desc = "";
-      try {
-        desc = typeof up.desc === "function" ? up.desc(0) : String(up.desc || "");
-      } catch {}
-      const weapon = up.weapon && weaponDefs[up.weapon];
-      return {
-        key: "up_" + up.id,
-        id: up.id,
-        seen: seen["up_" + up.id] === true || offered.has(up.id),
-        name: up.name,
-        desc,
-        // 3.15.0: a boss card says which boss it comes from
-        extra: up.boss
-          ? "Only from the " + (bossDefs[up.boss] ? bossDefs[up.boss].name : "boss")
-          : weapon
-            ? weapon.name + " only"
-            : "",
-        rarity: up.evo ? 5 : up.rarity,
-        tag: up.evo ? "Evolution" : rarityNames[up.rarity] || "",
-        icon: up.icon,
-      };
     });
+  // 3.39.0: the Upgrades gallery is gone (the owner's clean-game pass): the cards' names, texts and rarity
+  // frames are in every upgrade offer already, and the gallery was a static catalog of them. The seen
+  // marking of offered cards ("up_<id>") stays, so saves keep working.
   // 3.28.0: the Endless mutators and the boss Overdrive attacks: found when one joins a run / a boss uses it for the first time
   const events = [
     ...Object.entries(MUTATORS).map(([id, m]) => ({
@@ -2006,7 +1983,7 @@ function rlCodexEntries(save) {
       icon: "shield",
     })),
   ];
-  return { enemies, bosses, variants, upgrades, events };
+  return { enemies, bosses, variants, events };
 }
 // 3.28.0: the Overdrive attack of each boss (core/ai.js OVERDRIVE), as the Codex tells it
 const RL_OVERDRIVE_INFO = {

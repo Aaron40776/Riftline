@@ -6,7 +6,7 @@
 import { rumble } from "./ui/gamepad.js";
 import { dailySpec, recordDaily } from "./core/daily.js";
 import { pactsById } from "./data/pacts.js";
-import { bossMedal, MEDAL_NAMES } from "./core/medals.js";
+import { bossMedal, bossPar, MEDAL_NAMES } from "./core/medals.js";
 import {
   RL_EVENT_KINDS,
   RL_HEALTH,
@@ -396,6 +396,8 @@ const overlay = new Overlay(elementById("ov")),
         this.acc = 0;
         this.slowMo = 0;
         this.intro = null;
+        // 3.39.0: the boss medals earned in this run, shown on the end screen (awardBossMedal fills them)
+        this.runMedals = [];
         // 2.8.1: enemies queued for an intro at the end of the last run are not announced in this one
         RL_INTRO.queue.length = 0;
         RL_INTRO.last = 0;
@@ -692,6 +694,8 @@ const overlay = new Overlay(elementById("ov")),
           best: best,
           milestones: newMilestones,
           unlocks: unlocks,
+          // 3.39.0: the boss medals earned in this run (name, medal, time and the par they were measured against)
+          medals: (this.runMedals || []).splice(0),
           canEndless: win && !world.endless,
           killer: win || abandoned ? null : world.lastHit,
           // 3.21.0: the recap of a lost run: the last hits (seconds before the end, the final one last) and the damage taken
@@ -771,6 +775,15 @@ function awardBossMedal(ev, world) {
       stats.medals[ev.id] = { medal, secs: Math.round(ev.secs * 10) / 10, damage: Math.round(ev.damage) };
       store.save("medal");
     }
+    // 3.39.0: the end screen lists every medal of the run with its par time (the toast stays for the moment)
+    game.runMedals = game.runMedals || [];
+    game.runMedals.push({
+      id: ev.id,
+      name: def.name,
+      medal,
+      secs: Math.round(ev.secs),
+      par: Math.round(bossPar(ev.id, threatMods(world.threat).boss)),
+    });
     // a toast (another banner of the same moment would replace a banner at once)
     ui.toast(
       `${MEDAL_NAMES[medal]} medal \u00b7 ${def.name} down in ${Math.round(ev.secs)} s${ev.damage <= 0 ? ", no damage taken" : ""}${better && old ? " \u2014 a new best" : ""}`,

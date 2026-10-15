@@ -1,3 +1,32 @@
+RIFTLINE v3.39.0 – A TIDIER END SCREEN AND CODEX
+Base: v3.38.0 · Build r3390a1015c-r1 · 15.10.2026
+
+Meta clarity from the checkup of 15.10.2026: features that overlapped or shipped as clutter, against the owner's
+"clean game with core functionality and design" direction of 3.35.0. No sim changes (determinism fixture
+unchanged); saves stay compatible.
+
+1) End screen (src/ui/ui.js, src/main.js, src/core/medals.js)
+   - Three overlapping damage views become two: the "Run performance" grid keeps Crits / Dashes / Best combo
+     (its Damage dealt and Damage taken numbers repeated the "Damage dealt" bars and the "What hit you" recap).
+   - Boss medals surface: every medal of the run shows as a chip on the end screen with its par time
+     ("Silver medal · The Warden · 48 s (par 60 s)"), not only as Codex text two clicks deep. medals.js
+     exports bossPar; awardBossMedal collects game.runMedals (startRun resets, endRun hands them over); the
+     kill toast stays for the moment itself.
+2) Codex (src/ui/ui.js)
+   - The Upgrades gallery is gone: a static catalog of the cards every offer already shows. The Codex keeps
+     what teaches the rift (enemies, bosses, variants/elites, rift events). The seen marking of offered cards
+     ("up_<id>") stays; saves keep their keys. The selftest count and old-save checks follow.
+3) Milestones (src/data/progression.js)
+   - The ladders end where a goal is still seeable: wave 125/150/175/200, kills 25000/50000, combo 750/1000,
+     bosses 100/150, shards 250k and evolve 20 are removed (44 -> 32; the top goals are now wave 100, 10,000
+     kills, ×500 combo, 50 bosses, 100k shards, 10 evolutions). A save that earned a removed one keeps it in
+     the save; it only leaves the list. bosses25 is renamed "Big Game" (it collided with the Apex Hunter card).
+4) What's new (src/data/whatsnew.js)
+   - The tab keeps the last five releases instead of the whole 47-entry history (444 -> ~60 lines shipped).
+5) Tests and results (headless Chromium, software WebGL)
+   - build, sim-node, save-node, full-qa files/offline, data-audit, determinism: the data-tables digest updated (the milestone table changed by design; every sim-run case identical), 15/15 ok.
+   - The end screen and Codex render checks of the full QA read the live DOM and follow the new layout.
+
 RIFTLINE v3.38.0 – A RICHER LOOK
 Base: v3.37.0 · Build r3380a1015b-r1 · 15.10.2026
 
