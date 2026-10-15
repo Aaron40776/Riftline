@@ -1,3 +1,30 @@
+RIFTLINE v3.42.0 – A DEEPER VOICE
+Base: v3.41.0 · Build r3420a1015c-r1 · 15.10.2026
+
+Die erste Stufe der Ton-Neustimme (Checkup + Owner-Freigabe, Osmos-Richtung: ruhig, tief, professionell).
+Der Engine-Kern (Busse, Hall, Ducking, Gating, Stimmen-Familien) bleibt unangetastet - umgestimmt werden
+nur die Rezepte, die den "Arcade"-Eindruck machten. Alles WebAudio-prozedural, keine Assets, +0 KB.
+
+1) Schuesse (src/audio/sound.js, _play)
+   - Pulse: der "pew" (fallender 1500-Hz-Sinus plus Square-Kante) wird ein "thoom": 640->170 Hz, ein
+     weiches Noise-Transsient statt der Square-Kante, ein Sub-Polter darunter (110->48 Hz).
+   - Tesla: das Knistern verlaesst die Hundepfeifen-Lage (2.6-5.8 kHz -> 0.7-1.6 kHz, hart tiefpassgefiltert),
+     ein tiefer Bogenhum (58 Hz) traegt es.
+   - Disc: das Shing eine Oktave tiefer (830/1395 Hz), der Wub der rotierenden Klinge schwerer.
+   - Scatter/Rail/Rocket/Flame bleiben (schon richtig gewichtig).
+2) Todesfamilien (_play270)
+   - dPop halbe Lage, dZap/dGhost/dShatter eine Oktave tiefer und staerker tiefpassgefiltert, dClang eine
+     Quarte tiefer plus Sub-Knell. dSquelch/dCrunch/dArmor/dRattle bleiben (schon tief).
+3) Whiteout-Gedämpfe (buildGraph, setState, setMusic)
+   - Ein Tiefpass (der "muffle") sitzt zwischen den Busse und den Limiter. Waehrend eines Whiteouts senkt
+     setState ihn auf 850 Hz (Zeitkonstante 0.5 s, wie die Nebelrampe), jeder andere Zustand und jedes
+     Nicht-Kampf-Musikmodus (setMusic) oeffnet ihn wieder - Home/Pause bleiben nie genuetzt zurueck.
+4) Menues
+   - click 1800 -> 900 Hz (warm), hover 1500 -> 880 Hz und leiser.
+5) Tests und Ergebnisse (headless Chromium, software WebGL, lokal)
+   - build ok, sim-node/save-node ok (keine Sim-Aenderung), data-audit ok, determinism identisch (15/15).
+   - Die 230-Katalog-Rendern des deep-test laeuft in CI; alle Rezepte nutzen nur vorhandene Optionen.
+
 RIFTLINE v3.41.0 – THE STORMS ARRIVE
 Base: v3.40.0 · Build r3410a1015c-r1 · 15.10.2026
 
