@@ -106,8 +106,10 @@ const sound = cached
         extra = [];
       for (let i = 1; i < PAGES; i++) {
         const p = await browser.newPage();
-        await p.goto(process.argv[2] || "http://localhost:8124/index.html");
-        await p.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 60000 });
+        // 3.39.0: 90 s for the extra pages (they boot while the pages before them render software WebGL; the
+        // default 30 s of page.goto flaked on CI with three boots at once)
+        await p.goto(process.argv[2] || "http://localhost:8124/index.html", { timeout: 90000 });
+        await p.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
         extra.push(p);
       }
       console.error(`[deep-test] sound catalog: rendering on ${PAGES} page${PAGES > 1 ? "s" : ""}`);
