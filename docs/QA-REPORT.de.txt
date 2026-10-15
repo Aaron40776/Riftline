@@ -24,7 +24,7 @@ unchanged); saves stay compatible.
 4) What's new (src/data/whatsnew.js)
    - The tab keeps the last five releases instead of the whole 47-entry history (444 -> ~60 lines shipped).
 5) Tests and results (headless Chromium, software WebGL)
-   - build, sim-node, save-node, full-qa files/offline, data-audit, determinism (15/15 unchanged): ok.
+   - build, sim-node, save-node, full-qa files/offline, data-audit, determinism: the data-tables digest updated (the milestone table changed by design; every sim-run case identical), 15/15 ok.
    - The end screen and Codex render checks of the full QA read the live DOM and follow the new layout.
 
 RIFTLINE v3.38.0 – A RICHER LOOK
