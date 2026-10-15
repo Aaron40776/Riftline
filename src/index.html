@@ -61,6 +61,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outl
 #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%); }
 #vignette.low { background: radial-gradient(ellipse at center, transparent 50%, rgba(255, 30, 60, 0.35) 100%); animation: lowPulse 1s ease-in-out infinite; }
 @keyframes lowPulse { 50% { opacity: 0.55; } }
+/* 3.41.0: the Whiteout's white wall of snow at the edges of the view; fades with the fog ramp (~1.1 s) */
+#vignette::after { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity 1.1s ease; background: radial-gradient(ellipse at center, transparent 44%, rgba(238, 245, 251, 0.6) 100%); }
+#vignette.whiteout::after { opacity: 1; }
 
 /* ---------------------------------------------------------------- shared bits */
 .screen {

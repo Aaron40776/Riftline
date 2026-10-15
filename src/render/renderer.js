@@ -50,7 +50,15 @@ import { ui } from "../main.js";
 import { smoothstep, clamp, TAU, easeOutBack, dampFactor, angleDiff } from "../core/util.js";
 import { biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
-import { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles } from "./biome-visuals.js";
+import {
+  RL_BIOME_LOOK,
+  RL_BIOME_TINT,
+  RL_SKIN,
+  ArenaView,
+  rlAmbient,
+  rlSkinMaterial,
+  rlSkinParticles,
+} from "./biome-visuals.js";
 import { TrapView } from "./traps-view.js";
 import { BossCardView } from "./boss-cards-view.js";
 import { STEP_LEN, DASH_TIME } from "../core/walk.js";
@@ -680,7 +688,7 @@ const MAX_PARTICLES = 1400,
       const camDist = this.camDistance();
       fog.near += (camDist * RL_WHITEOUT_FOG[0] - fog.near) * whiteK;
       fog.far += (camDist * RL_WHITEOUT_FOG[1] - fog.far) * whiteK;
-      fog.color.lerp(RL_WHITEOUT_TINT, 0.8 * whiteK);
+      fog.color.lerp(RL_WHITEOUT_TINT, 0.85 * whiteK);
       this.renderer.setClearColor(fog.color, 1);
     }
     ensurePlayer(weapon) {
@@ -855,6 +863,9 @@ const MAX_PARTICLES = 1400,
       }
     }
     debrisBurst(x, z, y, count, color, size, speed) {
+      // 3.41.0: the pieces calm into the biome's tone (style guide: quiet, drawn colours, not confetti)
+      const tint = this.biome && RL_BIOME_TINT[this.biome.id];
+      if (tint && color && color.isColor) color = color.clone().lerp(tint, 0.5);
       let list = this.D;
       for (let i = 0; i < count && list.length < 300; i++) {
         let angle = Math.random() * TAU,
@@ -1536,7 +1547,7 @@ const MAX_PARTICLES = 1400,
       // 2.8.1: the snow keeps fading after Home, when there may be no world any more
       if (this.rlWhiteK > 0.02 && world?.arena && dt > 0 && dt < 0.25) {
         const density = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
-          amount = 70 * dt * density,
+          amount = 110 * dt * density, // 3.41.0: more flakes, and each one big enough to see (was 70)
           count = Math.floor(amount) + (Math.random() < amount - Math.floor(amount) ? 1 : 0),
           W = world.arena.W,
           H = world.arena.H;
@@ -1549,7 +1560,7 @@ const MAX_PARTICLES = 1400,
             -1.6 - Math.random(),
             1.2 + Math.random(),
             2.2,
-            0.16 + Math.random() * 0.08,
+            0.34 + Math.random() * 0.14, // 3.41.0: was 0.16-0.24, sub-pixel dust at phone camera distance
             RL_WHITEOUT_SNOW,
             { drag: 0 },
           );
@@ -2561,8 +2572,12 @@ if (document.fonts) {
 }
 
 // 2.5.0 C: biome events in the renderer (Whiteout fog and snow, see frame() and setBiome()).
-const RL_WHITEOUT_FOG = [0.48, 1.5],
-  RL_WHITEOUT_TINT = new Color(0x55707c),
-  RL_WHITEOUT_SNOW = new Color(0xf2f8ff);
+const RL_WHITEOUT_FOG = [0.7, 1.12],
+  // 3.41.0: a whiteout goes bright and white (the old slate-grey tint sat darker than the pale vault
+  // scene and read as nothing). The window starts inside the play field and closes before the arena
+  // edge, so the edge dissolves into the storm while the fight keeps a sight pocket; the flakes are
+  // finally big enough to see from the phone camera
+  RL_WHITEOUT_TINT = new Color(0xe6f0f6),
+  RL_WHITEOUT_SNOW = new Color(0xffffff);
 
 export { Renderer, hexColor, additiveMaterial, markHomeViewDirty };

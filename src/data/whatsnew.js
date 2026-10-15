@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.41.0",
+    title: "The storms arrive",
+    items: [
+      "A Whiteout finally looks like one: the storm goes bright white, the arena edge dissolves, and real snowflakes drift on the wind.",
+      "A Whiteout draws a soft white wall of snow at the edges of the view.",
+      "A Blackout now truly darkens the street: blasts, arcs and muzzle flashes light the dark.",
+      "Kills calm down: the flying pieces take the tone of their biome instead of spraying confetti colours.",
+    ],
+  },
+  {
     version: "3.40.0",
     title: "A fairer fight",
     items: [
@@ -13,6 +23,7 @@ export const WHATS_NEW = [
       "Past wave 20 the traps grow with the run, so Endless floors keep biting.",
     ],
   },
+  ,
   {
     version: "3.39.0",
     title: "A tidier end screen and Codex",
@@ -24,6 +35,7 @@ export const WHATS_NEW = [
       "The What's new tab keeps the last few releases instead of the whole history.",
     ],
   },
+  ,
   {
     version: "3.38.0",
     title: "A richer look",
@@ -33,20 +45,13 @@ export const WHATS_NEW = [
       "The brightness of each biome stays as it was; the colours carry more depth.",
     ],
   },
+  ,
   {
     version: "3.37.0",
     title: "Faster behind the scenes",
     items: [
       "The game checks itself less while you play, so weak phones keep more of their speed for the fight.",
       "Nothing in the fight, the look or the sound has changed.",
-    ],
-  },
-  {
-    version: "3.36.0",
-    title: "A deeper Cryo Vault",
-    items: [
-      "The Cryo Vault is darker and colder: deep blue ice instead of a washed-out white floor.",
-      "Its enemies and their attacks stand out from the ice more clearly.",
     ],
   },
 ];
