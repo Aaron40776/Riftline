@@ -25,7 +25,7 @@ const PACTS = [
     name: "Iron Hide",
     icon: "shield",
     desc: "Enemies have 30% more health (bosses keep theirs)",
-    shards: 0.2,
+    shards: 0.15, // 3.40.0: was 0.2 - the pact that is easiest to ignore now pays the least
   },
   {
     id: "hunt",
@@ -39,7 +39,7 @@ const PACTS = [
     name: "Heavy Drive",
     icon: "clock",
     desc: "Move speed -10%, dash cooldown +40%",
-    shards: 0.15,
+    shards: 0.2, // 3.40.0: was 0.15 - a real mobility penalty pays like the other honest pacts
   },
 ];
 const pactsById = Object.fromEntries(PACTS.map((pact) => [pact.id, pact]));

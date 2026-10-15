@@ -389,7 +389,7 @@ for (const weapon of weaponOrder) {
       dummy(w, 6, 2);
       w.player.x = 0;
       w.player.y = 2;
-      w.player.shotN = 4;
+      w.player.shotN = 3; // 3.40.0: the burst fires on every 4th shot (was the 5th)
       w.fire(0);
       return got;
     };
