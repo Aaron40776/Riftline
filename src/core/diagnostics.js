@@ -20,7 +20,6 @@ import { hitsObstacle } from "./arena.js";
 const RL_LOG_VERSION = __RL_VERSION__,
   LOG_KEY = "riftline.log.v4";
 let errorLog = [],
-  logListeners = new Set(),
   logContext = {},
   RL_RT = {
     pointerdown: 0,
@@ -119,23 +118,9 @@ function logError(where, error) {
     }
   }
   saveErrorLog();
-  for (let listener of logListeners)
-    try {
-      listener();
-    } catch {}
 }
-function getErrorLog() {
-  return errorLog;
-}
-function onLogChange(listener) {
-  logListeners.add(listener);
-  return () => logListeners.delete(listener);
-}
-function clearErrorLog() {
-  errorLog.length = 0;
-  saveErrorLog();
-  for (let listener of logListeners) listener();
-}
+// 3.37.0: the log listeners (logListeners) and the three exports that read or cleared them (getErrorLog,
+// onLogChange, clearErrorLog) lost their last consumer with the Diagnostics dialog of 3.35.0 and are gone.
 function buildReport() {
   let lines = [
     "Riftline " + (logContext.version || RL_LOG_VERSION) + " " + (logContext.build || ""),
@@ -1747,9 +1732,13 @@ window.addEventListener("unhandledrejection", (event) => logError("promise", eve
   );
 })();
 // 3.30.0: World reaches the monitor through these hooks (core/run-hooks.js)
-runHooks.step = rlMonStep;
-runHooks.issue = rlMonIssue;
-runHooks.beginWave = rlMonBeginWave;
+// 3.37.0: the monitor is test-only: main.js calls rlMonEnable() when a test session (window.__riftTest)
+// begins. A player's run keeps logError and the crash report, and carries none of the per-step sampling.
+function rlMonEnable() {
+  runHooks.step = rlMonStep;
+  runHooks.issue = rlMonIssue;
+  runHooks.beginWave = rlMonBeginWave;
+}
 setLogHook(logError);
 
 export {
@@ -1760,9 +1749,9 @@ export {
   RL_RT,
   errorLog,
   setLogContext,
-  clearErrorLog,
   rlMonBeginWave,
   rlMonCrashed,
+  rlMonEnable,
   rlMonFinish,
   rlMonFrame,
   rlMonIssue,
@@ -1774,9 +1763,7 @@ export {
   rlUiButtonGuardSelfTest,
   RL_BOSS_EVENTS,
   rlEventPayloadError,
-  onLogChange,
   set_RL_LAST_RUN_AUDIT,
-  getErrorLog,
   buildReport,
   logError,
 };

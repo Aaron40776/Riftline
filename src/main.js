@@ -20,6 +20,7 @@ import {
   rlMonFrame,
   rlMonPreEnd,
   rlMonStart,
+  rlMonEnable,
   rlRunAudit,
   rlRunHealth,
   rlUiButtonGuardSelfTest,
@@ -934,18 +935,17 @@ function runFrame(dt) {
     if (!game.paused && document.visibilityState !== "hidden") {
       let slow = game.slowMo > 0 ? 0.35 : 1;
       game.slowMo = Math.max(0, game.slowMo - dt);
-      let speed = game.speed || 1;
       if (game.intro) {
         updateBossIntro(dt, world);
       } else {
         if (game.freeze > 0) {
           game.freeze -= dt;
         } else {
-          game.acc += dt * slow * speed;
+          game.acc += dt * slow; // 3.37.0: the never-assigned fast-forward hook game.speed is gone
         }
       }
       let steps = 0,
-        maxSteps = 5 * speed;
+        maxSteps = 5;
       // 3.28.1: an ended run stands still behind the end screen. An abandoned run went on in the background (it is still in
       // its fight) and the start of its next wave wrote it back into the save, so Continue brought the abandoned run back.
       if (game.overShown) game.acc = 0;
@@ -1772,7 +1772,11 @@ function rlRetireToast() {
 applySettings();
 ui.show("home");
 setTimeout(rlRetireToast, 700);
-setTimeout(() => rlRunHealth({ context: "startup" }).catch((err) => logError("health", err)), 900);
+// 3.37.0: the startup health checks (they fetch build-info.json) run only in a test session; a player
+// offline got a WARN in the log for a fetch that tells them nothing. The crash screen keeps its report.
+setTimeout(() => {
+  if (window.__riftTest) rlRunHealth({ context: "startup" }).catch((err) => logError("health", err));
+}, 900);
 if (renderer) {
   startLoop();
 } else {
@@ -1853,6 +1857,7 @@ function loadSelfTest() {
 }
 // Test interface for the scripts in tests/. The keys are the readable names of the values (they
 // were the short names of the old minified bundle until the test-interface refactor).
+// 3.37.0: a test session also turns the run monitor on (the player build runs without it).
 window.__riftTest = {
   loadSelfTest,
   selftest: () => loadSelfTest().then((t) => t.rlSelfTest()),
@@ -1973,5 +1978,8 @@ store.onChange((json, why) => {
   }
 });
 window.__riftTest.v250B = { migrateModules: rlMigrateModules };
+// 3.37.0: the run monitor (per-step sampling, spawn-plan and event checks, the post-run audit) is test-only:
+// it turns on here, so every script in tests/ still gets it, while a player's run carries none of the work.
+rlMonEnable();
 
 export { ui, store, game, safeAreaInsets, input, renderer };

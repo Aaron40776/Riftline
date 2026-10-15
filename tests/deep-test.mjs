@@ -1,16 +1,18 @@
 import { chromium } from "playwright";
 import { soundCache } from "./lib/sound-cache.mjs";
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+// 3.37.0: every part logs to stderr as it finishes (the run used to be silent until the very end, so a slow
+// or stuck run could not be located). The per-part times still land in res.timing at the end.
+const timing = {};
+let lapStart = Date.now();
+const lap = (part) => {
+  timing[part] = +((Date.now() - lapStart) / 1000).toFixed(1);
+  lapStart = Date.now();
+  console.error(`[deep-test] ${part}: ${timing[part]} s`);
+};
 const page = await browser.newPage();
 await page.goto(process.argv[2] || "http://localhost:8124/index.html");
 await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 60000 });
-// 3.10.0: how long each part takes (printed at the end, so slow parts are easy to find)
-const timing = {};
-let lapStart = Date.now();
-const lap = (name) => {
-  timing[name] = +((Date.now() - lapStart) / 1000).toFixed(1);
-  lapStart = Date.now();
-};
 // 3.35.0: the self-test is a file of its own, loaded on demand
 const res = await page.evaluate(async () => {
   const r = await window.__riftTest.selftest();
@@ -57,107 +59,154 @@ const res = await page.evaluate(async () => {
 lap("selftest");
 const cache = await soundCache(),
   cached = cache.data;
+// 3.37.0: one slice of the sound catalog (every total-th entry, starting at slot), rendered offline in its
+// own page: the offline render is CPU-bound and the pages are independent, so the catalog (about 230 sounds)
+// renders on several pages at once. The tone-frequency monitor runs per page; the results are merged in Node.
+async function renderCatalogSlice([slot, total]) {
+  const engine = window.__riftTest.game.sound.constructor,
+    fail = [],
+    catalog = engine.catalog(),
+    offHz = new Set(),
+    tone = engine.prototype.tone,
+    peaks = {};
+  let current = "",
+    maxPeak = 0,
+    longest = 0,
+    n = 0;
+  // 3.18.2: no tone is asked for outside what can be heard and what the sampling rate carries (a note of the Blackout
+  // City piano had a tine at 24992 Hz: the browser clamped it and warned in the console)
+  engine.prototype.tone = function (freq, dur, wave, vol, opts) {
+    if (!(freq >= 15 && freq <= 20000)) offHz.add(`${current} ${Math.round(freq)} Hz`);
+    return tone.call(this, freq, dur, wave, vol, opts);
+  };
+  for (let i = slot; i < catalog.length; i += total) {
+    const { name, spec } = catalog[i];
+    n++;
+    try {
+      current = name;
+      const r = await engine.renderOffline(spec);
+      peaks[name] = r.peak;
+      maxPeak = Math.max(maxPeak, r.peak);
+      longest = Math.max(longest, r.lastAudible);
+      if (!r.finite) fail.push(name + ": non-finite samples");
+      else if (!(r.peak > 0.001 && r.rms > 1e-5)) fail.push(`${name}: silent (peak ${r.peak})`);
+      if (r.peak >= 0.95) fail.push(`${name}: clipping (peak ${r.peak})`);
+      if (r.maxEnd > 2.05 && !spec.music) fail.push(`${name}: a voice ends after ${r.maxEnd.toFixed(2)} s`);
+      if (r.failed) fail.push(name + ": engine error");
+    } catch (err) {
+      fail.push(`${name}: ${err && err.message}`);
+    }
+  }
+  return { peaks, offHz: [...offHz], fail, maxPeak, longest, n };
+}
 const sound = cached
   ? cached.sound
-  : await page.evaluate(async (FLAME_CV_MAX) => {
-      const engine = window.__riftTest.game.sound.constructor,
-        fail = [],
-        catalog = engine.catalog();
-      // 3.18.2: no tone is asked for outside what can be heard and what the sampling rate carries (a note of the Blackout
-      // City piano had a tine at 24992 Hz: the browser clamped it and warned in the console)
-      const offHz = new Set(),
-        tone = engine.prototype.tone;
-      let current = "";
-      engine.prototype.tone = function (freq, dur, wave, vol, opts) {
-        if (!(freq >= 15 && freq <= 20000)) offHz.add(`${current} ${Math.round(freq)} Hz`);
-        return tone.call(this, freq, dur, wave, vol, opts);
-      };
-      const peaks = {};
+  : await (async () => {
+      const PAGES = Math.max(1, Number(process.env.SOUND_PAGES || 3)),
+        extra = [];
+      for (let i = 1; i < PAGES; i++) {
+        const p = await browser.newPage();
+        await p.goto(process.argv[2] || "http://localhost:8124/index.html");
+        await p.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 60000 });
+        extra.push(p);
+      }
+      console.error(`[deep-test] sound catalog: rendering on ${PAGES} page${PAGES > 1 ? "s" : ""}`);
+      const pages = [page, ...extra],
+        parts = await Promise.all(pages.map((p, i) => p.evaluate(renderCatalogSlice, [i, PAGES])));
+      await Promise.all(extra.map((p) => p.close()));
+      const peaks = {},
+        offHz = new Set(),
+        fail = [];
       let maxPeak = 0,
-        longest = 0;
-      for (const { name, spec } of catalog) {
-        try {
-          current = name;
-          const r = await engine.renderOffline(spec);
-          peaks[name] = r.peak;
-          maxPeak = Math.max(maxPeak, r.peak);
-          longest = Math.max(longest, r.lastAudible);
-          if (!r.finite) fail.push(name + ": non-finite samples");
-          else if (!(r.peak > 0.001 && r.rms > 1e-5)) fail.push(`${name}: silent (peak ${r.peak})`);
-          if (r.peak >= 0.95) fail.push(`${name}: clipping (peak ${r.peak})`);
-          if (r.maxEnd > 2.05 && !spec.music) fail.push(`${name}: a voice ends after ${r.maxEnd.toFixed(2)} s`);
-          if (r.failed) fail.push(name + ": engine error");
-        } catch (err) {
-          fail.push(`${name}: ${err && err.message}`);
-        }
+        longest = 0,
+        count = 0;
+      for (const part of parts) {
+        Object.assign(peaks, part.peaks);
+        for (const f of part.fail) fail.push(f);
+        for (const s of part.offHz) offHz.add(s);
+        maxPeak = Math.max(maxPeak, part.maxPeak);
+        longest = Math.max(longest, part.longest);
+        count += part.n;
       }
+      console.error(`[deep-test] sound catalog: ${Object.keys(peaks).length} sounds rendered`);
       // 2.9.1: a 1.9 s noise burst (longer than the 1 s noise buffer) must still be audible until its envelope
-      // has faded: with the old one-shot buffer it was cut after 0.5-1 s
-      for (const rate of [1, 0.5]) {
-        const r = await engine.renderOffline({
-          noise: { dur: 1.9, vol: 0.2, opts: { type: "lowpass", f: 4000, rate } },
-        });
-        if (!(r.lastAudible > 1.2)) fail.push(`long noise (rate ${rate}) cut off at ${r.lastAudible.toFixed(2)} s`);
-      }
-      // 2.9.2: continuous fire must sound continuous. Ember Jet fires 15 times a second; rendered offline for
-      // 2 s, the loudness in 40 ms windows between 0.5 s and 1.5 s must not pulse (a ticking sound has a high
-      // spread of the window levels relative to their mean; a steady roar a low one)
-      const flame = await engine.renderOffline({ burst: { id: "flame", n: 26, interval: 1 / 15 }, wav: true });
-      const win = 1764,
-        levels = [];
-      for (let t = Math.round(0.5 * 44100); t + win <= Math.round(1.5 * 44100); t += win) {
-        let sum = 0;
-        for (let i = 0; i < win; i++) sum += flame.samples[t + i] ** 2;
-        levels.push(Math.sqrt(sum / win));
-      }
-      const mean = levels.reduce((a, b) => a + b, 0) / levels.length,
-        flameCv = Math.sqrt(levels.reduce((a, b) => a + (b - mean) ** 2, 0) / levels.length) / (mean || 1);
-      if (!(mean > 0.003)) fail.push(`flame fire is silent (mean level ${mean})`);
-      if (!(flameCv < FLAME_CV_MAX))
-        fail.push(`flame fire pulses: loudness spread ${flameCv.toFixed(2)} (max ${FLAME_CV_MAX})`);
-      // 3.13.0: the sounds of the place sit under the fight. At full level the steady layers (they play all the time)
-      // stay under 60 % of a Pulse Blaster shot, every other sound of the place under a Scattergun shot.
-      const BEDS = ["rainDrop", "gutter", "rainMetal", "furnace", "wind", "cricket", "heartbeat"],
-        bedLimit = peaks.pulse * 0.6,
-        farLimit = peaks.scatter,
-        placeKeys = Object.keys(peaks).filter((key) => key.startsWith("place:"));
-      for (const key of placeKeys) {
-        const bed = BEDS.includes(key.slice(6)),
-          limit = bed ? bedLimit : farLimit;
-        if (!(peaks[key] < limit))
-          fail.push(
-            `${key} (peak ${peaks[key].toFixed(3)}) is louder than ${bed ? "60 % of a Pulse shot" : "a Scattergun shot"} (${limit.toFixed(3)})`,
-          );
-      }
-      // 3.17.0: the footsteps (up to six a second) stay under 60 % of a Pulse shot, the landing under a Scattergun shot
-      const stepKeys = Object.keys(peaks).filter((key) => key.startsWith("step:") || key.startsWith("land:"));
-      for (const key of stepKeys) {
-        const limit = key.startsWith("land:") ? farLimit : bedLimit;
-        if (!(peaks[key] < limit))
-          fail.push(`${key} (peak ${peaks[key].toFixed(3)}) is too loud (limit ${limit.toFixed(3)})`);
-      }
-      const loudStep = stepKeys.filter((key) => key.startsWith("step:")).sort((a, b) => peaks[b] - peaks[a])[0];
-      const loudPlace = placeKeys.sort((a, b) => peaks[b] - peaks[a])[0],
-        loudBed = placeKeys.filter((key) => BEDS.includes(key.slice(6))).sort((a, b) => peaks[b] - peaks[a])[0];
-      engine.prototype.tone = tone;
-      if (offHz.size) fail.push(`tones outside 15 Hz to 20 kHz: ${[...offHz].slice(0, 6).join(", ")}`);
-      return {
-        count: catalog.length,
-        maxPeak,
-        longest,
-        flameCv,
-        stepPeak: { loudest: loudStep, peak: peaks[loudStep], limit: bedLimit },
-        placePeak: {
-          loudest: loudPlace,
-          peak: peaks[loudPlace],
-          farLimit,
-          loudestBed: loudBed,
-          bedPeak: peaks[loudBed],
-          bedLimit,
+      // has faded: with the old one-shot buffer it was cut after 0.5-1 s. 2.9.2: continuous fire must sound
+      // continuous (the Ember Jet at 15 shots a second, rendered for 2 s, must not pulse). The levels of the
+      // place sounds and the footsteps (3.13.0, 3.17.0) read the merged peaks.
+      return await page.evaluate(
+        async ({ peaks, offHz, fail, maxPeak, longest, count, FLAME_CV_MAX }) => {
+          const engine = window.__riftTest.game.sound.constructor,
+            tone = engine.prototype.tone;
+          let current = "";
+          engine.prototype.tone = function (freq, dur, wave, vol, opts) {
+            if (!(freq >= 15 && freq <= 20000)) offHz.add(`${current} ${Math.round(freq)} Hz`);
+            return tone.call(this, freq, dur, wave, vol, opts);
+          };
+          for (const rate of [1, 0.5]) {
+            const r = await engine.renderOffline({
+              noise: { dur: 1.9, vol: 0.2, opts: { type: "lowpass", f: 4000, rate } },
+            });
+            if (!(r.lastAudible > 1.2)) fail.push(`long noise (rate ${rate}) cut off at ${r.lastAudible.toFixed(2)} s`);
+          }
+          const flame = await engine.renderOffline({ burst: { id: "flame", n: 26, interval: 1 / 15 }, wav: true });
+          const win = 1764,
+            levels = [];
+          for (let t = Math.round(0.5 * 44100); t + win <= Math.round(1.5 * 44100); t += win) {
+            let sum = 0;
+            for (let i = 0; i < win; i++) sum += flame.samples[t + i] ** 2;
+            levels.push(Math.sqrt(sum / win));
+          }
+          const mean = levels.reduce((a, b) => a + b, 0) / levels.length,
+            flameCv = Math.sqrt(levels.reduce((a, b) => a + (b - mean) ** 2, 0) / levels.length) / (mean || 1);
+          if (!(mean > 0.003)) fail.push(`flame fire is silent (mean level ${mean})`);
+          if (!(flameCv < FLAME_CV_MAX))
+            fail.push(`flame fire pulses: loudness spread ${flameCv.toFixed(2)} (max ${FLAME_CV_MAX})`);
+          // 3.13.0: the sounds of the place sit under the fight. At full level the steady layers (they play all the time)
+          // stay under 60 % of a Pulse Blaster shot, every other sound of the place under a Scattergun shot.
+          const BEDS = ["rainDrop", "gutter", "rainMetal", "furnace", "wind", "cricket", "heartbeat"],
+            bedLimit = peaks.pulse * 0.6,
+            farLimit = peaks.scatter,
+            placeKeys = Object.keys(peaks).filter((key) => key.startsWith("place:"));
+          for (const key of placeKeys) {
+            const bed = BEDS.includes(key.slice(6)),
+              limit = bed ? bedLimit : farLimit;
+            if (!(peaks[key] < limit))
+              fail.push(
+                `${key} (peak ${peaks[key].toFixed(3)}) is louder than ${bed ? "60 % of a Pulse shot" : "a Scattergun shot"} (${limit.toFixed(3)})`,
+              );
+          }
+          // 3.17.0: the footsteps (up to six a second) stay under 60 % of a Pulse shot, the landing under a Scattergun shot
+          const stepKeys = Object.keys(peaks).filter((key) => key.startsWith("step:") || key.startsWith("land:"));
+          for (const key of stepKeys) {
+            const limit = key.startsWith("land:") ? farLimit : bedLimit;
+            if (!(peaks[key] < limit))
+              fail.push(`${key} (peak ${peaks[key].toFixed(3)}) is too loud (limit ${limit.toFixed(3)})`);
+          }
+          const loudStep = stepKeys.filter((key) => key.startsWith("step:")).sort((a, b) => peaks[b] - peaks[a])[0];
+          const loudPlace = placeKeys.sort((a, b) => peaks[b] - peaks[a])[0],
+            loudBed = placeKeys.filter((key) => BEDS.includes(key.slice(6))).sort((a, b) => peaks[b] - peaks[a])[0];
+          engine.prototype.tone = tone;
+          if (offHz.length) fail.push(`tones outside 15 Hz to 20 kHz: ${offHz.slice(0, 6).join(", ")}`);
+          return {
+            count,
+            maxPeak,
+            longest,
+            flameCv,
+            stepPeak: { loudest: loudStep, peak: peaks[loudStep], limit: bedLimit },
+            placePeak: {
+              loudest: loudPlace,
+              peak: peaks[loudPlace],
+              farLimit,
+              loudestBed: loudBed,
+              bedPeak: peaks[loudBed],
+              bedLimit,
+            },
+            fail,
+          };
         },
-        fail,
-      };
-    }, 0.3);
+        { peaks, offHz: [...offHz], fail, maxPeak, longest, count, FLAME_CV_MAX: 0.3 },
+      );
+    })();
 res.soundRender = sound;
 // 2.9.0: the sounds must differ from each other. Every weapon shot (strict), every death family and every boss
 // intro (softer) is rendered and described by four numbers (spectral centroid, duration, zero-crossing rate,
