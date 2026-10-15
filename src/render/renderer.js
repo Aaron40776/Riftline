@@ -50,7 +50,15 @@ import { ui } from "../main.js";
 import { smoothstep, clamp, TAU, easeOutBack, dampFactor, angleDiff } from "../core/util.js";
 import { biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
-import { RL_BIOME_LOOK, RL_BIOME_TINT, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles } from "./biome-visuals.js";
+import {
+  RL_BIOME_LOOK,
+  RL_BIOME_TINT,
+  RL_SKIN,
+  ArenaView,
+  rlAmbient,
+  rlSkinMaterial,
+  rlSkinParticles,
+} from "./biome-visuals.js";
 import { TrapView } from "./traps-view.js";
 import { BossCardView } from "./boss-cards-view.js";
 import { STEP_LEN, DASH_TIME } from "../core/walk.js";
