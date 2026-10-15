@@ -1,3 +1,37 @@
+RIFTLINE v3.40.0 – A FAIRER FIGHT
+Base: v3.39.0 · Build r3400a1015c-r1 · 15.10.2026
+
+Der Balance-Teil des Checkup-Plans vom 15.10.2026 (vom Owner freigegeben, inkl. seiner Entscheidung zur
+Burst-Cap-Frage: DoT zieht dasselbe Budget wie ein Treffer). Alles Zahlarbeit an einer Stelle je Karte,
+keine Mechanik-Neubauten; die strukturellen Punkte (Mender/Repair Beacon, volatile) folgen in einem
+eigenen Pass. Saves bleiben kompatibel, Determinismus-Fixture bewusst erneuert (Balance = Verhaltensaenderung).
+
+1) Burst-Cap (src/core/world.js, statusTick)
+   - Der Burn-DoT zog ueber statusTick direkt von den HP ab und umging burstCap komplett (der Fund aus
+     dem Checkup): cappte Elites liessen sich mit Brand allein schmelzen. Jetzt zieht ein Burn-Tick
+     dasselbe Budget wie ein Treffer (burstCap vor capPhase, wie in hurtEnemy); Bosse bleiben exempt.
+2) Dominierte Karten (src/data/upgrades.js, src/core/stats.js, src/core/world.js)
+   - Siphon: Chance 12->14 % je Stufe und die Heilung waechst mit (4+2 je Stufe, bis 10 HP; stats.siphonHp).
+   - Echo Chamber: 8 -> 10 % je Stufe (Deckel 0.3 wie gehabt).
+   - Overload: jeder 4. Schuss statt jeder 5. (die Zahl bleibt 45+15 je Stufe, waechst weiter mit dmgMul).
+   - Salvager Core: Wellen-Caches zahlen 3 Brocken je Stufe statt 2 (das Wellenende-Cache zahlte schon 3).
+3) Arc Caster (src/data/weapons.js)
+   - 13 Schaden bei 5.5/s (war 11.5 bei 5): die Einzelfahr-DPS erreicht den gratis Pulse Blaster, die
+     Kette (2 Spruenge, 0.7 Falloff) ist wieder der Bonus, nicht die Notration.
+4) Pacts (src/data/pacts.js)
+   - Iron Hide 0.20 -> 0.15 (der leicht zu ignorierende Pakt zahlt jetzt am wenigsten), Heavy Drive
+     0.15 -> 0.20 (echte Mobilitaetskosten zahlen wie die ehrlichen Pakte). Glas/Schwarm/Jagd bleiben.
+5) Fallen (src/core/traps.js)
+   - Ab Welle 20 waechst der Fallen-Schaden um 1 % seiner Basis je Welle (zu dmgMul): die Gegner-HP-Kurve
+     ist quadratisch, die Fallen-Bedingung war linear und verklang in Endless. Der Gegner-Anteil bleibt
+     hull-relativ und braucht das nicht.
+6) Was ist neu (src/data/whatsnew.js)
+   - 3.40.0-Eintrag oben; die Liste bleibt bei fuenf Versionen (3.36.0 faellt raus).
+7) Tests und Ergebnisse (headless Chromium, software WebGL, lokal)
+   - build ok (1193 KB), sim-node 15/15 (der Overload-Check primt jetzt Schuss 3 statt 4), save-node ok,
+     data-audit ok, determinism: Golden mit --update erneuert (15/15 Faelle, danach Identitaetslauf ok).
+   - Deep-test/full-qa laufen in CI (Push-Workflow) wie bei 3.38/3.39.
+
 RIFTLINE v3.39.0 – A TIDIER END SCREEN AND CODEX
 Base: v3.38.0 · Build r3390a1015c-r1 · 15.10.2026
 

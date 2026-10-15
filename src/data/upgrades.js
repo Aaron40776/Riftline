@@ -127,7 +127,7 @@ const upgradeList = [
     rarity: 3,
     max: 4,
     icon: "heart",
-    desc: (level) => `Kills have a ${12 + 6 * level}% chance to repair 4 HP`,
+    desc: (level) => `Kills have a ${14 + 6 * level}% chance to repair ${4 + 2 * level} HP`,
   },
   {
     id: "rearguard",
@@ -367,7 +367,7 @@ upgradeList.push(
     max: 3,
     icon: "burst",
     desc: (level, count = level + 1) =>
-      `Every 5th shot releases a close-range burst (${45 + 15 * count} damage, grows with your damage)`,
+      `Every 4th shot releases a close-range burst (${45 + 15 * count} damage, grows with your damage)`,
   },
   {
     id: "resonance",
@@ -391,7 +391,7 @@ upgradeList.push(
     rarity: 3,
     max: 2,
     icon: "rate",
-    desc: (level, count = level + 1) => `${8 * count}% chance for a shot to repeat`,
+    desc: (level, count = level + 1) => `${10 * count}% chance for a shot to repeat`,
   },
 );
 upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));

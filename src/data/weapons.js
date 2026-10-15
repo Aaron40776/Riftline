@@ -44,8 +44,10 @@ const weaponDefs = {
     cost: 300,
     color: 11635967,
     blurb: "Bolts that jump to two more enemies.",
-    dmg: 11.5,
-    rate: 5,
+    // 3.40.0: 13 dmg at 5.5/s (was 11.5 at 5) - the weakest weapon sat under the free Pulse even
+    // before the chains; now the single-target DPS reaches Pulse and the chains are the bonus
+    dmg: 13,
+    rate: 5.5,
     speed: 34,
     life: 0.4,
     count: 1,

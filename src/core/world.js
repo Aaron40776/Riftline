@@ -439,7 +439,8 @@ const rlStep = 1 / 60,
             const spot = this.arena.freePoint(cacheRng, player.x, player.y, 6.2, 0.35);
             if (!spot) continue;
             const kind = cacheRng.chance(0.18) ? "heal" : "shard",
-              value = kind === "heal" ? 20 : rlCacheShards(this, 5 + 2 * (this.stats.cacheBonus || 0));
+              // 3.40.0: Salvager Core pays 3 shards a level (was 2, the same as the wave-end cache below)
+              value = kind === "heal" ? 20 : rlCacheShards(this, 5 + 3 * (this.stats.cacheBonus || 0));
             const pickup = this.mkPickup(kind, spot.x, spot.y, value);
             pickup.vx = 0;
             pickup.vy = 0;
@@ -1417,7 +1418,8 @@ const rlStep = 1 / 60,
         volley(angle);
         if (this.state !== "fight" || !this.player.alive) return;
         const shot = this.player.shotN || 0;
-        if (stats.overload > 0 && shot > 0 && shot % 5 === 0)
+        // 3.40.0: every 4th shot (was the 5th) - the burst was too rare to feel next to the evos
+        if (stats.overload > 0 && shot > 0 && shot % 4 === 0)
           this.explode(
             this.player.x + Math.cos(angle) * 0.9,
             this.player.y + Math.sin(angle) * 0.9,
@@ -1426,7 +1428,7 @@ const rlStep = 1 / 60,
             (45 + 15 * stats.overload) * stats.dmgMul,
             { enemies: true, knock: 2, kind: "overload" },
           );
-        if (stats.echo > 0 && this.rng.chance(Math.min(0.28, 0.08 * stats.echo))) {
+        if (stats.echo > 0 && this.rng.chance(Math.min(0.3, 0.1 * stats.echo))) {
           volley(angle + this.rng.range(-0.035, 0.035), true);
         }
       } finally {
@@ -1915,6 +1917,9 @@ const rlStep = 1 / 60,
             this.emit("shieldPop", { x: enemy.x, y: enemy.y, r: enemy.r });
           }
         }
+        // 3.40.0: a burn draws from the same burst budget as a hit (core/difficulty.js) - it used to
+        // bypass the cap entirely and melted capped elites on its own. Bosses stay exempt, like a hit.
+        if (!enemy.boss) dmg = this.burstCap(enemy, dmg);
         dmg = this.capPhase(enemy, dmg);
         enemy.burnAcc += dmg;
         enemy.burnShow += dt;
@@ -2143,8 +2148,9 @@ const rlStep = 1 / 60,
         let stats = this.stats,
           player = this.player;
         if (stats.siphonCh && this.rng.chance(stats.siphonCh)) {
-          player.hp = Math.min(stats.maxHp, player.hp + 4);
-          this.emit("heal", { x: player.x, y: player.y, v: 4 });
+          const heal = stats.siphonHp || 4; // 3.40.0: the repair grows with the level (was a flat 4)
+          player.hp = Math.min(stats.maxHp, player.hp + heal);
+          this.emit("heal", { x: player.x, y: player.y, v: heal });
         }
         if (stats.bloodrush) {
           player.rushN = Math.min(10, player.rushN + 1);

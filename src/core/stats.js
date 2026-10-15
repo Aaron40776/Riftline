@@ -54,7 +54,8 @@ function computeStats(weaponId, run, workshop) {
     chainF: has("tempest") ? 0.8 : 0.7,
     homing: (weapon.homing || 0) + 2.2 * level("seeker") + (has("twinsaw") ? 2.5 : 0),
     thermite: scaled("thermite", 0.3, 0.15),
-    siphonCh: scaled("siphon", 0.12, 0.06),
+    siphonCh: scaled("siphon", 0.14, 0.06), // 3.40.0: 14 % a level (was 12), the heal now grows too
+    siphonHp: scaled("siphon", 4, 2),
     rear: level("rearguard"),
     novaMul: 1 + 0.3 * level("overcharge"),
     novaR: 6.5 * (1 + 0.25 * level("overcharge")),
