@@ -1736,13 +1736,15 @@ const musicChords = {
           }
           break;
         case "dZap":
-          // short circuit: a falling saw, two square ticks and a spark (3.42.0: everything an octave
-          // lower and low-passed harder, so machines die with a growl, not a whistle)
+          // short circuit: the power sags away, two soft ticks and a dying hum (3.42.0: everything an octave
+          // lower and low-passed harder, so machines die with a growl, not a whistle; the hum keeps the family
+          // far from the metal clang next door)
           if (this.gate(id, 0.035)) {
-            this.tone(1500 * pitch, 0.12, "sawtooth", 0.04 * size, { to: 120, lp: 3000 });
-            this.tone(560, 0.025, "square", 0.028, { lp: 2400, at: 0.05 });
-            this.tone(760, 0.025, "square", 0.022, { lp: 2400, at: 0.08 });
-            this.noise(0.06, 0.07, { type: "bandpass", f: 3200, q: 3 });
+            this.tone(1200 * pitch, 0.2, "sawtooth", 0.05 * size, { to: 70, lp: 1100 });
+            this.tone(64, 0.24, "sine", 0.09, { to: 38 });
+            this.tone(430, 0.025, "square", 0.024, { lp: 1400, at: 0.05 });
+            this.tone(560, 0.025, "square", 0.02, { lp: 1400, at: 0.09 });
+            this.noise(0.05, 0.04, { type: "bandpass", f: 1800, q: 3 });
           }
           break;
         case "dGhost":
