@@ -1036,6 +1036,14 @@ const getById = (id) => document.getElementById(id),
       update("low", player.alive && hpFrac < 0.25, (low) => {
         getById("vignette").classList.toggle("low", low);
       });
+      // 3.41.0: the Whiteout draws its white edge over the view (CSS fades it with the fog ramp)
+      update(
+        "whiteout",
+        !!(world.arena && world.event === "whiteout" && world.state === "fight" && world.arena.biome?.id === "vault"),
+        (on) => {
+          getById("vignette").classList.toggle("whiteout", on);
+        },
+      );
       update("shards", world.shards, (shards) => {
         getById("runShards").textContent = formatCount(shards);
         let chip = getById("shardChip");

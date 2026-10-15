@@ -1,3 +1,32 @@
+RIFTLINE v3.41.0 – THE STORMS ARRIVE
+Base: v3.40.0 · Build r3410a1015c-r1 · 15.10.2026
+
+Derlook-Teil der Screenshot-Runden mit dem Owner (11 Fotos vom 15.10.2026): Whiteout liest sich nicht,
+Blackout liest sich nicht, die Konfetti-Brocken beim Kill stossen auf dem otherwise guten Grund. Der
+Owner schickte dazu seinen Stil-Kompass (Viridi, Penguin's Isle, Alto-Himmel, Creaks): ruhig, gezeichnet,
+dicht im Detail. Kein GPU-Postprocessing (die Ultra-Lektion), alles Materials/Shader/DOM-Arbeit.
+
+1) Blackout-Fix (src/render/biome-visuals.js) – der Bugfund aus den Screenshots
+   - uDark wurde jede Welle gesetzt (renderer.js), aber der Boden-Shader las es nie: die Strasse dunkelte
+     nicht, nur die Szenenlichter (die dieser Shader ignoriert). Jetzt multipliziert der Shader die
+     gemalte Strasse mit (1 - uDark), BEVOR die sechs dynamischen Lichter dazukommen: Explosionen,
+     Manhole-Boegen und Muendungsfeuer beleuchten die dunkle Strasse weiter, die Pfuetzen spiegeln sie.
+2) Whiteout (src/render/renderer.js, src/ui/ui.js, src/index.html)
+   - Der Nebel geht hell/weiss (0xe6f0f6 statt 0x55707c, das dunkler als die blasse Szene lag und so
+     unsichtbar war) und schliesst das Sichtfenster auf [0.7, 1.12] x Kameradistanz: der Arenarand loest
+     sich im Sturm auf, das Kampfgebiet behaelt ein Sichtfach.
+   - Der Schnee: 110 Flocken/s bei 0.34-0.48 Einheiten (war 70/s bei 0.16-0.24, subpixelig am Handy).
+   - Ein weisser Vignette-Rand (DOM, ::after mit 1.1s Fade passend zur Nebelrampe) steht als Schneewand
+     am Bildrand; die UI schaltet ihn mit dem Event (vault + fight + whiteout, wie der Renderer).
+3) Ruhigere Bruchstuecke (src/render/biome-visuals.js RL_BIOME_TINT, renderer.js debrisBurst)
+   - Kill-Brocken mischen zur Biome-Farbe (50 %): kein Konfetti mehr, die eigene Farbe bleibt als Hauch
+     fuers Wiedererkennen. Nur debrisBurst; Funken/Flogelei der Partikel bleibt unberuehrt.
+4) Tests und Ergebnisse (headless Chromium, software WebGL, lokal)
+   - build ok, sim-node/save-node ok (nur Renderpfade geaendert, keine Sim-Zahlen), data-audit ok,
+     determinism unveraendert gegen die 3.40.0-Fixture (15/15 identisch).
+   - Die Stuerme sindWellen-Ereignisse; der Owner beurteilt sie auf dem Handy (3.38-Lektion), die
+     look-shots/Biome-Screens laufen in CI als Rauchtest.
+
 RIFTLINE v3.40.0 – A FAIRER FIGHT
 Base: v3.39.0 · Build r3400a1015c-r1 · 15.10.2026
 

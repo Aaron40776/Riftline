@@ -215,6 +215,16 @@ const RL_BIOME_LOOK = {
     fog: [1.7, 4.4],
   },
 };
+// 3.41.0: the tone the flying debris of a kill calms into. The style guide of the owner (Viridi, Penguin's
+// Isle, Creaks: quiet, drawn colours) - a kill used to spray the enemy's pure card colour, which read as
+// confetti against the muted floors. The pieces keep a hint of their own colour for telling things apart.
+const RL_BIOME_TINT = {
+  yard: new Color(0x8a93a6),
+  works: new Color(0x9a8f86),
+  vault: new Color(0xcfdde8),
+  marsh: new Color(0x8fa88a),
+  void: new Color(0x9a92b8),
+};
 const RL_FLOOR_FRAG = `
 #include <common>
 #include <fog_pars_fragment>
@@ -348,6 +358,10 @@ void main() {
   }
   col += uAccent * edgeGlow * 0.28 * inside;
   col += uGrid * uPulse * 0.12 * inside;
+  // 3.41.0: the Blackout dims the painted street itself (the uniform was set every frame but the shader
+  // never read it - the event only dimmed the scene lights, which this shader ignores). The six dynamic
+  // lights of the loop below stay at full power: blasts, arcs and muzzle flashes light the dark street.
+  col *= 1.0 - uDark;
   for (int i = 0; i < 6; i++) {
     if (uL[i].w <= 0.0) continue;
     vec2 d2 = p - uL[i].xy;
@@ -1448,4 +1462,4 @@ function rlSkinParticles(renderer, dt, world) {
   }
 }
 
-export { RL_BIOME_LOOK, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles };
+export { RL_BIOME_LOOK, RL_BIOME_TINT, RL_SKIN, ArenaView, rlAmbient, rlSkinMaterial, rlSkinParticles };
