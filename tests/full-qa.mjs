@@ -304,13 +304,13 @@ await section("files", async (L) => {
   }));
   const infoText = await (await P.page.request.get(BASE + "build-info.json")).text(),
     info = JSON.parse(infoText);
-  // 3.17.1: the game fetches build-info.json at every start: it is the small identity file, the history is changes.json
-  const hist = await (await P.page.request.get(BASE + "changes.json")).json();
+  // 3.17.1: the game fetches build-info.json at every start: it is the small identity file. 3.37.0: the changelog
+  // is no longer shipped as changes.json (nothing ever fetched it); the release notes live in src/build-info.json.
   check(
     L,
-    "build-info.json is small (no changelog), the history is in changes.json",
-    infoText.length < 2000 && !("changes" in info) && hist.version === info.version && hist.changes.length > 50,
-    `${infoText.length} bytes, ${hist.changes.length} changes`,
+    "build-info.json is small (no changelog)",
+    infoText.length < 2000 && !("changes" in info) && !("features" in info),
+    `${infoText.length} bytes`,
   );
   check(
     L,

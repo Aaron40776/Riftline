@@ -1,3 +1,45 @@
+RIFTLINE v3.37.0 – FASTER BEHIND THE SCENES
+Base: v3.36.0 · Build r3370a1015a-r1 · 15.10.2026
+
+The checkup of 14./15.10.2026 (full review of every system for the owner) found the player build carrying test
+machinery and dead code, and the deep test silent and slow on a cold cache. Nothing in this release changes the
+fight, the look or the sound; the determinism fixture is unchanged.
+
+1) The run monitor is test-only (src/core/diagnostics.js, src/main.js)
+   - diagnostics.js no longer registers its monitor hooks at module load; main.js calls rlMonEnable() where the
+     test bridge (window.__riftTest) is created. A player's run keeps logError, the crash report and RL_RT, and
+     its steps carry none of the per-step sampling, spawn-plan/event checks or the post-run audit.
+   - The startup health checks (they fetch build-info.json; offline a player got a WARN that tells them nothing)
+     run only in a test session (main.js). The post-run health call sits inside rlMonFinish, which is idle now.
+2) Dead code removed
+   - world.js: the dmgBy branch in hurtPlayer (never initialized; superseded by takenBy/logHit).
+   - main.js: the never-assigned fast-forward hook game.speed (the accumulator multiplies by slow only).
+   - diagnostics.js: getErrorLog, onLogChange, clearErrorLog and the logListeners set (last consumer was the
+     Diagnostics dialog, removed in 3.35.0).
+   - build.js no longer writes dist/changes.json (nothing ever fetched it); full-QA "files" checks the small
+     build-info.json alone. dist is about 14 KB lighter.
+3) Faster tests (tests/deep-test.mjs, .github/workflows)
+   - The deep test logs every part to stderr as it finishes ("[deep-test] selftest: 41.3 s" ...); it used to be
+     silent until the very end, so a slow or stuck run could not be located. res.timing still carries the parts.
+   - The sound catalog (about 230 sounds) renders on SOUND_PAGES game pages in parallel (default 3; the offline
+     render is CPU-bound and the pages are independent). SOUND_PAGES=1 gives the old single-page render. The
+     tone-frequency monitor runs per page; peaks, failures and off-Hz findings are merged in Node, and the
+     flame/long-noise/level checks run on the first page as before.
+   - CI (test.yml, pages.yml) restores node_modules/.cache/riftline from actions/cache (pinned to a commit, like
+     every action here), keyed by the sound engine, the data it reads, the deep test and the lockfile. npm ci
+     wipes the folder, so before this the offline sound render ran on every push; now only when its inputs
+     changed (a stale entry is harmless — the deep test re-renders when its own hash does not match).
+4) Tests and results (headless Chromium, software WebGL; 2 cores in this environment)
+   - sim-node, save-node, build, data-audit, determinism: ok; determinism fixture unchanged (no gameplay change).
+   - deep test: ok on a cold cache with SOUND_PAGES=3 and with SOUND_PAGES=1 (verified on 24- and 60-sound
+     subsets, this environment renders the full catalog too slowly to repeat twice): the same sounds, the same
+     empty failure and off-Hz lists, and peaks within the engine's unseeded noise floor — a parallel arrangement
+     differs from a single-page render by exactly as much as two single-page cold renders differ from each other
+     (measured 0.071 vs 0.075 peak delta on 60 sounds; renderOffline leaves Math.random unseeded for the catalog,
+     so every cold render jitters and the checks' tolerances exist for exactly that).
+   - full QA files/offline: ok (the changed changes.json check included); the owner re-checks the feel on a real
+     device as usual (nothing was meant to change there).
+
 RIFTLINE v3.36.0 – A DEEPER CRYO VAULT
 Base: v3.35.0 · Build r3360a1013a-r1 · 13.10.2026
 

@@ -1631,9 +1631,6 @@ const rlStep = 1 / 60,
         this.runStats.dmgTaken += Math.min(dmg, hpBefore);
         this.lastHit = src || null;
         this.logHit(src, dmg, chip);
-        if (this.dmgBy) {
-          this.dmgBy[src || "?"] = (this.dmgBy[src || "?"] || 0) + dmg;
-        }
         if (!chip) {
           player.iT = 0.65;
           player.hurtT = 0.3;
