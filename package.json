@@ -1,9 +1,9 @@
 {
   "name": "riftline",
-  "version": "3.42.0",
+  "version": "3.43.0",
   "private": true,
   "type": "module",
-  "description": "Riftline \u2013 a 3D arena roguelite shooter for the browser (three.js, WebAudio), playable on desktop and on phones and tablets in landscape.",
+  "description": "Riftline – a 3D arena roguelite shooter for the browser (three.js, WebAudio), playable on desktop and on phones and tablets in landscape.",
   "homepage": "https://aaron40776.github.io/Riftline/",
   "repository": {
     "type": "git",

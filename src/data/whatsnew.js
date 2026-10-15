@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.43.0",
+    title: "The living quiet",
+    items: [
+      "Every place breathes now: the city hums, the furnaces rumble, the vault wind wanders - also on the home and upgrade screens.",
+      "The storms arrive like weather: a Whiteout gathers and passes instead of snapping on and off.",
+      "The room reacts: blasts press the ambience down for a moment, and a boss dips the world while it walks.",
+      "Endless wakes up slowly: past wave 20 the far sounds of a biome come a little more often.",
+    ],
+  },
+  {
     version: "3.42.0",
     title: "A deeper voice",
     items: [
@@ -45,7 +55,6 @@ export const WHATS_NEW = [
       "The What's new tab keeps the last few releases instead of the whole history.",
     ],
   },
-  ,
   {
     version: "3.38.0",
     title: "A richer look",
@@ -55,5 +64,4 @@ export const WHATS_NEW = [
       "The brightness of each biome stays as it was; the colours carry more depth.",
     ],
   },
-  ,
 ];

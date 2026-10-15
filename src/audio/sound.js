@@ -227,6 +227,13 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     [0, 0.7, 0.12],
   ],
   AMBIENCE_LEVEL = { blackout: 0.07, meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
+  /* 3.43.0: the room tone of each biome - the steady bed under everything, wherever the game is (home,
+     upgrade, pause, fight). The events pile onto it: the whiteout storm rises out of the vault's calm wind. */
+  ROOM_TONE_LEVEL = { yard: 0.03, works: 0.032, vault: 0.028, marsh: 0.03, void: 0.026 },
+  /* 3.43.0: the event beds gather and pass instead of snapping on and off - a storm builds over about
+     three seconds and dies away over about four, while the room tone stays underneath. */
+  BED_ATTACK = { blackout: 0.6, meltdown: 1.0, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2 },
+  BED_RELEASE = { blackout: 0.5, meltdown: 0.9, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1 },
   // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
   AMB_REF = 0.8,
   MAX_VOICES = 24,
@@ -717,7 +724,10 @@ const musicChords = {
       this.sfx.connect(this.comp);
       this.ambBus = ctx.createGain();
       this.ambBus.gain.value = this.ambVol;
-      this.ambBus.connect(this.comp);
+      // 3.43.0: the room gives way to the big hits a little deeper than the music does (duck)
+      this.ambDuck = ctx.createGain();
+      this.ambBus.connect(this.ambDuck);
+      this.ambDuck.connect(this.comp);
       // 3.2.0: mus is the input of the music at unity; its volume is musLevel at the end of the music chain, so that
       // the glue compressor works the same at every volume setting
       this.mus = ctx.createGain();
@@ -1171,6 +1181,14 @@ const musicChords = {
         gain.gain.setTargetAtTime(1 - Math.min(0.15, depth), now, 0.012);
         gain.gain.setTargetAtTime(1, now + 0.08, 0.07);
       } catch {}
+      // 3.43.0: the room is pressed down a little deeper than the music, so a blast feels like it takes
+      // the air of the place with it
+      if (this.ambDuck) {
+        let room = this.ambDuck.gain;
+        room.cancelScheduledValues(now);
+        room.setTargetAtTime(1 - Math.min(0.4, depth * 2.4), now, 0.014);
+        room.setTargetAtTime(1, now + 0.1, 0.3);
+      }
     }
     _play(id, arg) {
       let pitch = 1 + (Math.random() - 0.5) * 0.08;
@@ -3263,7 +3281,8 @@ const musicChords = {
         parts = {},
         level = name === "hum" ? 0.02 : AMBIENCE_LEVEL[name] || 0.03;
       gain.gain.setValueAtTime(1e-4, now);
-      gain.gain.setTargetAtTime(level, now, 0.35);
+      // 3.43.0: an event bed gathers (the whiteout storm builds over about three seconds), it does not snap on
+      gain.gain.setTargetAtTime(level, now, BED_ATTACK[name] || 0.35);
       // the drone's hum is an effect; the beds of the biome events are the place (3.9.0: ambience bus)
       gain.connect(name === "hum" ? this.sfx : this.ambBus);
       let osc = (type, freq) => {
@@ -3419,15 +3438,17 @@ const musicChords = {
         this.voices.push({ node: node, amp: gain, pri: 3, start: now, end: 1e9, loop: true, bed: bed });
       }
     }
-    stopBed(name, at = 0) {
+    stopBed(name, at = 0, rel) {
       let bed = this.beds[name];
       if (!bed) return;
       let ctx = this.ctx,
         now = ctx.currentTime + at,
-        end = now + 0.4;
+        // 3.43.0: the bed passes instead of cutting (the storm dies away over about four seconds)
+        fade = rel != null ? rel : BED_RELEASE[name] || 0.08,
+        end = now + Math.max(0.4, fade * 3);
       try {
         bed.gain.gain.cancelScheduledValues(now);
-        bed.gain.gain.setTargetAtTime(0, now, 0.08);
+        bed.gain.gain.setTargetAtTime(0, now, fade);
         for (let node of bed.nodes) node.stop(end);
       } catch {}
       for (let voice of this.voices)
@@ -3505,6 +3526,163 @@ const musicChords = {
         bed.out.gain.setTargetAtTime(0, now, fade / 4);
         for (let node of bed.nodes) node.stop(now + fade + 0.1);
       } catch {}
+    }
+    /* 3.43.0: the room tone - the quiet, steady bed of a biome. It plays wherever the game is (home,
+       upgrade, pause, fight): the world is never dead silence. It sits on the ambience bus under the
+       place and the music and takes no voice of the budget (like the atmospheres of the music). */
+    startTone(name) {
+      let ctx = this.ctx;
+      if (!ctx || this.toneBed) return;
+      let now = ctx.currentTime,
+        gain = ctx.createGain(),
+        nodes = [],
+        level = ROOM_TONE_LEVEL[name] || 0.028;
+      // the room arrives slowly (a new biome breathes in, it does not switch on)
+      gain.gain.setValueAtTime(1e-4, now);
+      gain.gain.setTargetAtTime(level, now, 1.2);
+      gain.connect(this.ambBus);
+      let osc = (type, freq) => {
+          let node = ctx.createOscillator();
+          node.type = type;
+          node.frequency.value = freq;
+          node.start(now);
+          nodes.push(node);
+          return node;
+        },
+        loop = (rate, color) => {
+          let node = this.noiseLoop(rate, color, now);
+          nodes.push(node);
+          return node;
+        },
+        filter = (type, freq, q, from) => {
+          let node = ctx.createBiquadFilter();
+          node.type = type;
+          node.frequency.value = freq;
+          node.Q.value = q;
+          from.connect(node);
+          return node;
+        },
+        amp = (from, vol) => {
+          let node = ctx.createGain();
+          node.gain.value = vol;
+          from.connect(node);
+          node.connect(gain);
+          return node;
+        },
+        // a slow wander of a filter or a level: the room never stands still, but it never moves fast
+        drift = (param, freq, depth) => {
+          let lfo = osc("sine", freq),
+            depthGain = ctx.createGain();
+          depthGain.gain.value = depth;
+          lfo.connect(depthGain);
+          depthGain.connect(param);
+        };
+      switch (name) {
+        case "yard": {
+          // Blackout City: the wash of far traffic under a rain that never quite reaches, a transformer hum
+          let wash = filter("lowpass", 240, 0.6, loop(0.5, "brown")),
+            washAmp = amp(wash, 0.6);
+          drift(washAmp.gain, 0.05, 0.22);
+          drift(wash.frequency, 0.031, 60);
+          let hum = filter("lowpass", 300, 1.1, osc("sawtooth", 50));
+          amp(hum, 0.11);
+          break;
+        }
+        case "works": {
+          // Ember Works: the furnace two halls away, hot air ticking through the pipes
+          let furnace = filter("lowpass", 150, 0.7, loop(0.55, "brown")),
+            furnaceAmp = amp(furnace, 0.7);
+          drift(furnaceAmp.gain, 0.07, 0.25);
+          let air = filter("bandpass", 900, 0.8, loop(1.1, "pink"));
+          amp(air, 0.1);
+          drift(air.frequency, 0.043, 200);
+          break;
+        }
+        case "vault": {
+          // Cryo Vault: a thin high wind that wanders (the calm cousin of the whiteout storm) and the
+          // faint glassy sheen of the ice
+          let wind = filter("bandpass", 520, 0.7, loop(1, "pink"));
+          amp(wind, 0.6);
+          drift(wind.frequency, 0.09, 180);
+          let sheen = filter("bandpass", 1900, 6, loop(1.4, "pink")),
+            sheenAmp = amp(sheen, 0.16);
+          drift(sheenAmp.gain, 0.045, 0.12);
+          let ring = osc("sine", 1320),
+            ringAmp = amp(ring, 0.03);
+          drift(ringAmp.gain, 0.037, 0.02);
+          break;
+        }
+        case "marsh": {
+          // Toxin Marsh: a heavy drone over water that laps against the mud
+          let drone = filter("lowpass", 190, 0.8, loop(0.5, "brown"));
+          amp(drone, 0.55);
+          let deep = osc("sine", 55);
+          amp(deep, 0.1);
+          let lap = filter("bandpass", 300, 2, loop(0.8, "brown")),
+            lapAmp = amp(lap, 0.3);
+          drift(lapAmp.gain, 0.12, 0.16);
+          drift(lap.frequency, 0.07, 90);
+          break;
+        }
+        case "void": {
+          // Void Core: a slow sub throb and a shimmering sheen far above it
+          let throb = amp(osc("sine", 44), 0.5),
+            fifth = amp(osc("sine", 66), 0.18);
+          drift(throb.gain, 0.1, 0.2);
+          drift(fifth.gain, 0.1, 0.08);
+          let shimmer = filter("bandpass", 2400, 6, loop(1.3, "pink")),
+            shimmerAmp = amp(shimmer, 0.08);
+          drift(shimmerAmp.gain, 0.06, 0.06);
+          drift(shimmer.frequency, 0.05, 600);
+          break;
+        }
+      }
+      console.log(
+        "[toneDBG] startTone",
+        name,
+        "nodes",
+        nodes.length,
+        "gainConn",
+        gain.numberOfOutputs,
+        "ambBus",
+        !!this.ambBus,
+        "ambDuck",
+        !!this.ambDuck,
+      );
+      this.toneBed = { name, gain, nodes, boss: false };
+    }
+    stopTone(name, at = 0, fade = 1.2) {
+      let tone = this.toneBed;
+      if (!tone || (name && tone.name !== name)) return;
+      console.log("[toneDBG] stopTone", tone.name, "at", at, "fade", fade);
+      this.toneBed = null;
+      let now = this.ctx.currentTime + at,
+        end = now + Math.max(0.3, fade * 2.5);
+      try {
+        tone.gain.gain.cancelScheduledValues(now);
+        tone.gain.gain.setTargetAtTime(0, now, fade * 0.5);
+        for (let node of tone.nodes) node.stop(end);
+      } catch {}
+    }
+    /* Runs with the scheduler: keeps the room tone of the current biome alive (menu, upgrade, pause and
+       fight alike), crossfades it on a biome change and dips it a little while a boss carries the track. */
+    syncTone() {
+      let ctx = this.ctx;
+      if (!ctx) return;
+      let want = this.mode !== "off" && this.ambVol > 0 ? this.wantBiome() : null;
+      if (this.toneBed && (!want || this.toneBed.name !== want)) this.stopTone();
+      if (want && !this.toneBed) this.startTone(want);
+      if (this.toneBed) {
+        let boss = this.playKind === "boss";
+        if (boss !== this.toneBed.boss) {
+          this.toneBed.boss = boss;
+          try {
+            let now = ctx.currentTime,
+              level = ROOM_TONE_LEVEL[this.toneBed.name] || 0.028;
+            this.toneBed.gain.gain.setTargetAtTime(boss ? level * 0.55 : level, now, 0.9);
+          } catch {}
+        }
+      }
     }
     /* Runs with the scheduler: starts and stops the beds by the state set with setState and plays the
      periodic accents of the biome events. */
@@ -3614,6 +3792,7 @@ const musicChords = {
       if (!ctx || ctx.state !== "running") return;
       try {
         this.syncAudio();
+        this.syncTone();
       } catch (err) {
         this.fail(err);
       }
@@ -3792,7 +3971,11 @@ const musicChords = {
         base = ctx.currentTime;
         if (spec.bed) {
           engine.startBed(spec.bed);
-          engine.stopBed(spec.bed, spec.stopAt || 1.2);
+          engine.stopBed(spec.bed, spec.stopAt || 1.2, spec.stopRel);
+        } else if (spec.tone) {
+          // 3.43.0: a short take of a room tone, with a quick test fade (the real one breathes slower)
+          engine.startTone(spec.tone);
+          engine.stopTone(spec.tone, spec.stopAt || 1.0, spec.fade || 0.25);
         } else if (spec.music) {
           // 3.1.0: `seconds` of a calm theme or boss track from bar `fromBar`, at intensity `intensity` (calm) and
           // heat `heat` (boss); musicLog (spec.log) records every music voice, `impact` plays the start of a boss track
@@ -5270,7 +5453,9 @@ function rlSoundCatalog() {
   // 3.15.0: the boss cards
   ids(["bcCage", "bcLock", "bcHammer", "bcReady", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
   for (const id of ["elite", "rain", "blackout", "meltdown", "whiteout", "bloom", "riftstorm"]) ids(["event"], id);
-  for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed });
+  for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
+  // 3.43.0: the room tones render too (a short take of each, the real attack is slower than the test fade)
+  for (const biome of Object.keys(ROOM_TONE_LEVEL)) add("tone:" + biome, { tone: biome, stopAt: 1.0, fade: 0.25 });
   for (const biome of Object.keys(musicChords))
     for (const music of ["fight", "boss"]) add(`music:${biome}:${music}`, { music, biome });
   return list;

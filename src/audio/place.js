@@ -612,9 +612,12 @@ function placeTick(e, world, dt) {
     });
   }
   // 3.13.0: the soundscape of the biome; a boss fight thins it out (its timers run at half speed, the bed is softer)
+  // 3.43.0: in Endless the place slowly wakes up - the grains and the far sounds of the biome come a little
+  // more often (up to 45 % past wave 60); a boss keeps its thinning
   const scape = SCAPE[arena.biome.id];
   if (!scape) return;
-  const thin = world.boss ? 0.5 : 1,
+  const creep = world.endless ? 1 + Math.min(0.45, Math.max(0, world.wave - 20) * 0.012) : 1,
+    thin = world.boss ? 0.5 : 1 / creep,
     t = (st.t = (st.t || 0) + dt);
   const calm = e.musVol > 0 && e.playKind === "fight";
   for (const [id, lo, hi, g, inMusic] of scape.bed)
