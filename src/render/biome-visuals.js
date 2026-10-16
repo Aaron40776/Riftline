@@ -8,6 +8,7 @@ import {
   CylinderGeometry,
   DodecahedronGeometry,
   DoubleSide,
+  DynamicDrawUsage,
   Group,
   InstancedMesh,
   Mesh,
@@ -111,6 +112,7 @@ void main() {
       this.obsGroup = props;
       this.rlAnim = [];
       this.rlEmit = [];
+      this.rlSway = null;
       (RL_BIOME_BUILD[biome.id] || RL_BIOME_BUILD.yard)(
         this,
         biome,
@@ -140,6 +142,25 @@ void main() {
         if (anim.k === "spin" || anim.k === "spinbob") obj.rotation.y += dt * anim.s;
         if (anim.k === "bob" || anim.k === "spinbob")
           obj.position.y = anim.b + Math.sin(time * (anim.s || 1) + anim.ph) * (anim.a || 0.1);
+      }
+      // 3.44.0: a slow wind through the instanced reeds (marsh): every blade leans on its own
+      // phase, a few degrees at most - life on the edge of the frame, not a performance
+      if (this.rlSway) {
+        const sway = this.rlSway,
+          list = sway.list;
+        for (let i = 0; i < list.length; i++) {
+          const reed = list[i];
+          sway.dummy.position.set(reed.x, reed.y, reed.z);
+          sway.dummy.rotation.set(
+            (reed.rx || 0) + Math.sin(time * reed.ws + reed.wp) * 0.06,
+            reed.ry || 0,
+            (reed.rz || 0) + Math.cos(time * reed.ws * 0.83 + reed.wp) * 0.06,
+          );
+          sway.dummy.scale.set(reed.sx ?? 1, reed.sy ?? 1, reed.sz ?? 1);
+          sway.dummy.updateMatrix();
+          sway.mesh.setMatrixAt(i, sway.dummy.matrix);
+        }
+        sway.mesh.instanceMatrix.needsUpdate = true;
       }
     }
   };
@@ -171,7 +192,9 @@ const RL_BIOME_LOOK = {
     fill: [0xff7a3a, 0.95],
     vivid: 1.45,
     gain: 1.12,
-    fog: [1.5, 3.8],
+    // 3.44.0: the fog bites - the far edge of every place dissolves softly instead of running
+    // to a hard horizon (the old windows sat far outside the arena, so the fog never showed)
+    fog: [1.15, 2.7],
   },
   works: {
     style: 1,
@@ -181,18 +204,19 @@ const RL_BIOME_LOOK = {
     fill: [0x3a8cff, 0.7],
     vivid: 1.1,
     gain: 1.02,
-    fog: [1.35, 3.3],
+    fog: [1.05, 2.5],
   },
   vault: {
     style: 2,
     // 3.36.0: darker, so the white frost and the cyan threats stand out instead of a washed-out floor
+    // 3.44.0: the saturation rests a step (1.35) and the frost decors lose their wash (see vaultDetail)
     hemi: 1.1,
     sun: 0xe4f4ff,
     sunI: 2.2,
     fill: [0xff8ad0, 0.75],
-    vivid: 1.5,
+    vivid: 1.35,
     gain: 0.9,
-    fog: [1.3, 3.2],
+    fog: [1.0, 2.3],
   },
   marsh: {
     style: 3,
@@ -202,7 +226,7 @@ const RL_BIOME_LOOK = {
     fill: [0xa05cff, 0.75],
     vivid: 1.1,
     gain: 1.0,
-    fog: [0.95, 2.5],
+    fog: [0.85, 2.1],
   },
   void: {
     style: 4,
@@ -212,7 +236,7 @@ const RL_BIOME_LOOK = {
     fill: [0x20e0ff, 1.0],
     vivid: 1.1,
     gain: 1.0,
-    fog: [1.7, 4.4],
+    fog: [1.25, 3.0],
   },
 };
 // 3.41.0: the tone the flying debris of a kill calms into. The style guide of the owner (Viridi, Penguin's
@@ -225,6 +249,7 @@ const RL_BIOME_TINT = {
   marsh: new Color(0x8fa88a),
   void: new Color(0x9a92b8),
 };
+// 3.44.0: the fireflies of the marsh are the one warm light in the cold fog
 const RL_FLOOR_FRAG = `
 #include <common>
 #include <fog_pars_fragment>
@@ -299,10 +324,11 @@ void main() {
     vec3 v = voro(p * 0.3 + 11.0);
     col += uGrid * smoothstep(0.03, 0.0, v.y) * 0.2 * inside;
     float frost = smoothstep(0.55, 0.8, fbm(p * 1.1));
-    col = mix(col, uGrid * 0.28, frost * 0.32);
+    // 3.44.0: the frost drifts rest lower and the glints blink slower, so enemies read against them
+    col = mix(col, uGrid * 0.28, frost * 0.2);
     vec2 gc = floor(p * 2.0), gf = fract(p * 2.0) - 0.5 - (h22(gc) - 0.5) * 0.6;
-    float glint = step(0.97, h21(gc)) * smoothstep(0.1, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 3.0 + h21(gc + 7.0) * 30.0));
-    col += vec3(0.9) * glint * 0.45 * inside;
+    float glint = step(0.97, h21(gc)) * smoothstep(0.1, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 7.0) * 30.0));
+    col += vec3(0.9) * glint * 0.25 * inside;
     col += uAccent * pl * 0.06;
     lit = 0.6 + 0.4 * frost;
   } else if (st == 3) {
@@ -879,7 +905,22 @@ const RL_BIOME_BUILD = {
         c: rng.pick([0x2a3328, 0x333a2c, 0x262e24]),
       });
     });
-    rlInst(group, new CylinderGeometry(0.03, 0.05, 1, 4), new MeshLambertMaterial({ flatShading: true }), reeds);
+    // 3.44.0: the reeds lean with a slow wind - the InstancedMesh goes dynamic and every blade
+    // gets its own phase and tempo; ArenaView.update recomposes the matrices each frame
+    const reedMesh = rlInst(
+      group,
+      new CylinderGeometry(0.03, 0.05, 1, 4),
+      new MeshLambertMaterial({ flatShading: true }),
+      reeds,
+    );
+    if (reedMesh) {
+      reedMesh.instanceMatrix.setUsage(DynamicDrawUsage);
+      for (const reed of reeds) {
+        reed.wp = rng.range(0, TAU);
+        reed.ws = rng.range(0.6, 1.1);
+      }
+      view.rlSway = { mesh: reedMesh, list: reeds, dummy: new Object3D() };
+    }
     rlInst(group, new DodecahedronGeometry(0.6), new MeshLambertMaterial({ flatShading: true }), rocks);
     for (const obstacle of obs)
       if (obstacle.t === "c") {
@@ -1131,6 +1172,7 @@ const RL_C = {
   white: new Color(0xffffff),
   rain: new Color(0x9fb4cc),
   steam: new Color(0x5a6270),
+  fly: new Color(0xffd98a), // 3.44.0: the marsh fireflies
 };
 function rlAmbient(renderer, dt, world, opt) {
   const biome = renderer.biome,
@@ -1152,7 +1194,10 @@ function rlAmbient(renderer, dt, world, opt) {
     acc = hexColor(biome.accent);
   switch (biome.id) {
     case "works":
-      for (let j = count(24); j--; )
+      for (
+        let j = count(20);
+        j--; // 3.44.0: was 24, the calm pass
+      )
         renderer.emit(
           rx(),
           0.1,
@@ -1167,7 +1212,10 @@ function rlAmbient(renderer, dt, world, opt) {
         );
       break;
     case "vault":
-      for (let j = count(42); j--; )
+      for (
+        let j = count(34);
+        j--; // 3.44.0: was 42, the snow rests while the fog carries the mood
+      )
         renderer.emit(
           rx(17),
           2.5 + Math.random() * 6,
@@ -1182,7 +1230,10 @@ function rlAmbient(renderer, dt, world, opt) {
         );
       break;
     case "marsh":
-      for (let j = count(14); j--; )
+      for (
+        let j = count(9);
+        j--; // 3.44.0: was 14, the spores share the air with the fireflies
+      )
         renderer.emit(
           rx(),
           0.3 + Math.random() * 1.3,
@@ -1211,18 +1262,52 @@ function rlAmbient(renderer, dt, world, opt) {
             grow: 0.6,
           },
         );
+      // 3.44.0: fireflies - a dozen warm lights that hover over the pools and fade in and out
+      for (let j = count(2.4); j--; )
+        renderer.emit(
+          rx(),
+          0.3 + Math.random() * 0.9,
+          rz(),
+          (Math.random() - 0.5) * 0.5,
+          0.04 + Math.random() * 0.1,
+          (Math.random() - 0.5) * 0.5,
+          4.5 + Math.random() * 2,
+          0.1 + Math.random() * 0.04,
+          RL_C.fly,
+          { drag: 0.9 },
+        );
       break;
     case "yard":
       // 3.4.0: Blackout City: rain streaks and a few splashes on the asphalt
-      for (let j = count(65); j--; )
+      // 3.44.0: the rain rests a little (65 -> 50) and a slow mist drifts over the street
+      for (let j = count(50); j--; )
         renderer.emit(rx(16), 6 + Math.random() * 3, rz(13), -0.6, -15 - Math.random() * 4, 0.3, 0.5, 0.05, RL_C.rain, {
           spark: true,
           drag: 0,
         });
-      for (let j = count(14); j--; ) renderer.emit(rx(14), 0.05, rz(11), 0, 0.9, 0, 0.18, 0.08, RL_C.rain, { drag: 2 });
+      for (let j = count(11); j--; ) renderer.emit(rx(14), 0.05, rz(11), 0, 0.9, 0, 0.18, 0.08, RL_C.rain, { drag: 2 });
+      for (let j = count(1.6); j--; )
+        renderer.emit(
+          rx(14),
+          0.25,
+          rz(11),
+          (Math.random() - 0.5) * 0.4,
+          0.015,
+          (Math.random() - 0.5) * 0.4,
+          5,
+          2.2,
+          RL_C.steam,
+          {
+            drag: 0,
+            grow: 0.5,
+          },
+        );
       break;
     case "void":
-      for (let j = count(20); j--; )
+      for (
+        let j = count(16);
+        j--; // 3.44.0: was 20, the throb carries the mood
+      )
         renderer.emit(
           rx(18),
           0.05,

@@ -2,6 +2,17 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.44.0",
+    title: "The soft edges",
+    items: [
+      "Every place dissolves at its rim now: the fog steps closer, so the far edge fades like weather.",
+      "Kills shed fewer, rounder pieces that settle gently instead of spraying bright cubes.",
+      "The vault rests: the frost decals and glints keep a step back so enemies read on the white.",
+      "The marsh glows: fireflies hover over the pools and the reeds lean with a slow wind.",
+      "The storms breathe: a Whiteout gathers and passes slower, the Blackout settles without a snap.",
+    ],
+  },
+  {
     version: "3.43.1",
     title: "The seams closed",
     items: [
@@ -39,18 +50,6 @@ export const WHATS_NEW = [
       "A Whiteout draws a soft white wall of snow at the edges of the view.",
       "A Blackout now truly darkens the street: blasts, arcs and muzzle flashes light the dark.",
       "Kills calm down: the flying pieces take the tone of their biome instead of spraying confetti colours.",
-    ],
-  },
-  {
-    version: "3.40.0",
-    title: "A fairer fight",
-    items: [
-      "Burn damage now counts against the same burst limit as every hit, so tanky elites stay tanky.",
-      "The Arc Caster hits harder and faster: its single-target damage now reaches the Pulse Blaster, the chains are the bonus.",
-      "Overload bursts every 4th shot instead of the 5th; Echo Chamber repeats shots at a 10% chance a level.",
-      "Siphon repairs more as it grows (up to 10 HP), and Salvager Core caches pay 3 shards a level.",
-      "The pacts are priced honestly: Iron Hide pays the least, Heavy Drive pays like the rest.",
-      "Past wave 20 the traps grow with the run, so Endless floors keep biting.",
     ],
   },
 ];

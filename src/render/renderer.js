@@ -864,8 +864,10 @@ const MAX_PARTICLES = 1400,
     }
     debrisBurst(x, z, y, count, color, size, speed) {
       // 3.41.0: the pieces calm into the biome's tone (style guide: quiet, drawn colours, not confetti)
+      // 3.44.0: the mix deepens (0.6) and the pieces fly softer: a lower kick, a slower tumble,
+      // a longer life that fades earlier - rubble that settles instead of a splash
       const tint = this.biome && RL_BIOME_TINT[this.biome.id];
-      if (tint && color && color.isColor) color = color.clone().lerp(tint, 0.5);
+      if (tint && color && color.isColor) color = color.clone().lerp(tint, 0.6);
       let list = this.D;
       for (let i = 0; i < count && list.length < 300; i++) {
         let angle = Math.random() * TAU,
@@ -875,16 +877,16 @@ const MAX_PARTICLES = 1400,
           y,
           z: z + Math.sin(angle) * 0.2,
           vx: Math.cos(angle) * spd,
-          vy: 3 + Math.random() * speed * 0.9,
+          vy: 2.2 + Math.random() * speed * 0.8,
           vz: Math.sin(angle) * spd,
           rx: Math.random() * 6,
           ry: Math.random() * 6,
           rz: Math.random() * 6,
-          sx: (Math.random() - 0.5) * 16,
-          sy: (Math.random() - 0.5) * 16,
-          sz: (Math.random() - 0.5) * 16,
+          sx: (Math.random() - 0.5) * 7,
+          sy: (Math.random() - 0.5) * 7,
+          sz: (Math.random() - 0.5) * 7,
           s: size * (0.5 + Math.random() * 0.7),
-          life: 0.9 + Math.random() * 0.7,
+          life: 1.1 + Math.random() * 0.6,
           col: color,
         });
       }
@@ -900,15 +902,15 @@ const MAX_PARTICLES = 1400,
         scale = this._s || (this._s = new Vector3());
       for (let piece of list) {
         piece.life -= dt;
-        piece.vy -= 22 * dt;
+        piece.vy -= 16 * dt; // 3.44.0: was 22 - a gentler fall
         piece.x += piece.vx * dt;
         piece.y += piece.vy * dt;
         piece.z += piece.vz * dt;
         if (piece.y < piece.s * 0.5) {
           piece.y = piece.s * 0.5;
-          piece.vy *= -0.35;
-          piece.vx *= 0.7;
-          piece.vz *= 0.7;
+          piece.vy *= -0.22; // 3.44.0: the bounce dies quickly (was -0.35 / 0.7)
+          piece.vx *= 0.55;
+          piece.vz *= 0.55;
           piece.sx *= 0.6;
           piece.sy *= 0.6;
           piece.sz *= 0.6;
@@ -918,7 +920,7 @@ const MAX_PARTICLES = 1400,
         piece.rz += piece.sz * dt;
         if (pool.n >= pool.max) continue;
         let idx = pool.n++,
-          fade = piece.life < 0.3 ? Math.max(0, piece.life / 0.3) : 1;
+          fade = piece.life < 0.5 ? Math.max(0, piece.life / 0.5) : 1; // 3.44.0: the shrink-out starts earlier and reads softer
         euler.set(piece.rx, piece.ry, piece.rz);
         quat.setFromEuler(euler);
         mat.compose(pos.set(piece.x, piece.y, piece.z), quat, scale.setScalar(piece.s * fade));
@@ -1069,10 +1071,10 @@ const MAX_PARTICLES = 1400,
               ev.x,
               ev.y,
               0.6,
-              Math.round(Math.min(18, 4 + scale * 5)),
+              Math.round(Math.min(11, 3 + scale * 3)), // 3.44.0: was min(18, 4+scale*5) - fewer pieces, calmer kill
               dark.clone(),
-              0.14 + 0.12 * Math.sqrt(scale),
-              3 + scale * 2,
+              0.12 + 0.1 * Math.sqrt(scale),
+              2.6 + scale * 1.7,
             );
             // 2.7.0: the model does not vanish at once: it shrinks, spins and hops for a moment (drawWorld), and a
             // second handful of debris in the lighter shade of its colour flies off (skipped on the battery preset)
@@ -1089,7 +1091,8 @@ const MAX_PARTICLES = 1400,
               });
             }
             if (!ev.boss && this.maxParticles >= 800) {
-              this.debrisBurst(ev.x, ev.y, 0.7, ev.elite ? 6 : 3, base, 0.1 + 0.08 * Math.sqrt(scale), 4 + scale * 2);
+              // 3.44.0: the light handful rests too (was elite 6 : 3)
+              this.debrisBurst(ev.x, ev.y, 0.7, ev.elite ? 4 : 2, base, 0.1 + 0.08 * Math.sqrt(scale), 4 + scale * 2);
             }
             if (ev.r >= 0.5 || ev.elite || ev.boss) {
               this.addScorch(ev.x, ev.y, ev.r * 1.3 + 0.3);
@@ -1153,7 +1156,7 @@ const MAX_PARTICLES = 1400,
               });
             }
             if (ev.kind === "rocket" || ev.kind === "bomber" || ev.kind === "mortar" || ev.kind === "volatile") {
-              this.debrisBurst(ev.x, ev.y, 0.3, 5, hexColor(3811874), 0.12, 5);
+              this.debrisBurst(ev.x, ev.y, 0.3, 4, hexColor(3811874), 0.12, 5); // 3.44.0: was 5
             }
             break;
           }
@@ -1334,7 +1337,7 @@ const MAX_PARTICLES = 1400,
             const acid = hexColor(13041469);
             this.burst(ev.x, ev.y, 1.2, ev.big ? 16 : 6, 4, acid, 0.4, 0.3);
             this.ring(ev.x, ev.y, 0.2, ev.big ? 2.2 : 1, acid, 0.3);
-            this.debrisBurst(ev.x, ev.y, 0.6, ev.big ? 8 : 3, hexColor(0xe6e2c8), 0.12, 4);
+            this.debrisBurst(ev.x, ev.y, 0.6, ev.big ? 6 : 2, hexColor(0xe6e2c8), 0.12, 4); // 3.44.0: was 8 : 3
             break;
           }
           case "blink":
@@ -1534,7 +1537,7 @@ const MAX_PARTICLES = 1400,
         world.arena?.biome?.id === "vault"
           ? 1
           : 0;
-      this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 1 : -1) * (dt || 0) * 0.9, 0, 1);
+      this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 0.7 : -0.55) * (dt || 0), 0, 1); // 3.44.0: the storm gathers slower (0.7) and passes slower still (was ±0.9)
       // 3.4.0: the Blackout (Blackout City) fades the light out over about two seconds, and back after the wave
       const black =
         !opts.menu &&
@@ -1542,12 +1545,12 @@ const MAX_PARTICLES = 1400,
         world.event === "blackout" &&
         world.state === "fight" &&
         world.arena?.biome?.id === "yard";
-      this.rlBlackK = clamp((this.rlBlackK || 0) + (black ? 0.5 : -0.8) * (dt || 0), 0, 1);
+      this.rlBlackK = clamp((this.rlBlackK || 0) + (black ? 0.42 : -0.8) * (dt || 0), 0, 1); // 3.44.0: the dark settles slower (was 0.5), the lift keeps its pace
       if (this.arena?.uniforms?.uDark) this.arena.uniforms.uDark.value = this.rlBlackK * 0.85;
       // 2.8.1: the snow keeps fading after Home, when there may be no world any more
       if (this.rlWhiteK > 0.02 && world?.arena && dt > 0 && dt < 0.25) {
         const density = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
-          amount = 110 * dt * density, // 3.41.0: more flakes, and each one big enough to see (was 70)
+          amount = 95 * dt * density, // 3.44.0: was 110 - still a wall of flakes, less of a swarm
           count = Math.floor(amount) + (Math.random() < amount - Math.floor(amount) ? 1 : 0),
           W = world.arena.W,
           H = world.arena.H;
