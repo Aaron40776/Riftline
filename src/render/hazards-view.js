@@ -142,15 +142,17 @@ void main() {
   float frost = smoothstep(0.45, 0.9, fbm(vec2(q.x * 1.6 + q.y * 0.4, q.y * 0.5)));
   vec3 deep = vec3(0.06, 0.24, 0.42), clear = vec3(0.32, 0.62, 0.82);
   vec3 col = mix(deep, clear, smoothstep(0.0, edge, r) * 0.7 + 0.25 * v.z);
-  col = mix(col, vec3(0.8, 0.92, 1.0), frost * 0.75);
-  col += vec3(0.75, 0.9, 1.0) * crack * 0.7;
+  // 3.44.0: the sheet rests - the frost wash, cracks and rim lose a step of glare so the
+  // enemies and the acid pools read against the ice; the glints blink slower and dimmer
+  col = mix(col, vec3(0.8, 0.92, 1.0), frost * 0.6);
+  col += vec3(0.75, 0.9, 1.0) * crack * 0.55;
   float rim = smoothstep(edge - 0.06, edge - 0.005, r);
-  col = mix(col, vec3(0.85, 0.96, 1.0), rim * 0.6);
+  col = mix(col, vec3(0.85, 0.96, 1.0), rim * 0.5);
   vec2 gc = floor(vP * 9.0 + seed), gf = fract(vP * 9.0 + seed) - 0.5;
-  float glint = step(0.93, h21(gc)) * smoothstep(0.12, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 3.0 + h21(gc + 3.0) * 30.0));
-  col += vec3(glint * 0.9);
+  float glint = step(0.93, h21(gc)) * smoothstep(0.12, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 3.0) * 30.0));
+  col += vec3(glint * 0.42);
   col *= 0.8 + 0.35 * vI.r;
-  gl_FragColor = vec4(col, clamp(0.72 + 0.15 * frost + 0.2 * rim + 0.2 * crack + glint, 0.0, 0.95));
+  gl_FragColor = vec4(col, clamp(0.6 + 0.15 * frost + 0.2 * rim + 0.2 * crack + glint, 0.0, 0.9));
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,

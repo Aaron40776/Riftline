@@ -1246,7 +1246,8 @@ function discGeometry() {
   ]);
 }
 function debrisGeometry() {
-  return new BoxGeometry(1, 1, 1);
+  // 3.44.0: a low-poly shard instead of a cube - kill debris reads as rubble now, not party confetti
+  return new IcosahedronGeometry(0.58, 0);
 }
 function buildPlayerModel(weapon, color) {
   // 3.17.0: a walker instead of a gunship: a two-legged robot. A squat torso with a glowing visor and a back pack on a

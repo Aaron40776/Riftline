@@ -193,7 +193,8 @@ function yardDetail(biome, W, H, obs, rng) {
     for (let i = -3; i <= 3; i++) t.body.push(box(0x2a2c31, 0.04, 0.012, 0.44, { x: i * 0.12, y: 0.034 }));
     put(out, t, p.x, 0, p.z, Math.abs(p.x) > W - 2 ? PI / 2 : 0);
   }
-  for (const p of scatter(rng, W, H, obs, 22, { gap: 1 })) {
+  // 3.44.0: the micro clutter thins everywhere (was 22) - sparse ground, the props carry the place
+  for (const p of scatter(rng, W, H, obs, 14, { gap: 1.2 })) {
     const s = rng.range(0.1, 0.22);
     out.body.push(
       box(rng.pick([0x3a3c42, 0x50463a, 0x2c3a46, 0x4a4a4a]), s, 0.02, s * rng.range(0.6, 1.4), {
@@ -449,7 +450,8 @@ function worksDetail(biome, W, H, obs, rng) {
     for (let i = -3; i <= 3; i++) t.glow.push(box(dim(hot, 0.5), 0.05, 0.012, 0.66, { x: i * 0.15, y: 0.034 }));
     put(out, t, p.x, 0, p.z, rng.pick([0, PI / 2]));
   }
-  for (const p of scatter(rng, W, H, obs, 22, { gap: 0.8 })) {
+  for (const p of scatter(rng, W, H, obs, 14, { gap: 1.1 })) {
+    // 3.44.0: was 22 - the works floor keeps its debris but not a carpet of it
     const r = rng.range(0.06, 0.17);
     out.body.push(
       rock(pick3(rng, rust.concat(steel)), r, p.x, r * 0.5, p.z, { rx: rng.range(0, 3), ry: rng.range(0, 3), sy: 0.7 }),
@@ -538,14 +540,15 @@ function vaultDetail(biome, W, H, obs, rng) {
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // ground: frost patches, shard tufts, cracks, snow lumps, small crystals
-  for (const p of scatter(rng, W, H, obs, 16, { gap: 2.2 }))
+  // 3.44.0: everything rests a step - fewer decals and dimmer glow, so enemies read on the white
+  for (const p of scatter(rng, W, H, obs, 10, { gap: 2.6 }))
     out.body.push(
       disc(rng.pick([0xc4dcea, 0xd2e6f2, 0xb4d0e2]), rng.range(0.8, 2), p.x, 0.012, p.z, 12, {
         sz: rng.range(0.55, 1),
         ry: rng.range(0, 3),
       }),
     );
-  for (const p of scatter(rng, W, H, obs, 14, { gap: 2.2 })) {
+  for (const p of scatter(rng, W, H, obs, 9, { gap: 2.6 })) {
     const t = list();
     for (let i = 0; i < rng.int(2, 4); i++) {
       const a = rng.range(0, TAU),
@@ -559,15 +562,15 @@ function vaultDetail(biome, W, H, obs, rng) {
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  for (const p of scatter(rng, W, H, obs, 9, { gap: 3 }))
-    crack(out, dim(cyan, 0.55), p.x, p.z, rng, rng.int(4, 7), 0.7);
-  for (const p of scatter(rng, W, H, obs, 16, { gap: 1.1 })) {
+  for (const p of scatter(rng, W, H, obs, 6, { gap: 3.4 }))
+    crack(out, dim(cyan, 0.35), p.x, p.z, rng, rng.int(4, 7), 0.7);
+  for (const p of scatter(rng, W, H, obs, 10, { gap: 1.4 })) {
     const r = rng.range(0.07, 0.17);
     out.body.push(meshPart(new SphereGeometry(r, 6, 4), snow, { x: p.x, y: r * 0.3, z: p.z, sy: 0.6 }));
   }
-  for (const p of scatter(rng, W, H, obs, 11, { gap: 2 })) {
+  for (const p of scatter(rng, W, H, obs, 7, { gap: 2.6 })) {
     const h = rng.range(0.15, 0.32);
-    out.glow.push(gem(dim(cyan, rng.range(0.6, 0.95)), 0.06, p.x, h * 0.5 + 0.02, p.z, { sy: h / 0.06 / 1.7 }));
+    out.glow.push(gem(dim(cyan, rng.range(0.35, 0.6)), 0.06, p.x, h * 0.5 + 0.02, p.z, { sy: h / 0.06 / 1.7 }));
   }
   return out;
 }
@@ -755,7 +758,8 @@ function marshDetail(biome, W, H, obs, rng) {
       disc(0x12403c, r * 0.6, p.x, 0.02, p.z, 10, { sz: 0.7 }),
     );
   }
-  for (const p of scatter(rng, W, H, obs, 14, { gap: 1.8 })) {
+  for (const p of scatter(rng, W, H, obs, 10, { gap: 2 })) {
+    // 3.44.0: the moss clumps rest (was 14) - the fireflies now carry the marsh floor
     const t = list(),
       r = rng.range(0.22, 0.45);
     t.body.push(disc(pick3(rng, [0x3a6a2a, 0x2f5a22, 0x4a7a30]), r, 0, 0.022, 0, 10));
@@ -763,7 +767,8 @@ function marshDetail(biome, W, H, obs, rng) {
     if (rng.chance(0.3)) t.glow.push(cone(dim(yellow, 0.85), 0.07, 0.12, 5, 0, 0.02, 0));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  for (const p of scatter(rng, W, H, obs, 12, { gap: 1.6 })) {
+  for (const p of scatter(rng, W, H, obs, 9, { gap: 2 })) {
+    // 3.44.0: the small mushrooms rest (was 12)
     const t = list(),
       cap = rng.pick(caps);
     for (let i = 0; i < rng.int(2, 4); i++) {
@@ -778,7 +783,8 @@ function marshDetail(biome, W, H, obs, rng) {
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  for (const p of scatter(rng, W, H, obs, 14, { gap: 1.1 })) {
+  for (const p of scatter(rng, W, H, obs, 10, { gap: 1.3 })) {
+    // 3.44.0: was 14
     const t = list();
     for (let i = 0; i < 4; i++)
       t.body.push(
@@ -789,7 +795,8 @@ function marshDetail(biome, W, H, obs, rng) {
       );
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  for (const p of scatter(rng, W, H, obs, 9, { gap: 2.4 })) {
+  for (const p of scatter(rng, W, H, obs, 6, { gap: 2.8 })) {
+    // 3.44.0: bone piles rest (was 9)
     const a = rng.range(0, TAU),
       dx = Math.cos(a) * 0.3,
       dz = Math.sin(a) * 0.3;
@@ -799,13 +806,15 @@ function marshDetail(biome, W, H, obs, rng) {
       ball(bone, 0.05, 5, 3, { x: p.x - dx, y: 0.05, z: p.z - dz }),
     );
   }
-  for (const p of scatter(rng, W, H, obs, 16, { gap: 1.2 })) {
+  for (const p of scatter(rng, W, H, obs, 11, { gap: 1.5 })) {
+    // 3.44.0: stones rest (was 16)
     const r = rng.range(0.06, 0.16);
     out.body.push(
       rock(pick3(rng, [0x343c2c, 0x3a4232, 0x2a3222]), r, p.x, r * 0.4, p.z, { rx: rng.range(0, 3), sy: 0.7 }),
     );
   }
-  for (const p of scatter(rng, W, H, obs, 12, { gap: 1.8 })) {
+  for (const p of scatter(rng, W, H, obs, 8, { gap: 2.2 })) {
+    // 3.44.0: sprout stems rest (was 12)
     const h = rng.range(0.14, 0.3);
     out.body.push(pipe(0x3a6a2a, 0.012, 0.012, 3, [p.x, 0, p.z], [p.x + 0.03, h, p.z]));
     out.glow.push(ball(dim(yellow, 0.9), 0.04, 4, 3, { x: p.x + 0.03, y: h + 0.03, z: p.z }));
@@ -959,9 +968,10 @@ function voidDetail(biome, W, H, obs, rng) {
       );
     }
   }
-  for (const p of scatter(rng, W, H, obs, 10, { gap: 3 }))
-    crack(out, dim(violet, 0.6), p.x, p.z, rng, rng.int(4, 7), 0.7);
-  for (const p of scatter(rng, W, H, obs, 14, { gap: 2 })) {
+  for (const p of scatter(rng, W, H, obs, 7, { gap: 3.4 }))
+    crack(out, dim(violet, 0.6), p.x, p.z, rng, rng.int(4, 7), 0.7); // 3.44.0: was 10
+  for (const p of scatter(rng, W, H, obs, 9, { gap: 2.4 })) {
+    // 3.44.0: crystal tufts rest (was 14)
     const t = list();
     for (let i = 0; i < rng.int(2, 4); i++) {
       const h = rng.range(0.14, 0.34),
@@ -977,7 +987,8 @@ function voidDetail(biome, W, H, obs, rng) {
     t.body.push(disc(0x1c1034, 0.22, 0, 0.01, 0, 6));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  for (const p of scatter(rng, W, H, obs, 18, { gap: 1.4 }))
+  for (const p of scatter(rng, W, H, obs, 11, { gap: 1.8 }))
+    // 3.44.0: the drifting shards rest (was 18)
     out.glow.push(
       gem(dim(rng.pick(glows), 0.75), rng.range(0.03, 0.08), p.x, rng.range(0.25, 0.7), p.z, {
         sy: 1.6,
