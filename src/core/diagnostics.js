@@ -223,8 +223,6 @@ let RL_REQUIRED_DOM = [
     "hpFill",
     "hpNum",
     "hud",
-    "logBtn",
-    "logCount",
     "msList",
     "novaBtn",
     "over",
@@ -537,6 +535,11 @@ function rlMonErrKey(entry) {
   return `${entry.where}|${entry.msg}|${entry.file}|${entry.line}`;
 }
 function rlMonStart(world, resume) {
+  // 3.45.1: the monitor is test-only (main.js calls rlMonEnable under navigator.webdriver), but rlMonStart still ran
+  // for every player and set runHooks.world. World.step then saw "I am monitored", called the null runHooks.step, and
+  // its own catch called the null runHooks.issue - so the first three frames crashed and every run died at wave 1.
+  // A monitor that was never enabled watches nothing: no world binding, no RL_MON, no audit.
+  if (!runHooks.step) return;
   runHooks.world = world;
   RL_MON = {
     w: world,
