@@ -77,7 +77,6 @@ const r = await page.evaluate(() => {
       // simulate spawns: run until plan exhausted or 90 s, check marker & enemy positions
       w.god = true;
       let t = 0;
-      const boss = w.bossPending;
       while (t < 90 && (w.planIdx < w.plan.length || w.markers.length || w.bossPending)) {
         const before = w.markers.length;
         w.step(1 / 30, { mx: Math.sin(t), my: Math.cos(t * 0.7), fire: false, auto: false });
@@ -111,8 +110,6 @@ const r = await page.evaluate(() => {
         }
       }
       stats._b = 0;
-      if (boss && !w.boss && !w.bossKills.length && wave % 5 === 0) {
-      }
       w.enemies = [];
       w.markers = [];
       w.planIdx = w.plan.length;

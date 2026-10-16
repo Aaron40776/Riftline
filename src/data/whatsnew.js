@@ -2,6 +2,17 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.45.0",
+    title: "The quieter screen",
+    items: [
+      "The HUD says everything once: the progress bar carries the count, the hull is its bar and its number.",
+      "The buttons rest: no seconds under DASH, the gadget ring speaks only while it recharges, a charged NOVA glows instead of pulsing.",
+      "Damage numbers stay a handful, and a burn keeps one live number instead of a fresh one every half second.",
+      "The boss intro card carries the name alone - no second banner on top of it.",
+      "Banners and title cards glow softer and the chips tick calmer: the fight stays loud, the screen stays quiet.",
+    ],
+  },
+  {
     version: "3.44.0",
     title: "The soft edges",
     items: [
@@ -40,16 +51,6 @@ export const WHATS_NEW = [
       "Enemies die lower and heavier: bubbles, short circuits, glass and ghosts all sound an octave deeper.",
       "A Whiteout muffles the whole world behind the storm, and lifts when it passes.",
       "Menus speak softer: clicks and hovers are warm low blips instead of high ticks.",
-    ],
-  },
-  {
-    version: "3.41.0",
-    title: "The storms arrive",
-    items: [
-      "A Whiteout finally looks like one: the storm goes bright white, the arena edge dissolves, and real snowflakes drift on the wind.",
-      "A Whiteout draws a soft white wall of snow at the edges of the view.",
-      "A Blackout now truly darkens the street: blasts, arcs and muzzle flashes light the dark.",
-      "Kills calm down: the flying pieces take the tone of their biome instead of spraying confetti colours.",
     ],
   },
 ];

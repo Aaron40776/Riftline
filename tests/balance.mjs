@@ -56,7 +56,7 @@ function play(w, { cap, until, onChoose }) {
       if (onChoose) onChoose(w);
       pick = (Math.imul(pick ^ (pick >>> 15), 2246822507) + 0x6d2b79f5) >>> 0;
       w.choose(w.offer[pick % w.offer.length]);
-    } else if (w.state === "victory") w.startEndless && w.startEndless();
+    } else if (w.state === "victory") w.enterEndless && w.enterEndless();
   }
 }
 

@@ -960,11 +960,17 @@ const getById = (id) => document.getElementById(id),
       }, ms + 50);
     }
     comboPop(combo, bonus) {
+      // 3.45.0: one slot - a new milestone replaces the last pop instead of stacking
+      if (this.comboPopEl) this.comboPopEl.remove();
       let el = document.createElement("div");
       el.className = "combo-pop";
       el.textContent = `\xD7${combo} COMBO  +${bonus}`;
       getById("hud").appendChild(el);
-      setTimeout(() => el.remove(), 1250);
+      this.comboPopEl = el;
+      setTimeout(() => {
+        if (this.comboPopEl === el) this.comboPopEl = null;
+        el.remove();
+      }, 1250);
     }
     coach(step, steps, text) {
       let box = getById("coach");
@@ -1011,9 +1017,9 @@ const getById = (id) => document.getElementById(id),
         getById("hpNum").textContent = text;
       });
       let hpFrac = clamp(player.hp / stats.maxHp, 0, 1);
-      update("hpf", Math.round(hpFrac * 200), () => {
+      // 3.45.0: one lag ghost was enough (the boss keeps its) - the hull is bar + number now
+      update("hpf", Math.round(hpFrac * 100), () => {
         getById("hpFill").style.transform = `scaleX(${hpFrac})`;
-        getById("hpLag").style.transform = `scaleX(${hpFrac})`;
         getById("hpFill").parentElement.classList.toggle("low", hpFrac < 0.3);
       });
       update("shieldOn", stats.shieldCd > 0, (on) => {
@@ -1046,11 +1052,16 @@ const getById = (id) => document.getElementById(id),
       );
       update("shards", world.shards, (shards) => {
         getById("runShards").textContent = formatCount(shards);
+        // 3.45.0: the bump re-reads the layout - at most twice a second; the number itself always moves
         let chip = getById("shardChip");
         if (cache.shardsSeen) {
-          chip.classList.remove("bump");
-          chip.offsetWidth;
-          chip.classList.add("bump");
+          let now = performance.now();
+          if (now - (cache.shardBump || 0) > 450) {
+            cache.shardBump = now;
+            chip.classList.remove("bump");
+            chip.offsetWidth;
+            chip.classList.add("bump");
+          }
         }
         cache.shardsSeen = true;
       });
@@ -1058,21 +1069,9 @@ const getById = (id) => document.getElementById(id),
       update("wave", world.wave + waveMax, () => {
         getById("waveLabel").textContent = `WAVE ${world.wave}${waveMax}`;
       });
-      let sub;
-      if (world.state === "fight")
-        if (world.boss || world.bossPending) sub = "BOSS";
-        else {
-          let left = world.enemies.length + world.markers.length;
-          for (let i = world.planIdx; i < world.plan.length; i++) left += world.plan[i].members.length;
-          sub = left + " LEFT";
-        }
-      else {
-        if (world.state === "cleared") {
-          sub = "CLEARED";
-        } else {
-          sub = "\xA0";
-        }
-      }
+      // 3.45.0: the progress bar carries the wave's count ("N LEFT" churned text with every kill;
+      // a boss fight is named by the boss bar, CLEARED stays for the moment between the waves)
+      let sub = world.state === "cleared" ? "CLEARED" : "\xA0";
       update("sub", sub, (text) => {
         getById("waveSub").textContent = text;
       });
@@ -1099,9 +1098,9 @@ const getById = (id) => document.getElementById(id),
             : bossDefs[boss.type].name;
           getById("bossPhase").textContent = boss.enraged ? "ENRAGED" : boss.champion ? "RALLYING" : "";
         });
-        update("bossF", Math.round((boss.hp / boss.maxHp) * 300), (value) => {
-          getById("bossFill").style.transform = `scaleX(${clamp(value / 300, 0, 1)})`;
-          getById("bossLag").style.transform = `scaleX(${clamp(value / 300, 0, 1)})`;
+        update("bossF", Math.round((boss.hp / boss.maxHp) * 100), (value) => {
+          getById("bossFill").style.transform = `scaleX(${clamp(value / 100, 0, 1)})`;
+          getById("bossLag").style.transform = `scaleX(${clamp(value / 100, 0, 1)})`;
         });
         update("bossTicks", boss.type, (type) => {
           getById("bossTicks").innerHTML = type === "core" ? '<s style="left:66%"></s><s style="left:33%"></s>' : "";
@@ -1120,10 +1119,10 @@ const getById = (id) => document.getElementById(id),
           getById("comboBar").style.transform = `scaleX(${clamp(value / 44, 0, 1)})`;
         });
       }
-      let dashPct = stats.dashCd > 0 ? Math.round((player.dashCdT / stats.dashCd) * 100) : 0;
+      let dashPct = stats.dashCd > 0 ? Math.round((player.dashCdT / stats.dashCd) * 20) * 5 : 0;
+      // 3.45.0: the ring (and the dimmed tint) say the cooldown - the per-decisecond seconds text is gone
       update("dash", dashPct, (pct) => {
         let btn = getById("dashBtn");
-        btn.style.setProperty("--p", pct + "%");
         btn.style.setProperty("--q", 100 - pct + "%");
         let cooling = pct > 0;
         if (btn.classList.contains("cooling") && !cooling) {
@@ -1136,10 +1135,7 @@ const getById = (id) => document.getElementById(id),
         }
         btn.classList.toggle("cooling", cooling);
       });
-      update("dashSec", player.dashCdT > 0.25 ? player.dashCdT.toFixed(1) : "", (text) => {
-        getById("dashSec").textContent = text;
-      });
-      let nova = Math.floor(player.nova);
+      let nova = Math.floor(player.nova / 5) * 5;
       update("nova", nova, (pct) => {
         getById("novaBtn").style.setProperty("--p", pct + "%");
         getById("novaBtn").classList.toggle("ready", pct >= 100);
@@ -1165,9 +1161,12 @@ const getById = (id) => document.getElementById(id),
       const gadgetPct =
         gadgetN >= gadgetMax || !(stats.gadgetCd > 0)
           ? 100
-          : Math.round(clamp(1 - player.gadgetT / stats.gadgetCd, 0, 1) * 100);
+          : Math.round(clamp(1 - player.gadgetT / stats.gadgetCd, 0, 1) * 20) * 5;
       update("gadgetRing", gadgetPct, (pct) => {
-        getById("gadgetBtn").style.setProperty("--q", pct + "%");
+        let btn = getById("gadgetBtn");
+        // 3.45.0: the pips say how many charges are ready - the ring only speaks while one recharges
+        btn.querySelector(".ring").hidden = pct >= 100;
+        btn.style.setProperty("--q", pct + "%");
       });
       // 2.4.2: run timer and FPS counter
       const settings = store.data.settings,
@@ -1242,8 +1241,9 @@ const getById = (id) => document.getElementById(id),
         else chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]);
       }
       let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
-        buffRow = getById("buffs");
-      if (this.hudCache.buffKey !== key) {
+        buffRow = getById("buffs"),
+        rebuilt = this.hudCache.buffKey !== key;
+      if (rebuilt) {
         this.hudCache.buffKey = key;
         buffRow.innerHTML = chips
           .map(
@@ -1252,11 +1252,15 @@ const getById = (id) => document.getElementById(id),
           )
           .join("");
       }
+      // 3.45.0: the little timers tick in 5 % steps and only write the step when it changes
       for (let [id, , , left] of chips) {
         if (left < 0) continue;
+        let step = Math.round(clamp(left, 0, 1) * 20);
+        if (!rebuilt && cache["buff" + id] === step) continue;
+        cache["buff" + id] = step;
         let bar = buffRow.querySelector(`[data-b="${id}"] i`);
         if (bar) {
-          bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`;
+          bar.style.transform = `scaleX(${step / 20})`;
         }
       }
       // 2.5.0 A: chips for the timed upgrades (Heat Sink, Slipstream) and active Cryo Skates.
@@ -1277,7 +1281,8 @@ const getById = (id) => document.getElementById(id),
       for (const id of timedBuffChips)
         if (!want.some((chip) => chip[0] === id)) row.querySelector(`[data-b="${id}"]`)?.remove();
       for (const [id, text, color, left] of want) {
-        let el = row.querySelector(`[data-b="${id}"]`);
+        let el = row.querySelector(`[data-b="${id}"]`),
+          fresh = false;
         if (!el) {
           el = document.createElement("span");
           el.className = "buff";
@@ -1285,10 +1290,15 @@ const getById = (id) => document.getElementById(id),
           el.style.setProperty("--bc", color);
           el.innerHTML = escapeHtml(text) + (left >= 0 ? "<i></i>" : "");
           row.appendChild(el);
+          fresh = true;
         }
-        const bar = el.querySelector("i");
-        if (bar) {
-          bar.style.transform = `scaleX(${clamp(left, 0, 1).toFixed(2)})`;
+        const step = Math.round(clamp(left, 0, 1) * 20);
+        if (fresh || cache["buff" + id] !== step) {
+          cache["buff" + id] = step;
+          const bar = el.querySelector("i");
+          if (bar) {
+            bar.style.transform = `scaleX(${step / 20})`;
+          }
         }
       }
     }

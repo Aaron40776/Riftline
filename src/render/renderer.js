@@ -991,7 +991,9 @@ const MAX_PARTICLES = 1400,
                 for (const num of this.nums)
                   if (
                     num.id === ev.id &&
-                    this.time - num.t0 <= 0.15 &&
+                    // 3.45.0: a burn drip merges into its live number (the window spans the 0.5 s cadence),
+                    // hit numbers stay to their one attack (0.15 s)
+                    this.time - num.t0 <= (num.burn ? 0.6 : 0.15) &&
                     !num.burn == !ev.burn &&
                     !num.shield == !ev.shield
                   ) {
@@ -1001,6 +1003,8 @@ const MAX_PARTICLES = 1400,
               if (existing) {
                 existing.v += ev.v;
                 existing.crit = existing.crit || ev.crit;
+                // 3.45.0: a burn keeps one living number per enemy instead of a fresh one every half second
+                if (ev.burn) existing.life = 0.6;
               } else {
                 const num = {
                   id: ev.id,
@@ -1014,7 +1018,8 @@ const MAX_PARTICLES = 1400,
                   life: ev.crit ? 0.8 : 0.6,
                   t0: this.time,
                 };
-                if (this.nums.length < 60) this.nums.push(num);
+                // 3.45.0: a handful of numbers reads calmer than a scoreboard (was 60)
+                if (this.nums.length < 24) this.nums.push(num);
                 else {
                   // full: the smallest number makes room for a bigger one
                   let low = 0;

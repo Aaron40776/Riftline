@@ -163,8 +163,9 @@ await ev(() => {
   window.__riftTest.ui.hideCrash();
   window.__riftTest.ui.show("home");
   window.__riftTest.ui.toast("Save restored", "gold", 5000);
-  window.__riftTest.ui.setUpdate && window.__riftTest.ui.setUpdate(true);
 });
 await shot("14-toast-update");
 console.log(NAME, "errors:", errs.length ? errs : "none");
+// 3.45.0: an uncaught page error is a failed capture run, not a green one with broken shots
+if (errs.length) process.exitCode = 1;
 await b.close();
