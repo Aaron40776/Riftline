@@ -1797,8 +1797,10 @@ function rlRetireToast() {
 applySettings();
 ui.show("home");
 setTimeout(rlRetireToast, 700);
-// 3.37.0: the startup health checks (they fetch build-info.json) run only in a test session; a player
-// offline got a WARN in the log for a fetch that tells them nothing. The crash screen keeps its report.
+// 3.37.0: the startup health checks were meant for test sessions (a player offline got a WARN for a fetch that
+// tells them nothing). 3.45.1, the honest note: window.__riftTest exists for everyone since the test-interface
+// refactor, so these run for every boot. They are quiet when green and they catch real breakage (the missing
+// log button of 3.45.0 showed up here), so they stay for all.
 setTimeout(() => {
   if (window.__riftTest) rlRunHealth({ context: "startup" }).catch((err) => logError("health", err));
 }, 900);
