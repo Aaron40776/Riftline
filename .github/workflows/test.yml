@@ -46,3 +46,8 @@ jobs:
       # shows up before the merge
       - name: Play a wave
         run: node tools/qa.js full-qa run-desktop
+      # 3.45.1: every in-repo harness runs with navigator.webdriver = true (a test session), so the 3.43.1 monitor
+      # gate broke only real players - three frames into every run. This plays a wave with webdriver patched off,
+      # like a player's browser, where a dead frame loop flatlines the frame counter.
+      - name: Play a wave as a player
+        run: node tools/qa.js player-mode

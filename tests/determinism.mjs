@@ -184,7 +184,7 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
     pb: w.pb.map((b) => [b.x, b.y]),
     eb: w.eb.map((b) => [b.x, b.y]),
   });
-  // Deterministic bot (same shape as tests/sim.mjs and tests/run-audit.mjs).
+  // Deterministic bot (same shape as tests/run-audit.mjs; tests/sim.mjs was retired in 3.45.0).
   const botInput = (w, step) => {
     const p = w.player;
     let tgt = null,

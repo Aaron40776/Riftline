@@ -483,11 +483,13 @@ const rlStep = 1 / 60,
       }
       // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
       // worlds are ignored by identity)
-      if (runHooks.world === this)
+      // 3.45.1: the hooks are null unless the test session enabled the monitor - a player's frame
+      // must survive that even if a future change re-breaks the enable/start pairing
+      if (runHooks.world === this && runHooks.beginWave)
         try {
           runHooks.beginWave(this);
         } catch (err) {
-          runHooks.issue("WARN", "monitor", "monitor exception: " + err.message);
+          if (runHooks.issue) runHooks.issue("WARN", "monitor", "monitor exception: " + err.message);
         }
     }
     championType(biome, wave, rng) {
@@ -927,11 +929,11 @@ const rlStep = 1 / 60,
           stats.regen = regen;
         }
       }
-      if (monitored)
+      if (monitored && runHooks.step)
         try {
           runHooks.step(this, fx0, dash0, shards0, kills0, dt);
         } catch (err) {
-          runHooks.issue("WARN", "monitor", "monitor exception: " + err.message);
+          if (runHooks.issue) runHooks.issue("WARN", "monitor", "monitor exception: " + err.message);
         }
     }
     variantTick(enemy, dt) {

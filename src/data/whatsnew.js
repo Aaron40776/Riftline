@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.45.1",
+    title: "The false start",
+    items: [
+      "Runs start again: a test-only watchdog tripped every run three frames in - it stands down for players now.",
+      "The startup check stops missing the log button that 3.45.0 retired, so the health list is green again.",
+      "A new test plays a run like a real player, so a fix that only works in the test lab can't ship again.",
+    ],
+  },
+  {
     version: "3.45.0",
     title: "The quieter screen",
     items: [
