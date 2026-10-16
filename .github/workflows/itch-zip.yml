@@ -1,0 +1,67 @@
+name: Patch + build itch zip
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch src/index.html (viewport-fit, iOS metas, dark bg)
+        run: |
+          # 1. normalize the viewport meta to include viewport-fit=cover
+          if grep -qE 'name=.viewport' src/index.html; then
+            perl -pi -e 's{<meta[^>]*name=.viewport[^>]*>}{<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">}' src/index.html
+          else
+            perl -pi -e 's{(<head[^>]*>)}{$1\n  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">}' src/index.html
+          fi
+          # 2. iOS standalone metas (only if missing)
+          if ! grep -q 'apple-mobile-web-app-capable' src/index.html; then
+            perl -pi -e 's{(<head[^>]*>)}{$1
+              <meta name="mobile-web-app-capable" content="yes">
+              <meta name="apple-mobile-web-app-capable" content="yes">
+              <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+              <meta name="apple-mobile-web-app-title" content="Riftline">}' src/index.html
+          fi
+          # 3. dark page background so no white bands can ever show (only if missing)
+          if ! grep -q 'RIFTLINE-PWA-FIX' src/index.html; then
+            perl -pi -e 's{</head>}{<style id="RIFTLINE-PWA-FIX">html,body{margin:0;padding:0;height:100%;background:#05070d}</style></head>}' src/index.html
+          fi
+
+      - name: Patch manifest (display fullscreen)
+        run: |
+          if grep -q '"display": "standalone"' public/manifest.webmanifest && ! grep -q 'display_override' public/manifest.webmanifest; then
+            perl -pi -e 's{"display": "standalone",}{"display": "fullscreen",\n  "display_override": ["fullscreen", "standalone"],}' public/manifest.webmanifest
+          fi
+
+      - name: Commit patched sources back to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/index.html public/manifest.webmanifest
+          if git diff --cached --quiet; then
+            echo "Already patched — nothing to commit"
+          else
+            git commit -m "PWA fix: viewport-fit=cover, iOS metas, dark background, fullscreen display"
+            git push
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build
+      - name: Package itch zip (from patched sources)
+        run: cd dist && zip -r ../riftline-itch.zip .
+
+      - name: Print patched <head> into the log (for verification)
+        run: sed -n '1,30p' src/index.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: riftline-itch
+          path: riftline-itch.zip
