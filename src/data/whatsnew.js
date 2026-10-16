@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.45.3",
+    title: "The first chip",
+    items: [
+      "Dashing with Slipstream, a stun, a barrier - the first timed buff chip threw an error three frames in a row and killed the run; the HUD row now reads the store it was always meant to read.",
+      "The player battery dashes for real through the DASH button with every timed chip lit, so a HUD crash can't hide from the tests again.",
+      "A one-rule linter (no-undef) fails any bare name that is not an import, a local or a build token - this class of bug cannot ship again.",
+      "The repo has a README, and the build info counts its workshop modules right.",
+    ],
+  },
+  {
     version: "3.45.2",
     title: "The edges sanded",
     items: [

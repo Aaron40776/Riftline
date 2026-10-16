@@ -40,6 +40,11 @@ jobs:
           key: riftline-sound-${{ hashFiles('src/audio/**/*.js', 'src/data/*.js', 'tests/deep-test.mjs', 'package-lock.json') }}
       - name: Formatting
         run: npm run format:check
+      # 3.45.3: the static undefined-name net. The buff-row crash shipped as a bare identifier that is
+      # legal at parse time and only threw on a real player's phone. eslint runs one rule on purpose:
+      # no-undef - a bare name that is not an import, a local or a declared build token fails the PR.
+      - name: Lint
+        run: npm run lint
       - name: Build and test
         run: npm test
       # 3.32.0: npm test only boots the menu; this plays a wave on a PC (about 40 s), so a crash while a wave is drawn
