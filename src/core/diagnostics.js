@@ -947,7 +947,7 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
       inp > 0 ? `${inp} input event(s) during the run` : "no input events observed during this run",
     );
   } else if (runHooks.step)
-    // 3.45.1: a player's run legitimately carries no monitor (test-only since 3.43.1) - no WARN for them.
+    // 3.45.2: a player's run legitimately carries no monitor (test-only since 3.43.1) - no WARN for them.
     // A session where the monitor was enabled but the run was never bound is a real ordering bug: warn there.
     addCheck("WARN", "monitor", "run monitor was not attached (run started before diagnostics were ready)");
   if (!crashed) {
@@ -1078,7 +1078,7 @@ function rlMonCrashed() {
 }
 function rlAuditReportLines(out) {
   const audit = RL_LAST_RUN_AUDIT;
-  // 3.45.1: the crash report speaks about the crash. Only a monitor-attached (test) session builds an audit
+  // 3.45.2: the crash report speaks about the crash. Only a monitor-attached (test) session builds an audit
   // with outcome "crashed"; a player's last ended run leaves a "defeat"/"victory"/"abandoned" audit behind,
   // and printing that into a crash report would describe the wrong run.
   if (!audit || audit.outcome !== "crashed") return;

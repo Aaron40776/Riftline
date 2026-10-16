@@ -1798,7 +1798,7 @@ applySettings();
 ui.show("home");
 setTimeout(rlRetireToast, 700);
 // 3.37.0: the startup health checks were meant for test sessions (a player offline got a WARN for a fetch that
-// tells them nothing). 3.45.1, the honest note: window.__riftTest exists for everyone since the test-interface
+// tells them nothing). 3.45.2, the honest note: window.__riftTest exists for everyone since the test-interface
 // refactor, so these run for every boot. They are quiet when green and they catch real breakage (the missing
 // log button of 3.45.0 showed up here), so they stay for all.
 setTimeout(() => {
