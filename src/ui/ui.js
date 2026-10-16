@@ -1256,8 +1256,11 @@ const getById = (id) => document.getElementById(id),
       for (let [id, , , left] of chips) {
         if (left < 0) continue;
         let step = Math.round(clamp(left, 0, 1) * 20);
-        if (!rebuilt && cache["buff" + id] === step) continue;
-        cache["buff" + id] = step;
+        // 3.45.3: `cache` was hud()'s local alias - buffs() reached for a global that does not exist, and the
+        // first timed chip (a dash with Slipstream, a stun, a barrier) threw "Can't find variable: cache"
+        // for three consecutive frames and killed the loop. The store is this.hudCache, as buffKey above.
+        if (!rebuilt && this.hudCache["buff" + id] === step) continue;
+        this.hudCache["buff" + id] = step;
         let bar = buffRow.querySelector(`[data-b="${id}"] i`);
         if (bar) {
           bar.style.transform = `scaleX(${step / 20})`;
@@ -1293,8 +1296,8 @@ const getById = (id) => document.getElementById(id),
           fresh = true;
         }
         const step = Math.round(clamp(left, 0, 1) * 20);
-        if (fresh || cache["buff" + id] !== step) {
-          cache["buff" + id] = step;
+        if (fresh || this.hudCache["buff" + id] !== step) {
+          this.hudCache["buff" + id] = step;
           const bar = el.querySelector("i");
           if (bar) {
             bar.style.transform = `scaleX(${step / 20})`;

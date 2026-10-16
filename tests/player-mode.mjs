@@ -104,6 +104,97 @@ const run2 = await measureLoop(2000);
 ok("resumed frame loop keeps running", run2.f2 > run2.f1 + 10, `${run2.f1} -> ${run2.f2} frames`);
 ok("resumed simulation advances", run2.t2 > run2.t1, `world time ${run2.t1.toFixed(2)} -> ${run2.t2.toFixed(2)}`);
 
+// --- the buff row: 3.45.3's crash was hud()'s local `cache` alias read from buffs() - the first timed
+// chip (Slipstream primed by a dash, a stun, a barrier) threw "Can't find variable: cache" on every frame
+// after it appeared, three in a row, and killed the loop. No test dashed, so no test had a chip. Prime
+// every timed chip of both loops, then dash for real through the dash button.
+let lastFrames = await page.evaluate(() => window.__rlFrames),
+  lastSim = await page.evaluate(() => window.__riftTest.game.world.time);
+const primeBuff = async (name, setup, ms) => {
+  await page.evaluate(setup);
+  await page.waitForTimeout(ms);
+  const f = await page.evaluate(() => window.__rlFrames),
+    s = await page.evaluate(() => window.__riftTest.game.world.time);
+  // aliveness, not pacing: a software-rendered CI box may crawl, a dead loop freezes in both counters
+  ok(
+    `buff chip "${name}" did not kill the loop`,
+    f > lastFrames || s > lastSim + 0.02,
+    `${f - lastFrames} frames · sim +${(s - lastSim).toFixed(2)}s`,
+  );
+  lastFrames = f;
+  lastSim = s;
+};
+await primeBuff(
+  "slipstream",
+  () => {
+    const w = window.__riftTest.game.world;
+    w.stats.slip = 1;
+    w.player.slipT = 1.3;
+  },
+  900,
+);
+await primeBuff(
+  "slow-mo",
+  () => {
+    window.__riftTest.game.world.chronoT = 1.4;
+  },
+  500,
+);
+await primeBuff(
+  "stunned",
+  () => {
+    const p = window.__riftTest.game.world.player;
+    p.slowT = 0.7;
+    p.slowKind = "shock";
+  },
+  500,
+);
+await primeBuff(
+  "chilled",
+  () => {
+    const p = window.__riftTest.game.world.player;
+    p.slowT = 1.5;
+    p.slowKind = "ice";
+  },
+  500,
+);
+await primeBuff(
+  "heat sink",
+  () => {
+    const w = window.__riftTest.game.world;
+    w.stats.heatSink = 1;
+    w.player.heatT = 2;
+  },
+  500,
+);
+await page.evaluate(() => {
+  const w = window.__riftTest.game.world;
+  w.stats.slip = 1;
+  w.player.slipT = 1.3;
+  w.player.dashCdT = 0;
+});
+const dashBtnEl = await page.$("#dashBtn");
+const db = dashBtnEl ? await dashBtnEl.boundingBox() : null;
+if (db) {
+  await page.touchscreen.tap(db.x + db.width / 2, db.y + db.height / 2);
+  await page.waitForTimeout(1200);
+}
+const dashCount = await page.evaluate(() => window.__riftTest.game.world.runStats.dashes);
+ok("a real dash through the dash button", dashCount >= 1, `runStats.dashes=${dashCount}`);
+const buffFrames = await page.evaluate(() => window.__rlFrames),
+  buffSim = await page.evaluate(() => window.__riftTest.game.world.time);
+ok("frames still advance with every buff chip lit", buffFrames > lastFrames, `${lastFrames} -> ${buffFrames} frames`);
+ok(
+  "simulation still advances with every buff chip lit",
+  buffSim > lastSim + 0.02,
+  `sim ${lastSim.toFixed(2)} -> ${buffSim.toFixed(2)}`,
+);
+ok(
+  "no crash screen after the buff parade",
+  !(await vis("crash")),
+  (await vis("crash")) ? "crash screen showed" : "hidden",
+);
+
 // --- normal run end: the audit a player builds at death (rlMonFinish runs without the monitor)
 await page.evaluate(() => {
   const w = window.__riftTest.game.world;
