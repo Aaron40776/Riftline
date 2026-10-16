@@ -76,7 +76,7 @@
    }
   },
   "sim-pulse-t0": {
-   "digest": "12c613757a9f0cef",
+   "digest": "7ce1275b6011232a",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -159,14 +159,14 @@
      "c5158958862e8545",
      "58cbb89cf927e79f",
      "90df7ac21dd5444b",
-     "7c23a179e18d2451"
+     "f6e56ca0af66a901"
     ],
-    "final": "7c23a179e18d2451",
+    "final": "f6e56ca0af66a901",
     "rnd": 0
    }
   },
   "sim-scatter-t2": {
-   "digest": "9e56400b28f5fff6",
+   "digest": "0dbf0e95599557c7",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -243,19 +243,19 @@
     },
     "trace": [
      "c1e699c00a1ec659",
-     "67aac8c361b93527",
-     "c203a467ce9afcce",
-     "bed9ed56475bf250",
-     "f86f8549f5512680",
-     "f50aee7ab9aed011",
-     "a4fc674ac5f12d4b",
-     "edcc63c6df72501a",
-     "53df971596fb974a",
-     "1375f525dd2e980d",
-     "5cfa27f285e6a6b9",
-     "a0ceb42910201119"
+     "5190a53915e79a95",
+     "5053c315ddfe737f",
+     "69cdce5164dbf060",
+     "9d6a8c3de471c574",
+     "f2ddd8520dca79bc",
+     "f30ead9c27f9e523",
+     "e7a3786a13db69dd",
+     "c938f893a2d1a9c0",
+     "c939519e58838e42",
+     "f0a86300b11a6307",
+     "7586073c654c90fd"
     ],
-    "final": "a0ceb42910201119",
+    "final": "7586073c654c90fd",
     "rnd": 0
    }
   },
@@ -354,7 +354,7 @@
    }
   },
   "sim-rail-t0": {
-   "digest": "b07240495152dee4",
+   "digest": "d4f6a1f0f53f7b39",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -362,7 +362,7 @@
     "steps": 15867,
     "kills": 376,
     "shards": 1403,
-    "dmg": 28161,
+    "dmg": 28160,
     "hp": 200,
     "nova": 100,
     "time": 264.45,
@@ -431,18 +431,18 @@
      "ac2fb510c6a37ff1",
      "e7ed6c27e8a31a97",
      "784acf5a0226cfc9",
-     "4adfcbf033de6e1e",
-     "3ddbb874f40d39a5",
-     "cb14b6c351e82c91",
-     "35bf433290abda3c",
-     "cd5352a0092fb7a1"
+     "1862ee697ab68b4b",
+     "0807659abbe14a50",
+     "9059bd0d08853d7c",
+     "1b2b9cc5978856f8",
+     "18b829c2fe5e8521"
     ],
-    "final": "cd5352a0092fb7a1",
+    "final": "18b829c2fe5e8521",
     "rnd": 0
    }
   },
   "sim-rocket-t2": {
-   "digest": "e6ccebf8a3f3b45f",
+   "digest": "923159422132d500",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -450,7 +450,7 @@
     "steps": 26006,
     "kills": 578,
     "shards": 1347,
-    "dmg": 58421,
+    "dmg": 58419,
     "hp": 100,
     "nova": 80,
     "time": 433.433,
@@ -517,22 +517,22 @@
      "0d5e1cc8f82cb396",
      "a4c4bd9de61eb016",
      "4e635d6fea91a2cb",
-     "3531ec475aea8d16",
-     "6abe1d008442e920",
-     "d4a944fa4556ea12",
-     "bc4ad65f196111b1",
-     "c36a977cfdbd3172",
-     "9fe2714ae1da7d73",
-     "53bb20befb267bf8",
-     "bd7f10da3624f6f2",
-     "7670265a6a715957"
+     "89097167b46d824a",
+     "85965d2d0bee9674",
+     "fdfc1c66baa650f1",
+     "29b5a0097df2af9e",
+     "03292e2105813536",
+     "87740e353d68be44",
+     "6b97e327f210e56e",
+     "088c73bbd8cf0405",
+     "4b84e26ab9c1dd8e"
     ],
-    "final": "7670265a6a715957",
+    "final": "4b84e26ab9c1dd8e",
     "rnd": 0
    }
   },
   "sim-disc-t5": {
-   "digest": "217ac8879078a2ae",
+   "digest": "5e2af20c57e6a696",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -608,23 +608,23 @@
     "trace": [
      "6731be67780ee687",
      "9ecf15adf74b8bb4",
-     "9873eae29d598614",
-     "16df07329056353a",
-     "59d2469932ae3e2f",
-     "23acbcae7347792f",
-     "51e53d8d6213940c",
-     "ddc225d19b67b6f0",
-     "b929db04bd6c090c",
-     "717fe31b90cc96f3",
-     "6bde0624a6ca06d4",
-     "b5499c4d8370dec9"
+     "6868a3350c98f864",
+     "6dd8a5849574e932",
+     "86d4c1d7bee80a85",
+     "9d09128f71aedd72",
+     "66e1437a93d3d89f",
+     "83a15cd026bf978a",
+     "dc9329676dc83096",
+     "a8552c56662c264b",
+     "4261afe19d884ff5",
+     "16cbcdb4def11c18"
     ],
-    "final": "b5499c4d8370dec9",
+    "final": "16cbcdb4def11c18",
     "rnd": 0
    }
   },
   "sim-flame-t2": {
-   "digest": "f65a46f1f1400db6",
+   "digest": "ee2bca2e068f962a",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -632,7 +632,7 @@
     "steps": 19310,
     "kills": 498,
     "shards": 1128,
-    "dmg": 51948,
+    "dmg": 51939,
     "hp": 175,
     "nova": 67.5,
     "time": 321.833,
@@ -699,25 +699,25 @@
      "wingShot": 988
     },
     "trace": [
-     "28975d380b8c7ea4",
-     "aea21333078798d3",
-     "16a4e76d5203553b",
-     "866411eb9512b69b",
-     "d4428a63f023cd7c",
-     "e2b44618494be21f",
-     "825c69b7423095c5",
-     "2d7a6de59371e08a",
-     "5d879e89b79f79b9",
-     "23741c05918caa43",
-     "4313b967f2a08574",
-     "07ac05780c2eb86a"
+     "becded38361eaf53",
+     "fb59f9049d2af017",
+     "50619be95d695703",
+     "6eb28e8cab526279",
+     "a6b419a84f2ac56e",
+     "f31cd4664b67930e",
+     "98a8528ec44fc37b",
+     "65f10e9c1d7a8fb3",
+     "6efa5ca93f68f525",
+     "7c0522a173041677",
+     "50ab88f519625b11",
+     "e6b515a2d06a95ad"
     ],
-    "final": "07ac05780c2eb86a",
+    "final": "e6b515a2d06a95ad",
     "rnd": 0
    }
   },
   "sim-pulse-t2-endless": {
-   "digest": "67f79ac16b91a1cf",
+   "digest": "be7e86930b62394e",
    "rec": {
     "wave": 22,
     "state": "choose",
@@ -807,16 +807,16 @@
      "749be62ccee63dce",
      "cf87339f99dc6863",
      "565504075a7b539f",
-     "e82b02fb533955cb",
-     "6aaf6124c740b0da",
-     "bfc0296d4ea67878",
-     "190810979a5b6e65",
-     "4968d90c3e6c932b",
-     "c78bd4e1a81520c1",
-     "fd3d22e844cc644d",
-     "dfe2f26d35e81ce1",
-     "ce0e56a4234c1862",
-     "bbeecd9b4ad9b744",
+     "e911e2930b6dbc98",
+     "79844416bddbfcb2",
+     "09df77641bf8b28f",
+     "8a129a98a9cb61a9",
+     "230c353a97ffaac0",
+     "cbc0ee102b2a34b9",
+     "036161bf46018480",
+     "dece5d2bf1d8b207",
+     "0b00dd5507b66ef9",
+     "261e25b56a7d32de",
      "aeebc64584eb750f",
      "0bcc24cb1e228ee0",
      "a017f12ee5fbcbe5"
@@ -826,7 +826,7 @@
    }
   },
   "sim-scatter-t1-resume": {
-   "digest": "d0783cf1d6c9ee5a",
+   "digest": "648aefa27760b947",
    "rec": {
     "wave": 10,
     "state": "choose",
@@ -834,7 +834,7 @@
     "steps": 13226,
     "kills": 277,
     "shards": 798,
-    "dmg": 22868,
+    "dmg": 22866,
     "hp": 170,
     "nova": 26.589,
     "time": 220.433,
@@ -899,17 +899,17 @@
      "384a906f2cd75e77",
      "fcbc47e435c3d1bf",
      "ab93a6e94d1f9bab",
-     "de76abf433edf7e4",
-     "40b0cc1afd8093b0",
-     "90d1ef1bbdf4cccf",
-     "34582c43d3b42c5d"
+     "1d8cfc2b896a1f48",
+     "9b0204bd378319c6",
+     "d21df6ed59e1c4e1",
+     "3236028a90c1a5dc"
     ],
-    "final": "34582c43d3b42c5d",
+    "final": "3236028a90c1a5dc",
     "rnd": 0
    }
   },
   "sim-rocket-t5-mortal": {
-   "digest": "20601a4eeb36e96a",
+   "digest": "60d27b0468e3c4c2",
    "rec": {
     "wave": 5,
     "state": "dead",
@@ -972,14 +972,14 @@
      "65cf0f4cc23d36e9",
      "bbcda6b27a9e7b0e",
      "684d7b5a82b28b22",
-     "7f1535ae30369680"
+     "05b61f4a778d2803"
     ],
-    "final": "7f6ddb683a234864",
+    "final": "59f1fbf138f3895f",
     "rnd": 0
    }
   },
   "repeat-sim-pulse-t0": {
-   "digest": "12c613757a9f0cef",
+   "digest": "7ce1275b6011232a",
    "rec": {
     "wave": 12,
     "state": "choose",
@@ -1062,9 +1062,9 @@
      "c5158958862e8545",
      "58cbb89cf927e79f",
      "90df7ac21dd5444b",
-     "7c23a179e18d2451"
+     "f6e56ca0af66a901"
     ],
-    "final": "7c23a179e18d2451",
+    "final": "f6e56ca0af66a901",
     "rnd": 0
    }
   }

@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.43.1",
+    title: "The seams closed",
+    items: [
+      "An abandoned run goes fully quiet behind its end screen: no fight sounds and no heartbeat under the menu music.",
+      "The hidden test machinery no longer runs inside a normal game - a player's run carries none of it.",
+      "A Chrono Dash slow-mo runs out on the upgrade screen instead of leaking into the next wave.",
+      "The escorts a boss takes with it vanish without the screen punch, and a boss killed after death pays no medal.",
+    ],
+  },
+  {
     version: "3.43.0",
     title: "The living quiet",
     items: [
@@ -41,27 +51,6 @@ export const WHATS_NEW = [
       "Siphon repairs more as it grows (up to 10 HP), and Salvager Core caches pay 3 shards a level.",
       "The pacts are priced honestly: Iron Hide pays the least, Heavy Drive pays like the rest.",
       "Past wave 20 the traps grow with the run, so Endless floors keep biting.",
-    ],
-  },
-  ,
-  {
-    version: "3.39.0",
-    title: "A tidier end screen and Codex",
-    items: [
-      "Boss medals now show on the end screen with their par time, not only in the Codex.",
-      "The end screen says every number once: the run grid keeps the crits, dashes and best combo.",
-      "The Codex keeps what teaches the rift: enemies, bosses, variants and events (the card gallery is gone).",
-      "The milestone list ends at goals you can still see from here.",
-      "The What's new tab keeps the last few releases instead of the whole history.",
-    ],
-  },
-  {
-    version: "3.38.0",
-    title: "A richer look",
-    items: [
-      "A filmic tone curve: highlights on the machines and enemies roll off softly instead of clipping to flat white.",
-      "Deeper, tighter shadows ground every model on the floor.",
-      "The brightness of each biome stays as it was; the colours carry more depth.",
     ],
   },
 ];

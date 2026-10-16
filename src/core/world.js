@@ -1131,6 +1131,12 @@ const rlStep = 1 / 60,
             (!enemy.boss && live.some((pool) => (enemy.x - pool.x) ** 2 + (enemy.y - pool.y) ** 2 < pool.r * pool.r));
     }
     idle(dt) {
+      // 3.43.1: the short buffs run out on the upgrade screen too - a Chrono Dash slow-mo used to
+      // survive the card frozen and start the next wave at 45 % speed, its chip still on the screen
+      if (this.chronoT > 0) this.chronoT = Math.max(0, this.chronoT - dt);
+      let player = this.player;
+      if (player.slipT > 0) player.slipT = Math.max(0, player.slipT - dt);
+      if (player.heatT > 0) player.heatT = Math.max(0, player.heatT - dt);
       this.updatePickups(dt);
       for (let bullet of this.eb) bullet.life = 0;
       this.sweep();
@@ -1924,8 +1930,11 @@ const rlStep = 1 / 60,
         enemy.burnAcc += dmg;
         enemy.burnShow += dt;
         enemy.hp -= dmg;
-        this.dmgDealt += dmg;
-        this.credit(enemy.burnSrc || "burn", dmg);
+        // 3.43.1: the same overkill clamp a hit uses (hurtEnemy) - the burn used to bill the full
+        // tick to the damage stats while the hurt path bills only what was missing
+        const dealt = Math.min(dmg, enemy.hp + dmg);
+        this.dmgDealt += dealt;
+        this.credit(enemy.burnSrc || "burn", dealt);
         if (enemy.burnShow > 0.5) {
           if (enemy.burnAcc > 0.5) {
             this.emit("dmg", { x: enemy.x, y: enemy.y, v: enemy.burnAcc, burn: true, id: enemy.id });
@@ -2133,7 +2142,16 @@ const rlStep = 1 / 60,
       // 2.8.1: the adds removed when a boss dies only vanish (no kill count, Nova, Siphon, drops, split,
       // explosions); they used to pay rewards, spawn mites and set off volatile or inferno effects
       if (enemy.cleanup) {
-        this.emit("kill", { type: enemy.type, x: enemy.x, y: enemy.y, elite: enemy.elite, boss: false, r: enemy.r });
+        // 3.43.1: marked, so the vanish stays but the hit-stop of a big escort is skipped (main.js)
+        this.emit("kill", {
+          type: enemy.type,
+          x: enemy.x,
+          y: enemy.y,
+          elite: enemy.elite,
+          boss: false,
+          r: enemy.r,
+          cleanup: true,
+        });
         return;
       }
       // 2.8.1: after the player died, kills by bullets still in flight, burn or explosions pay nothing
