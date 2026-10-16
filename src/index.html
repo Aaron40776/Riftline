@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="riftline-version" content="__RL_VERSION__">
 <meta name="riftline-build" content="__RL_BUILD__">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover, interactive-widget=overlays-content">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Riftline</title>
 <meta name="description" content="Riftline – a 3D arena roguelite shooter with twin-stick touch controls.">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1479,7 +1479,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
 .row.cx.unseen .rico { color: var(--mute); background: rgba(255, 255, 255, 0.04); }
 .row.cx.unseen b { letter-spacing: 0.24em; color: var(--dim); }
 </style>
-</head>
+<style id="RIFTLINE-PWA-FIX">html,body{margin:0;padding:0;height:100%;background:#05070d}</style></head>
 <body>
 <div id="app">
   <canvas id="gl" aria-label="Game view"></canvas>
