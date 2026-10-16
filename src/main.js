@@ -1202,14 +1202,16 @@ function handleWorldEvents(world) {
       case "boss":
         // 3.1.0: the boss track starts on the spot, at the camera pan
         sound.setMusic("boss", world.biomeFor(world.wave).id);
-        ui.banner(ev.name, ev.title, "boss", 2600);
         showTipOnce("boss", "Bosses telegraph every attack. Marked zones and lines hit hard \u2014 move out.");
         if (world.player.alive && world.boss && renderer) {
           // 3.43.1: not on a dead player - the 3 s camera pan used to freeze the death animation and
           // hold the game-over screen back
+          // 3.45.0: the intro card carries name and title through the pan - no second banner on top
           game.intro = { t: 0 };
           renderer.focusOn(world.boss.x, world.boss.y);
           input.settle();
+        } else {
+          ui.banner(ev.name, ev.title, "boss", 2600);
         }
         break;
       case "novaReady":

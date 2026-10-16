@@ -1,6 +1,8 @@
 # 3.32.0: the long checks, every night on main (about 25-35 minutes; the owner agreed on 11.10.2026). They are too slow
 # for every pull request: the end-to-end test with real input on four screen sizes, a short UI fuzz, the world and run
 # audits, and the screenshots (kept as an artifact for a week, to look at). A failure shows on the Actions tab.
+# 3.45.0: a second job runs the checks nothing wired before - the leak soak and the weapon balance table
+# (which enters Endless again since its startEndless call was fixed to enterEndless).
 name: Nightly
 
 on:
@@ -53,3 +55,23 @@ jobs:
           path: tests/shots/
           retention-days: 7
           if-no-files-found: ignore
+
+  # 3.45.0: the leak soak played nobody and the balance table was silent - here they run
+  long-ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Soak (heap/scene/DOM leak floors to wave 75)
+        run: node tools/qa.js soak
+      - name: Balance table (per weapon, mortal runs enter Endless)
+        if: always()
+        run: node tests/balance.mjs

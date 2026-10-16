@@ -155,7 +155,7 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
         // pops in for a moment
         let alpha = clamp(num.life / 0.35, 0, 1),
           pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.12) * 0.3,
-          fontSize = Math.min(32, (num.crit ? 14 : num.burn ? 9 : 11) + 3.4 * Math.log10(1 + Math.max(0, num.v))) * pop;
+          fontSize = Math.min(24, (num.crit ? 14 : num.burn ? 9 : 11) + 3.4 * Math.log10(1 + Math.max(0, num.v))) * pop;
         ctx.font = `700 ${fontSize}px "Chakra Petch", "Barlow Semi Condensed", system-ui, sans-serif`;
         let text = String(Math.max(1, Math.round(num.v)));
         ctx.globalAlpha = alpha;
