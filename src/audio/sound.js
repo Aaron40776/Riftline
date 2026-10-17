@@ -3762,12 +3762,15 @@ const musicChords = {
         // detach used to cut it), and never in the offline renders (the render happens after the
         // scheduling pass: a detached node's window would never sound)
         if (!this.offline)
-          setTimeout(() => {
-            try {
-              for (let node of tone.nodes) node.disconnect();
-              tone.gain.disconnect();
-            } catch {}
-          }, Math.max(0, end - this.ctx.currentTime) * 1000 + 150);
+          setTimeout(
+            () => {
+              try {
+                for (let node of tone.nodes) node.disconnect();
+                tone.gain.disconnect();
+              } catch {}
+            },
+            Math.max(0, end - this.ctx.currentTime) * 1000 + 150,
+          );
       } catch {}
     }
     /* Runs with the scheduler: keeps the room tone of the current biome alive (menu, upgrade, pause and
