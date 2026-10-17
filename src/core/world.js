@@ -84,6 +84,58 @@ function rlChipDamage(player, dmg) {
   player.chipAcc = Math.max(0, sum - whole);
   return whole;
 }
+/* 3.46.0: the separation callback is hoisted (a fresh closure per live enemy per step used to be
+ handed to the spatial hash; SEP_SELF carries the enemy being separated) */
+let SEP_SELF = null;
+function sepOther(other) {
+  const enemy = SEP_SELF;
+  if (other === enemy || other.dead || other.id < enemy.id) return;
+  const dx = other.x - enemy.x,
+    dy = other.y - enemy.y,
+    minDist = enemy.r + other.r,
+    distSq = dx * dx + dy * dy;
+  if (distSq >= minDist * minDist) return;
+  const dist = Math.sqrt(distSq) || 0.001,
+    push = (minDist - dist) * 0.5,
+    massA = enemy.boss ? 20 : enemy.r * enemy.r,
+    massB = other.boss ? 20 : other.r * other.r,
+    massSum = massA + massB,
+    nx = distSq > 1e-6 ? dx / dist : 1,
+    ny = distSq > 1e-6 ? dy / dist : 0;
+  enemy.x -= nx * push * 2 * (massB / massSum);
+  enemy.y -= ny * push * 2 * (massB / massSum);
+  other.x += nx * push * 2 * (massA / massSum);
+  other.y += ny * push * 2 * (massA / massSum);
+}
+/* 3.46.0: pulls the player's own acid pools out of the list in place — same result as the pair of
+ filters it replaces (the natural pools keep their order, the own ones come back last), but no
+ fresh arrays every step. Returns null (list untouched) when there are none. */
+function partitionMineAcid(list) {
+  let has = false;
+  for (let i = 0; i < list.length; i++)
+    if (list[i].mine) {
+      has = true;
+      break;
+    }
+  if (!has) return null;
+  const own = [];
+  let w = 0;
+  for (let i = 0; i < list.length; i++) {
+    const pool = list[i];
+    if (pool.mine) own.push(pool);
+    else list[w++] = pool;
+  }
+  list.length = w;
+  return own;
+}
+/* 3.46.0: is the enemy inside one of the player's acid pools (no closure per enemy per step) */
+function inOwnAcid(live, enemy) {
+  for (let i = 0; i < live.length; i++) {
+    const pool = live[i];
+    if ((enemy.x - pool.x) ** 2 + (enemy.y - pool.y) ** 2 < pool.r * pool.r) return true;
+  }
+  return false;
+}
 /* Hazard Attunement: close = within 2 m of the edge of a vent, ice sheet or acid pool, or of a
  portal mouth. Boss-attack zones (this.hazards) do not count. */
 const RL_ATTUNE_RANGE = 2;
@@ -1013,13 +1065,13 @@ const rlStep = 1 / 60,
       // pools: Spore Bloom neither grows them nor counts them when it looks for room or checks its
       // pool cap.
       if (this.bioEv && this.state === "fight") {
-        const all = this.arena.acid,
-          ownAcid = all.filter((pool) => pool.mine);
-        if (ownAcid.length) this.arena.acid = all.filter((pool) => !pool.mine);
+        // 3.46.0: the player's pools are partitioned in place (a pair of filters used to hand the
+        // GC two fresh arrays every step of a biome event)
+        const ownAcid = partitionMineAcid(this.arena.acid);
         try {
           this.tickBiomeEvent(this.bioEv, dt);
         } finally {
-          if (ownAcid.length) this.arena.acid.push(...ownAcid);
+          if (ownAcid) this.arena.acid.push(...ownAcid);
         }
       }
       // 2.5.0 A: Acid Coating. The player's own acid never hurts the player: those puddles leave
@@ -1030,9 +1082,8 @@ const rlStep = 1 / 60,
         natural = false,
         live = null;
       if (coat) {
-        const all = this.arena.acid;
-        mine = all.filter((pool) => pool.mine);
-        this.arena.acid = all.filter((pool) => !pool.mine);
+        // 3.46.0: partitioned in place (two filters every step while Acid Coating is on)
+        mine = partitionMineAcid(this.arena.acid) || [];
         natural = this.arena.acid.length > 0;
         live = mine;
       }
@@ -1045,9 +1096,15 @@ const rlStep = 1 / 60,
               pool.life -= dt;
             }
           }
-          if (arena.acid.some((pool) => pool.life != null && pool.life <= 0)) {
-            arena.acid = arena.acid.filter((pool) => pool.life == null || pool.life > 0);
+          // 3.46.0: expired pools are compacted in place (some + filter used to allocate here)
+          let w = 0,
+            expired = false;
+          for (let i = 0; i < arena.acid.length; i++) {
+            const pool = arena.acid[i];
+            if (pool.life != null && pool.life <= 0) expired = true;
+            else arena.acid[w++] = pool;
           }
+          if (expired) arena.acid.length = w;
           player.inAcid = player.alive && arena.inAcid(player.x, player.y);
           if (player.inAcid && this.state === "fight") {
             player.acidT += dt;
@@ -1146,15 +1203,17 @@ const rlStep = 1 / 60,
       } finally {
         if (coat) {
           for (const pool of mine) pool.life -= dt;
-          live = mine.filter((pool) => pool.life > 0);
+          // 3.46.0: the expired ones are compacted in place (a filter used to run every step)
+          let w = 0;
+          for (let i = 0; i < mine.length; i++) if (mine[i].life > 0) mine[w++] = mine[i];
+          mine.length = w;
+          live = mine;
           this.arena.acid.push(...live);
         }
       }
       if (coat)
         for (const enemy of this.enemies)
-          enemy.corrode =
-            (natural && !!enemy.corrode) ||
-            (!enemy.boss && live.some((pool) => (enemy.x - pool.x) ** 2 + (enemy.y - pool.y) ** 2 < pool.r * pool.r));
+          enemy.corrode = (natural && !!enemy.corrode) || (!enemy.boss && inOwnAcid(live, enemy));
     }
     idle(dt) {
       // 3.43.1: the short buffs run out on the upgrade screen too - a Chrono Dash slow-mo used to
@@ -1355,7 +1414,9 @@ const rlStep = 1 / 60,
       for (let enemy of this.enemies) {
         if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
         let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y) - enemy.r;
-        if (dist > range || !this.canSee(enemy)) continue;
+        // 3.46.0: the cached line of sight (refreshed every ~0.2 s in statusTick) screens the
+        // candidates — a fresh wall raycast per enemy per step used to sit here
+        if (dist > range || !enemy.los) continue;
         let score = dist;
         if (dist < 4) score *= 0.6;
         else if (dist < 7 && RL_RUSHERS.has(enemy.type)) score *= 0.75;
@@ -1366,7 +1427,8 @@ const rlStep = 1 / 60,
           best = enemy;
         }
       }
-      return best;
+      // 3.46.0: one fresh check for the winner only (the cache can be a fifth of a second stale)
+      return best && this.canSee(best) ? best : null;
     }
     fire(angle) {
       const stats = this.stats;
@@ -1783,6 +1845,7 @@ const rlStep = 1 / 60,
           los: true,
           losT: this.rng.next() * 0.25,
           parent: opts.parent || 0,
+          parentRef: opts.parentRef || null,
           kids: 0,
           phase: this.rng.next() * TAU,
           noDrop: !!opts.noDrop,
@@ -2018,30 +2081,15 @@ const rlStep = 1 / 60,
     }
     separate() {
       let enemies = this.enemies;
+      // 3.46.0: one hoisted callback (see sepOther) instead of a closure per live enemy per step
       for (let i = 0; i < enemies.length; i++) {
         let enemy = enemies[i];
         if (!enemy.dead) {
-          this.hash.query(enemy.x, enemy.y, enemy.r, (other) => {
-            if (other === enemy || other.dead || other.id < enemy.id) return;
-            let dx = other.x - enemy.x,
-              dy = other.y - enemy.y,
-              minDist = enemy.r + other.r,
-              distSq = dx * dx + dy * dy;
-            if (distSq >= minDist * minDist) return;
-            let dist = Math.sqrt(distSq) || 0.001,
-              push = (minDist - dist) * 0.5,
-              massA = enemy.boss ? 20 : enemy.r * enemy.r,
-              massB = other.boss ? 20 : other.r * other.r,
-              massSum = massA + massB,
-              nx = distSq > 1e-6 ? dx / dist : 1,
-              ny = distSq > 1e-6 ? dy / dist : 0;
-            enemy.x -= nx * push * 2 * (massB / massSum);
-            enemy.y -= ny * push * 2 * (massB / massSum);
-            other.x += nx * push * 2 * (massA / massSum);
-            other.y += ny * push * 2 * (massA / massSum);
-          });
+          SEP_SELF = enemy;
+          this.hash.query(enemy.x, enemy.y, enemy.r, sepOther);
         }
       }
+      SEP_SELF = null;
       for (let enemy of enemies) {
         if (!enemy.dead) {
           this.arena.resolve(enemy, enemy.r);
@@ -2286,7 +2334,10 @@ const rlStep = 1 / 60,
         this.explode(enemy.x, enemy.y, 2.3, 30 * this.stats.dmgMul, { enemies: true, kind: "pop" });
       }
       if (enemy.parent) {
-        let parent = this.enemies.find((other) => other.id === enemy.parent);
+        // 3.46.0: the parent comes by reference (a chain kill of a Hive's brood used to run a
+        // linear scan of every enemy per kid); the id lookup stays for anything spawned without one
+        let parent = enemy.parentRef && !enemy.parentRef.dead ? enemy.parentRef : null;
+        if (!parent) parent = this.enemies.find((other) => other.id === enemy.parent) || null;
         if (parent) {
           parent.kids = Math.max(0, parent.kids - 1);
         }
@@ -2617,19 +2668,26 @@ const rlStep = 1 / 60,
       }
     }
     home(bullet, dt) {
-      let target = null,
-        best = 8,
-        heading = Math.atan2(bullet.vy, bullet.vx);
-      this.hash.query(bullet.x, bullet.y, 8, (enemy) => {
-        if (enemy.dead || enemy.ghost || bullet.hits.includes(enemy.id)) return;
-        let dx = enemy.x - bullet.x,
-          dy = enemy.y - bullet.y,
-          dist = Math.hypot(dx, dy);
-        if (!(dist > best || Math.abs(angleDiff(heading, Math.atan2(dy, dx))) > 1.3)) {
-          best = dist;
-          target = enemy;
-        }
-      });
+      // 3.46.0: the target is cached on the bullet and re-acquired when it dies or 0.15 s have
+      // passed — Seeker builds used to run a full spatial query per homing shot per step
+      let heading = Math.atan2(bullet.vy, bullet.vx),
+        target = bullet.tgt;
+      if (!target || target.dead || target.ghost || bullet.hits.includes(target.id) || bullet.tgtT < this.time - 0.15) {
+        target = null;
+        let best = 8;
+        this.hash.query(bullet.x, bullet.y, 8, (enemy) => {
+          if (enemy.dead || enemy.ghost || bullet.hits.includes(enemy.id)) return;
+          let dx = enemy.x - bullet.x,
+            dy = enemy.y - bullet.y,
+            dist = Math.hypot(dx, dy);
+          if (!(dist > best || Math.abs(angleDiff(heading, Math.atan2(dy, dx))) > 1.3)) {
+            best = dist;
+            target = enemy;
+          }
+        });
+        bullet.tgt = target;
+        bullet.tgtT = this.time;
+      }
       if (!target) return;
       let angle = turnToward(heading, Math.atan2(target.y - bullet.y, target.x - bullet.x), bullet.homing * dt),
         speed = Math.hypot(bullet.vx, bullet.vy);
@@ -2892,12 +2950,13 @@ const rlStep = 1 / 60,
             this.hurtEnemy(enemy, dmg, enemy.x - player.x, enemy.y - player.y, 2.5, false, "orbit");
           }
         });
-        for (let bullet of this.eb) {
-          if (bullet.life > 0 && Math.abs(bullet.x - bx) < 0.7 && Math.abs(bullet.y - by) < 0.7) {
-            bullet.life = 0;
-            this.emit("pop", { x: bullet.x, y: bullet.y });
+        if (this.eb.length)
+          for (let bullet of this.eb) {
+            if (bullet.life > 0 && Math.abs(bullet.x - bx) < 0.7 && Math.abs(bullet.y - by) < 0.7) {
+              bullet.life = 0;
+              this.emit("pop", { x: bullet.x, y: bullet.y });
+            }
           }
-        }
       }
     }
     updateWingman(dt) {
@@ -2972,7 +3031,10 @@ const rlStep = 1 / 60,
           }
         });
       }
-      this.trails = this.trails.filter((trail) => trail.life > 0);
+      // 3.46.0: compacted in place (a filter used to hand the GC a fresh array every step)
+      let w = 0;
+      for (let i = 0; i < this.trails.length; i++) if (this.trails[i].life > 0) this.trails[w++] = this.trails[i];
+      this.trails.length = w;
     }
     updateBeams(dt) {
       let player = this.player;
@@ -2989,7 +3051,14 @@ const rlStep = 1 / 60,
           }
         }
         beam.live = beam.t >= beam.warn && beam.t < beam.warn + beam.dur;
-        beam.cur = this.arena.rayLen(beam.x, beam.y, beam.a, beam.len);
+        // 3.46.0: a beam that never moves or turns keeps its wall distance (a dozen static grid
+        // beams used to be re-raycast every step for the whole attack)
+        if (beam.rot || beam.follow) {
+          beam.cur = this.arena.rayLen(beam.x, beam.y, beam.a, beam.len);
+        } else if (!beam.curSet) {
+          beam.cur = this.arena.rayLen(beam.x, beam.y, beam.a, beam.len);
+          beam.curSet = true;
+        }
         if (beam.live && player.alive) {
           let endX = beam.x + Math.cos(beam.a) * beam.cur,
             endY = beam.y + Math.sin(beam.a) * beam.cur,
@@ -3006,7 +3075,11 @@ const rlStep = 1 / 60,
           }
         }
       }
-      this.beams = this.beams.filter((beam) => beam.t < beam.warn + beam.dur);
+      // 3.46.0: compacted in place (a filter used to hand the GC a fresh array every step)
+      let w = 0;
+      for (let i = 0; i < this.beams.length; i++)
+        if (this.beams[i].t < this.beams[i].warn + this.beams[i].dur) this.beams[w++] = this.beams[i];
+      this.beams.length = w;
     }
     beam(opts) {
       let beam = {
@@ -3072,7 +3145,11 @@ const rlStep = 1 / 60,
           });
         }
       }
-      this.hazards = this.hazards.filter((hazard) => hazard.t < hazard.delay + 0.4);
+      // 3.46.0: compacted in place (a filter used to hand the GC a fresh array every step)
+      let w = 0;
+      for (let i = 0; i < this.hazards.length; i++)
+        if (this.hazards[i].t < this.hazards[i].delay + 0.4) this.hazards[w++] = this.hazards[i];
+      this.hazards.length = w;
       if (!cold) return;
       const player = this.player;
       for (const hazard of cold) {

@@ -186,7 +186,10 @@ function updateSlag(world, dt) {
       enemy.burnSrc = pool.fire ? "burn" : "hammer";
     });
   }
-  world.slag = world.slag.filter((pool) => pool.life > 0);
+  // 3.46.0: compacted in place (a filter per step while the pools burn)
+  let w = 0;
+  for (let i = 0; i < world.slag.length; i++) if (world.slag[i].life > 0) world.slag[w++] = world.slag[i];
+  world.slag.length = w;
 }
 
 function shatter(world, enemy) {
@@ -236,7 +239,11 @@ function updateSplinters(world, dt) {
       s.life = 0;
     });
   }
-  world.splinters = world.splinters.filter((s) => s.life > 0);
+  // 3.46.0: compacted in place (a filter per step while splinters fly)
+  let w = 0;
+  for (let i = 0; i < world.splinters.length; i++)
+    if (world.splinters[i].life > 0) world.splinters[w++] = world.splinters[i];
+  world.splinters.length = w;
 }
 
 function hatch(world, enemy) {
@@ -310,7 +317,10 @@ function updateBrood(world, dt) {
     else if (larva.life <= 0 && fight) burstLarva(world, larva);
   }
   // a larva that runs out between waves fades without a blast
-  player.brood = brood.filter((larva) => larva.life > 0);
+  // 3.46.0: compacted in place (a filter per step while larvae fly)
+  let w = 0;
+  for (let i = 0; i < brood.length; i++) if (brood[i].life > 0) brood[w++] = brood[i];
+  brood.length = w;
 }
 
 function updateImplode(world, dt) {
