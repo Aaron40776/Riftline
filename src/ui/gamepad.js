@@ -3,7 +3,10 @@
 // right trigger fires where the drone faces, Start pauses; in the menus the D-pad and the left stick move a ring of focus
 // from button to button (the nearest one in that direction), A presses it, B goes back. Controllers with the standard layout
 // (Xbox, PlayStation, Switch Pro and most others in a browser) are read; the rumble of a controller and the vibration of a
-// phone are in rumble() at the end. Nothing here runs while no controller is connected.
+// phone are in rumble() at the end (3.45.4: an iPhone, which has no navigator.vibrate, gets the switch tick of haptics.js).
+// Nothing here runs while no controller is connected.
+
+import { hapticTick } from "./haptics.js";
 
 const DEAD = 0.2, // radial dead zone of a stick
   AIM_FIRE = 0.3, // the right stick fires from this far out
@@ -238,11 +241,17 @@ function rumble(kind, enabled = true) {
       }
     }
   } catch {}
-  // a phone (Android Chrome): only where the screen is touched, never on a desktop that happens to have the call
+  // a phone: only where the screen is touched, never on a desktop that happens to have the call.
+  // Android Chrome vibrates; iOS (no navigator.vibrate) gets the short switch tick of haptics.js,
+  // which on the iOS versions that silenced it simply stays quiet.
   try {
-    if (!done && navigator.vibrate && matchMedia("(pointer: coarse)").matches) {
-      navigator.vibrate(r.phone);
-      done = true;
+    if (!done && matchMedia("(pointer: coarse)").matches) {
+      if (navigator.vibrate) {
+        navigator.vibrate(r.phone);
+        done = true;
+      } else if (hapticTick()) {
+        done = true;
+      }
     }
   } catch {}
   return done;

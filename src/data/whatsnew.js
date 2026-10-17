@@ -2,6 +2,15 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.45.4",
+    title: "The phone buzzes",
+    items: [
+      "Vibration reaches iPhones at last: a hit, a dash and the end of a run give a short tick on the iOS versions that still allow it (Apple silenced the web trick in 26.5, iOS 27 lets it back in).",
+      "Settings has a Test button for vibration, and the line under it says honestly what this device can do - a controller still rumbles everywhere.",
+      "The end screen answers to R: run again without reaching for the mouse.",
+    ],
+  },
+  {
     version: "3.45.3",
     title: "The first chip",
     items: [
