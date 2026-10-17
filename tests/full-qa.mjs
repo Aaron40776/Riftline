@@ -1470,6 +1470,25 @@ for (const profName of ["desktop", "phone"])
     });
     check(L, "death shows the game-over screen", await waitScreen("over"));
     await P.page.waitForTimeout(1200);
+    // 3.45.4: R on the end screen runs again (the button underneath is checked right after)
+    await P.page.keyboard.press("r");
+    await P.page.waitForTimeout(800);
+    const rk = await P.ev(() => {
+      const g = window.__riftTest.game;
+      return { mode: g.mode, wave: g.world && g.world.wave, over: !document.getElementById("over").hidden };
+    });
+    check(L, "R on the end screen runs again", rk.mode === "game" && rk.wave === 1 && !rk.over, JSON.stringify(rk));
+    // die again, so the button path below keeps its own death
+    await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      w.god = false;
+      w.player.iT = 0;
+      w.player.dashT = 0;
+      w.player.shield = false;
+      w.hurtPlayer(99999, null, null, "grunt", true);
+    });
+    check(L, "the second death shows the game-over screen", await waitScreen("over"));
+    await P.page.waitForTimeout(1200);
     await P.tap("#retryBtn");
     await P.page.waitForTimeout(800);
     const rt = await P.ev(() => {
@@ -3694,6 +3713,61 @@ await section("vibration-phone", async (L) => {
   await hurt();
   await P.page.waitForTimeout(800);
   check(L, "with Vibration off it stays still", (await P.ev(() => window.__buzz.length)) === 0);
+  check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+  await P.close();
+});
+
+// 3.45.4: an iPhone (no navigator.vibrate at all) gets the switch tick of haptics.js: the hidden
+// switch appears with the first hit and a tick toggles it, the setting off keeps it still, and
+// the settings note says what the device actually gets
+await section("haptics-ios", async (L) => {
+  const P = await open("phone", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.ev(() => {
+    // navigator.vibrate lives on the prototype here, so an own undefined shadows it away
+    Object.defineProperty(navigator, "vibrate", { value: undefined, configurable: true });
+    window.__riftTest.game.startRun({});
+  });
+  await P.page.waitForFunction(
+    () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+    null,
+    {
+      timeout: 30000,
+    },
+  );
+  const hurt = () =>
+    P.ev(() => {
+      const w = window.__riftTest.game.world;
+      w.god = false;
+      w.player.hp = w.player.maxHp = 500;
+      w.player.iT = 0;
+      w.player.dashT = 0;
+      w.player.shield = false;
+      w.hurtPlayer(4, null, null, "grunt");
+    });
+  await hurt();
+  await P.page.waitForTimeout(800);
+  const st1 = await P.ev(() => {
+    const el = document.querySelector("input[switch]");
+    return el ? { on: el.checked } : null;
+  });
+  check(L, "an iPhone hit toggles the hidden switch", !!st1 && st1.on === true, JSON.stringify(st1));
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.store.data.settings.vibration = false;
+    T.game.settingsChanged(true);
+  });
+  await hurt();
+  await P.page.waitForTimeout(800);
+  const st2 = await P.ev(() => document.querySelector("input[switch]").checked);
+  check(L, "with Vibration off the switch stays still", st2 === true, "checked " + st2);
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.ui.show("settings");
+    T.ui.renderSettings();
+  });
+  const note = await P.ev(() => document.getElementById("vibNote").textContent);
+  check(L, "the settings note says what an iPhone gets", /tick/i.test(note), note);
   check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
   await P.close();
 });

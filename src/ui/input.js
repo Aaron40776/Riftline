@@ -173,7 +173,13 @@ const Input = class {
       key = /^Key[A-Z]$/.test(code) ? code.slice(3).toLowerCase() : String(ev.key || "");
     this._rlKey = key.toLowerCase();
     const tag = ev.target && ev.target.tagName;
-    if (down && !ev.repeat && tag !== "INPUT" && tag !== "TEXTAREA" && chooseKey(code, this._rlKey))
+    if (
+      down &&
+      !ev.repeat &&
+      tag !== "INPUT" &&
+      tag !== "TEXTAREA" &&
+      (chooseKey(code, this._rlKey) || overKey(code, this._rlKey))
+    )
       ev.preventDefault();
     // Esc also works while a settings toggle or slider has focus (only text fields keep it);
     // 2.8.1: and it closes an open dialog even while its text field (Import) has focus
@@ -447,6 +453,16 @@ function chooseKey(code, key) {
     return true;
   }
   return false;
+}
+// 3.45.4: R runs again while the end screen is up (keyboard players only; the endless button,
+// when it is the one showing, is what R presses, since it hides Run again)
+function overKey(code, key) {
+  if (key !== "r") return false;
+  if (!game.overShown || getById("over").hidden || !getById("dialog").hidden) return false;
+  const endless = getById("endlessBtn"),
+    btn = !endless.hidden ? endless : getById("retryBtn");
+  if (btn && !btn.hidden && !btn.disabled) btn.click();
+  return true;
 }
 function newStick() {
   return { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, t: 0 };

@@ -22,7 +22,8 @@ import { milestones, workshopModules, rlRetired, threatLevels } from "../data/pr
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
 import { RL_INPUT } from "./input.js";
-import { clearFocus } from "./gamepad.js";
+import { clearFocus, rumble } from "./gamepad.js";
+import { hapticMode } from "./haptics.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
 import { markHomeViewDirty } from "../render/renderer.js";
@@ -390,6 +391,10 @@ const getById = (id) => document.getElementById(id),
       bindToggle("setAuto", "autoFire");
       bindToggle("setAssist", "assist");
       bindToggle("setVibration", "vibration");
+      // 3.45.4: feel what the setting does, wherever this device can buzz at all
+      this.click(getById("setVibTest"), () => {
+        this.toast(rumble("slam", true) ? "Buzz sent" : "Nothing here to buzz with");
+      });
       bindToggle("setShake", "shake");
       bindToggle("setNumbers", "numbers");
       bindToggle("setContrast", "contrast");
@@ -828,6 +833,13 @@ const getById = (id) => document.getElementById(id),
       getById("setAuto").checked = settings.autoFire;
       getById("setAssist").checked = settings.assist;
       getById("setVibration").checked = settings.vibration !== false;
+      // 3.45.4: the note says what this device actually can do
+      getById("vibNote").textContent =
+        hapticMode() === "native"
+          ? "Buzzes on this phone: hits, dashes, the end of a run."
+          : hapticMode() === "tick"
+            ? "iPhone: short ticks, on the iOS versions that still allow them."
+            : "No vibration on this device. A connected controller still rumbles.";
       getById("setShake").checked = settings.shake;
       getById("setNumbers").checked = settings.numbers;
       getById("setContrast").checked = settings.contrast;
@@ -1623,6 +1635,12 @@ const getById = (id) => document.getElementById(id),
       this.renderDamage(result);
       getById("endlessBtn").hidden = !result.canEndless;
       getById("retryBtn").hidden = result.canEndless;
+      // 3.45.4: R runs again from the end screen (keyboard players only)
+      if (!RL_INPUT.touch && !result.canEndless) {
+        const retry = getById("retryBtn");
+        if (!retry.querySelector(".card-key"))
+          retry.insertAdjacentHTML("beforeend", '<kbd class="card-key inline">R</kbd>');
+      }
       getById("over").hidden = false;
       this.countUp(getById("payTotal"), result.total);
       this.renderRunExtra();

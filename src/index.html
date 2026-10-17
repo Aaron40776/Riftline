@@ -360,6 +360,7 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #cfd8ea; transition: transform 0.15s; }
 .toggle:checked { background: var(--cyan-d); }
 .toggle:checked::after { transform: translateX(22px); background: #fff; }
+.row-ctl { display: flex; align-items: center; gap: 10px; flex: none; }
 input[type=range] { -webkit-appearance: none; appearance: none; width: min(180px, 45vw); height: 28px; background: transparent; margin: 0; touch-action: pan-x; }
 input[type=range]::-webkit-slider-runnable-track { height: 4px; background: rgba(255, 255, 255, 0.15); }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; background: var(--cyan); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
@@ -1662,7 +1663,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div class="set-group">
         <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest enemy while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
         <label class="set-row"><span><b>Aim assist</b><small>Nudges your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
-        <label class="set-row"><span><b>Vibration</b><small>Rumble on a controller, a short buzz on a phone: hits, dashes, the end of a run.</small></span><input type="checkbox" id="setVibration" class="toggle"></label>
+        <div class="set-row"><span><b>Vibration</b><small id="vibNote">Rumble on a controller, a short buzz on a phone: hits, dashes, the end of a run.</small></span><span class="row-ctl"><button id="setVibTest" class="btn small ghost">Test</button><label><input type="checkbox" id="setVibration" class="toggle"></label></span></div>
         <div class="set-row"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the buttons and the sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
       </div>
       <h3 class="section-h">Display</h3>
