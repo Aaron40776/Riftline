@@ -959,6 +959,20 @@ for (const profName of ["desktop", "phone"])
         JSON.stringify(d),
       );
     }
+    // 3.45.5: the two feel toggles reach the renderer (they used to have no reader at all - the camera
+    // wobbled and the numbers floated whatever the switch said). The toggles above flipped both off.
+    const feel = await P.ev(() => {
+      const r = window.__riftTest.renderer,
+        s0 = r.shake;
+      r.addShake(1);
+      return { shake: r.shakes, numbers: r.numbers, calm: r.shake === s0 };
+    });
+    check(
+      L,
+      "screen shake / numbers toggles reach the renderer",
+      feel.shake === false && feel.numbers === false && feel.calm,
+      JSON.stringify(feel),
+    );
     const fx = await P.ev(() => {
       const T = window.__riftTest;
       return {
@@ -1036,12 +1050,19 @@ for (const profName of ["desktop", "phone"])
         ),
         vol: T.game.sound.sfxVol,
         zoom: T.renderer.zoom,
+        // 3.45.5: the feel toggles apply again on boot (applySettings reads them into the renderer)
+        feel: { shake: T.renderer.shakes, numbers: T.renderer.numbers },
       };
     });
     check(
       L,
       "all settings survive a reload (data, controls, effect)",
-      after.s === want && after.ui && after.vol === 0.25 && after.zoom === 1.18,
+      after.s === want &&
+        after.ui &&
+        after.vol === 0.25 &&
+        after.zoom === 1.18 &&
+        after.feel.shake === false &&
+        after.feel.numbers === false,
       after.s === want ? "" : `${after.s} != ${want}`,
     );
     // --- workshop: buy every level; exact costs; persisted; MAX at the end
