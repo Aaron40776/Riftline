@@ -1842,7 +1842,10 @@ const rlStep = 1 / 60,
           orbAt: null,
           dashHit: 0,
           dead: false,
-          los: true,
+          // 3.46.0: the cached line of sight starts true to the truth (a real check at spawn —
+          // it used to be a blind `true` for up to 0.25 s, enough for auto-aim to pick an enemy
+          // behind a wall); statusTick keeps it fresh from here on
+          los: this.shotsCrossWalls() || !this.arena || this.arena.los(x, y, this.player.x, this.player.y, 0.2),
           losT: this.rng.next() * 0.25,
           parent: opts.parent || 0,
           parentRef: opts.parentRef || null,
