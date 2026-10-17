@@ -1867,6 +1867,7 @@ function healCrossGeometry() {
 export {
   meshPart,
   mergeParts,
+  mergeGeometries,
   box,
   ball,
   bar,

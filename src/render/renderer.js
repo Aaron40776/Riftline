@@ -623,6 +623,17 @@ const MAX_PARTICLES = 1400,
     }
     setQuality(dprCap, particles) {
       this.dprCap = dprCap;
+      // 3.46.0: the procedural shaders scale their detail with the tier (the floor's fbm +
+      // voronoi + starfield and the zone/hazard fills used to cost the same on a battery phone
+      // at dpr 1 as on a desktop at dpr 2): 0 full, 1 fewer octaves, 2 one-cell voronoi
+      const lod = dprCap <= 1.05 ? 2 : dprCap <= 1.3 ? 1 : 0;
+      if (this.arena) this.arena.uniforms.uLod.value = lod;
+      for (const mat of this.attackView ? this.attackView.mats : [])
+        if (mat.uniforms.uLod) mat.uniforms.uLod.value = lod;
+      if (this.attackView && this.attackView.zoneMat) this.attackView.zoneMat.uniforms.uLod.value = lod;
+      if (this.attackView && this.attackView.markMat) this.attackView.markMat.uniforms.uLod.value = lod;
+      for (const mat of this.hazardView ? this.hazardView.mats : [])
+        if (mat.uniforms.uLod) mat.uniforms.uLod.value = lod;
       if (particles && particles !== this.maxParticles) {
         this.maxParticles = particles;
         this.initParticles();
