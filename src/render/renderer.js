@@ -464,6 +464,10 @@ const MAX_PARTICLES = 1400,
       this.arena = new ArenaView(this.scene);
       this.time = 0;
       this.shake = 0;
+      // 3.45.5: the Settings toggles reach the renderer here (they used to be saved and drawn, but nothing read
+      // them - the shake wobbled and the numbers floated whatever the switch said)
+      this.shakes = true;
+      this.numbers = true;
       this.camX = 0;
       this.camZ = 2;
       this.camInit = false;
@@ -790,6 +794,8 @@ const MAX_PARTICLES = 1400,
       }
     }
     addShake(amount) {
+      // 3.45.5: Settings > Screen shake off means a calm camera (the biome bump included)
+      if (this.shakes === false) return;
       this.shake = Math.min(1, this.shake + amount);
     }
     flash(x, z, radius, intensity, color, decay = 6) {
@@ -969,7 +975,8 @@ const MAX_PARTICLES = 1400,
       this.attackView.mark(x, z, radius * 1.15, MARK_LOOK.burn);
     }
     consume(events, world, opts) {
-      let showNumbers = opts.numbers !== false,
+      // 3.45.5: the Settings toggles gate the floating numbers and the shake on top of the per-event opts
+      let showNumbers = opts.numbers !== false && this.numbers !== false,
         shakeK = opts.shake === false ? 0 : 1;
       for (let ev of events) {
         // 3.15.0: the events of the boss cards (and the blasts of the hammer and the larvae) are drawn by their view
