@@ -210,3 +210,21 @@ All HIGH and MEDIUM findings carry file:line references verified in this pass; t
 | "25–40 boss draw calls" | Confirmed, narrowed | 20–33 measured across the five bosses (M7). |
 | "Per-frame array garbage" | Confirmed | Renderer sites listed (LOW 11); sim-side sites listed under M8. `interp.js`/`pacing.js` are allocation-free. |
 | "Reed sway full buffer re-upload" | Confirmed | ~46 KB/frame, ~720 reeds, marsh only (M5). |
+
+---
+
+## Appendix C — Implementation Status (branch `audit-fixes`)
+
+All findings fixed except one deferred item. Commits, in order:
+
+| Commit | Contents |
+|---|---|
+| `b4a4411` | Phase 1 — H1 (scheduler re-arm + per-step note guard), H2 (startTone register-before-build + deadTone), M2 (startMusicBed cleanup + syncTrack rollback/backoff), M3 (transactional init), M1 (`input.reset(true)` on hidden + gamepad edges cleared); LOWs: deadBeds/deadTone retry after 10 s, stolen/cut/pruned voices disconnected, 2-convolver room pool, gamepad `held` cleared on disconnect, arrows no longer block `.scroll` menus |
+| `3b27694` | Phase 4 — wave-preview boss traps, death recap survives resume (hitLog + takenBy snapshotted & sanitized), single controllerchange listener, sw.js 504 fallback + caught puts + 30 s old-cache grace, cached buff row/bars/chips, unfit marks invalidated on viewport growth |
+| `7449177` | Phase 3 — M8 (homing target cache, cached-LOS targeting + fresh check on the winner, hoisted separation callback, parent-by-reference), in-place compaction for trails/beams/hazards/slag/splinters/brood/debris/lines/rings/nums, static-beam wall distance cached, Acid Coating partitioned in place, renderer stable-pool cache + flash-sort scratch + setBiome layout reuse |
+| `5eaee24` | Phase 2 — H3 (Blackout City props baked per material via `rlMerger`, ~200 draw calls → ~15; obstacles keep the rise group), M5 (reed wind in the vertex shader, static matrices), M4/M6 (`uLod` quality tier for fbm octaves / voronoi cells / starfield / crack rays across floor, zones, marks, hazards) |
+| `4805ca5` | Re-audit fix — enemies spawn with their real LOS (the cache used to start blind-true for up to 0.25 s, enough for auto-aim to pick a walled enemy; caught by the `wall-skipped` self-test) |
+
+**Deferred:** M7 (merging boss parts). The five boss builds scatter post-creation mutations (`rotation.set`, `scale.set`, conditional visibility) across ~125 parts; baking them safely needs per-part transform capture plus visual QA per boss, and the win is modest (20–33 draw calls for the one boss on screen). Recommended as a follow-up with `npm run screens` as the gate.
+
+**Determinism:** the golden fixtures were regenerated with `node tools/qa.js determinism --update` — sanctioned by the tool for changes that intentionally alter simulation behaviour (homing target retention, cached-LOS target selection). Self-consistency holds: same seed twice → identical digest, all 15 cases.
