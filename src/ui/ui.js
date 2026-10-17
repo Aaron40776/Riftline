@@ -215,6 +215,10 @@ const getById = (id) => document.getElementById(id),
       this.viewWeapon = 0;
       this.viewThreat = 0;
       this.hudCache = {};
+      // 3.46.0: the buff row and its step bars are cached per frame (see buffs)
+      this.buffRow = null;
+      this.buffBars = new Map();
+      this.buffTimed = new Map();
       this.dlgResolve = null;
       this.fillIcons(document);
       getById("pauseBtn").innerHTML = iconSvg("pause");
@@ -1241,10 +1245,13 @@ const getById = (id) => document.getElementById(id),
         else chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]);
       }
       let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
-        buffRow = getById("buffs"),
+        // 3.46.0: the row element is cached (it is static in the page); the step bars are cached
+        // with it and die with the row on a rebuild (the bars used to be re-queried every frame)
+        buffRow = this.buffRow || (this.buffRow = getById("buffs")),
         rebuilt = this.hudCache.buffKey !== key;
       if (rebuilt) {
         this.hudCache.buffKey = key;
+        this.buffBars = new Map();
         buffRow.innerHTML = chips
           .map(
             ([id, text, color, left]) =>
@@ -1261,7 +1268,11 @@ const getById = (id) => document.getElementById(id),
         // for three consecutive frames and killed the loop. The store is this.hudCache, as buffKey above.
         if (!rebuilt && this.hudCache["buff" + id] === step) continue;
         this.hudCache["buff" + id] = step;
-        let bar = buffRow.querySelector(`[data-b="${id}"] i`);
+        let bar = this.buffBars.get(id);
+        if (!bar) {
+          bar = buffRow.querySelector(`[data-b="${id}"] i`);
+          if (bar) this.buffBars.set(id, bar);
+        }
         if (bar) {
           bar.style.transform = `scaleX(${step / 20})`;
         }
@@ -1279,12 +1290,28 @@ const getById = (id) => document.getElementById(id),
       if (on && stats.skates && player.skating) {
         want.push(["skate", "SKATES", "#bff4ff", -1]);
       }
-      const row = getById("buffs");
+      const row = buffRow;
       if (!row) return;
-      for (const id of timedBuffChips)
-        if (!want.some((chip) => chip[0] === id)) row.querySelector(`[data-b="${id}"]`)?.remove();
+      // 3.46.0: the timed chips are cached too; a cached element is only trusted while it is
+      // still connected (a rebuild of the row above may have dropped it)
+      const timed = this.buffTimed;
+      const live = (id) => {
+        let el = timed.get(id);
+        if (el && !el.isConnected) {
+          timed.delete(id);
+          el = null;
+        }
+        return el || null;
+      };
+      for (const id of timedBuffChips) {
+        if (!want.some((chip) => chip[0] === id)) {
+          const el = live(id);
+          if (el) el.remove();
+          else row.querySelector(`[data-b="${id}"]`)?.remove();
+        }
+      }
       for (const [id, text, color, left] of want) {
-        let el = row.querySelector(`[data-b="${id}"]`),
+        let el = live(id) || row.querySelector(`[data-b="${id}"]`),
           fresh = false;
         if (!el) {
           el = document.createElement("span");
@@ -1295,6 +1322,7 @@ const getById = (id) => document.getElementById(id),
           row.appendChild(el);
           fresh = true;
         }
+        timed.set(id, el);
         const step = Math.round(clamp(left, 0, 1) * 20);
         if (fresh || this.hudCache["buff" + id] !== step) {
           this.hudCache["buff" + id] = step;

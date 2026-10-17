@@ -147,16 +147,19 @@ function registerServiceWorker(onUpdate) {
       .register("./sw.js", { scope: "./", updateViaCache: "none" })
       .then((registration) => {
         let hadController = !!navigator.serviceWorker.controller,
+          // 3.46.0: the reload listener is registered once for the session — offer() used to add
+          // a fresh one every time an update was offered (each guarded, so it was noise, but the
+          // closures stacked across a long session with several queued updates)
+          reloaded = false,
+          reload = () => {
+            if (!reloaded) {
+              reloaded = true;
+              location.reload();
+            }
+          },
           offer = (worker) => {
             if (!(!worker || !navigator.serviceWorker.controller)) {
               onUpdate(() => {
-                let reloaded = false,
-                  reload = () => {
-                    if (!reloaded) {
-                      reloaded = true;
-                      location.reload();
-                    }
-                  };
                 navigator.serviceWorker.addEventListener("controllerchange", reload);
                 worker.postMessage("skipWaiting");
                 setTimeout(reload, 4e3);

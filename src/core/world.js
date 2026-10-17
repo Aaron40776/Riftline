@@ -208,6 +208,24 @@ const rlStep = 1 / 60,
             this.dmgSrc[src] = snap.dmgSrc[src];
           }
         }
+      // 3.46.0: the recap of a resumed run keeps the hits taken before the resume
+      if (snap && Array.isArray(snap.hitLog))
+        for (const h of snap.hitLog)
+          if (h && typeof h.src === "string" && Number.isFinite(h.dmg))
+            this.hitLog.push({
+              t: +h.t || 0,
+              wave: h.wave | 0,
+              src: h.src,
+              dmg: +h.dmg,
+              chip: !!h.chip,
+              n: Math.max(1, h.n | 0),
+            });
+      if (snap && snap.takenBy && typeof snap.takenBy == "object")
+        for (let src in snap.takenBy) {
+          if (Number.isFinite(snap.takenBy[src])) {
+            this.takenBy[src] = snap.takenBy[src];
+          }
+        }
       this.route = planBiomeRoute(makeRng(hashString(this.seed + ":route")));
       this.combo = 0;
       this.comboT = 0;
@@ -548,7 +566,9 @@ const rlStep = 1 / 60,
         boss: boss || null,
         event: boss ? null : this.eventFor(n),
         mutator: mutators.gained || null,
-        traps: n >= 6 && !boss,
+        // 3.46.0: boss waves get floor traps from wave 15 on (traps.js), but the preview told the
+        // player every boss floor was clean
+        traps: n >= 6 && (!boss || n >= 15),
       };
     }
     biomeFor(wave) {
@@ -618,6 +638,10 @@ const rlStep = 1 / 60,
           critHits: this.runStats.critHits | 0,
         },
         dmgSrc: Object.fromEntries(Object.entries(this.dmgSrc).map(([src, dmg]) => [src, Math.round(dmg)])),
+        // 3.46.0: the recap survives a resume — the end screen used to show only the hits taken
+        // after it (hitLog: at most twelve plain entries; takenBy: the totals by source)
+        hitLog: this.hitLog.map((h) => ({ t: h.t, wave: h.wave, src: h.src, dmg: h.dmg, chip: h.chip, n: h.n })),
+        takenBy: { ...this.takenBy },
       };
       if (this.state === "choose" && this.offer) {
         snap.offer = [...this.offer];

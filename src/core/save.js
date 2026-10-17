@@ -308,6 +308,9 @@ function cleanRun(raw) {
     bossLuck: cleanNumber(raw.bossLuck, BOSS_CARD_CHANCE, 0, 1),
     runStats: { dmgTaken: 0, dashes: 0, critHits: 0 },
     dmgSrc: {},
+    // 3.46.0: the death recap survives a resume (the last twelve hits and the totals by source)
+    hitLog: [],
+    takenBy: {},
   };
   for (const id of Array.isArray(raw.banished) ? raw.banished : [])
     if (own(upgradesById, id) && !run.banished.includes(id) && run.banished.length < 6) run.banished.push(id);
@@ -325,6 +328,23 @@ function cleanRun(raw) {
   const src = asObject(raw.dmgSrc);
   for (const key in src)
     if (/^[A-Za-z0-9_-]{1,18}$/.test(key)) run.dmgSrc[key] = Math.floor(cleanNumber(src[key], 0, 0, 1e12));
+  // 3.46.0: the recap ("?" is the source of a hit that came with none)
+  const taken = asObject(raw.takenBy);
+  for (const key in taken)
+    if (/^[A-Za-z0-9_?-]{1,18}$/.test(key)) run.takenBy[key] = cleanNumber(taken[key], 0, 0, 1e12);
+  if (Array.isArray(raw.hitLog))
+    for (const h of raw.hitLog) {
+      if (run.hitLog.length >= 12) break;
+      if (!h || typeof h !== "object" || typeof h.src !== "string" || !/^[A-Za-z0-9_?]{1,18}$/.test(h.src)) continue;
+      run.hitLog.push({
+        t: cleanNumber(h.t, 0, 0, 1e8),
+        wave: Math.floor(cleanNumber(h.wave, 1, 1, 1e4)),
+        src: h.src,
+        dmg: cleanNumber(h.dmg, 0, 0, 1e9),
+        chip: !!h.chip,
+        n: Math.max(1, Math.floor(cleanNumber(h.n, 1, 1, 1e6))),
+      });
+    }
   if (Array.isArray(raw.offer)) {
     // 3.15.0: a boss card belongs only in a boss offer
     const offer = [
