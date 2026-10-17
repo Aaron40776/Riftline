@@ -233,7 +233,9 @@ const Input = class {
         } else {
           this.keys.delete(name);
         }
-        if (down) {
+        // 3.46.0: the arrows used to be swallowed even when the focus sat inside a scrollable
+        // menu list (settings, workshop, codex), so the keyboard could not scroll them
+        if (down && !(ev.target && ev.target.closest && ev.target.closest(".scroll, .cards"))) {
           ev.preventDefault();
         }
       }

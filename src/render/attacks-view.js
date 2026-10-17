@@ -133,6 +133,8 @@ void lay(vec3 c, float a) { a = clamp(a, 0.0, 1.0); acc = acc * (1.0 - a) + vec4
 float cracks(float r, float a, float seed, float reach) {
   float c = 0.0;
   for (int i = 0; i < 7; i++) {
+    // 3.46.0: the low tiers draw fewer rays (seven on high, five on auto-low, three on battery)
+    if (float(i) >= 7.0 - 2.0 * uLod) break;
     float fi = float(i), ai = fi * 0.8976 + h21(vec2(seed, fi)) * 0.7 + 0.16 * sin(r * 11.0 + fi * 3.0 + seed)
       + 0.07 * sin(r * 37.0 + fi * 7.0) + 0.12 * (vnoise(vec2(r * 6.0, fi + seed)) - 0.5);
     float d = abs(sin(a - ai)) * r;
@@ -332,7 +334,7 @@ void main() {
 }`;
 function shaderMaterial(frag, uniforms) {
   return new ShaderMaterial({
-    uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 } }, uniforms]),
+    uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 }, uLod: { value: 0 } }, uniforms]),
     vertexShader: SURF_VERT,
     fragmentShader: SURF_LIB + frag,
     fog: true,

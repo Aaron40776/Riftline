@@ -226,6 +226,8 @@ function updateEnemyCore(game, enemy, dt) {
             enemy.y + Math.sin(angle) * (enemy.r + 0.5),
             {
               parent: enemy.id,
+              // 3.46.0: the parent by reference — killEnemy no longer scans every enemy per kid
+              parentRef: enemy,
               hpF: 0.8,
             },
           );

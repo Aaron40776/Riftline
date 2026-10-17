@@ -49,6 +49,9 @@ function hudBox() {
 }
 /* layouts that did not fit this screen in a run (see fitHudLayout): the default layout stands in for them */
 const unfit = new Set();
+/* 3.46.0: the viewport area each orientation was marked unfit at — the mark is dropped when the
+   window has grown by a fifth over it (a layout dropped on a small window may fit a bigger one) */
+const unfitArea = {};
 const fitKey = (settings, orient) =>
   [orient, settings.stickFixed, settings.stickSize, JSON.stringify(settings.hudLayout)].join("|");
 function layoutOf(settings, orient = hudOrientation()) {
@@ -138,8 +141,15 @@ function layoutProblems(stick) {
    or overlaps itself, the default layout stands in for it until the settings change. Returns true when it stepped in. */
 function fitHudLayout(settings, radius) {
   const orient = hudOrientation(),
-    layout = layoutOf(settings, orient),
     hud = getById("hud");
+  // 3.46.0: a layout dropped on a smaller window (a rotated phone with the browser bar up) gets
+  // its mark back when the window has grown by a fifth over the one it was marked at
+  const marked = unfitArea[orient];
+  if (marked && innerWidth * innerHeight >= marked * 1.2) {
+    for (const key of [...unfit]) if (key.startsWith(orient + "|")) unfit.delete(key);
+    delete unfitArea[orient];
+  }
+  const layout = layoutOf(settings, orient);
   if (!layout || hud.hidden || hud.classList.contains("editing")) return false;
   // 3.31.0: right after a turn the page may still wear the classes (and button sizes) of the old orientation; a layout
   // measured then looked broken and was dropped for the session. The caller asks again a frame later.
@@ -149,6 +159,7 @@ function fitHudLayout(settings, radius) {
   const stick = settings.stickFixed ? { ...fixedStickCenter(settings, radius, layout), r: radius } : null;
   if (!layoutProblems(stick).size) return false;
   unfit.add(fitKey(settings, orient));
+  unfitArea[orient] = innerWidth * innerHeight;
   applyHudLayout(settings);
   return true;
 }

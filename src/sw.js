@@ -9,7 +9,18 @@ self.addEventListener('install', (e) => {
   }))));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith('riftline-') && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  // 3.46.0: the old caches are kept for a 30 s grace so a bfcache-restored page of the previous
+  // build can still request its subresources from them. The grace MUST NOT sit inside
+  // waitUntil: a pending activate promise delays activation, and fetches queue behind it (an
+  // offline reload then stalls for the whole grace). The sweep below is best-effort; whatever
+  // survives it (the worker can be killed first) is swept by the next activation.
+  e.waitUntil(self.clients.claim());
+  setTimeout(() => {
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('riftline-') && k !== CACHE).map((k) => caches.delete(k))))
+      .catch(() => {});
+  }, 30000);
 });
 self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 self.addEventListener('fetch', (e) => {
@@ -51,7 +62,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   e.respondWith(caches.open(CACHE).then((c) => c.match(req, { ignoreSearch: true }).then((hit) => hit || fetch(req).then((res) => {
-    if (res && res.ok && res.type === 'basic') c.put(req, res.clone());
+    if (res && res.ok && res.type === 'basic') c.put(req, res.clone()).catch(() => {});
     return res;
-  }))));
+  })).catch(() => new Response('', { status: 504 }))));
 });

@@ -68,7 +68,12 @@ class GamepadReader {
     }
     const p = this.pad();
     if (!p) {
-      if (this.id) this.prev = {};
+      if (this.id) {
+        this.prev = {};
+        // 3.46.0: the held time is forgotten too — a direction held at disconnect used to emit
+        // one spurious menu repeat right after the reconnect
+        this.held = {};
+      }
       this.id = null;
       return null;
     }

@@ -75,6 +75,7 @@ const SURF_LIB = `
 #include <common>
 #include <fog_pars_fragment>
 uniform float uTime;
+uniform float uLod;
 varying vec2 vP;
 varying vec3 vI;
 float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -85,11 +86,23 @@ float vnoise(vec2 p) {
 }
 float fbm(vec2 p) {
   float s = 0.0, a = 0.5;
-  for (int i = 0; i < 3; i++) { s += a * vnoise(p); p = p * 2.03 + 17.1; a *= 0.5; }
+  for (int i = 0; i < 3; i++) {
+    s += a * vnoise(p);
+    p = p * 2.03 + 17.1;
+    a *= 0.5;
+    // 3.46.0: the low tiers drop octaves (three on high, two on auto-low, one on battery)
+    if (float(i) >= 2.0 - uLod) break;
+  }
   return s / 0.875;
 }
 // x: distance to the nearest cell centre, y: distance to the cell border, z: cell id
 vec3 voro(vec2 p) {
+  // 3.46.0: the battery tier looks one cell up instead of nine (softer seams, a ninth of the work)
+  if (uLod > 1.5) {
+    vec2 n = floor(p);
+    float d = length(fract(p) - 0.5 - (h22(n) - 0.5) * 0.8);
+    return vec3(d, 0.4 + 0.3 * d, h21(n));
+  }
   vec2 n = floor(p), f = fract(p);
   float d1 = 8.0, d2 = 8.0, id = 0.0;
   for (int j = -1; j <= 1; j++)
@@ -212,7 +225,7 @@ void main() {
 function surfaceMaterial(kind) {
   const fire = kind === "fire";
   return new ShaderMaterial({
-    uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 } }]),
+    uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 }, uLod: { value: 0 } }]),
     vertexShader: (fire ? "#define FIRE\n" : "") + SURF_VERT,
     fragmentShader: SURF_LIB + SURF_FRAG[kind],
     fog: !fire,

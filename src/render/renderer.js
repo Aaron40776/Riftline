@@ -75,6 +75,11 @@ function upload(attr, count) {
   attr.addUpdateRange(0, count);
   attr.needsUpdate = true;
 }
+/* 3.46.0: the flashes are sorted strongest first (a hoisted comparator — one used to be built
+ every frame just to pick the six lights that reach the floor shader) */
+function flashOrder(a, b) {
+  return b.i - a.i;
+}
 const tmpColor = new Color(),
   InstancePool = class {
     constructor(geo, mat, max, opts = {}) {
@@ -569,28 +574,30 @@ const MAX_PARTICLES = 1400,
       this.kickA = 0;
     }
     allPools() {
-      return [
-        this.shadows,
-        this.discs,
-        this.ringPool,
-        this.columns,
-        this.beams,
-        this.shieldPool,
-        this.pbCore,
-        this.ebCore,
-        this.discPool,
-        this.shardPool,
-        this.healPool,
-        this.blades,
-        this.wing,
-        this.debris,
-        this.sprites,
-        this.sparks,
-        ...this.trapView.list,
-        ...this.hazardView.list,
-        ...this.attackView.list,
-        ...this.bossCardView.list,
-      ];
+      // 3.46.0: the sixteen stable pools are cached (the array used to be rebuilt with four
+      // spreads every frame). The pools of the views come and go with the traps, hazards, zones
+      // and boss cards — frame() iterates their lists live.
+      return (
+        this._pools ||
+        (this._pools = [
+          this.shadows,
+          this.discs,
+          this.ringPool,
+          this.columns,
+          this.beams,
+          this.shieldPool,
+          this.pbCore,
+          this.ebCore,
+          this.discPool,
+          this.shardPool,
+          this.healPool,
+          this.blades,
+          this.wing,
+          this.debris,
+          this.sprites,
+          this.sparks,
+        ])
+      );
     }
     initParticles() {
       let max = this.maxParticles;
@@ -616,6 +623,17 @@ const MAX_PARTICLES = 1400,
     }
     setQuality(dprCap, particles) {
       this.dprCap = dprCap;
+      // 3.46.0: the procedural shaders scale their detail with the tier (the floor's fbm +
+      // voronoi + starfield and the zone/hazard fills used to cost the same on a battery phone
+      // at dpr 1 as on a desktop at dpr 2): 0 full, 1 fewer octaves, 2 one-cell voronoi
+      const lod = dprCap <= 1.05 ? 2 : dprCap <= 1.3 ? 1 : 0;
+      if (this.arena) this.arena.uniforms.uLod.value = lod;
+      for (const mat of this.attackView ? this.attackView.mats : [])
+        if (mat.uniforms.uLod) mat.uniforms.uLod.value = lod;
+      if (this.attackView && this.attackView.zoneMat) this.attackView.zoneMat.uniforms.uLod.value = lod;
+      if (this.attackView && this.attackView.markMat) this.attackView.markMat.uniforms.uLod.value = lod;
+      for (const mat of this.hazardView ? this.hazardView.mats : [])
+        if (mat.uniforms.uLod) mat.uniforms.uLod.value = lod;
       if (particles && particles !== this.maxParticles) {
         this.maxParticles = particles;
         this.initParticles();
@@ -648,11 +666,18 @@ const MAX_PARTICLES = 1400,
     }
     setBiome(biome, layout) {
       let prevKey = this.arena.layKey;
-      this.arena.build(
-        biome,
-        layout ? { key: layout.key, W: layout.W, H: layout.H, obs: layout.obs, deco: layout.deco } : null,
-        !!layout,
-      );
+      // 3.46.0: the layout object is reused (setBiome runs every frame and arena.build early-
+      // returns on an unchanged key, so the fresh literal was allocated for nothing)
+      let lay = null;
+      if (layout) {
+        lay = this._layScratch || (this._layScratch = {});
+        lay.key = layout.key;
+        lay.W = layout.W;
+        lay.H = layout.H;
+        lay.obs = layout.obs;
+        lay.deco = layout.deco;
+      }
+      this.arena.build(biome, lay, !!layout);
       if (layout && prevKey != null && prevKey !== this.arena.layKey) {
         let color = hexColor(biome.grid);
         for (let obstacle of layout.obs) {
@@ -819,8 +844,13 @@ const MAX_PARTICLES = 1400,
       if (flashes.length && flashes.some((flash) => flash.i <= 0.02)) {
         this.flashes = flashes.filter((flash) => flash.i > 0.02);
       }
-      let sorted = this.flashes.slice().sort((a, b) => b.i - a.i),
-        uniforms = this.arena.uniforms;
+      // 3.46.0: the scratch array is reused (a slice + a fresh comparator used to be built every
+      // frame just to pick the six strongest flashes)
+      let sorted = this._flashSort || (this._flashSort = []);
+      sorted.length = 0;
+      for (let flash of this.flashes) sorted.push(flash);
+      sorted.sort(flashOrder);
+      let uniforms = this.arena.uniforms;
       for (let i = 0; i < 6; i++) {
         let flash = sorted[i];
         if (flash) {
@@ -928,7 +958,10 @@ const MAX_PARTICLES = 1400,
         pool.colC(idx, piece.col, 1);
       }
       if (list.length && list.some((piece) => piece.life <= 0)) {
-        this.D = list.filter((piece) => piece.life > 0);
+        // 3.46.0: compacted in place (a filter used to hand the GC a fresh array)
+        let w = 0;
+        for (let i = 0; i < list.length; i++) if (list[i].life > 0) list[w++] = list[i];
+        list.length = w;
       }
     }
     /* 3.10.0: a burnt mark of the place (until 3.9.0 the same black blob in every biome) */
@@ -1622,6 +1655,11 @@ const MAX_PARTICLES = 1400,
       this.arena.update(dt, px, pz, this.pulse);
       let pools = this.allPools();
       for (let pool of pools) pool.begin();
+      // 3.46.0: the view pools are iterated live (their lists grow and shrink with the wave)
+      for (let pool of this.trapView.list) pool.begin();
+      for (let pool of this.hazardView.list) pool.begin();
+      for (let pool of this.attackView.list) pool.begin();
+      for (let pool of this.bossCardView.list) pool.begin();
       for (let type in this.enemyPools) {
         this.enemyPools[type].body.begin();
         this.enemyPools[type].glow.begin();
@@ -1635,6 +1673,10 @@ const MAX_PARTICLES = 1400,
       this.drawDebris(dt);
       this.drawParticles(dt);
       this.drawTransient(dt);
+      for (let pool of this.bossCardView.list) pool.end();
+      for (let pool of this.attackView.list) pool.end();
+      for (let pool of this.hazardView.list) pool.end();
+      for (let pool of this.trapView.list) pool.end();
       for (let pool of pools) pool.end();
       for (let type in this.enemyPools) {
         this.enemyPools[type].body.end();
@@ -1645,7 +1687,10 @@ const MAX_PARTICLES = 1400,
         num.y += dt * 1.6;
       }
       if (this.nums.length && this.nums[0].life <= 0) {
-        this.nums = this.nums.filter((num) => num.life > 0);
+        // 3.46.0: compacted in place (a filter used to hand the GC a fresh array)
+        let w = 0;
+        for (let i = 0; i < this.nums.length; i++) if (this.nums[i].life > 0) this.nums[w++] = this.nums[i];
+        this.nums.length = w;
       }
       this.flashT = Math.max(0, this.flashT - dt);
       this.renderer.render(this.scene, this.camera);
@@ -2488,7 +2533,10 @@ const MAX_PARTICLES = 1400,
         }
       }
       if (this.lines.length && this.lines.some((line) => line.life <= 0)) {
-        this.lines = this.lines.filter((line) => line.life > 0);
+        // 3.46.0: compacted in place (a filter used to hand the GC a fresh array)
+        let w = 0;
+        for (let i = 0; i < this.lines.length; i++) if (this.lines[i].life > 0) this.lines[w++] = this.lines[i];
+        this.lines.length = w;
       }
       for (let ring of this.rings) {
         ring.life -= dt;
@@ -2498,7 +2546,10 @@ const MAX_PARTICLES = 1400,
         this.ringPool.colC(idx, ring.col, k);
       }
       if (this.rings.length && this.rings.some((ring) => ring.life <= 0)) {
-        this.rings = this.rings.filter((ring) => ring.life > 0);
+        // 3.46.0: compacted in place (a filter used to hand the GC a fresh array)
+        let w = 0;
+        for (let i = 0; i < this.rings.length; i++) if (this.rings[i].life > 0) this.rings[w++] = this.rings[i];
+        this.rings.length = w;
       }
     }
     project(x, y, z, out) {

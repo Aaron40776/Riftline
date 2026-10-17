@@ -147,16 +147,19 @@ function registerServiceWorker(onUpdate) {
       .register("./sw.js", { scope: "./", updateViaCache: "none" })
       .then((registration) => {
         let hadController = !!navigator.serviceWorker.controller,
+          // 3.46.0: the reload listener is registered once for the session — offer() used to add
+          // a fresh one every time an update was offered (each guarded, so it was noise, but the
+          // closures stacked across a long session with several queued updates)
+          reloaded = false,
+          reload = () => {
+            if (!reloaded) {
+              reloaded = true;
+              location.reload();
+            }
+          },
           offer = (worker) => {
             if (!(!worker || !navigator.serviceWorker.controller)) {
               onUpdate(() => {
-                let reloaded = false,
-                  reload = () => {
-                    if (!reloaded) {
-                      reloaded = true;
-                      location.reload();
-                    }
-                  };
                 navigator.serviceWorker.addEventListener("controllerchange", reload);
                 worker.postMessage("skipWaiting");
                 setTimeout(reload, 4e3);
@@ -1543,6 +1546,12 @@ document.addEventListener("visibilitychange", () => {
     if (game.mode === "game") {
       game.pause();
     }
+    // 3.46.0: keyups can be lost on iOS backgrounding (blur and pagehide do not fire there), so
+    // the held keys used to survive the return: the drone kept moving until each key was
+    // re-pressed. reset(true) forgets them; the controller's edges are dropped with them.
+    input.reset(true);
+    input.gamepad.prev = {};
+    input.gamepad.held = {};
     store.save("hidden");
     sound.suspend();
   } else {

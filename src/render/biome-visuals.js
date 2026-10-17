@@ -8,8 +8,8 @@ import {
   CylinderGeometry,
   DodecahedronGeometry,
   DoubleSide,
-  DynamicDrawUsage,
   Group,
+  InstancedBufferAttribute,
   InstancedMesh,
   Mesh,
   MeshBasicMaterial,
@@ -28,6 +28,7 @@ import {
 import { clamp, TAU, hashString, makeRng } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./renderer.js";
 import { addBiomeDetail } from "./biome-props.js";
+import { mergeGeometries } from "./models.js";
 
 const floorVertexShader = `
 #include <common>
@@ -62,6 +63,8 @@ void main() {
           // 3.29.0: the colour of the floor: how saturated (1 = as the palette says) and how bright it is, per biome
           uVivid: { value: 1 },
           uGain: { value: 1 },
+          // 3.46.0: the procedural detail tier (0 full — 1 fewer octaves — 1 cell voronoi, no starfield)
+          uLod: { value: 0 },
           uL: { value: Array.from({ length: 6 }, () => new Vector4()) },
           uLC: { value: Array.from({ length: 6 }, () => new Color()) },
         },
@@ -142,25 +145,6 @@ void main() {
         if (anim.k === "spin" || anim.k === "spinbob") obj.rotation.y += dt * anim.s;
         if (anim.k === "bob" || anim.k === "spinbob")
           obj.position.y = anim.b + Math.sin(time * (anim.s || 1) + anim.ph) * (anim.a || 0.1);
-      }
-      // 3.44.0: a slow wind through the instanced reeds (marsh): every blade leans on its own
-      // phase, a few degrees at most - life on the edge of the frame, not a performance
-      if (this.rlSway) {
-        const sway = this.rlSway,
-          list = sway.list;
-        for (let i = 0; i < list.length; i++) {
-          const reed = list[i];
-          sway.dummy.position.set(reed.x, reed.y, reed.z);
-          sway.dummy.rotation.set(
-            (reed.rx || 0) + Math.sin(time * reed.ws + reed.wp) * 0.06,
-            reed.ry || 0,
-            (reed.rz || 0) + Math.cos(time * reed.ws * 0.83 + reed.wp) * 0.06,
-          );
-          sway.dummy.scale.set(reed.sx ?? 1, reed.sy ?? 1, reed.sz ?? 1);
-          sway.dummy.updateMatrix();
-          sway.mesh.setMatrixAt(i, sway.dummy.matrix);
-        }
-        sway.mesh.instanceMatrix.needsUpdate = true;
       }
     }
   };
@@ -256,6 +240,7 @@ const RL_FLOOR_FRAG = `
 uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
 uniform vec2 uHalf; uniform vec2 uPlayer; uniform float uTime; uniform float uPulse;
 uniform float uStyle; uniform float uDark; uniform float uVivid; uniform float uGain;
+uniform float uLod;
 uniform vec4 uL[6]; uniform vec3 uLC[6];
 varying vec2 vW;
 float gridLine(vec2 p, float w) {
@@ -270,11 +255,23 @@ float vnoise(vec2 p) {
 }
 float fbm(vec2 p) {
   float s = 0.0, a = 0.5;
-  for (int i = 0; i < 3; i++) { s += a * vnoise(p); p = p * 2.03 + 17.1; a *= 0.5; }
+  for (int i = 0; i < 3; i++) {
+    s += a * vnoise(p);
+    p = p * 2.03 + 17.1;
+    a *= 0.5;
+    // 3.46.0: the low tiers drop octaves (three on high, two on auto-low, one on battery)
+    if (float(i) >= 2.0 - uLod) break;
+  }
   return s / 0.875;
 }
 // x: distance to the nearest cell centre, y: distance to the cell border (F2 - F1), z: cell id
 vec3 voro(vec2 p) {
+  // 3.46.0: the battery tier looks one cell up instead of nine (softer seams, a ninth of the work)
+  if (uLod > 1.5) {
+    vec2 n = floor(p);
+    float d = length(fract(p) - 0.5 - (h22(n) - 0.5) * 0.8);
+    return vec3(d, 0.4 + 0.3 * d, h21(n));
+  }
   vec2 n = floor(p), f = fract(p);
   float d1 = 8.0, d2 = 8.0, id = 0.0;
   for (int j = -1; j <= 1; j++)
@@ -355,7 +352,7 @@ void main() {
     float gap = smoothstep(0.465, 0.48, hd), rim = smoothstep(0.4, 0.46, hd) * (1.0 - gap);
     float pulse = step(0.94, h21(cid)) * (0.5 + 0.5 * sin(uTime * 2.2 + h21(cid + 1.0) * 20.0));
     vec3 tile = uBase * (0.75 + 0.35 * h21(cid + 5.0)) * (0.8 + 0.6 * pl) + uGrid * rim * 0.2 + uAccent * pulse * 0.06;
-    col = mix(tile, starfield(p), max(gap, 1.0 - inside));
+    col = mix(tile, uLod > 1.5 ? uAccent * 0.05 + uGrid * 0.03 : starfield(p), max(gap, 1.0 - inside));
     lit = (0.3 + rim) * (1.0 - gap);
     outside = 1.0;
   } else if (st == 5) {
@@ -456,6 +453,58 @@ const rlFootRing = (group, x, z, radius, mat) => {
 // Outline slab under a box obstacle.
 const rlFootSlab = (group, box, mat, pad = 0.3) =>
   rlMesh(group, new BoxGeometry(box.w * 2 + pad, 0.05, box.h * 2 + pad), mat, box.x, 0.03, box.y);
+/* 3.46.0: a static-prop merger. Geometries are collected per material and baked into one mesh
+   each at the end — the barrier ring of Blackout City alone used to be ~200 individual meshes,
+   each its own draw call, each recomputing its matrix every frame. Transform math goes through
+   an Object3D so rotations compose exactly like the meshes it replaces. */
+const rlBakeDummy = new Object3D();
+function rlMerger() {
+  const buckets = new Map();
+  const bake = (geo, mat, world) => {
+    geo.applyMatrix4(world);
+    let list = buckets.get(mat);
+    if (!list) buckets.set(mat, (list = []));
+    list.push(geo);
+  };
+  const localMatrix = (x, y, z, ry, rx, rz) => {
+    rlBakeDummy.position.set(x, y, z);
+    rlBakeDummy.rotation.set(rx, ry, rz);
+    rlBakeDummy.scale.set(1, 1, 1);
+    rlBakeDummy.updateMatrix();
+    return rlBakeDummy.matrix.clone();
+  };
+  return {
+    add(geo, mat, x, y, z, ry = 0, rx = 0, rz = 0) {
+      bake(geo, mat, localMatrix(x, y, z, ry, rx, rz));
+    },
+    // a part inside a rotated parent (a wrecked car): world = parent · local
+    addIn(geo, mat, parent, x, y, z, ry = 0, rx = 0, rz = 0) {
+      bake(geo, mat, parent.clone().multiply(localMatrix(x, y, z, ry, rx, rz)));
+    },
+    parentMatrix(x, z, ry = 0) {
+      rlBakeDummy.position.set(x, 0, z);
+      rlBakeDummy.rotation.set(0, ry, 0);
+      rlBakeDummy.scale.set(1, 1, 1);
+      rlBakeDummy.updateMatrix();
+      return rlBakeDummy.matrix.clone();
+    },
+    flush(group) {
+      for (const [mat, list] of buckets) {
+        const merged = mergeGeometries(list, false);
+        if (merged) {
+          const mesh = new Mesh(merged, mat);
+          mesh.updateMatrix();
+          mesh.matrixAutoUpdate = false;
+          group.add(mesh);
+        } else {
+          // a refused merge (mismatched attributes) falls back to the meshes it would have made
+          for (const geo of list) group.add(new Mesh(geo, mat));
+        }
+      }
+      buckets.clear();
+    },
+  };
+}
 const RL_BIOME_BUILD = {
   // Blackout City (3.4.0, was the Neon Yard): jersey barriers with red and white reflectors around the street,
   // advertising columns (round obstacles) and wrecked cars or dumpsters (box obstacles), steam from some manholes
@@ -467,21 +516,30 @@ const RL_BIOME_BUILD = {
       red = rlGlow(biome.accent),
       white = rlGlow(0xd8d4c8),
       amber = rlGlow(0xffb347),
-      accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false });
+      accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false }),
+      // 3.46.0: the static props are baked into one mesh per material (the barrier ring alone
+      // used to be 192 draw calls); materials that repeat per obstacle are shared so their
+      // parts merge together. Two mergers: the border ring sits in the static group, the
+      // obstacles in obsGroup (which rises out of the floor on a layout change).
+      posterMats = {},
+      paintedMat = (color) =>
+        posterMats[color] || (posterMats[color] = new MeshLambertMaterial({ color, flatShading: true })),
+      bakeBorder = rlMerger(),
+      bakeObs = rlMerger();
     // jersey barriers: a wide foot and a narrower top, a reflector on the inner face of every second one
     rlAlongBorder(W, H, 0.45, 2.3, (x, z, nx, nz) => {
       const along = nx === 0,
         ry = along ? 0 : Math.PI / 2;
-      rlMesh(group, new BoxGeometry(2.15, 0.35, 0.7), concrete, x, 0.175, z, ry);
-      rlMesh(group, new BoxGeometry(2.15, 0.45, 0.32), concrete, x, 0.57, z, ry);
+      bakeBorder.add(new BoxGeometry(2.15, 0.35, 0.7), concrete, x, 0.175, z, ry);
+      bakeBorder.add(new BoxGeometry(2.15, 0.45, 0.32), concrete, x, 0.57, z, ry);
       const k = Math.round((along ? x : z) / 2.3);
-      rlMesh(group, new BoxGeometry(0.5, 0.12, 0.02), k % 2 ? red : white, x - nx * 0.17, 0.6, z - nz * 0.17, ry);
+      bakeBorder.add(new BoxGeometry(0.5, 0.12, 0.02), k % 2 ? red : white, x - nx * 0.17, 0.6, z - nz * 0.17, ry);
     });
     // corner posts with a blinking-amber lamp (static glow) and a red reflector
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        rlMesh(group, new BoxGeometry(0.8, 1.1, 0.8), darkConcrete, sx * (W + 0.45), 0.55, sz * (H + 0.45));
-        rlMesh(group, new BoxGeometry(0.3, 0.18, 0.3), amber, sx * (W + 0.45), 1.2, sz * (H + 0.45));
+        bakeBorder.add(new BoxGeometry(0.8, 1.1, 0.8), darkConcrete, sx * (W + 0.45), 0.55, sz * (H + 0.45));
+        bakeBorder.add(new BoxGeometry(0.3, 0.18, 0.3), amber, sx * (W + 0.45), 1.2, sz * (H + 0.45));
       }
     const paint = [0x2b3a4a, 0x4a2b2b, 0x2e3b2e, 0x3d3d44, 0x4a4030];
     for (const obstacle of obs)
@@ -489,71 +547,78 @@ const RL_BIOME_BUILD = {
         // an advertising column: concrete drum, a band of torn posters, a cap
         const r = obstacle.r,
           height = 2.2;
-        rlMesh(props, new CylinderGeometry(r * 0.92, r, height, 18), darkConcrete, obstacle.x, height / 2, obstacle.y);
-        const posters = new MeshLambertMaterial({ color: rng.pick(paint), flatShading: true });
-        rlMesh(props, new CylinderGeometry(r * 0.97, r * 0.99, 1.2, 18), posters, obstacle.x, 1.15, obstacle.y);
-        rlMesh(
-          props,
-          new CylinderGeometry(r * 1.08, r * 1.0, 0.14, 18),
-          concrete,
+        bakeObs.add(new CylinderGeometry(r * 0.92, r, height, 18), darkConcrete, obstacle.x, height / 2, obstacle.y);
+        bakeObs.add(
+          new CylinderGeometry(r * 0.97, r * 0.99, 1.2, 18),
+          paintedMat(rng.pick(paint)),
           obstacle.x,
-          height + 0.07,
+          1.15,
           obstacle.y,
         );
-        rlMesh(props, new CylinderGeometry(r * 0.5, r * 0.7, 0.3, 12), concrete, obstacle.x, height + 0.29, obstacle.y);
-        rlMesh(props, new CylinderGeometry(r * 1.0, r * 1.0, 0.05, 18, 1, true), white, obstacle.x, 1.8, obstacle.y);
-        rlFootRing(props, obstacle.x, obstacle.y, r * 1.1, accentMat);
+        bakeObs.add(new CylinderGeometry(r * 1.08, r * 1.0, 0.14, 18), concrete, obstacle.x, height + 0.07, obstacle.y);
+        bakeObs.add(new CylinderGeometry(r * 0.5, r * 0.7, 0.3, 12), concrete, obstacle.x, height + 0.29, obstacle.y);
+        bakeObs.add(new CylinderGeometry(r * 1.0, r * 1.0, 0.05, 18, 1, true), white, obstacle.x, 1.8, obstacle.y);
+        bakeObs.add(new TorusGeometry(r * 1.1, 0.04, 4, 32), accentMat, obstacle.x, 0.05, obstacle.y, 0, Math.PI / 2);
       } else if (obstacle.w < 1.3 && obstacle.h < 1.3) {
         // a dumpster with its lid half open
-        const height = 1.1,
-          body = new MeshLambertMaterial({ color: rng.pick([0x2f4a3a, 0x3a3f4a, 0x4a3a2a]), flatShading: true });
-        rlMesh(
-          props,
+        const height = 1.1;
+        bakeObs.add(
           new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2),
-          body,
+          paintedMat(rng.pick([0x2f4a3a, 0x3a3f4a, 0x4a3a2a])),
           obstacle.x,
           height / 2,
           obstacle.y,
         );
-        const lid = rlMesh(
-          props,
+        bakeObs.add(
           new BoxGeometry(obstacle.w * 2 + 0.06, 0.06, obstacle.h * 2 + 0.06),
           darkConcrete,
           obstacle.x,
           height + 0.12,
           obstacle.y,
+          0,
+          0,
+          0.18,
         );
-        lid.rotation.z = 0.18;
-        rlFootSlab(props, obstacle, accentMat);
+        bakeObs.add(
+          new BoxGeometry(obstacle.w * 2 + 0.3, 0.05, obstacle.h * 2 + 0.3),
+          accentMat,
+          obstacle.x,
+          0.03,
+          obstacle.y,
+        );
       } else {
         // a wrecked car: body, cabin, wheels, dead headlights and one red tail light still on
         const long = obstacle.w >= obstacle.h,
           L = (long ? obstacle.w : obstacle.h) * 2,
           D = (long ? obstacle.h : obstacle.w) * 2,
           ry = long ? 0 : Math.PI / 2,
-          car = new Group(),
-          body = new MeshLambertMaterial({ color: rng.pick(paint), flatShading: true });
-        car.position.set(obstacle.x, 0, obstacle.y);
-        car.rotation.y = ry;
-        props.add(car);
-        rlMesh(car, new BoxGeometry(L, 0.55, D), body, 0, 0.5, 0);
-        rlMesh(car, new BoxGeometry(L * 0.5, 0.45, D * 0.86), body, -L * 0.06, 0.99, 0);
-        rlMesh(car, new BoxGeometry(L * 0.48, 0.3, D * 0.88), darkConcrete, -L * 0.06, 1.0, 0);
+          body = paintedMat(rng.pick(paint)),
+          car = bakeObs.parentMatrix(obstacle.x, obstacle.y, ry);
+        bakeObs.addIn(new BoxGeometry(L, 0.55, D), body, car, 0, 0.5, 0);
+        bakeObs.addIn(new BoxGeometry(L * 0.5, 0.45, D * 0.86), body, car, -L * 0.06, 0.99, 0);
+        bakeObs.addIn(new BoxGeometry(L * 0.48, 0.3, D * 0.88), darkConcrete, car, -L * 0.06, 1.0, 0);
         for (const wx of [-1, 1])
-          for (const wz of [-1, 1]) {
-            const wheel = rlMesh(
-              car,
+          for (const wz of [-1, 1])
+            bakeObs.addIn(
               new CylinderGeometry(0.3, 0.3, 0.22, 10),
               darkConcrete,
+              car,
               wx * L * 0.33,
               0.3,
               wz * D * 0.48,
+              0,
+              Math.PI / 2,
             );
-            wheel.rotation.x = Math.PI / 2;
-          }
-        rlMesh(car, new BoxGeometry(0.04, 0.12, 0.3), red, -L / 2 - 0.01, 0.62, D * 0.32);
-        rlMesh(car, new BoxGeometry(0.04, 0.1, 0.28), white, L / 2 + 0.01, 0.6, -D * 0.3).visible = rng.chance(0.3);
-        rlFootSlab(props, obstacle, accentMat);
+        bakeObs.addIn(new BoxGeometry(0.04, 0.12, 0.3), red, car, -L / 2 - 0.01, 0.62, D * 0.32);
+        // the roll stays unconditional (the run's rng must see the same draws as before)
+        if (rng.chance(0.3)) bakeObs.addIn(new BoxGeometry(0.04, 0.1, 0.28), white, car, L / 2 + 0.01, 0.6, -D * 0.3);
+        bakeObs.add(
+          new BoxGeometry(obstacle.w * 2 + 0.3, 0.05, obstacle.h * 2 + 0.3),
+          accentMat,
+          obstacle.x,
+          0.03,
+          obstacle.y,
+        );
       }
     // steam out of a few manholes (decor; the live ones are the vents)
     if (!view.rlEmit) view.rlEmit = [];
@@ -561,9 +626,11 @@ const RL_BIOME_BUILD = {
       const x = rng.range(-W + 2, W - 2),
         z = rng.range(-H + 2, H - 2);
       if (Math.hypot(x, z - 2) < 6 || obs.some((o) => Math.hypot(o.x - x, o.y - z) < 2.5)) continue;
-      rlMesh(group, new CylinderGeometry(0.42, 0.42, 0.03, 16), darkConcrete, x, 0.015, z);
+      bakeBorder.add(new CylinderGeometry(0.42, 0.42, 0.03, 16), darkConcrete, x, 0.015, z);
       view.rlEmit.push({ k: "steam", x, y: 0.1, z });
     }
+    bakeObs.flush(props);
+    bakeBorder.flush(group);
   },
   // Ember Works: steel wall with hazard stripes, furnaces in the corners, chimneys and machines
   works(view, biome, W, H, obs, rng) {
@@ -914,12 +981,36 @@ const RL_BIOME_BUILD = {
       reeds,
     );
     if (reedMesh) {
-      reedMesh.instanceMatrix.setUsage(DynamicDrawUsage);
-      for (const reed of reeds) {
-        reed.wp = rng.range(0, TAU);
-        reed.ws = rng.range(0.6, 1.1);
+      // 3.46.0: the wind lives in the vertex shader now — the whole instance matrix buffer
+      // (about 46 KB for ~720 blades) used to be recomposed on the CPU and re-uploaded every
+      // frame. The rng draws stay exactly where they were (the run's roll sequence is untouched).
+      for (let i = 0; i < reeds.length; i++) {
+        reeds[i].wp = rng.range(0, TAU);
+        reeds[i].ws = rng.range(0.6, 1.1);
       }
-      view.rlSway = { mesh: reedMesh, list: reeds, dummy: new Object3D() };
+      const phases = new Float32Array(reeds.length),
+        speeds = new Float32Array(reeds.length);
+      for (let i = 0; i < reeds.length; i++) {
+        phases[i] = reeds[i].wp;
+        speeds[i] = reeds[i].ws;
+      }
+      reedMesh.geometry.setAttribute("aPhase", new InstancedBufferAttribute(phases, 1));
+      reedMesh.geometry.setAttribute("aSpeed", new InstancedBufferAttribute(speeds, 1));
+      const reedMat = reedMesh.material;
+      reedMat.onBeforeCompile = (shader) => {
+        shader.uniforms.uTime = view.uniforms.uTime;
+        shader.vertexShader =
+          "attribute float aPhase;\nattribute float aSpeed;\nuniform float uTime;\n" +
+          shader.vertexShader.replace(
+            "#include <begin_vertex>",
+            `#include <begin_vertex>
+        // 3.46.0: the slow wind — a small-angle lean of every blade on its own phase, pivoting
+        // around the blade's middle (the matrices stay static on the GPU)
+        transformed.x -= sin(uTime * aSpeed + aPhase) * 0.06 * transformed.y;
+        transformed.z += cos(uTime * aSpeed * 0.83 + aPhase) * 0.06 * transformed.y;
+`,
+          );
+      };
     }
     rlInst(group, new DodecahedronGeometry(0.6), new MeshLambertMaterial({ flatShading: true }), rocks);
     for (const obstacle of obs)
