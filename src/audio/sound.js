@@ -5421,8 +5421,9 @@ const MUSIC_TRACKS = {
   void: {
     fight: { bpm: 60, bars: 16, swing: 0, gain: 1, play: voidCalm },
     // 3.45.5: the mix note above trimmed the boss make-up; the Void Core boss keeps a step of its own
-    // (the deep-test wants every boss track clearly louder than its calm theme)
-    boss: { bpm: 172, bars: 22, swing: 0, gain: 1.12, play: voidBoss },
+    // (the deep-test wants every boss track clearly louder than its calm theme; the glue compressor
+    // eats part of a track-gain raise, so this one goes to 1.25)
+    boss: { bpm: 172, bars: 22, swing: 0, gain: 1.25, play: voidBoss },
   },
 };
 function musicTrack(kind, biome) {
