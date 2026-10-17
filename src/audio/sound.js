@@ -616,8 +616,14 @@ const musicChords = {
       this.bossMix = 0;
       this.bossOver = false;
       this.beds = Object.create(null);
-      // 3.43.1: a bed whose build threw once is not rebuilt every tick
+      // 3.43.1: a bed whose build threw once is not rebuilt every tick (3.46.0: the value is the
+      // audio time of the failure, so the bed gets one more try after 10 s)
       this.deadBeds = Object.create(null);
+      // 3.46.0: same rule for the room tone (startTone)
+      this.deadTone = Object.create(null);
+      // 3.46.0: audio time of the last failed track start (syncTrack backs off 2 s before retrying)
+      this.trackFailT = 0;
+      this.schedFails = 0;
       this.liveT = -1e9;
       this.speed = null;
       this.amb = null;
@@ -681,7 +687,18 @@ const musicChords = {
       } catch {}
       let AudioCtx = window.AudioContext || window.webkitAudioContext,
         ctx = new AudioCtx({ latencyHint: "interactive" });
-      this.buildGraph(ctx);
+      try {
+        this.buildGraph(ctx);
+      } catch (err) {
+        // 3.46.0: a half-built graph is worse than none (a missing bus would make every later
+        // call throw): drop it so the next gesture retries init() from scratch, and close the
+        // context. buildGraph sets this.ctx first, so it has to be cleared again here.
+        this.ctx = null;
+        try {
+          ctx.close();
+        } catch {}
+        throw err;
+      }
       let unlocker = ctx.createBufferSource();
       unlocker.buffer = ctx.createBuffer(1, 1, 22050);
       unlocker.connect(ctx.destination);
@@ -762,16 +779,23 @@ const musicChords = {
       if (opts.room !== false) {
         // 3.2.0: the room of the music: a generated 2 s impulse; voices send to it with opts.rev
         this.verbIn = ctx.createGain();
-        let verb = ctx.createConvolver();
-        verb.buffer = roomImpulse(ctx, 2);
-        let verbOut = ctx.createGain();
-        verbOut.gain.value = 0.5;
-        this.verbIn.connect(verb);
-        verb.connect(verbOut);
-        verbOut.connect(this.mus);
+        // 3.46.0: two rooms built once and swapped (quietOld used to build a fresh convolver —
+        // megabytes of impulse transform — on every track change). Both share one impulse.
+        let impulse = roomImpulse(ctx, 2);
+        this.verbPool = [];
+        for (let i = 0; i < 2; i++) {
+          let v = ctx.createConvolver();
+          v.buffer = impulse;
+          let vo = ctx.createGain();
+          vo.gain.value = i === 0 ? 0.5 : 0;
+          this.verbIn.connect(v);
+          v.connect(vo);
+          vo.connect(this.mus);
+          this.verbPool.push({ conv: v, out: vo });
+        }
         // 3.18.1: kept so that a track change can swap the room for a fresh one (quietOld)
-        this.verb = verb;
-        this.verbOut = verbOut;
+        this.verb = this.verbPool[0].conv;
+        this.verbOut = this.verbPool[0].out;
         // 3.2.0: the room of the big sounds (a shorter impulse); its level follows the biome (setMusic)
         this.sfxVerbIn = ctx.createGain();
         let sfxVerb = ctx.createConvolver();
@@ -937,6 +961,10 @@ const musicChords = {
         if (music.length >= 12) {
           for (let i = music.length - 1; i >= 0; i--)
             if (music[i].end < now) {
+              // 3.46.0: detached now — these used to rely on GC and piled up on Safari
+              try {
+                if (music[i].node) music[i].node.disconnect();
+              } catch {}
               music[i] = music[music.length - 1];
               music.pop();
             }
@@ -959,6 +987,10 @@ const musicChords = {
       if (list.length >= MAX_VOICES) {
         for (let i = list.length - 1; i >= 0; i--)
           if (list[i].end < now) {
+            // 3.46.0: detached now — these used to rely on GC and piled up on Safari
+            try {
+              if (list[i].node) list[i].node.disconnect();
+            } catch {}
             list[i] = list[list.length - 1];
             list.pop();
           }
@@ -989,6 +1021,9 @@ const musicChords = {
         old.amp.gain.cancelScheduledValues(now);
         old.amp.gain.setTargetAtTime(0, now, 0.004);
         old.node.stop(now + 0.03);
+        // 3.46.0: detached now — the stolen voice used to rely on GC (piled up on Safari)
+        old.node.disconnect();
+        old.amp.disconnect();
       } catch {}
       list[victim] = voice;
       this.dropped++;
@@ -3131,6 +3166,9 @@ const musicChords = {
       let kind = this.wantKind(),
         biome = this.wantBiome();
       if (kind === this.playKind && biome === this.playBiome) return;
+      // 3.46.0: after a failed track start, back off 2 s before retrying (the 30 ms tick would
+      // otherwise rebuild the bed — and swap the room — over and over)
+      if (this.trackFailT && ctx.currentTime - this.trackFailT < 2) return;
       let from = this.playKind,
         track = kind === "fight" || kind === "boss" ? musicTrack(kind, biome) : null;
       // 3.2.0: the pause menu keeps the place of a fight or boss track; resuming the run goes on from there
@@ -3138,6 +3176,17 @@ const musicChords = {
         this.held = { kind: from, biome: this.playBiome, step: this.step, cycle: this.cycle, heat: this.heat };
       let held = this.held,
         resumed = !!held && this.resumeWanted && held.kind === kind && held.biome === biome;
+      // 3.46.0: the old state is kept — if the change fails midway, it is put back so the next
+      // tick (after the backoff) retries the whole change instead of a committed-but-silent track
+      let prev = {
+        kind: this.playKind,
+        biome: this.playBiome,
+        step: this.step,
+        cycle: this.cycle,
+        heat: this.heat,
+        jump: this.jump,
+        held: this.held,
+      };
       if (kind !== "menu") this.held = null;
       this.playKind = kind;
       this.playBiome = biome;
@@ -3169,7 +3218,17 @@ const musicChords = {
           this.fade.gain.setValueAtTime(gain, now);
           if (kind === "boss" && from === "fight" && this.live() && this.musVol > 0) musicImpact(this, biome, 0);
         }
+        this.trackFailT = 0;
       } catch (err) {
+        // 3.46.0: roll the track state back and back off before retrying
+        this.playKind = prev.kind;
+        this.playBiome = prev.biome;
+        this.step = prev.step;
+        this.cycle = prev.cycle;
+        this.heat = prev.heat;
+        this.jump = prev.jump;
+        this.held = prev.held;
+        this.trackFailT = ctx.currentTime;
         this.fail(err);
       }
     }
@@ -3187,6 +3246,9 @@ const musicChords = {
             voice.amp.gain.cancelScheduledValues(now);
             voice.amp.gain.setValueAtTime(0, now);
             voice.node.stop(now);
+            // 3.46.0: detached now instead of relying on GC
+            voice.node.disconnect();
+            voice.amp.disconnect();
           } catch {}
           list[i] = list[list.length - 1];
           list.pop();
@@ -3228,31 +3290,21 @@ const musicChords = {
           g.gain.setValueAtTime(0, now);
           g.gain.setValueAtTime(0.42, now + 1);
         }
-        if (this.verbIn && this.verb) {
-          let fresh = ctx.createConvolver(),
-            freshOut = ctx.createGain(),
-            old = this.verb,
-            oldOut = this.verbOut;
-          fresh.buffer = old.buffer;
-          freshOut.gain.value = oldOut.gain.value;
+        if (this.verbIn && this.verbPool) {
+          // 3.46.0: swap between the two pre-built rooms instead of building a fresh convolver
+          // (megabytes of impulse transform) on every track change; the outgoing one fades as before
+          let old = this.verb,
+            oldOut = this.verbOut,
+            next = this.verbPool.find((v) => v.out !== oldOut) || this.verbPool[0];
+          next.out.gain.cancelScheduledValues(now);
+          next.out.gain.setValueAtTime(oldOut.gain.value, now);
           this.verbIn.disconnect(old);
-          this.verbIn.connect(fresh);
-          fresh.connect(freshOut);
-          freshOut.connect(this.mus);
+          this.verbIn.connect(next.conv);
           oldOut.gain.cancelScheduledValues(now);
           oldOut.gain.setValueAtTime(oldOut.gain.value, now);
           oldOut.gain.linearRampToValueAtTime(0, end);
-          this.verb = fresh;
-          this.verbOut = freshOut;
-          setTimeout(
-            () => {
-              try {
-                old.disconnect();
-                oldOut.disconnect();
-              } catch {}
-            },
-            (QUIET_FADE + 0.2) * 1000,
-          );
+          this.verb = next.conv;
+          this.verbOut = next.out;
         }
       } catch (err) {
         this.fail(err);
@@ -3449,10 +3501,11 @@ const musicChords = {
             break;
         }
       } catch (err) {
-        // back out cleanly: stop what started, leave the registry (a one-strike dead bed, the
-        // scheduler will not rebuild it every tick), and report like the rest of the engine
+        // back out cleanly: stop what started, leave the registry (a dead bed, the
+        // scheduler will not rebuild it every tick — 3.46.0: it gets one more try after
+        // 10 s), and report like the rest of the engine
         this.stopBed(name, 0, 0.02);
-        this.deadBeds[name] = true;
+        this.deadBeds[name] = now;
         this.fail(err);
         return;
       }
@@ -3536,9 +3589,17 @@ const musicChords = {
         now + fadeIn,
       );
       out.connect(kind === "boss" ? this.atmosPump : this.atmos);
-      recipe.build({ osc, loop, filt, lfo, level, root, bpm, boss: kind === "boss" });
-      if (kind === "boss" && recipe.bossExtra) recipe.bossExtra({ osc, loop, filt, lfo, level, root, bpm });
+      // 3.46.0: registered before the build — if the build throws midway, the catch below stops
+      // the loops that already started through stopMusicBed (they used to be orphaned forever,
+      // out of reach of stopMusicBed, with the track state already committed)
       this.mbed = { out, nodes };
+      try {
+        recipe.build({ osc, loop, filt, lfo, level, root, bpm, boss: kind === "boss" });
+        if (kind === "boss" && recipe.bossExtra) recipe.bossExtra({ osc, loop, filt, lfo, level, root, bpm });
+      } catch (err) {
+        this.stopMusicBed(0.05);
+        throw err;
+      }
     }
     stopMusicBed(fade = 0.8) {
       let bed = this.mbed;
@@ -3557,111 +3618,126 @@ const musicChords = {
     startTone(name) {
       let ctx = this.ctx;
       if (!ctx || this.toneBed) return;
+      // 3.46.0: same hardening as the beds (3.43.1) — registered before the build: if the build
+      // throws midway, the catch below stops the loops that already started (they used to be
+      // orphaned forever while syncTone retried the build every 30 ms tick, stacking a new
+      // orphan set each time). A tone that failed gets one more try after 10 s.
+      let dead = this.deadTone[name];
+      if (dead && ctx.currentTime - dead < 10) return;
       let now = ctx.currentTime,
         gain = ctx.createGain(),
         nodes = [],
         level = ROOM_TONE_LEVEL[name] || 0.028;
-      // the room arrives slowly (a new biome breathes in, it does not switch on)
-      gain.gain.setValueAtTime(1e-4, now);
-      gain.gain.setTargetAtTime(level, now, 1.2);
-      gain.connect(this.ambBus);
-      let osc = (type, freq) => {
-          let node = ctx.createOscillator();
-          node.type = type;
-          node.frequency.value = freq;
-          node.start(now);
-          nodes.push(node);
-          return node;
-        },
-        loop = (rate, color) => {
-          let node = this.noiseLoop(rate, color, now);
-          nodes.push(node);
-          return node;
-        },
-        filter = (type, freq, q, from) => {
-          let node = ctx.createBiquadFilter();
-          node.type = type;
-          node.frequency.value = freq;
-          node.Q.value = q;
-          from.connect(node);
-          return node;
-        },
-        amp = (from, vol) => {
-          let node = ctx.createGain();
-          node.gain.value = vol;
-          from.connect(node);
-          node.connect(gain);
-          return node;
-        },
-        // a slow wander of a filter or a level: the room never stands still, but it never moves fast
-        drift = (param, freq, depth) => {
-          let lfo = osc("sine", freq),
-            depthGain = ctx.createGain();
-          depthGain.gain.value = depth;
-          lfo.connect(depthGain);
-          depthGain.connect(param);
-        };
-      switch (name) {
-        case "yard": {
-          // Blackout City: the wash of far traffic under a rain that never quite reaches, a transformer hum
-          let wash = filter("lowpass", 240, 0.6, loop(0.5, "brown")),
-            washAmp = amp(wash, 0.6);
-          drift(washAmp.gain, 0.05, 0.22);
-          drift(wash.frequency, 0.031, 60);
-          let hum = filter("lowpass", 300, 1.1, osc("sawtooth", 50));
-          amp(hum, 0.11);
-          break;
-        }
-        case "works": {
-          // Ember Works: the furnace two halls away, hot air ticking through the pipes
-          let furnace = filter("lowpass", 150, 0.7, loop(0.55, "brown")),
-            furnaceAmp = amp(furnace, 0.7);
-          drift(furnaceAmp.gain, 0.07, 0.25);
-          let air = filter("bandpass", 900, 0.8, loop(1.1, "pink"));
-          amp(air, 0.1);
-          drift(air.frequency, 0.043, 200);
-          break;
-        }
-        case "vault": {
-          // Cryo Vault: a thin high wind that wanders (the calm cousin of the whiteout storm) and the
-          // faint glassy sheen of the ice
-          let wind = filter("bandpass", 520, 0.7, loop(1, "pink"));
-          amp(wind, 0.6);
-          drift(wind.frequency, 0.09, 180);
-          let sheen = filter("bandpass", 1900, 6, loop(1.4, "pink")),
-            sheenAmp = amp(sheen, 0.16);
-          drift(sheenAmp.gain, 0.045, 0.12);
-          let ring = osc("sine", 1320),
-            ringAmp = amp(ring, 0.03);
-          drift(ringAmp.gain, 0.037, 0.02);
-          break;
-        }
-        case "marsh": {
-          // Toxin Marsh: a heavy drone over water that laps against the mud
-          let drone = filter("lowpass", 190, 0.8, loop(0.5, "brown"));
-          amp(drone, 0.55);
-          let deep = osc("sine", 55);
-          amp(deep, 0.1);
-          let lap = filter("bandpass", 300, 2, loop(0.8, "brown")),
-            lapAmp = amp(lap, 0.3);
-          drift(lapAmp.gain, 0.12, 0.16);
-          drift(lap.frequency, 0.07, 90);
-          break;
-        }
-        case "void": {
-          // Void Core: a slow sub throb and a shimmering sheen far above it
-          let throb = amp(osc("sine", 44), 0.5),
-            fifth = amp(osc("sine", 66), 0.18);
-          drift(throb.gain, 0.1, 0.2);
-          drift(fifth.gain, 0.1, 0.08);
-          let shimmer = filter("bandpass", 2400, 6, loop(1.3, "pink")),
-            shimmerAmp = amp(shimmer, 0.08);
-          drift(shimmerAmp.gain, 0.06, 0.06);
-          drift(shimmer.frequency, 0.05, 600);
-          break;
-        }
-      }
       this.toneBed = { name, gain, nodes, boss: false };
+      try {
+        // the room arrives slowly (a new biome breathes in, it does not switch on)
+        gain.gain.setValueAtTime(1e-4, now);
+        gain.gain.setTargetAtTime(level, now, 1.2);
+        gain.connect(this.ambBus);
+        let osc = (type, freq) => {
+            let node = ctx.createOscillator();
+            node.type = type;
+            node.frequency.value = freq;
+            node.start(now);
+            nodes.push(node);
+            return node;
+          },
+          loop = (rate, color) => {
+            let node = this.noiseLoop(rate, color, now);
+            nodes.push(node);
+            return node;
+          },
+          filter = (type, freq, q, from) => {
+            let node = ctx.createBiquadFilter();
+            node.type = type;
+            node.frequency.value = freq;
+            node.Q.value = q;
+            from.connect(node);
+            return node;
+          },
+          amp = (from, vol) => {
+            let node = ctx.createGain();
+            node.gain.value = vol;
+            from.connect(node);
+            node.connect(gain);
+            return node;
+          },
+          // a slow wander of a filter or a level: the room never stands still, but it never moves fast
+          drift = (param, freq, depth) => {
+            let lfo = osc("sine", freq),
+              depthGain = ctx.createGain();
+            depthGain.gain.value = depth;
+            lfo.connect(depthGain);
+            depthGain.connect(param);
+          };
+        switch (name) {
+          case "yard": {
+            // Blackout City: the wash of far traffic under a rain that never quite reaches, a transformer hum
+            let wash = filter("lowpass", 240, 0.6, loop(0.5, "brown")),
+              washAmp = amp(wash, 0.6);
+            drift(washAmp.gain, 0.05, 0.22);
+            drift(wash.frequency, 0.031, 60);
+            let hum = filter("lowpass", 300, 1.1, osc("sawtooth", 50));
+            amp(hum, 0.11);
+            break;
+          }
+          case "works": {
+            // Ember Works: the furnace two halls away, hot air ticking through the pipes
+            let furnace = filter("lowpass", 150, 0.7, loop(0.55, "brown")),
+              furnaceAmp = amp(furnace, 0.7);
+            drift(furnaceAmp.gain, 0.07, 0.25);
+            let air = filter("bandpass", 900, 0.8, loop(1.1, "pink"));
+            amp(air, 0.1);
+            drift(air.frequency, 0.043, 200);
+            break;
+          }
+          case "vault": {
+            // Cryo Vault: a thin high wind that wanders (the calm cousin of the whiteout storm) and the
+            // faint glassy sheen of the ice
+            let wind = filter("bandpass", 520, 0.7, loop(1, "pink"));
+            amp(wind, 0.6);
+            drift(wind.frequency, 0.09, 180);
+            let sheen = filter("bandpass", 1900, 6, loop(1.4, "pink")),
+              sheenAmp = amp(sheen, 0.16);
+            drift(sheenAmp.gain, 0.045, 0.12);
+            let ring = osc("sine", 1320),
+              ringAmp = amp(ring, 0.03);
+            drift(ringAmp.gain, 0.037, 0.02);
+            break;
+          }
+          case "marsh": {
+            // Toxin Marsh: a heavy drone over water that laps against the mud
+            let drone = filter("lowpass", 190, 0.8, loop(0.5, "brown"));
+            amp(drone, 0.55);
+            let deep = osc("sine", 55);
+            amp(deep, 0.1);
+            let lap = filter("bandpass", 300, 2, loop(0.8, "brown")),
+              lapAmp = amp(lap, 0.3);
+            drift(lapAmp.gain, 0.12, 0.16);
+            drift(lap.frequency, 0.07, 90);
+            break;
+          }
+          case "void": {
+            // Void Core: a slow sub throb and a shimmering sheen far above it
+            let throb = amp(osc("sine", 44), 0.5),
+              fifth = amp(osc("sine", 66), 0.18);
+            drift(throb.gain, 0.1, 0.2);
+            drift(fifth.gain, 0.1, 0.08);
+            let shimmer = filter("bandpass", 2400, 6, loop(1.3, "pink")),
+              shimmerAmp = amp(shimmer, 0.08);
+            drift(shimmerAmp.gain, 0.06, 0.06);
+            drift(shimmer.frequency, 0.05, 600);
+            break;
+          }
+        }
+      } catch (err) {
+        // back out cleanly: stop what started (stopTone also detaches the nodes and the gain),
+        // mark the tone dead for 10 s, and report like the rest of the engine
+        this.stopTone(name, 0, 0.05);
+        this.deadTone[name] = ctx.currentTime;
+        this.fail(err);
+        return;
+      }
     }
     stopTone(name, at = 0, fade = 1.2) {
       let tone = this.toneBed;
@@ -3673,6 +3749,9 @@ const musicChords = {
         tone.gain.gain.cancelScheduledValues(now);
         tone.gain.gain.setTargetAtTime(0, now, fade * 0.5);
         for (let node of tone.nodes) node.stop(end);
+        // 3.46.0: the nodes are detached now instead of relying on GC
+        for (let node of tone.nodes) node.disconnect();
+        tone.gain.disconnect();
       } catch {}
     }
     /* Runs with the scheduler: keeps the room tone of the current biome alive (menu, upgrade, pause and
@@ -3682,7 +3761,11 @@ const musicChords = {
       if (!ctx) return;
       let want = this.mode !== "off" && this.ambVol > 0 ? this.wantBiome() : null;
       if (this.toneBed && (!want || this.toneBed.name !== want)) this.stopTone();
-      if (want && !this.toneBed) this.startTone(want);
+      // 3.46.0: a tone whose build threw gets one more try after 10 s (was: dead for the session)
+      if (want && !this.toneBed) {
+        let dead = this.deadTone[want];
+        if (!dead || ctx.currentTime - dead >= 10) this.startTone(want);
+      }
       if (this.toneBed) {
         let boss = this.playKind === "boss";
         if (boss !== this.toneBed.boss) {
@@ -3710,7 +3793,9 @@ const musicChords = {
       for (let name of Object.keys(this.beds)) {
         if (name !== "hum" && name !== amb) this.stopBed(name);
       }
-      if (amb && !this.beds[amb] && !this.deadBeds[amb]) this.startBed(amb);
+      // 3.46.0: a bed whose build threw gets one more try after 10 s (was: dead for the session)
+      let dead = amb ? this.deadBeds[amb] : 0;
+      if (amb && !this.beds[amb] && (!dead || now - dead >= 10)) this.startBed(amb);
       if (amb && now >= this.accentT) this.accent(amb, now);
       if (this.voices.length > 8) {
         for (let i = this.voices.length - 1; i >= 0; i--)
@@ -3791,9 +3876,22 @@ const musicChords = {
         this.timer = setInterval(() => {
           try {
             this.schedule();
+            this.schedFails = 0;
           } catch (err) {
+            // 3.46.0: one throw used to clear the interval for the whole session — music, beds,
+            // the hum, the room tone and the voice pruning all died silently. Report, release
+            // the timer and re-arm with a growing backoff; the note loop is guarded per step.
             this.fail(err);
             clearInterval(this.timer);
+            this.timer = null;
+            if (this.ctx && !this.offline) {
+              this.schedFails = (this.schedFails || 0) + 1;
+              if (this.schedFails <= 5) {
+                setTimeout(() => {
+                  if (this.ctx && !this.timer) this.startScheduler();
+                }, 1000 * this.schedFails);
+              }
+            }
           }
         }, 30);
       }
@@ -3813,8 +3911,13 @@ const musicChords = {
       }
       for (; this.nextT < ctx.currentTime + 0.14; ) {
         let info = trackInfo(this.playKind, this.playBiome);
-        if (this.playKind !== "off" && this.musVol > 0) {
-          this.note(this.step, this.nextT);
+        try {
+          if (this.playKind !== "off" && this.musVol > 0) {
+            this.note(this.step, this.nextT);
+          }
+        } catch (err) {
+          // 3.46.0: one bad note must not kill the whole tick — the step still advances
+          this.fail(err);
         }
         this.nextT += 60 / info.bpm / 4;
         this.step = (this.step + 1) % info.steps;

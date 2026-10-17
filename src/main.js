@@ -1543,6 +1543,12 @@ document.addEventListener("visibilitychange", () => {
     if (game.mode === "game") {
       game.pause();
     }
+    // 3.46.0: keyups can be lost on iOS backgrounding (blur and pagehide do not fire there), so
+    // the held keys used to survive the return: the drone kept moving until each key was
+    // re-pressed. reset(true) forgets them; the controller's edges are dropped with them.
+    input.reset(true);
+    input.gamepad.prev = {};
+    input.gamepad.held = {};
     store.save("hidden");
     sound.suspend();
   } else {
