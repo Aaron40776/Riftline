@@ -1409,14 +1409,17 @@ const rlStep = 1 / 60,
     pickTarget() {
       let player = this.player,
         range = this.stats.range + 2.5,
+        // 3.46.0: hoisted — the Lance's slugs cross walls, so walls must never screen its
+        // candidates (see canSee); for the rest the cached line of sight (refreshed every
+        // ~0.2 s in statusTick) screens them — a fresh wall raycast per enemy per step
+        // used to sit here
+        cross = this.shotsCrossWalls(),
         best = null,
         bestScore = 1 / 0;
       for (let enemy of this.enemies) {
         if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
         let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y) - enemy.r;
-        // 3.46.0: the cached line of sight (refreshed every ~0.2 s in statusTick) screens the
-        // candidates — a fresh wall raycast per enemy per step used to sit here
-        if (dist > range || !enemy.los) continue;
+        if (dist > range || (!cross && !enemy.los)) continue;
         let score = dist;
         if (dist < 4) score *= 0.6;
         else if (dist < 7 && RL_RUSHERS.has(enemy.type)) score *= 0.75;
@@ -1427,8 +1430,9 @@ const rlStep = 1 / 60,
           best = enemy;
         }
       }
-      // 3.46.0: one fresh check for the winner only (the cache can be a fifth of a second stale)
-      return best && this.canSee(best) ? best : null;
+      // 3.46.0: one fresh check for the winner only, and only when the shots cannot cross
+      // walls (the cache can be a fifth of a second stale)
+      return best && (cross || this.canSee(best)) ? best : null;
     }
     fire(angle) {
       const stats = this.stats;
