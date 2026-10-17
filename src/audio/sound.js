@@ -961,9 +961,11 @@ const musicChords = {
         if (music.length >= 12) {
           for (let i = music.length - 1; i >= 0; i--)
             if (music[i].end < now) {
-              // 3.46.0: detached now — these used to rely on GC and piled up on Safari
+              // 3.46.0: detached now — these used to rely on GC and piled up on Safari.
+              // Never in the offline renders: there the whole graph is rendered after the
+              // scheduling pass, so a detached voice's window would never sound at all.
               try {
-                if (music[i].node) music[i].node.disconnect();
+                if (!this.offline && music[i].node) music[i].node.disconnect();
               } catch {}
               music[i] = music[music.length - 1];
               music.pop();
@@ -988,8 +990,9 @@ const musicChords = {
         for (let i = list.length - 1; i >= 0; i--)
           if (list[i].end < now) {
             // 3.46.0: detached now — these used to rely on GC and piled up on Safari
+            // (never offline: the render happens after the scheduling pass — see claim)
             try {
-              if (list[i].node) list[i].node.disconnect();
+              if (!this.offline && list[i].node) list[i].node.disconnect();
             } catch {}
             list[i] = list[list.length - 1];
             list.pop();
@@ -1022,8 +1025,11 @@ const musicChords = {
         old.amp.gain.setTargetAtTime(0, now, 0.004);
         old.node.stop(now + 0.03);
         // 3.46.0: detached now — the stolen voice used to rely on GC (piled up on Safari)
-        old.node.disconnect();
-        old.amp.disconnect();
+        // (never offline: the render happens after the scheduling pass — see claim)
+        if (!this.offline) {
+          old.node.disconnect();
+          old.amp.disconnect();
+        }
       } catch {}
       list[victim] = voice;
       this.dropped++;
@@ -3247,8 +3253,11 @@ const musicChords = {
             voice.amp.gain.setValueAtTime(0, now);
             voice.node.stop(now);
             // 3.46.0: detached now instead of relying on GC
-            voice.node.disconnect();
-            voice.amp.disconnect();
+            // (never offline: the render happens after the scheduling pass — see claim)
+            if (!this.offline) {
+              voice.node.disconnect();
+              voice.amp.disconnect();
+            }
           } catch {}
           list[i] = list[list.length - 1];
           list.pop();
@@ -3749,9 +3758,16 @@ const musicChords = {
         tone.gain.gain.cancelScheduledValues(now);
         tone.gain.gain.setTargetAtTime(0, now, fade * 0.5);
         for (let node of tone.nodes) node.stop(end);
-        // 3.46.0: the nodes are detached now instead of relying on GC
-        for (let node of tone.nodes) node.disconnect();
-        tone.gain.disconnect();
+        // 3.46.0: the nodes are detached instead of relying on GC — after the fade (an immediate
+        // detach used to cut it), and never in the offline renders (the render happens after the
+        // scheduling pass: a detached node's window would never sound)
+        if (!this.offline)
+          setTimeout(() => {
+            try {
+              for (let node of tone.nodes) node.disconnect();
+              tone.gain.disconnect();
+            } catch {}
+          }, Math.max(0, end - this.ctx.currentTime) * 1000 + 150);
       } catch {}
     }
     /* Runs with the scheduler: keeps the room tone of the current biome alive (menu, upgrade, pause and
