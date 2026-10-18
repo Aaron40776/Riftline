@@ -309,6 +309,8 @@ const RL_TRAP_SOUND = {
   frost: { warn: "tmFrost", fire: "tsFrost" },
   spore: { warn: "tmSpore", fire: "tsSpore" },
   riftmine: { warn: "tmRift", fire: "tsRiftMine" },
+  // 3.47.0: the stage pyro: gas hisses into the nozzle, then a golden burst
+  pyro: { warn: "tcPyro", fire: "tsPyro" },
 };
 /* the beeps of the mines per skin: pitch, wave, filter (and an end-pitch factor for a chirp) */
 const RL_MINE_BEEP = {
@@ -341,7 +343,7 @@ const RL_SOUND_EVENTS = {
   boss: [{ id: "warden" }, { id: "forge" }, { id: "prism" }, { id: "queen" }, { id: "core" }, { id: "kingpin" }],
   bossAtk: [
     { id: "warden", atk: "ring" },
-    { id: "kingpin", atk: "barrage" },
+    { id: "kingpin", atk: "summon" },
   ],
   bossDown: [{ id: "warden" }],
   bounce: [{}],
@@ -2464,6 +2466,15 @@ const musicChords = {
             }
           }
           break;
+        case "tcPyro":
+          // 3.47.0: the stage pyro primes: gas rushing into the nozzle, a rising bright hiss with
+          // two little knocks of the valve
+          if (this.gate(id, 0.12)) {
+            this.noise(d, 0.055, { type: "bandpass", f: 1200, to: 3400, q: 1.1, attack: d * 0.9 });
+            this.tone(2200, 0.06, "triangle", 0.03, { to: 1600, at: d * 0.35 });
+            this.tone(2200, 0.06, "triangle", 0.03, { to: 1600, at: d * 0.7 });
+          }
+          break;
         case "tcRift":
           // a reversed swell: the sound is drawn inwards
           if (this.gate(id, 0.12)) {
@@ -2574,6 +2585,15 @@ const musicChords = {
               this.tone(f, 0.09, "sine", 0.06, { to: f * 2.2, lp: 1000, at: 0.14 + i * 0.09 });
               this.noise(0.07, 0.03, { type: "bandpass", f: 900, q: 3, at: 0.14 + i * 0.09 });
             }
+          }
+          break;
+        case "tsPyro":
+          // 3.47.0: the jet: a golden whoomph and a shower of sparks
+          if (this.gate(id, 0.05)) {
+            this.noise(0.35, 0.2, { type: "bandpass", f: 900, to: 2600, q: 0.8, attack: 0.015 });
+            this.tone(110, 0.26, "sine", 0.26, { to: 55 });
+            for (let i = 0; i < 6; i++)
+              this.tone(1900 + r() * 1600, 0.08, "sine", 0.03, { to: 700, at: 0.05 + i * 0.06 });
           }
           break;
         case "tsRift":
@@ -5899,6 +5919,9 @@ function rlSoundCatalog() {
     "eshotWeaver",
     "eshotCarrier",
     "eshotFrost",
+    "tcPyro",
+    "tsPyro",
+    "tribute",
     "bwCryo",
     "bwAcid",
     "bwFlame",

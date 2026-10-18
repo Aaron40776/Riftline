@@ -1417,7 +1417,8 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
     }
     case "lastcall": {
       // 3.47.0: LAST CALL: the Kingpin calls the whole mob in (a squad of the Club's champions
-      // through the portals and a crew of his own around him) and sweeps the floor while they pour out
+      // through the portals and a crew of his own around him), torches the exits around the drone
+      // (a ring of molotovs) and sweeps the floor while they pour out
       moveBoss(game, boss, dt, aim, dist, 0.3);
       if (boss.n === 0) {
         boss.n = 1;
@@ -1431,6 +1432,22 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
           kid.noDrop = true;
           kid.kx = Math.cos(angle) * 6;
           kid.ky = Math.sin(angle) * 6;
+        }
+        // the molotovs close the ring around the drone: six fires, one gap left to find
+        const start = game.rng.next() * TAU,
+          gap = game.rng.int(0, 6);
+        for (let k = 0; k < 7; k++) {
+          const angle = start + (k / 7) * TAU;
+          if (k === gap) continue;
+          game.hazard({
+            x: clamp(player.x + Math.cos(angle) * 4.6, -arena.W + 1, arena.W - 1),
+            y: clamp(player.y + Math.sin(angle) * 4.6, -arena.H + 1, arena.H - 1),
+            r: 1.9,
+            delay: 1.3,
+            dmg: boss.dmg * 0.7,
+            kind: "rain",
+            src: "kingpin",
+          });
         }
         game.emit("hatch", { x: boss.x, y: boss.y, big: true });
       }

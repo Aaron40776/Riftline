@@ -237,6 +237,33 @@ const PLACE = {
     T(e, a, 2300, 0.3, "triangle", 0.05, { to: 2900, attack: 0.02 });
     T(e, a, 2900, 0.35, "triangle", 0.05, { at: 0.32, to: 2300 });
   },
+  // a cork gives up: a pop and a short fizz
+  bottlePop(e, a) {
+    T(e, a, rand(700, 950), 0.09, "sine", 0.08, { to: 240, attack: 0.001 });
+    N(e, a, 0.05, 0.1, { type: "bandpass", f: 2400, q: 1.4, at: 0.01 });
+    N(e, a, 0.5, 0.045, { type: "bandpass", f: 5200, to: 3400, q: 1, attack: 0.03, at: 0.05 });
+  },
+  // the back door swings and slams: a wooden knock and a rattle
+  doorSlam(e, a) {
+    T(e, a, rand(90, 130), 0.16, "sine", 0.14, { to: 55 });
+    N(e, a, 0.08, 0.1, { f: 500, to: 180, color: "brown" });
+    for (let i = 0; i < 3; i++)
+      N(e, a, 0.02, 0.04, { type: "bandpass", f: rand(1800, 2600), q: 4, at: 0.1 + i * 0.05 });
+  },
+  // the room cheers for a moment (a brighter band of the crowd, up and gone)
+  cheerFar(e, a) {
+    N(e, a, 1.8, 0.1, { type: "bandpass", f: 800, to: 1250, q: 1, attack: 0.35 });
+    N(e, a, 1.8, 0.06, { type: "bandpass", f: 2200, to: 2600, q: 2, attack: 0.45, dp: 0.25 });
+  },
+  // a glass goes down badly: a bright smash and a few tumbles
+  glassBreak(e, a) {
+    N(e, a, 0.09, 0.13, { type: "bandpass", f: 3400, to: 1800, q: 1.4 });
+    for (let i = 0; i < 5; i++) {
+      const f = rand(1600, 4200);
+      T(e, a, f, 0.07, "sine", 0.03, { to: f * 0.6, at: 0.08 + i * 0.055 });
+    }
+    N(e, a, 0.2, 0.03, { type: "bandpass", f: 2800, to: 1200, q: 2, at: 0.25 });
+  },
   // ---- 3.17.0: the props near the drone (placeTick, PROP_HEAR) ----
   // Blackout City: a street lamp at the edge buzzes on the mains (100 Hz and its harmonics), now and then it ticks
   lampBuzz(e, a) {
@@ -531,7 +558,8 @@ const SCAPE = {
     ],
   },
   // 3.47.0: the Onyx Club: the murmur and the thump are the steady bed (the band plays on through the
-  // fight); the far sounds live at the tables and the door
+  // fight); the far sounds live at the tables and the door (none of them is a bed id: the scape rules
+  // count a far sound against its own rate, and a bed would break it)
   club: {
     bed: [
       ["crowdMur", 1.4, 2.6, 0.9],
@@ -540,8 +568,10 @@ const SCAPE = {
     far: [
       { id: "glassClink", every: [12, 26] },
       { id: "bottleSet", every: [16, 34] },
-      { id: "crowdMur", every: [18, 36] },
-      { id: "stageThump", every: [10, 22] },
+      { id: "bottlePop", every: [18, 40] },
+      { id: "glassBreak", every: [22, 48] },
+      { id: "doorSlam", every: [24, 50] },
+      { id: "cheerFar", every: [30, 60] },
       { id: "raidWhistle", every: [45, 90], big: true },
     ],
   },

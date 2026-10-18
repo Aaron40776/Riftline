@@ -2079,7 +2079,7 @@ const RL_OVERDRIVE_INFO = {
   },
   kingpin: {
     name: "Last Call",
-    desc: "The whole mob pours in through gold portals while the Kingpin sweeps the floor with his tommy gun.",
+    desc: "The whole mob pours in through gold portals, molotovs close a ring around you (one gap), and the Kingpin sweeps the floor.",
   },
 };
 // ---- 2.5.0 D: title card helpers
