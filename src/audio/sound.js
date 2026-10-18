@@ -4696,12 +4696,13 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       bus.t(f * 2.76, 0.9, "sine", v * 0.25, { attack: 0.002, ...o });
     },
     // Onyx Club: a vibraphone, a struck bar with a slow beat of its own and a metallic shimmer on top
+    // (the 9.2 partial carries the piano's 16 kHz guard: on the G-major bar the motif runs high)
     vibes: (bus, f, v, o) => {
       bus.t(f, o.lite ? 1 : 2.2, "sine", v, { attack: 0.002, rev: 0.65, ...o });
       bus.t(f * 4.01, o.lite ? 0.2 : 0.5, "sine", v * 0.22, { attack: 0.001, ...o });
       if (o.lite) return;
       bus.t(f * 1.004, 2.2, "sine", v * 0.5, { attack: 0.002, ...o });
-      bus.t(f * 9.2, 0.14, "sine", v * 0.1, { attack: 0.001, ...o });
+      if (f * 9.2 < 16000) bus.t(f * 9.2, 0.14, "sine", v * 0.1, { attack: 0.001, ...o });
     },
   },
   /* the level of each instrument against the ice bells (the pipes, the kalimba, the glass and the vibes are
@@ -4844,10 +4845,11 @@ const BLOOM_VOICE = {
     g.t(f * 2.7, len * 0.4, "sine", v * 0.1, { attack: 0.3, ...o });
   },
   // 3.47.0: the Club's bloom: a struck vibraphone bar, smooth, with the metallic partials dying fast
+  // (the 9.2 partial carries the same 16 kHz guard as the motif voice)
   vibe: (g, f, v, len, o) => {
     g.t(f, len, "sine", v, { attack: 0.004, ...o });
     g.t(f * 4.01, len * 0.25, "sine", v * 0.18, { attack: 0.002, ...o });
-    g.t(f * 9.2, 0.12, "sine", v * 0.08, { attack: 0.001, ...o });
+    if (f * 9.2 < 16000) g.t(f * 9.2, 0.12, "sine", v * 0.08, { attack: 0.001, ...o });
   },
 };
 function calmBloom(k, c, biome) {
