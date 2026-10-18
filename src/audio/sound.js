@@ -3571,6 +3571,31 @@ const musicChords = {
             crackleAmp.connect(gain);
             break;
           }
+          case "raid": {
+            // 3.47.0: the RAID: the pyro rig primes (a hiss that never quite lets go) over a low
+            // door-rumble, and the crowd's murmur rises and falls behind it
+            let prime = filter("bandpass", 1900, 0.9, loop(1.1, "pink")),
+              primeAmp = ctx.createGain();
+            primeAmp.gain.value = 0.22;
+            prime.connect(primeAmp);
+            primeAmp.connect(gain);
+            let rumble = filter("lowpass", 130, 0.9, loop(0.7, "brown")),
+              rumbleAmp = ctx.createGain();
+            rumbleAmp.gain.value = 0.5;
+            rumble.connect(rumbleAmp);
+            rumbleAmp.connect(gain);
+            let crowd = filter("bandpass", 520, 0.9, loop(0.9, "pink")),
+              crowdAmp = ctx.createGain(),
+              swell = osc("sine", 0.17),
+              swellDepth = ctx.createGain();
+            crowdAmp.gain.value = 0.3;
+            swellDepth.gain.value = 0.14;
+            swell.connect(swellDepth);
+            swellDepth.connect(crowdAmp.gain);
+            crowd.connect(crowdAmp);
+            crowdAmp.connect(gain);
+            break;
+          }
           case "riftstorm": {
             // two close low tones that beat
             let a = osc("sine", 55),
