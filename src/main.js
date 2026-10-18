@@ -878,6 +878,9 @@ function applySettings() {
   if (renderer) {
     renderer.setAccess(settings.contrast);
     renderer.zoom = settings.zoom || 1;
+    // 3.45.5: the two feel toggles actually reach the renderer now (they had no reader before)
+    renderer.shakes = settings.shake !== false;
+    renderer.numbers = settings.numbers !== false;
     let dpr = settings.quality === "auto" ? autoDpr : qualityPreset.dpr;
     renderer.setQuality(dpr, qualityPreset.particles);
   }

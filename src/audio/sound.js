@@ -228,14 +228,24 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
   ],
   AMBIENCE_LEVEL = { blackout: 0.07, meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
   /* 3.43.0: the room tone of each biome - the steady bed under everything, wherever the game is (home,
-     upgrade, pause, fight). The events pile onto it: the whiteout storm rises out of the vault's calm wind. */
-  ROOM_TONE_LEVEL = { yard: 0.03, works: 0.032, vault: 0.028, marsh: 0.03, void: 0.026 },
+     upgrade, pause, fight). The events pile onto it: the whiteout storm rises out of the vault's calm wind.
+     3.45.5: raised so the place stays audible while the music plays (the mix note above); the vault needs the
+     most, its events are the sparsest. */
+  ROOM_TONE_LEVEL = { yard: 0.038, works: 0.038, vault: 0.046, marsh: 0.036, void: 0.038 },
   /* 3.43.0: the event beds gather and pass instead of snapping on and off - a storm builds over about
      three seconds and dies away over about four, while the room tone stays underneath. */
   BED_ATTACK = { blackout: 0.6, meltdown: 1.0, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2 },
   BED_RELEASE = { blackout: 0.5, meltdown: 0.9, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1 },
   // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
   AMB_REF = 0.8,
+  /* 3.45.5: the mix balance (measured with scripts/rl-mix-probe.mjs, rms of 20 s offline renders at the default
+     volumes). Before: the fight music sat 2 dB under the short-term level of the shots (it masked them) and the
+     boss tracks towered 6.7 dB OVER the fight (the effects drowned). Now the music scale sits the fight theme
+     clearly under the shots and the boss tracks keep their heat without the wall. The place is not lifted on the
+     bus - the deep-test catalog caps the place sounds against single shots (3.13.0) and the beds already sat at
+     two thirds of the cap - the room tone and the steady beds get louder instead (see ROOM_TONE_LEVEL and the
+     bed levels in audio/place.js): the constant layers of the place are what the music must not hide. */
+  MUSIC_SCALE = 0.44,
   MAX_VOICES = 24,
   // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
   // 3.2.0: 36 (was 20): the boss tracks double-track their guitars (two amps) and play blast beats; 3.5.0: 44, they
@@ -752,7 +762,7 @@ const musicChords = {
       // the glue compressor works the same at every volume setting
       this.mus = ctx.createGain();
       this.musLevel = ctx.createGain();
-      this.musLevel.gain.value = this.musVol * 0.6;
+      this.musLevel.gain.value = this.musVol * MUSIC_SCALE;
       // 2.9.0: the music passes a gain stage of its own that dips briefly on big hits (duck)
       this.duckGain = ctx.createGain();
       // 3.1.0: a fade stage between the music and the duck (the calm theme fades back in after a boss)
@@ -909,7 +919,7 @@ const musicChords = {
       if (!this.ctx) return;
       let now = this.ctx.currentTime;
       this.sfx.gain.setTargetAtTime(sfx, now, 0.05);
-      this.musLevel.gain.setTargetAtTime(music * 0.6, now, 0.1);
+      this.musLevel.gain.setTargetAtTime(music * MUSIC_SCALE, now, 0.1);
       this.ambBus.gain.setTargetAtTime(ambience, now, 0.05);
       this.atmos.gain.setTargetAtTime(ambience / AMB_REF, now, 0.1);
       this.atmosPump.gain.setTargetAtTime(ambience / AMB_REF, now, 0.1);
@@ -1167,7 +1177,7 @@ const musicChords = {
       g.attack.setValueAtTime(boss ? 0.004 : 0.02, now);
       g.release.setValueAtTime(boss ? 0.12 : 0.3, now);
       this.makeup.gain.cancelScheduledValues(now);
-      this.makeup.gain.setValueAtTime(boss ? 2.1 : 1.1, now);
+      this.makeup.gain.setValueAtTime(boss ? 1.3 : 1.1, now);
     }
     /* test hook: with musicLog set (an array) every music voice is recorded: kind, start, pitch, level, length,
        bus (m music, d delay, p pump, c choir) */
@@ -4089,6 +4099,9 @@ const musicChords = {
       };
       seeded(() => engine.attach(ctx, { room: spec.room !== false }));
       engine.sfxVol = 1;
+      // balance probe (scripts/rl-mix-probe.mjs): spec.vol sets the three bus volumes the way the game
+      // would have them (the forced sfxVol = 1 above stays for every other caller)
+      if (spec.vol) engine.setVolumes(spec.vol.sfx ?? 1, spec.vol.mus ?? engine.musVol, spec.vol.amb ?? engine.ambVol);
       if (spec.burst)
         for (let i = 1; i < spec.burst.n; i++)
           ctx.suspend(0.25 + i * spec.burst.interval).then(() => {
@@ -5391,7 +5404,7 @@ function musicResolve(e, biome, at) {
 const MUSIC_TRACKS = {
   yard: {
     fight: { bpm: 78, bars: 16, swing: 0, gain: 1, play: yardCalm },
-    boss: { bpm: 128, bars: 22, swing: 0, gain: 1.25, play: yardBoss },
+    boss: { bpm: 128, bars: 22, swing: 0, gain: 1.1, play: yardBoss },
   },
   works: {
     fight: { bpm: 66, bars: 16, swing: 0, gain: 1, play: worksCalm },
@@ -5407,7 +5420,10 @@ const MUSIC_TRACKS = {
   },
   void: {
     fight: { bpm: 60, bars: 16, swing: 0, gain: 1, play: voidCalm },
-    boss: { bpm: 172, bars: 22, swing: 0, gain: 1, play: voidBoss },
+    // 3.45.5: the mix note above trimmed the boss make-up; the Void Core boss keeps a step of its own
+    // (the deep-test wants every boss track clearly louder than its calm theme; the glue compressor
+    // eats part of a track-gain raise, so this one goes to 1.25)
+    boss: { bpm: 172, bars: 22, swing: 0, gain: 1.25, play: voidBoss },
   },
 };
 function musicTrack(kind, biome) {

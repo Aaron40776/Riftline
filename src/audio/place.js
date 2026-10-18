@@ -428,11 +428,14 @@ const PLACE = {
    far: the far sounds, each on its own timer of lo..hi s; big ones never sound at the same time (one waits a few
         seconds); light: the renderer shows it ("lightning", "siren") */
 const SCAPE = {
+  // 3.45.5: the steady beds got a level up (the g in each row): with the fight theme sitting lower in the mix
+  // (see MUSIC_SCALE in audio/sound.js) the rain, the furnaces, the wind and the crickets stay audible under
+  // it. Each bed keeps its margin under the deep-test cap (under 60 % of a Pulse shot at full level).
   yard: {
     bed: [
-      ["rainDrop", 0.12, 0.3, 0.8, 0],
-      ["gutter", 1.6, 4, 0.7],
-      ["rainMetal", 2.5, 6, 0.6],
+      ["rainDrop", 0.12, 0.3, 1, 0],
+      ["gutter", 1.6, 4, 0.9],
+      ["rainMetal", 2.5, 6, 0.8],
     ],
     far: [
       { id: "thunder", every: [25, 50], big: true, light: "lightning" },
@@ -447,7 +450,7 @@ const SCAPE = {
     ],
   },
   works: {
-    bed: [["furnace", 1.4, 1.8, 0.8]],
+    bed: [["furnace", 1.4, 1.8, 0.9]],
     far: [
       { id: "anvilSeries", every: [20, 40] },
       { id: "dropHammer", every: [15, 35], big: true },
@@ -461,7 +464,7 @@ const SCAPE = {
     ],
   },
   vault: {
-    bed: [["wind", 1.5, 2.6, 0.7]],
+    bed: [["wind", 1.5, 2.6, 1]],
     far: [
       { id: "howl", every: [25, 50] },
       { id: "groan", every: [30, 60] },
@@ -473,7 +476,7 @@ const SCAPE = {
     ],
   },
   marsh: {
-    bed: [["cricket", 0.4, 1.1, 0.8, 0]],
+    bed: [["cricket", 0.4, 1.1, 1, 0]],
     far: [
       { id: "frogChorus", every: [20, 40] },
       { id: "cicada", every: [25, 50] },
@@ -487,7 +490,7 @@ const SCAPE = {
     ],
   },
   void: {
-    bed: [["heartbeat", 1.1, 1.3, 0.7, 0.5]],
+    bed: [["heartbeat", 1.1, 1.3, 0.8, 0.5]],
     far: [
       { id: "reversed", every: [25, 50] },
       { id: "metal", every: [30, 60] },

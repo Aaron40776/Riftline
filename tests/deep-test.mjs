@@ -725,10 +725,13 @@ const placeMusic =
     return { ...out, fail };
   }));
 res.placeMusic = placeMusic;
-// 3.16.0: the ambience stays well below the music (the 3.13.0 plan): 20 s of each biome's soundscape (the real
-// scheduler with the steady layer, the far sounds and the hazards of the arena) against 20 s of its calm theme, both at
-// the default volumes; the mean level (RMS) of the ambience must stay AMB_UNDER below the music
-const AMB_UNDER = 0.6;
+// 3.16.0: the ambience stays below the music. 3.45.5 rebalanced the mix (scripts/rl-mix-probe.mjs): the place
+// (room tone, beds, hazards) sits only a little under the fight theme now, so it stays audible while the music
+// plays - but it must never rise over the music. 20 s of each biome's soundscape (the real scheduler with the
+// steady layer, the far sounds and the hazards of the arena) against 20 s of its calm theme, both at the default
+// volumes; the mean level (RMS) of the ambience must stay AMB_UNDER below the music (the headroom absorbs the
+// random stacks of far sounds: thunder over a vent over an avalanche).
+const AMB_UNDER = 0.9;
 const ambience = await page.evaluate(async (under) => {
   const T = window.__riftTest,
     E = T.game.sound.constructor,
