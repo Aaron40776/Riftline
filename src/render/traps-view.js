@@ -42,6 +42,8 @@ const LOOK = {
   frost: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff), led: hex(0xc8f6ff) },
   spore: { main: hex(0xa8f03a), alt: hex(0xe6ff8a), dust: hex(0x4a7a1a), led: hex(0xd7ff4a) },
   riftmine: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650), led: hex(0xff4de0) },
+  // 3.47.0: the Onyx Club's stage pyro: gold
+  pyro: { main: hex(0xffd166), alt: hex(0xfff0b8), dust: hex(0x6a5320) },
 };
 // 3.12.0: the Singularity: a dark violet core, the cyan of the player on its rim, violet arms (never the red of a
 // warning: it is the player's own)
@@ -241,6 +243,44 @@ const MODELS = {
         ),
       ],
       mover: [meshPart(new SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), 0x6faa2a, { y: 0.2 })],
+    };
+  },
+  // 3.47.0: the Onyx Club: a brass nozzle set into the dance floor, gold in the mouth, a cap that
+  // lifts before the jet
+  pyro: () => {
+    seed = 5;
+    return {
+      body: [
+        cyl(0x1c1014, 0.95, 1, 0.05, 12),
+        cyl(0x6a5320, 0.55, 0.9, 0.14, 12, { y: 0.03 }),
+        meshPart(new TorusGeometry(0.5, 0.09, 6, 14), 0x8a6a30, { y: 0.16, rx: Math.PI / 2 }),
+        cyl(0x0d0808, 0.42, 0.42, 0.02, 12, { y: 0.17 }),
+        ...ring(6, (a) =>
+          ball(0x3a2418, 0.09 + rnd() * 0.06, 6, 4, {
+            x: Math.cos(a + rnd() * 0.4) * (0.78 + rnd() * 0.15),
+            y: 0.05,
+            z: Math.sin(a + rnd() * 0.4) * (0.78 + rnd() * 0.15),
+            sy: 0.6,
+          }),
+        ),
+        ...ring(5, (a) =>
+          spike(
+            0x8a6a30,
+            0.04,
+            4,
+            [Math.cos(a) * 0.72, 0.1, Math.sin(a) * 0.72],
+            [Math.cos(a) * 0.78, 0.34, Math.sin(a) * 0.78],
+          ),
+        ),
+      ],
+      glow: [
+        cyl(0xffd166, 0.36, 0.36, 0.02, 12, { y: 0.18 }),
+        ...ring(5, (a) => ball(0xfff0b8, 0.045, 5, 3, { x: Math.cos(a) * 0.48, y: 0.19, z: Math.sin(a) * 0.48 })),
+        ...ring(5, (a) =>
+          ball(0xffd166, 0.04, 5, 3, { x: Math.cos(a + 0.3) * 0.85, y: 0.1, z: Math.sin(a + 0.3) * 0.85 }),
+        ),
+      ],
+      mover: [meshPart(new SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), 0x8a6a30, { y: 0.2 })],
     };
   },
   // Void Core: an obsidian disc with a rotating sigil and a hovering shard
@@ -642,7 +682,8 @@ class TrapView {
           );
         break;
       }
-      case "geyser": {
+      case "geyser":
+      case "pyro": {
         P.glow.colC(P.glow.y(x, 0, z, 0, rr, 1, rr), WHITE, 0.55 + Math.sin(time * 4 + trap.id) * 0.15 + k * 0.6 + hit);
         const dome = warn
           ? (0.15 + 0.85 * k) * (1 + Math.sin(time * 20) * 0.08 * k)
@@ -1080,10 +1121,11 @@ class TrapView {
         r.addShake(0.2 * shakeK);
         break;
       case "geyser":
+      case "pyro":
         r.ring(x, z, rad * 0.2, rad * 1.1, look.main, 0.4);
         r.burst(x, z, 0.3, 24, 6, look.main, 0.8, 0.3, { drag: 1, up: 7, grav: 10 });
         r.burst(x, z, 0.3, 10, 4, look.alt, 0.9, 0.2, { drag: 1, up: 9, grav: 12, spark: true });
-        r.debrisBurst(x, z, 0.3, 4, hex(0x33401f), 0.14, 4);
+        r.debrisBurst(x, z, 0.3, 4, hex(ev.skin === "pyro" ? 0x3a2418 : 0x33401f), 0.14, 4);
         r.flash(x, z, rad * 1.6, 1, look.main, 5);
         r.addShake(0.2 * shakeK);
         break;

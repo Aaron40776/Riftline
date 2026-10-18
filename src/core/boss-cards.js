@@ -9,6 +9,7 @@
 //   Shard Field (Frost Prism) kills shatter into ice splinters that hit and chill the enemies around
 //   Brood (Hive Queen)        every 10 kills a larva hatches (up to 4); it hunts an enemy and bursts into poison
 //   Event Collapse (Rift Core) the Nova first pulls everything in for a moment, then blasts 40 % harder
+//   Kingpin's Cut (Kingpin)    every 20 kills the tribute pays out: a burst of shards and a bandage
 
 import { upgradeList } from "../data/upgrades.js";
 import { makeRng, hashString, TAU } from "./util.js";
@@ -44,7 +45,9 @@ const LOCK_EVERY = 8,
   BROOD_POISON = 9,
   COLLAPSE_TIME = 0.35,
   COLLAPSE_PULL = 1.4,
-  COLLAPSE_DMG = 1.4;
+  COLLAPSE_DMG = 1.4,
+  // 3.47.0: the Kingpin's Cut: kills count towards the tribute
+  TRIBUTE_EVERY = 20;
 
 // the boss card of a boss choice (null: none this time). Its own random stream (seed, wave) keeps every other roll of
 // the run where it was.
@@ -391,6 +394,16 @@ function bossCardKill(world, enemy) {
       hatch(world, enemy);
     }
   }
+  // 3.47.0: the tribute pays out on the spot: a burst of shards and a bandage
+  if (stats.tribute) {
+    world.tributeN = (world.tributeN || 0) + 1;
+    if (world.tributeN >= TRIBUTE_EVERY) {
+      world.tributeN = 0;
+      world.dropShards(enemy.x, enemy.y, 40);
+      world.pickups.push(world.mkPickup("heal", enemy.x, enemy.y, 15));
+      world.emit("tribute", { x: enemy.x, y: enemy.y });
+    }
+  }
 }
 
 function updateBossCards(world, dt) {
@@ -416,6 +429,7 @@ export {
   BROOD_EVERY,
   BROOD_MAX,
   COLLAPSE_TIME,
+  TRIBUTE_EVERY,
   bossCardOffer,
   bossCardKill,
   bossCardNova,

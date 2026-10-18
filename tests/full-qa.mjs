@@ -2951,7 +2951,7 @@ for (const profName of ["desktop", "phone"])
         wave: w.wave,
         name: b.name,
         boss: window.__riftTest.data.bossDefs[
-          { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core" }[b.id]
+          { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core", club: "kingpin" }[b.id]
         ].name,
       };
     });

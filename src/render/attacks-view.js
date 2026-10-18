@@ -84,8 +84,10 @@ const DUST = {
     vault: new Color(0xdff6ff),
     marsh: new Color(0x4a4426),
     void: new Color(0x5a3a90),
+    // 3.47.0: the Onyx Club: warm confetti-grey dust
+    club: new Color(0x8a6a52),
   },
-  BIOME_INDEX = { yard: 0, works: 1, vault: 2, marsh: 3, void: 4 };
+  BIOME_INDEX = { yard: 0, works: 1, vault: 2, marsh: 3, void: 4, club: 5 };
 
 /* the look of a zone (index into the zone shader) */
 const Z = { crack: 0, lavaCrack: 1, molten: 2, frost: 3, acid: 4, rift: 5, target: 6, burn: 7 };
@@ -117,6 +119,8 @@ function lookOf(kind, src, biome, chill) {
       if (src === "forge") return Z.molten;
       if (src === "queen") return Z.acid;
       if (src === "core") return Z.rift;
+      // 3.47.0: the Kingpin's molotovs burst into fire
+      if (src === "kingpin") return Z.burn;
       return biome === "works" ? Z.molten : biome === "marsh" ? Z.acid : biome === "void" ? Z.rift : Z.target;
     default:
       return Z.target;
@@ -269,6 +273,13 @@ ${LAYERS}void main() {
       vec2 sc = floor(q * 4.0), sf = fract(q * 4.0) - 0.5;
       float speck = step(0.85, h21(sc)) * smoothstep(0.3, 0.1, length(sf));
       lay(vec3(0.5, 0.85, 0.15), speck * smoothstep(0.9, 0.2, t) * (0.4 + 0.6 * f));
+    } else if (b == 5) {
+      // 3.47.0: Onyx Club: a scorch on the dance floor - the checker shows through, the seams burn gold
+      float chk = mod(floor(q.x / 3.0) + floor(q.y / 3.0), 2.0);
+      lay(vec3(0.03, 0.02, 0.02) + vec3(0.05, 0.032, 0.02) * chk, ch * 0.9);
+      vec2 gc = abs(fract(q / 3.0) - 0.5) * 3.0;
+      float seam = smoothstep(0.24, 0.05, min(gc.x, gc.y));
+      lay(vec3(1.0, 0.6, 0.2), seam * smoothstep(0.9, 0.2, t) * f * 0.8);
     } else {
       // Void Core: a violet scar, veins of light and specks like stars
       lay(vec3(0.02, 0.0, 0.04), ch * 0.85);

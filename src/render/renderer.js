@@ -414,6 +414,8 @@ const MAX_PARTICLES = 1400,
     prism: [hexColor(0x9ae6ff), hexColor(0xffffff)],
     queen: [hexColor(0xa8f03a), hexColor(0xe6ff8a)],
     core: [hexColor(0xa56bff), hexColor(0xff4de0)],
+    // 3.47.0: the Kingpin's boys come through gold and crimson
+    kingpin: [hexColor(0xffd166), hexColor(0xe0304f)],
   },
   healColor = hexColor(7208842),
   whiteColor = hexColor(16777215),
@@ -1461,6 +1463,14 @@ const MAX_PARTICLES = 1400,
             this.ring(ev.x, ev.y, 1, 9, goldColor, 0.6);
             this.flash(ev.x, ev.y, 6, 1.4, goldColor, 3);
             break;
+          case "tribute": {
+            // 3.47.0: the Kingpin's Cut pays out: a burst of gold shards and a bandage
+            const coin = hexColor(0xffd166);
+            this.burst(ev.x, ev.y, 0.3, 20, 5, coin, 0.6, 0.4, { up: 5, spark: true, drag: 1 });
+            this.ring(ev.x, ev.y, 0.3, 1.7, coin, 0.4);
+            this.flash(ev.x, ev.y, 2.6, 1, coin, 2);
+            break;
+          }
           case "erupt": {
             // 3.4.0: a live manhole of Blackout City arcs: a white-blue burst of sparks and a cold flash
             if (world && world.arena && world.arena.biome.id === "yard") {
@@ -1470,6 +1480,16 @@ const MAX_PARTICLES = 1400,
               this.ring(ev.x, ev.y, ev.r * 0.3, ev.r * 1.6, arc, 0.3);
               this.flash(ev.x, ev.y, ev.r * 3.2, 1.6, arc, 3);
               this.addShake(0.1 * shakeK);
+              break;
+            }
+            // 3.47.0: the stage pyro of the Onyx Club: a golden geyser with a shower of sparks
+            if (world && world.arena && world.arena.biome.id === "club") {
+              const gold = hexColor(0xffd166);
+              this.burst(ev.x, ev.y, 0.3, 24, 6, gold, 0.8, 0.55, { up: 8, grav: 9, drag: 1.4 });
+              this.burst(ev.x, ev.y, 0.3, 12, 4, hexColor(0xfff0b8), 0.5, 0.35, { up: 10, spark: true });
+              this.ring(ev.x, ev.y, ev.r * 0.4, ev.r * 1.4, gold, 0.4);
+              this.flash(ev.x, ev.y, ev.r * 3, 1.3, gold, 3);
+              this.addShake(0.12 * shakeK);
               break;
             }
             let color = hexColor(16738858);
@@ -1584,12 +1604,13 @@ const MAX_PARTICLES = 1400,
           : 0;
       this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 0.7 : -0.55) * (dt || 0), 0, 1); // 3.44.0: the storm gathers slower (0.7) and passes slower still (was ±0.9)
       // 3.4.0: the Blackout (Blackout City) fades the light out over about two seconds, and back after the wave
+      // 3.47.0: the RAID dims the Onyx Club the same way
       const black =
         !opts.menu &&
         world &&
-        world.event === "blackout" &&
         world.state === "fight" &&
-        world.arena?.biome?.id === "yard";
+        ((world.event === "blackout" && world.arena?.biome?.id === "yard") ||
+          (world.event === "raid" && world.arena?.biome?.id === "club"));
       this.rlBlackK = clamp((this.rlBlackK || 0) + (black ? 0.42 : -0.8) * (dt || 0), 0, 1); // 3.44.0: the dark settles slower (was 0.5), the lift keeps its pace
       if (this.arena?.uniforms?.uDark) this.arena.uniforms.uDark.value = this.rlBlackK * 0.85;
       // 2.8.1: the snow keeps fading after Home, when there may be no world any more
@@ -2430,6 +2451,10 @@ const MAX_PARTICLES = 1400,
       }
       if (boss.type === "warden" && boss.st === "charge" && boss.sub === 0) {
         this.chargeLine(boss.x, boss.y, boss.ta, 12, 3.4, clamp(boss.subT / 0.85, 0, 1));
+      }
+      // 3.47.0: the Kingpin lines up his shoulder charge the same way
+      if (boss.type === "kingpin" && boss.st === "charge" && boss.sub === 0) {
+        this.chargeLine(boss.x, boss.y, boss.ta, 11, 3.2, clamp(boss.subT / 0.7, 0, 1));
       }
       // 2.4.6: the Crucible's chimneys throw embers, more while it winds up or is enraged
       if (group.userData.chimneys && boss.spawnT <= 0) {

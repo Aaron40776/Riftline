@@ -102,6 +102,14 @@ const milestones = [
     reward: 175,
     test: (save) => (save.stats.bosses.forge || 0) > 0,
   },
+  // 3.47.0: the Kingpin, boss of the Onyx Club
+  {
+    id: "kingpin",
+    name: "Hostile Takeover",
+    desc: "Defeat the Kingpin",
+    reward: 175,
+    test: (save) => (save.stats.bosses.kingpin || 0) > 0,
+  },
   { id: "clear", name: "Rift Sealed", desc: "Clear all 20 waves", reward: 400, test: (save) => save.stats.clears > 0 },
   {
     id: "legend",
@@ -289,8 +297,8 @@ milestones.push(
   {
     id: "allbiomes",
     name: "World Walker",
-    // 2.4.0: the biome changes after every boss, so wave 21 is the first wave of the fifth biome
-    desc: "Reach wave 21 \u2014 every biome of the rift in one run",
+    // 2.4.0: the biome changes after every boss; 3.47.0: six biomes, so wave 26 is the first wave of the sixth
+    desc: "Reach wave 26 \u2014 every biome of the rift in one run",
     reward: 1100,
     test: (save) => save.stats.bestWave >= 5 * (biomeList.length - 1) + 1,
   },

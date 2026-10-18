@@ -222,6 +222,17 @@ const RL_BIOME_LOOK = {
     gain: 1.0,
     fog: [1.25, 3.0],
   },
+  // 3.47.0: the Onyx Club: warm and low - a champagne key, a crimson fill, a hazy room
+  club: {
+    style: 6,
+    hemi: 0.85,
+    sun: 0xffd9a0,
+    sunI: 1.75,
+    fill: [0xc4385e, 0.95],
+    vivid: 1.2,
+    gain: 1.0,
+    fog: [1.1, 2.6],
+  },
 };
 // 3.41.0: the tone the flying debris of a kill calms into. The style guide of the owner (Viridi, Penguin's
 // Isle, Creaks: quiet, drawn colours) - a kill used to spray the enemy's pure card colour, which read as
@@ -232,6 +243,8 @@ const RL_BIOME_TINT = {
   vault: new Color(0xcfdde8),
   marsh: new Color(0x8fa88a),
   void: new Color(0x9a92b8),
+  // 3.47.0: the Club calms its debris into warm plum-grey
+  club: new Color(0x9c8a90),
 };
 // 3.44.0: the fireflies of the marsh are the one warm light in the cold fog
 const RL_FLOOR_FRAG = `
@@ -375,6 +388,23 @@ void main() {
     float wear = smoothstep(0.22, 0.6, vnoise(p * 1.7 + 9.0));
     col = mix(col, uGrid * 0.4, lane * wear * inside * (1.0 - puddle * 0.6));
     lit = 0.4 + 0.75 * puddle + lane * 0.3;
+  } else if (st == 6) {
+    // Onyx Club (3.47.0): a checkerboard dance floor of worn parquet - two woods a clear step apart,
+    // brass seams between the tiles, two spotlight pools that sway with the band, scuffs and stains
+    float chk = mod(floor(p.x / 2.2) + floor(p.y / 2.2), 2.0);
+    vec3 lightWood = uBase * (1.9 + 0.5 * vnoise(p * 3.1)) + uGrid * 0.05;
+    vec3 darkWood = uBase * 0.5;
+    col = mix(darkWood, lightWood, chk) * (0.85 + 0.3 * fbm(p * 0.9)) * (0.85 + 0.5 * pl);
+    vec2 gp = abs(fract(p / 2.2) - 0.5) * 2.2;
+    float seam = smoothstep(0.1, 0.03, min(gp.x, gp.y));
+    col += uGrid * seam * 0.14 * inside;
+    vec2 s1 = p - vec2(sin(uTime * 0.5) * 1.6, 2.0);
+    vec2 s2 = p - vec2(sin(uTime * 0.4 + 2.2) * -1.9, -3.0);
+    float spot = exp(-dot(s1, s1) * 0.02) * 0.1 + exp(-dot(s2, s2) * 0.016) * 0.07;
+    col += uAccent * spot * inside;
+    float scuff = smoothstep(0.62, 0.78, fbm(p * 1.4 + 4.0));
+    col = mix(col, uBase * 1.3, scuff * 0.3);
+    lit = 0.4 + 0.5 * seam + spot * 4.0;
   } else {
     // (every biome has its style; a plain floor if one ever had none)
     col = uBase * (0.75 + 0.7 * pl);
@@ -1253,6 +1283,117 @@ const RL_BIOME_BUILD = {
         rlFootSlab(props, obstacle, rim, 0.2);
       }
   },
+  // Onyx Club (3.47.0): art-deco wall panels with brass trim and warm sconces, a spotlight rig over
+  // the dance floor, cocktail tables, velvet booths and the brass foot rail
+  club(view, biome, W, H, obs, rng) {
+    const group = view.group,
+      props = view.obsGroup,
+      panel = new MeshLambertMaterial({ color: 0x2e1a22, flatShading: true }),
+      darkPanel = new MeshLambertMaterial({ color: 0x1c1016, flatShading: true }),
+      velvet = new MeshLambertMaterial({ color: 0x571d2c, flatShading: true }),
+      wood = new MeshLambertMaterial({ color: 0x3a2418, flatShading: true }),
+      brassTrim = new MeshLambertMaterial({ color: 0x6a5320, flatShading: true }),
+      lamp = rlGlow(0xffd166),
+      accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false }),
+      bake = rlMerger();
+    // the walls: tall deco panels, a brass strip along the top, a warm sconce between every second pair
+    rlAlongBorder(W, H, 0.5, 2.2, (x, z, nx, nz) => {
+      const along = nx === 0,
+        ry = along ? 0 : Math.PI / 2;
+      bake.add(new BoxGeometry(2.1, 1.6, 0.24), panel, x, 0.8, z, ry);
+      bake.add(new BoxGeometry(2.1, 0.09, 0.3), brassTrim, x, 1.62, z, ry);
+      const k = Math.round((along ? x : z) / 2.2);
+      if (k % 2 === 0) {
+        bake.add(new BoxGeometry(0.14, 0.55, 0.14), darkPanel, x, 1.95, z, ry);
+        bake.add(new BoxGeometry(0.26, 0.18, 0.26), lamp, x, 2.28, z, ry);
+      } else {
+        bake.add(new BoxGeometry(2.1, 0.85, 0.2), darkPanel, x, 2.05, z, ry);
+      }
+    });
+    // the spotlight rig: three warm beams from high above the floor (static, additive, open cones)
+    const beamMat = additiveMaterial(null, { color: 0xffd9a0, opacity: 0.06, side: DoubleSide });
+    for (const [sx, sz] of [
+      [-4.6, 2.4],
+      [4.8, -2.2],
+      [0.4, -5.4],
+    ]) {
+      bake.add(new CylinderGeometry(0.22, 1.75, 7.4, 12, 1, true), beamMat, sx, 4.15, sz);
+      bake.add(new CylinderGeometry(0.32, 0.42, 0.3, 10), darkPanel, sx, 7.9, sz);
+    }
+    // the brass foot rail runs the inside of the room
+    for (const [bx, bz, len, rot] of [
+      [0, -H + 0.7, W * 2 - 2.4, 0],
+      [0, H - 0.7, W * 2 - 2.4, 0],
+      [-W + 0.7, 0, H * 2 - 2.4, Math.PI / 2],
+      [W - 0.7, 0, H * 2 - 2.4, Math.PI / 2],
+    ])
+      bake.add(new CylinderGeometry(0.045, 0.045, len, 8), brassTrim, bx, 0.28, bz, rot, 0, Math.PI / 2);
+    bake.flush(group);
+    for (const obstacle of obs)
+      if (obstacle.t === "c") {
+        // a cocktail table: a brass pole, a velvet top with a brass rim, a hanging lamp above
+        const r = obstacle.r,
+          top = 1.0;
+        rlMesh(props, new CylinderGeometry(0.08, 0.13, top, 8), brassTrim, obstacle.x, top / 2, obstacle.y);
+        rlMesh(props, new CylinderGeometry(r, r, 0.1, 20), velvet, obstacle.x, top + 0.05, obstacle.y);
+        rlMesh(
+          props,
+          new CylinderGeometry(r * 1.03, r * 1.03, 0.05, 20),
+          brassTrim,
+          obstacle.x,
+          top + 0.13,
+          obstacle.y,
+        );
+        rlMesh(props, new CylinderGeometry(0.018, 0.018, 1.5, 6), brassTrim, obstacle.x, top + 0.85, obstacle.y);
+        const shade = rlMesh(props, new ConeGeometry(0.32, 0.32, 12), lamp, obstacle.x, top + 0.2, obstacle.y);
+        shade.rotation.x = Math.PI;
+        rlFootRing(props, obstacle.x, obstacle.y, r * 1.06, brassTrim);
+      } else if (obstacle.w < 1.3 && obstacle.h < 1.3) {
+        // a velvet booth: a seat with a tall back and a brass foot
+        const height = 1.15;
+        rlMesh(
+          props,
+          new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2),
+          velvet,
+          obstacle.x,
+          height / 2,
+          obstacle.y,
+        );
+        rlMesh(
+          props,
+          new BoxGeometry(obstacle.w * 2 + 0.08, 0.06, obstacle.h * 2 + 0.08),
+          brassTrim,
+          obstacle.x,
+          height + 0.03,
+          obstacle.y,
+        );
+        rlFootSlab(props, obstacle, brassTrim, 0.24);
+      } else {
+        // the bar end / the stage wing: a wooden counter with a brass edge and bottles on it
+        const long = obstacle.w >= obstacle.h,
+          L = (long ? obstacle.w : obstacle.h) * 2,
+          D = (long ? obstacle.h : obstacle.w) * 2,
+          ry = long ? 0 : Math.PI / 2,
+          counter = rlMesh(props, new BoxGeometry(L, 1.05, D), wood, obstacle.x, 0.52, obstacle.y, ry);
+        counter.matrixAutoUpdate = false;
+        counter.updateMatrix();
+        rlMesh(
+          props,
+          new BoxGeometry(long ? L + 0.1 : 0.1, 0.06, long ? 0.1 : D + 0.1),
+          brassTrim,
+          obstacle.x,
+          1.08,
+          obstacle.y,
+        );
+        for (let k = 0; k < 3; k++) {
+          const along = (k - 1) * (long ? L : D) * 0.26,
+            bx = obstacle.x + (long ? along : 0),
+            bz = obstacle.y + (long ? 0 : along);
+          rlMesh(props, new CylinderGeometry(0.07, 0.07, 0.34, 8), rng.chance(0.5) ? lamp : accentMat, bx, 1.28, bz);
+        }
+        rlFootSlab(props, obstacle, brassTrim, 0.24);
+      }
+  },
 };
 
 // Ambient particles: the air of the biome, around the camera, plus sparks/spores/glints from props.
@@ -1410,6 +1551,22 @@ function rlAmbient(renderer, dt, world, opt) {
           0.1,
           Math.random() < 0.5 ? acc : Math.random() < 0.5 ? grid : RL_C.white,
           { drag: 0 },
+        );
+      break;
+    case "club":
+      // 3.47.0: the Onyx Club: golden dust hangs in the spotlight beams and drifts down through the haze
+      for (let j = count(13); j--; )
+        renderer.emit(
+          rx(),
+          0.4 + Math.random() * 3.6,
+          rz(),
+          (Math.random() - 0.5) * 0.3,
+          -0.1 - Math.random() * 0.16,
+          (Math.random() - 0.5) * 0.3,
+          4.5,
+          0.09,
+          Math.random() < 0.6 ? acc : grid,
+          { drag: 0.6 },
         );
       break;
     default:
@@ -1576,6 +1733,15 @@ if (rlS == 1) {
   vec3 sc = vRlP * 10.0 + vec3(0.0, uSkinT * 0.6, 0.0);
   float st = step(0.94, rlH3(floor(sc))) * smoothstep(0.32, 0.12, length(fract(sc) - 0.5));
   outgoingLight += vec3(0.9, 0.8, 1.0) * st * 0.6;
+} else if (rlS == 6) {
+  // 3.47.0: the Onyx Club: pinstripe tailoring, a gold sheen on the rims, a glint of the spotlight
+  float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
+  float stripes = smoothstep(0.24, 0.05, abs(fract((vRlP.x + vRlP.z) * 6.5) - 0.5));
+  outgoingLight = outgoingLight * vec3(0.68, 0.6, 0.63);
+  outgoingLight += vec3(0.95, 0.85, 0.6) * stripes * 0.16;
+  outgoingLight += vec3(1.0, 0.82, 0.45) * fres * 0.5;
+  float glint = step(0.9, rlN3(vRlP * 14.0 + vec3(0.0, uSkinT * 0.5, 0.0)));
+  outgoingLight += vec3(1.0, 0.9, 0.65) * glint * 0.28;
 }
 }`;
 // Adds the skin (and, for enemy bodies, the hit flash they already had) to a Lambert material.
@@ -1610,6 +1776,8 @@ const RL_SKIN_FX = {
   4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: false },
   // 3.4.0: Blackout City: water dripping off
   5: { c: new Color(0xa8c4e0), vy: -0.4, grav: 9, life: 0.5, size: 0.08, spark: true },
+  // 3.47.0: the Onyx Club: gold sparks off the tailoring
+  6: { c: new Color(0xffd166), vy: 1.0, grav: 3, life: 0.6, size: 0.09, spark: true },
 };
 function rlSkinParticles(renderer, dt, world) {
   const fx = RL_SKIN_FX[RL_SKIN.uSkin.value];

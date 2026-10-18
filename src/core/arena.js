@@ -449,6 +449,17 @@ const OBSTACLE_GAP = 2.7,
       ],
       [3, (rng) => ({ t: "c", r: rng.range(0.9, 1.3) })],
     ],
+    // 3.47.0: the Onyx Club: round cocktail tables and the velvet booths / bar ends
+    club: [
+      [4, (rng) => ({ t: "c", r: rng.range(0.9, 1.3) })],
+      [
+        3,
+        (rng) =>
+          rng.chance(0.5)
+            ? { t: "b", w: rng.range(1.6, 2.8), h: rng.range(0.6, 0.9) }
+            : { t: "b", w: rng.range(0.6, 0.9), h: rng.range(1.6, 2.8) },
+      ],
+    ],
   },
   mapTemplates = {
     yard: ["scatter", "ring", "rot4", "mirror2"],
@@ -456,6 +467,7 @@ const OBSTACLE_GAP = 2.7,
     vault: ["scatter", "rot2", "ring", "rot4"],
     void: ["scatter", "ring", "rot2", "mirror4"],
     marsh: ["scatter", "mirror2", "ring", "rot2"],
+    club: ["scatter", "mirror2", "rot2", "ring"],
   };
 function classicLayout(biome) {
   return {
@@ -1015,6 +1027,17 @@ function placeFeatures(rng, biomeId, obs, W, H) {
       period = rng.range(6.5, 8);
     for (let k = 0; k < count; k++) {
       let rad = rng.range(1.5, 2), // 2.4.6: was 1.1–1.5
+        spot = findSpot(rad, 0.6, features.vents, 3, { minRadius: 6.5, maxRadius: 9.2, preferRadius: 7.8 });
+      if (spot) {
+        features.vents.push({ x: spot.x, y: spot.y, r: rad, period, phase: (k / count) * period + rng.range(0, 0.8) });
+      }
+    }
+  } else if (biomeId === "club") {
+    // 3.47.0: the stage pyro: nozzles out on the dance floor, a little tighter than the Works' jets
+    let count = rng.int(3, 5),
+      period = rng.range(6.5, 8);
+    for (let k = 0; k < count; k++) {
+      let rad = rng.range(1.4, 1.8),
         spot = findSpot(rad, 0.6, features.vents, 3, { minRadius: 6.5, maxRadius: 9.2, preferRadius: 7.8 });
       if (spot) {
         features.vents.push({ x: spot.x, y: spot.y, r: rad, period, phase: (k / count) * period + rng.range(0, 0.8) });

@@ -7,7 +7,8 @@
 // The fight counts from the moment the boss appears to the moment it dies.
 
 const MEDAL_NAMES = ["", "Bronze", "Silver", "Gold"],
-  PAR = { warden: 60, forge: 70, prism: 70, queen: 75, core: 85 };
+  // 3.47.0: the Kingpin runs a smaller room than the factory (par 65 s)
+  PAR = { warden: 60, forge: 70, prism: 70, queen: 75, core: 85, kingpin: 65 };
 
 /* 3.39.0: the par time of a boss at the current threat (the end screen shows it with the medal) */
 function bossPar(id, hpMul = 1) {

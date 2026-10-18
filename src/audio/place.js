@@ -208,6 +208,35 @@ const PLACE = {
   glitch(e, a) {
     for (let i = 0; i < 5; i++) T(e, a, rand(200, 2200), 0.03, "square", 0.02, { at: i * 0.045, lp: 3000 });
   },
+  // ---- 3.47.0: the Onyx Club: the room at its tables, the band through the floor, the door ----
+  // a glass set down on a wet bar top: two bright ticks and a low knock
+  glassClink(e, a) {
+    const f = rand(2100, 3100);
+    T(e, a, f, 0.09, "sine", 0.05, { to: f * 0.6 });
+    T(e, a, f * 1.5, 0.05, "sine", 0.025, { at: 0.012 });
+    T(e, a, rand(120, 180), 0.08, "sine", 0.04, { at: 0.03, to: 80 });
+  },
+  // a bottle slides along the bar and is caught
+  bottleSet(e, a) {
+    N(e, a, 0.22, 0.05, { type: "bandpass", f: 900, to: 400, q: 1.2, attack: 0.01 });
+    T(e, a, rand(150, 210), 0.1, "sine", 0.05, { at: 0.2, to: 90 });
+    T(e, a, rand(2200, 2800), 0.06, "sine", 0.03, { at: 0.22 });
+  },
+  // the crowd away from the room swells for a moment (a band of voices, never words)
+  crowdMur(e, a) {
+    N(e, a, 1.6, 0.09, { type: "bandpass", f: 440, to: 700, q: 1.1, attack: 0.5 });
+    N(e, a, 1.6, 0.05, { type: "bandpass", f: 1300, to: 1600, q: 2.5, attack: 0.6, dp: 0.2 });
+  },
+  // a stage thump through the floor: the band lands a low note
+  stageThump(e, a) {
+    T(e, a, 62, 0.4, "sine", 0.12, { to: 40, attack: 0.01 });
+    N(e, a, 0.12, 0.045, { f: 220, to: 90, color: "brown" });
+  },
+  // a whistle at the door: two rising notes (the vice squad shows)
+  raidWhistle(e, a) {
+    T(e, a, 2300, 0.3, "triangle", 0.05, { to: 2900, attack: 0.02 });
+    T(e, a, 2900, 0.35, "triangle", 0.05, { at: 0.32, to: 2300 });
+  },
   // ---- 3.17.0: the props near the drone (placeTick, PROP_HEAR) ----
   // Blackout City: a street lamp at the edge buzzes on the mains (100 Hz and its harmonics), now and then it ticks
   lampBuzz(e, a) {
@@ -499,6 +528,21 @@ const SCAPE = {
       { id: "shimmer", every: [25, 50] },
       { id: "breath", every: [30, 55] },
       { id: "glitch", every: [20, 45] },
+    ],
+  },
+  // 3.47.0: the Onyx Club: the murmur and the thump are the steady bed (the band plays on through the
+  // fight); the far sounds live at the tables and the door
+  club: {
+    bed: [
+      ["crowdMur", 1.4, 2.6, 0.9],
+      ["stageThump", 0.9, 1.5, 0.7, 0],
+    ],
+    far: [
+      { id: "glassClink", every: [12, 26] },
+      { id: "bottleSet", every: [16, 34] },
+      { id: "crowdMur", every: [18, 36] },
+      { id: "stageThump", every: [10, 22] },
+      { id: "raidWhistle", every: [45, 90], big: true },
     ],
   },
 };

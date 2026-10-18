@@ -1150,6 +1150,12 @@ function handleWorldEvents(world) {
               "shock",
               "Live manholes crackle before they arc. Lure enemies onto them \u2014 the current stuns them.",
             );
+          // 3.47.0: the Onyx Club's vents are the stage pyro
+          else if (world.arena.biome.id === "club")
+            showTipOnce(
+              "pyro",
+              "The stage pyro glitters before it jets. Lure enemies onto it \u2014 the show burns them too.",
+            );
           else showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too.");
         }
         if (!ev.boss && world.arena.ice.length) {

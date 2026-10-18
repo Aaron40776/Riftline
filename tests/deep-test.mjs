@@ -327,7 +327,9 @@ const distinct = cached
           ),
         ),
       );
-      out.bosses = await group(byName(["warden", "forge", "prism", "queen", "core"].map((n) => "bossIntro:" + n)));
+      out.bosses = await group(
+        byName(["warden", "forge", "prism", "queen", "core", "kingpin"].map((n) => "bossIntro:" + n)),
+      );
       // 3.0.0: every trap strike, the gadget blast (3.12.0: the Singularity's collapse) and the two big old blasts; the trap warnings of the floor and
       // beam families (the mines' fuse beeps are compared on their own)
       out.strikes = await group(
@@ -373,7 +375,7 @@ const distinct = cached
       out.bosses.min < 0.35 &&
         out.fail.push(`boss intros too similar: ${out.bosses.pair} (${out.bosses.min.toFixed(2)})`);
       out.music = [];
-      for (const biome of ["yard", "works", "vault", "void", "marsh"])
+      for (const biome of ["yard", "works", "vault", "void", "marsh", "club"])
         for (const music of ["fight", "boss"]) {
           const calm = await engine.renderOffline({ music, biome }, 4),
             busy = await engine.renderOffline({ music, biome, flood: true }, 4);
@@ -407,7 +409,7 @@ const music = cached
       const E = window.__riftTest.game.sound.constructor,
         SR = 44100,
         N = 4096,
-        BIOMES = ["yard", "works", "vault", "marsh", "void"],
+        BIOMES = ["yard", "works", "vault", "marsh", "void", "club"],
         fail = [],
         out = { budget: [], tracks: {}, calmPairs: [], bossPairs: [], versus: [] };
       // ---- (1) the voice budget
@@ -698,6 +700,8 @@ const placeMusic =
         vault: (log) =>
           log.filter((v) => v.bus === "m" && ((v.kind === "t" && v.pitch > 1000 && v.dur <= 0.06) || v.kind === "n"))
             .length,
+        // 3.47.0: the Onyx Club's finger snaps (short band-passed noises on the music bus)
+        club: (log) => log.filter((v) => v.kind === "n" && v.bus === "m" && v.dur <= 0.03).length,
       };
     for (const [biome, count] of Object.entries(want)) {
       const quiet = count(await voices(biome, 0.1)),
@@ -742,7 +746,7 @@ const ambience = await page.evaluate(async (under) => {
       for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
       return Math.sqrt(sum / x.length);
     };
-  for (const biome of ["yard", "works", "vault", "marsh", "void"]) {
+  for (const biome of ["yard", "works", "vault", "marsh", "void", "club"]) {
     const music = rms(
       (await E.renderOffline({ music: "fight", biome, intensity: 0.5, wav: true, room: false, seed: 5 }, 20)).samples,
     );
@@ -831,7 +835,7 @@ const bloomRes =
         }
         return Math.sqrt(side / (mid || 1));
       };
-    for (const biome of ["yard", "works", "vault", "marsh", "void"]) {
+    for (const biome of ["yard", "works", "vault", "marsh", "void", "club"]) {
       const info = E.trackInfo("fight", biome),
         seconds = (8 * 240) / info.bpm,
         spec = { music: "fight", biome, intensity: 0.2, wav: true, log: true, seed: 11, stereo: true, noBed: true },

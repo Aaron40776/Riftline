@@ -2,6 +2,17 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.47.0",
+    title: "The Onyx Club opens its doors",
+    items: [
+      "A sixth biome: the Onyx Club, a speakeasy under the city — a checkerboard dance floor, brass and velvet, and stage pyro that jets gold between the tables.",
+      "Its boss is THE KINGPIN, owner of the club: a tommy-gun barrage, a shoulder charge, the boys in the back room and molotovs — and when he is hurt he calls LAST CALL.",
+      "The club plays its own music: a smoky jazz calm theme with finger snaps and a walking bass, and a mean noir-funk boss track that ends in a scream.",
+      "The vice squad shows up too: the RAID event kills the lights and every pyro jets in step.",
+      "His exclusive card, the Kingpin's Cut: every 20 kills the tribute pays out in shards and a bandage.",
+    ],
+  },
+  {
     version: "3.46.0",
     title: "Every place sings its own song",
     items: [

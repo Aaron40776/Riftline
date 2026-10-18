@@ -1400,8 +1400,8 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
     ok(
       "game-data",
       Object.keys(weaponDefs).length === weaponOrder.length &&
-        biomeList.length === 5 &&
-        Object.keys(bossDefs).length === 5 &&
+        biomeList.length === 6 &&
+        Object.keys(bossDefs).length === 6 &&
         Object.keys(enemyDefs).length >= 25,
       `${Object.keys(weaponDefs).length} weapons (${weaponOrder.length} selectable) · ${Object.keys(enemyDefs).length} enemies · ${biomeList.length} biomes · ${Object.keys(bossDefs).length} bosses · ${upgradeList.length} upgrades · ${workshopModules.length} modules`,
     );
@@ -1410,7 +1410,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
   }
   try {
     const reqE = ["leaper", "turret", "charger", "minebot", "drone", "driller", "beacon", "weaver"],
-      reqB = ["works", "vault", "void", "marsh"],
+      reqB = ["works", "vault", "void", "marsh", "club"],
       // 2.5.0/2.6.0: Overclock Matrix, Overbore Caliber, Vector Stabilizer, Salvage Pulse, Capacitor Bank and Bounty Protocol were retired
       reqU = ["overcharge", "hunter", "supply", "laststand", "skates", "heatsink"],
       badE = Object.keys(enemyDefs).filter((id) => !enemyDefs[id] || (!(enemyDefs[id].from >= 1) && id !== "mite")),

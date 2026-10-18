@@ -174,7 +174,7 @@ const RL_MELTDOWN_PERIOD = 3.4,
 
 // 3.16.0: the shots of each boss (the Warden's siren slugs, the Hive Queen's spores, the Rift Core's rift rings; the
 // Frost Prism and the Crucible name theirs, shard and slag, in their attacks)
-const BOSS_SHOT = { warden: "siren", queen: "spore", core: "riftorb", prism: "shard", forge: "slag" };
+const BOSS_SHOT = { warden: "siren", queen: "spore", core: "riftorb", prism: "shard", forge: "slag", kingpin: "siren" };
 const comboRewards = [
   [10, 3],
   [25, 8],
@@ -572,6 +572,8 @@ const rlStep = 1 / 60,
         vault: ["bulwark", "gunner", "sentinel", "turret"],
         void: ["striker", "brute", "phantom", "weaver"],
         marsh: ["splitter", "brute", "sapper", "carrier"],
+        // 3.47.0: the Club's champions: the made men of the mob
+        club: ["gunner", "brute", "bomber", "sapper", "charger"],
       }[biome];
       if (special) {
         const valid = special.filter((id) => enemyDefs[id] && enemyDefs[id].from <= wave);
@@ -584,6 +586,7 @@ const rlStep = 1 / 60,
           vault: ["bulwark", "gunner"],
           void: ["striker", "brute"],
           marsh: ["splitter", "brute"],
+          club: ["grunt", "gunner"],
         }[biome] || ["grunt"]
       ).filter((type) => enemyDefs[type].from <= wave);
       return pool.length ? rng.pick(pool) : "grunt";
@@ -2320,6 +2323,14 @@ const rlStep = 1 / 60,
         this._src = src;
         this.emit("shortArm", { x: enemy.x, y: enemy.y, r: SHORT_R });
       }
+      // 3.47.0: a Showy enemy goes out with a show: the stage pyro jets where it falls (a short
+      // golden geyser that burns what stands in it - the same fire the scorch trail uses)
+      if (enemy.variant === "showy") {
+        const src = this._src;
+        this._src = enemy.type;
+        this.hazard({ x: enemy.x, y: enemy.y, r: 1.7, delay: 0.5, dmg: enemy.dmg * 0.7, kind: "fire" });
+        this._src = src;
+      }
       if (enemy.champion) {
         this.champion = null;
         this.pickups.push(this.mkPickup("heal", enemy.x, enemy.y, 25));
@@ -3438,6 +3449,16 @@ const rlStep = 1 / 60,
           vent.phase = ((vents.length - 1 - i) / vents.length) * 1.9;
           vent.st = "idle";
         });
+      } else if (id === "raid") {
+        // 3.47.0: the RAID: three more pyro vents, the house lights die (the renderer dims), and every
+        // jet fires in step, Meltdown's timing - the club fights back all at once
+        add("vents", 3);
+        const period = RL_MELTDOWN_PERIOD;
+        for (const vent of arena.vents) {
+          vent.period = period;
+          vent.phase = 0;
+          vent.st = "idle";
+        }
       } else if (id === "whiteout") add("ice", 3, [1.7, 2.5]);
       else if (id === "bloom") {
         for (const pool of arena.acid) {

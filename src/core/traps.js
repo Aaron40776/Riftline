@@ -26,6 +26,9 @@ const TRAP_SKINS = {
   frost: { fam: "mine", dmg: 22, r: 3.0, trig: 1.5, arm: 1.5, fuse: 0.45, special: "chill", frac: 0.12 },
   spore: { fam: "mine", dmg: 18, r: 3.0, trig: 1.5, arm: 1.5, fuse: 0.45, special: "acid", frac: 0.1 },
   riftmine: { fam: "mine", dmg: 26, r: 2.8, trig: 1.5, arm: 1.5, fuse: 0.45, frac: 0.15 },
+  // 3.47.0: the Onyx Club's stage pyro: a golden geyser between the tables (no side effect: it just
+  // cooks whatever stands in it - the jet and the sparks are the show)
+  pyro: { fam: "floor", dmg: 21, r: 2.1, warn: 1.0, cd: 4.0, frac: 0.12 },
 };
 // which skin each biome uses for each family (a biome can lack a family)
 const BIOME_TRAPS = {
@@ -34,6 +37,7 @@ const BIOME_TRAPS = {
   vault: { floor: "icespike", mine: "frost" },
   marsh: { floor: "geyser", mine: "spore" },
   void: { floor: "riftburst", beam: "rift", mine: "riftmine" },
+  club: { floor: "pyro", beam: "laser", mine: "mine" },
 };
 // first wave of each family, and the number of traps per family on a wave
 const TRAP_FROM = { floor: 6, beam: 9, mine: 12 };
