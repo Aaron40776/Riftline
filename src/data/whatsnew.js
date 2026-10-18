@@ -2,6 +2,14 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.48.0",
+    title: "Hear what you set",
+    items: [
+      "The volume sliders speak up: turning Effects fires the weapon in your hand, Music plays the arrival hit of the arena and Ambience sounds a far voice of the place — always at the level you set.",
+      "A Restore default settings button puts every slider, switch and the HUD layout back to stock in one tap; your progress stays as it is.",
+    ],
+  },
+  {
     version: "3.47.0",
     title: "The Onyx Club opens its doors",
     items: [

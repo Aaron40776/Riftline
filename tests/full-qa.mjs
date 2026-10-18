@@ -1242,6 +1242,136 @@ for (const profName of ["desktop", "phone"])
     await P.close();
   });
 
+/* ============ 3.5. settings tools: the sliders are heard, the defaults come back (3.48.0) ============ */
+await section("settings-tools", async (L) => {
+  const P = await open("desktop", { save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true } }) });
+  await P.boot();
+  await P.nav("settings");
+  // drag every volume slider away from the stock value: each answers with a real sound of its bus at
+  // the level just set — and a muted bus stays silent whatever the context is
+  const prev = await P.ev(async () => {
+    const T = window.__riftTest,
+      s = T.game.sound;
+    if (s.ctx && s.ctx.resume) {
+      try {
+        await s.ctx.resume();
+      } catch {}
+    }
+    const drag = (id, v) => {
+      const e = document.getElementById(id);
+      e.value = v;
+      e.dispatchEvent(new Event("input"));
+      e.dispatchEvent(new Event("change"));
+    };
+    drag("setSfx", 0);
+    const mutedUntouched = s.previewT.sfx == null;
+    drag("setSfx", 0.9);
+    drag("setMusic", 0.1);
+    drag("setAmb", 1);
+    return {
+      hasBus: typeof s.previewBus === "function" && !!s.previewT,
+      mutedUntouched,
+      heard: (s.previewT.sfx ?? -1e9) > -1e8,
+      live: !!s.ctx && s.live(),
+      vol: s.sfxVol,
+      st: T.store.data.settings.sfx,
+      failed: s.failed,
+    };
+  });
+  check(
+    L,
+    "the effects slider is heard at its level (silent while muted)",
+    prev.hasBus &&
+      prev.mutedUntouched &&
+      prev.vol === 0.9 &&
+      prev.st === 0.9 &&
+      !prev.failed &&
+      (!prev.live || prev.heard),
+    JSON.stringify(prev),
+  );
+  // progress to keep an eye on while the settings go back to stock
+  await P.ev(() => {
+    const T = window.__riftTest;
+    T.store.data.shards = 4321;
+    T.store.data.stats.bestWave = 12;
+    T.store.save("stats");
+  });
+  await P.ev(() => document.getElementById("setShake").click());
+  await P.tap('#setQuality button[data-v="high"]');
+  await P.tap('#setZoom button[data-v="0.85"]');
+  // one confirm: every slider, switch, the quality and the HUD layout return to stock
+  await P.tap("#defaultsBtn");
+  await P.dlg("Restore");
+  const after = await P.ev(() => {
+    const T = window.__riftTest,
+      s = T.store.data.settings,
+      DEF = {
+        sfx: 0.8,
+        music: 0.45,
+        ambience: 0.8,
+        autoFire: true,
+        assist: true,
+        vibration: true,
+        shake: true,
+        numbers: true,
+        quality: "auto",
+        zoom: 1,
+        contrast: false,
+        timer: false,
+        fps: false,
+        hudAlpha: 1,
+        stickSize: 1,
+        stickFixed: false,
+        hudLayout: null,
+      };
+    return {
+      same:
+        Object.keys(DEF).length === Object.keys(s).length &&
+        Object.keys(DEF).every((k) => JSON.stringify(s[k]) === JSON.stringify(DEF[k])),
+      ui:
+        document.getElementById("setAuto").checked === true &&
+        document.getElementById("setSfx").value === "0.8" &&
+        document.querySelector("#setQuality .on")?.dataset.v === "auto",
+      prog: { shards: T.store.data.shards, best: T.store.data.stats.bestWave, run: T.store.data.run },
+      saved: JSON.parse(localStorage.getItem("riftline.save.v1")).settings.sfx === 0.8,
+      toast: document.getElementById("toasts").innerText.includes("Settings restored"),
+    };
+  });
+  check(
+    L,
+    "restore defaults: stock settings, controls re-rendered, progress kept",
+    after.same &&
+      after.ui &&
+      after.prog.shards === 4321 &&
+      after.prog.best === 12 &&
+      after.prog.run === null &&
+      after.saved &&
+      after.toast,
+    JSON.stringify(after),
+  );
+  await P.page.reload();
+  await P.page.waitForFunction(() => window.__riftTest && window.__riftTest.ui, null, { timeout: 90000 });
+  await P.page.waitForTimeout(800);
+  const kept = await P.ev(() => {
+    const T = window.__riftTest;
+    return {
+      sfx: T.store.data.settings.sfx,
+      quality: T.store.data.settings.quality,
+      shake: T.store.data.settings.shake,
+      shards: T.store.data.shards,
+      best: T.store.data.stats.bestWave,
+    };
+  });
+  check(
+    L,
+    "restore defaults survives a reload",
+    kept.sfx === 0.8 && kept.quality === "auto" && kept.shake === true && kept.shards === 4321 && kept.best === 12,
+    JSON.stringify(kept),
+  );
+  check(L, "no page errors", !P.errors.length, P.errors.join(" | "));
+  await P.close();
+});
+
 /* ======================= 4. run flow ======================= */
 for (const profName of ["desktop", "phone"])
   await section(`run-${profName}`, async (L) => {

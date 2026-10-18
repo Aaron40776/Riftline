@@ -409,12 +409,12 @@ const getById = (id) => document.getElementById(id),
         input.addEventListener("input", () => {
           settings()[key] = +input.value;
           this.g.settingsChanged(true);
+          // 3.48.0: hear the bus you are turning, at the level you just set (a shot of the weapon in
+          // hand for effects, the arrival braam of the place for music, one far voice for the ambience)
+          this.g.sound.previewBus(key, this.save.weapon);
         });
         input.addEventListener("change", () => {
           this.g.settingsChanged();
-          if (key === "sfx") {
-            this.g.sound.play("pick");
-          }
         });
       }
       for (let [id, key, numeric] of [
@@ -437,6 +437,18 @@ const getById = (id) => document.getElementById(id),
           (await this.confirm("Really reset?", "This cannot be undone.", "Reset everything", true))
         ) {
           this.g.resetProgress();
+        }
+      });
+      // 3.48.0: the stock settings come back in one tap (progress is not touched)
+      this.click(getById("defaultsBtn"), async () => {
+        if (
+          await this.confirm(
+            "Restore default settings?",
+            "Audio, video, controls and the HUD layout go back to stock. Your progress stays as it is.",
+            "Restore",
+          )
+        ) {
+          this.g.resetSettings();
         }
       });
       getById("dialog").addEventListener("click", (ev) => {

@@ -740,6 +740,12 @@ const overlay = new Overlay(elementById("ov")),
       store.reset();
       afterProgressReset("Progress reset");
     },
+    // 3.48.0: the stock settings come back; afterProgressReset re-applies them, re-renders the
+    // settings screen if it is open and says so
+    resetSettings() {
+      store.resetSettings();
+      afterProgressReset("Settings restored");
+    },
     claimable() {
       let save = store.data;
       return milestones
