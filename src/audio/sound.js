@@ -67,6 +67,7 @@ const BOSS_ESHOT = {
   core: "eshotCore",
   prism: "eshotPrism",
   forge: "eshotForge",
+  kingpin: "eshotKingpin",
 };
 /* wind-up voices of the "charge" event (enemy types and the bosses that charge) */
 const RL_CHARGE_VOICE = {
@@ -78,6 +79,7 @@ const RL_CHARGE_VOICE = {
   warden: "bWind",
   prism: "bWind",
   forge: "bWind",
+  kingpin: "bWind",
 };
 /* the "edash" event: the lunge itself */
 const RL_DASH_VOICE = { charger: "ram", striker: "ram", driller: "ramDrill", phantom: "blink" };
@@ -104,6 +106,10 @@ const RL_BOSS_ATK = {
   eruption: null,
   furnace: "bSummon",
   stoke: "bStoke",
+  // 3.47.0: the Kingpin's attacks (the tommy gun's eshots sound themselves; the charge and the
+  // molotovs are covered by their own events)
+  barrage: null,
+  lastcall: "bSummon",
   // 3.3.0: the Overdrive attacks (they also sound the Overdrive alarm, bOverdrive)
   lockdown: "bLance",
   meltdown: "bStoke",
@@ -113,7 +119,7 @@ const RL_BOSS_ATK = {
 };
 // 3.33.0: the warning voice of a beam by its skin (the rest keep "beam" / "beamSmall")
 const BEAM_VOICE = { cryo: "bwCryo", acid: "bwAcid", flame: "bwFlame" };
-const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse"]);
+const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse", "lastcall"]);
 /* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
    choice as the look in render/attacks-view.js); null: the generic explosion ("boom"). 3.32.0: a blast that chills (a
    Frost mortar's shell) cracks like ice whatever its kind */
@@ -135,14 +141,22 @@ function attackVoice(kind, src, biome, chill) {
     case "mortar":
       return src === "forge" ? "aLava" : null;
     case "rain": {
-      const who = src || { works: "forge", marsh: "queen", void: "core" }[biome];
-      return who === "forge" ? "aLava" : who === "queen" ? "aAcid" : who === "core" ? "aRift" : null;
+      const who = src || { works: "forge", marsh: "queen", void: "core", club: "kingpin" }[biome];
+      return who === "forge"
+        ? "aLava"
+        : who === "queen"
+          ? "aAcid"
+          : who === "core"
+            ? "aRift"
+            : who === "kingpin"
+              ? "aFire"
+              : null;
     }
     default:
       return null;
   }
 }
-const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
+const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingpin: 48 },
   /* 2.9.0: every boss has a timbre (wave, filter) and a short motif (semitones above the root, two octaves up)
    that its telegraphs, roar and death share, so that the ear knows who is attacking: the Warden stern and
    square (a fifth), the Crucible a saw with an anvil ring, the Prism falling glass, the Queen a wet chromatic
@@ -153,6 +167,9 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     prism: { wave: "sine", lp: 9e3, det: 6, motif: [12, 7, 4, 0], gap: 0.08, chord: [0, 4, 7, 11] },
     queen: { wave: "triangle", lp: 1400, det: 35, motif: [0, -1, 0, -1], gap: 0.1, chord: [0, 3, 7, 10] },
     core: { wave: "sawtooth", lp: 1e3, det: 18, motif: [0, 6, 0, 6], gap: 0.11, chord: [0, 7, 14, 19] },
+    // 3.47.0: the Kingpin: a smooth saw with a slow growl, the motif walks root - fifth - flat
+    // seventh - octave (a man who owns the room)
+    kingpin: { wave: "sawtooth", lp: 1100, det: 12, motif: [0, 7, 10, 12], gap: 0.09, chord: [0, 7, 10, 15] },
   },
   /* 2.9.0: how far the music dips for the big hits (gain factor 1 - x, about 100 ms; the music goes on) */
   MUSIC_DUCK = {
@@ -185,6 +202,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     rail: 0.06,
     scatter: 0.05,
     rocket: 0.05,
+    tribute: 0.08,
   },
   /* 3.2.0: the room of the big sounds (send level to the sound reverb); its size follows the biome (SFX_ROOM_BIOME).
      The trap strikes stay dry: they have to be told apart from the blasts at once. */
@@ -217,8 +235,9 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     aAcid: 0.15,
     aRift: 0.35,
   },
-  /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Toxin Marsh damp */
-  SFX_ROOM_BIOME = { yard: 0.28, works: 0.38, vault: 0.5, marsh: 0.2, void: 0.55 },
+  /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Toxin Marsh damp;
+     3.47.0: the Onyx Club is a low brick room (a step under the street) */
+  SFX_ROOM_BIOME = { yard: 0.28, works: 0.38, vault: 0.5, marsh: 0.2, void: 0.55, club: 0.32 },
   /* the open "ah" of the choir: band-passes on its formants (frequency, Q, level) and a little of the voice */
   CHOIR_VOWEL = [
     [760, 5, 1],
@@ -226,16 +245,16 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42 },
     [2700, 9, 0.18],
     [0, 0.7, 0.12],
   ],
-  AMBIENCE_LEVEL = { blackout: 0.07, meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055 },
+  AMBIENCE_LEVEL = { blackout: 0.07, meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055, raid: 0.07 },
   /* 3.43.0: the room tone of each biome - the steady bed under everything, wherever the game is (home,
      upgrade, pause, fight). The events pile onto it: the whiteout storm rises out of the vault's calm wind.
      3.45.5: raised so the place stays audible while the music plays (the mix note above); the vault needs the
      most, its events are the sparsest. */
-  ROOM_TONE_LEVEL = { yard: 0.038, works: 0.038, vault: 0.046, marsh: 0.036, void: 0.038 },
+  ROOM_TONE_LEVEL = { yard: 0.038, works: 0.038, vault: 0.046, marsh: 0.036, void: 0.038, club: 0.04 },
   /* 3.43.0: the event beds gather and pass instead of snapping on and off - a storm builds over about
      three seconds and dies away over about four, while the room tone stays underneath. */
-  BED_ATTACK = { blackout: 0.6, meltdown: 1.0, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2 },
-  BED_RELEASE = { blackout: 0.5, meltdown: 0.9, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1 },
+  BED_ATTACK = { blackout: 0.6, meltdown: 1.0, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, raid: 1.0 },
+  BED_RELEASE = { blackout: 0.5, meltdown: 0.9, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1, raid: 0.9 },
   // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
   AMB_REF = 0.8,
   /* 3.45.5: the mix balance (measured with scripts/rl-mix-probe.mjs, rms of 20 s offline renders at the default
@@ -290,6 +309,8 @@ const RL_TRAP_SOUND = {
   frost: { warn: "tmFrost", fire: "tsFrost" },
   spore: { warn: "tmSpore", fire: "tsSpore" },
   riftmine: { warn: "tmRift", fire: "tsRiftMine" },
+  // 3.47.0: the stage pyro: gas hisses into the nozzle, then a golden burst
+  pyro: { warn: "tcPyro", fire: "tsPyro" },
 };
 /* the beeps of the mines per skin: pitch, wave, filter (and an end-pitch factor for a chirp) */
 const RL_MINE_BEEP = {
@@ -319,8 +340,11 @@ const RL_SOUND_EVENTS = {
     { kind: "mortar", src: "mortar", r: 2, chill: true },
     { kind: "shorted", src: "grunt", r: 1.6 },
   ],
-  boss: [{ id: "warden" }, { id: "forge" }, { id: "prism" }, { id: "queen" }, { id: "core" }],
-  bossAtk: [{ id: "warden", atk: "ring" }],
+  boss: [{ id: "warden" }, { id: "forge" }, { id: "prism" }, { id: "queen" }, { id: "core" }, { id: "kingpin" }],
+  bossAtk: [
+    { id: "warden", atk: "ring" },
+    { id: "kingpin", atk: "summon" },
+  ],
   bossDown: [{ id: "warden" }],
   bounce: [{}],
   bountyPulse: [{}],
@@ -356,6 +380,7 @@ const RL_SOUND_EVENTS = {
     { type: "boss", boss: "core" },
     { type: "weaver" },
     { type: "carrier" },
+    { type: "boss", boss: "kingpin" },
   ],
   freeze: [{}],
   fuse: [{}],
@@ -569,6 +594,13 @@ const musicChords = {
       [51, "M"],
       [48, "m"],
     ],
+    // 3.47.0: the Onyx Club: Cm Ab Eb G (the G major pulls back to C minor: the same noir trick as the City)
+    club: [
+      [48, "m"],
+      [44, "M"],
+      [51, "M"],
+      [55, "M"],
+    ],
   },
   musicVoices = {
     yard: { arp: "square", bass: "sawtooth", lp: 2200, lead: "triangle" },
@@ -576,6 +608,7 @@ const musicChords = {
     vault: { arp: "sine", bass: "triangle", lp: 4200, lead: "sine" },
     void: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
     marsh: { arp: "triangle", bass: "sawtooth", lp: 1200, lead: "triangle" },
+    club: { arp: "triangle", bass: "sawtooth", lp: 2600, lead: "square" },
   },
   midiToFreq = (midi) => 440 * Math.pow(2, (midi - 69) / 12),
   arpPatterns = [
@@ -1494,6 +1527,11 @@ const musicChords = {
               t(2600, 0.02, "sine", 0.012, { at: 0.004 });
               n(0.015, 0.02, { type: "highpass", f: 6e3 });
               break;
+            case "parquet":
+              // 3.47.0: the dance floor: a soft knock on wood and the squeak of polish
+              t(190, 0.05, "triangle", 0.03, { to: 130 });
+              n(0.04, 0.022, { type: "bandpass", f: 1300, q: 1.6, color: "pink" });
+              break;
             case "acid":
               // in an acid pool: a splash with a sizzle
               n(0.15, 0.04, { type: "bandpass", f: 2600, to: 1400, q: 1.2, color: "pink" });
@@ -1620,6 +1658,15 @@ const musicChords = {
             this.noise(0.35, 0.03, { type: "highpass", f: 3e3, at: 0.05, attack: 0.05 });
           }
           break;
+        case "eshotKingpin":
+          // the Kingpin: a dry, hard crack of a slug with a heavier thump under it - no siren, no
+          // shimmer, just the gun
+          if (this.gate(id, 0.1)) {
+            this.tone(120, 0.2, "sine", 0.2, { to: 60 });
+            this.noise(0.05, 0.14, { type: "bandpass", f: 2400, q: 1.6 });
+            this.tone(1750, 0.06, "square", 0.018, { lp: 4200, to: 900 });
+          }
+          break;
         case "snipe":
           this.tone(1700, 0.16, "sine", 0.07, { to: 900 });
           this.noise(0.1, 0.05, { type: "highpass", f: 4e3 });
@@ -1730,6 +1777,12 @@ const musicChords = {
         case "champion":
           this.tone(90, 1, "sawtooth", 0.14, { lp: 500, attack: 0.2 });
           this.tone(135, 1, "sawtooth", 0.09, { lp: 600, attack: 0.2 });
+          break;
+        case "tribute":
+          // 3.47.0: the Kingpin's Cut: two coins on the counter and a short chime
+          this.tone(1980, 0.1, "sine", 0.045, { lp: 6e3 });
+          this.tone(2640, 0.16, "sine", 0.04, { at: 0.07, lp: 7e3 });
+          this.noise(0.02, 0.03, { type: "bandpass", f: 5e3, q: 3 });
           break;
         case "rumble":
           this.tone(55, 0.8, "sawtooth", 0.12, { to: 38, lp: 260, attack: 0.08 });
@@ -2413,6 +2466,15 @@ const musicChords = {
             }
           }
           break;
+        case "tcPyro":
+          // 3.47.0: the stage pyro primes: gas rushing into the nozzle, a rising bright hiss with
+          // two little knocks of the valve
+          if (this.gate(id, 0.12)) {
+            this.noise(d, 0.055, { type: "bandpass", f: 1200, to: 3400, q: 1.1, attack: d * 0.9 });
+            this.tone(2200, 0.06, "triangle", 0.03, { to: 1600, at: d * 0.35 });
+            this.tone(2200, 0.06, "triangle", 0.03, { to: 1600, at: d * 0.7 });
+          }
+          break;
         case "tcRift":
           // a reversed swell: the sound is drawn inwards
           if (this.gate(id, 0.12)) {
@@ -2523,6 +2585,15 @@ const musicChords = {
               this.tone(f, 0.09, "sine", 0.06, { to: f * 2.2, lp: 1000, at: 0.14 + i * 0.09 });
               this.noise(0.07, 0.03, { type: "bandpass", f: 900, q: 3, at: 0.14 + i * 0.09 });
             }
+          }
+          break;
+        case "tsPyro":
+          // 3.47.0: the jet: a golden whoomph and a shower of sparks
+          if (this.gate(id, 0.05)) {
+            this.noise(0.35, 0.2, { type: "bandpass", f: 900, to: 2600, q: 0.8, attack: 0.015 });
+            this.tone(110, 0.26, "sine", 0.26, { to: 55 });
+            for (let i = 0; i < 6; i++)
+              this.tone(1900 + r() * 1600, 0.08, "sine", 0.03, { to: 700, at: 0.05 + i * 0.06 });
           }
           break;
         case "tsRift":
@@ -2779,6 +2850,15 @@ const musicChords = {
           this.tone(640, 0.45, "triangle", 0.02, { to: 960, at: 1.05, attack: 0.15 });
           this.tone(960, 0.45, "triangle", 0.018, { to: 640, at: 1.5, attack: 0.05 });
           break;
+        case "raid":
+          // 3.47.0: the RAID: the door comes down (a heavy clunk), a whistle at the entrance, then the
+          // whole pyro rig primes with one rising hiss
+          this.noise(0.06, 0.18, { type: "bandpass", f: 700, q: 2, attack: 0.001 });
+          this.tone(90, 0.9, "sine", 0.2, { to: 36 });
+          this.tone(2300, 0.3, "triangle", 0.05, { to: 2900, at: 0.35 });
+          this.tone(2900, 0.35, "triangle", 0.05, { to: 2300, at: 0.67 });
+          this.noise(1.1, 0.1, { f: 300, to: 2600, attack: 0.8, at: 0.4 });
+          break;
         case "riftstorm":
           this.tone(200, 1.2, "sine", 0.06, { to: 2400, attack: 0.5 });
           this.tone(205, 1.2, "sine", 0.05, { to: 2500, attack: 0.5 });
@@ -2842,6 +2922,14 @@ const musicChords = {
           this.tone(200, 0.9, "sine", 0.05, { to: 3000, attack: 0.6, at: d });
           this.noise(0.9, 0.09, { type: "bandpass", f: 400, to: 5e3, q: 2, attack: 0.6, at: d });
           this.tone(70, 0.5, "sine", 0.25, { to: 28, at: d + 1.2 });
+          break;
+        case "kingpin":
+          // the club: three gold coins dropped on the bar, then the low chuckle of the house bass and
+          // one snap - the room knows who walked in
+          [0, 0.14, 0.28].forEach((at, i) => this.tone(1900 - i * 260, 0.12, "sine", 0.05, { at: d + at, lp: 6e3 }));
+          this.tone(midiToFreq(36), 0.7, "sawtooth", 0.1, { lp: 420, at: d + 0.45, attack: 0.06 });
+          this.tone(midiToFreq(43), 0.5, "sawtooth", 0.07, { lp: 480, at: d + 0.7, attack: 0.05 });
+          this.noise(0.03, 0.05, { type: "bandpass", f: 2100, q: 2.4, at: d + 0.95 });
           break;
         default:
           this._play("boss");
@@ -3066,6 +3154,9 @@ const musicChords = {
           case "chill":
           case "champion":
             this.play(ev.k);
+            break;
+          case "tribute":
+            this.play("tribute");
             break;
           case "stun":
             this.play("stun", ev.skin);
@@ -3500,6 +3591,31 @@ const musicChords = {
             crackleAmp.connect(gain);
             break;
           }
+          case "raid": {
+            // 3.47.0: the RAID: the pyro rig primes (a hiss that never quite lets go) over a low
+            // door-rumble, and the crowd's murmur rises and falls behind it
+            let prime = filter("bandpass", 1900, 0.9, loop(1.1, "pink")),
+              primeAmp = ctx.createGain();
+            primeAmp.gain.value = 0.22;
+            prime.connect(primeAmp);
+            primeAmp.connect(gain);
+            let rumble = filter("lowpass", 130, 0.9, loop(0.7, "brown")),
+              rumbleAmp = ctx.createGain();
+            rumbleAmp.gain.value = 0.5;
+            rumble.connect(rumbleAmp);
+            rumbleAmp.connect(gain);
+            let crowd = filter("bandpass", 520, 0.9, loop(0.9, "pink")),
+              crowdAmp = ctx.createGain(),
+              swell = osc("sine", 0.17),
+              swellDepth = ctx.createGain();
+            crowdAmp.gain.value = 0.3;
+            swellDepth.gain.value = 0.14;
+            swell.connect(swellDepth);
+            swellDepth.connect(crowdAmp.gain);
+            crowd.connect(crowdAmp);
+            crowdAmp.connect(gain);
+            break;
+          }
           case "riftstorm": {
             // two close low tones that beat
             let a = osc("sine", 55),
@@ -3746,6 +3862,20 @@ const musicChords = {
               shimmerAmp = amp(shimmer, 0.08);
             drift(shimmerAmp.gain, 0.06, 0.06);
             drift(shimmer.frequency, 0.05, 600);
+            break;
+          }
+          case "club": {
+            // Onyx Club: the murmur of a full room behind the velvet, the thump of the band through
+            // the floor, the sheen of glasses far away
+            let murmur = filter("bandpass", 420, 0.8, loop(0.9, "pink")),
+              murmurAmp = amp(murmur, 0.5);
+            drift(murmurAmp.gain, 0.09, 0.2);
+            drift(murmur.frequency, 0.05, 120);
+            let thump = amp(osc("sine", 58), 0.16);
+            drift(thump.gain, 0.23, 0.1);
+            let sheen = filter("bandpass", 2600, 4, loop(1.2, "pink")),
+              sheenAmp = amp(sheen, 0.05);
+            drift(sheenAmp.gain, 0.06, 0.04);
             break;
           }
         }
@@ -4548,6 +4678,20 @@ const BED_LEVEL = { fight: 1, boss: 1 },
         lfo(0.07, 0.004, high.gain);
       },
     },
+    // 3.47.0: the Onyx Club: the room breathes - a murmur far away, the hum of the neon over the
+    // bar, the sheen of glasses. The band's own thump comes through the floor as notes of the theme.
+    club: {
+      gain: 0.5,
+      boss: 0.55,
+      build({ osc, loop, filt, lfo, level }) {
+        const murmur = level(filt("bandpass", 460, 0.7, loop(0.9, "pink")), 0.02);
+        lfo(0.07, 0.012, murmur.gain);
+        const hum = level(filt("lowpass", 900, 1, osc("sawtooth", 120)), 0.012);
+        lfo(0.19, 0.004, hum.gain);
+        const sheen = level(filt("bandpass", 2800, 5, loop(1.3, "pink")), 0.006);
+        lfo(0.05, 0.004, sheen.gain);
+      },
+    },
   };
 
 /* ---------- calm themes ---------- */
@@ -4596,9 +4740,19 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       bus.t(f * 1.004, 2.6, "sine", v * 0.8, { attack: 0.004, ...o });
       bus.t(f * 2.76, 0.9, "sine", v * 0.25, { attack: 0.002, ...o });
     },
+    // Onyx Club: a vibraphone, a struck bar with a slow beat of its own and a metallic shimmer on top
+    // (the 9.2 partial carries the piano's 16 kHz guard: on the G-major bar the motif runs high)
+    vibes: (bus, f, v, o) => {
+      bus.t(f, o.lite ? 1 : 2.2, "sine", v, { attack: 0.002, rev: 0.65, ...o });
+      bus.t(f * 4.01, o.lite ? 0.2 : 0.5, "sine", v * 0.22, { attack: 0.001, ...o });
+      if (o.lite) return;
+      bus.t(f * 1.004, 2.2, "sine", v * 0.5, { attack: 0.002, ...o });
+      if (f * 9.2 < 16000) bus.t(f * 9.2, 0.14, "sine", v * 0.1, { attack: 0.001, ...o });
+    },
   },
-  /* the level of each instrument against the ice bells (the pipes, the kalimba and the glass are softer by nature) */
-  VOICE_GAIN = { piano: 1.4, pipes: 1.6, ice: 1, kalimba: 1.5, glass: 1.5 },
+  /* the level of each instrument against the ice bells (the pipes, the kalimba, the glass and the vibes are
+     softer by nature) */
+  VOICE_GAIN = { piano: 1.4, pipes: 1.6, ice: 1, kalimba: 1.5, glass: 1.5, vibes: 1.35 },
   /* the pad of each biome: notes (from the step data), wave, low-pass, fade, detune, room, level, tremolo rate */
   CALM_PAD = {
     yard: {
@@ -4647,6 +4801,16 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       rev: 0.6,
       vol: 0.022,
     },
+    // 3.47.0: the Club: a warm Rhodes-ish pad, the fifth colouring the top
+    club: {
+      notes: (c) => [c.chord[0] + 12, c.chord[1] + 12, c.root + 19],
+      wave: "triangle",
+      lp: 1250,
+      fade: 0.7,
+      det: 7,
+      rev: 0.75,
+      vol: 0.016,
+    },
   };
 /* the motif of a biome on the chord tones (a fixed walk through them, an octave higher now and then) */
 function calmMotif(k, c, voice, v = 1, lite = false, heroic = false) {
@@ -4694,6 +4858,8 @@ const BLOOM = {
   },
   // Void Core: sine bells that sing in a fifth and fall away, the colour is the tritone and the major seventh
   void: { voice: "ether", extra: [6, 11], low: 12, span: 2, rate: 0.45, vol: 0.04, len: 6, width: 1, echo: 0.9 },
+  // Onyx Club: struck vibes, smooth and high, the colour is the sixth and the ninth
+  club: { voice: "vibe", extra: [9, 14], low: 12, span: 1, rate: 0.6, vol: 0.04, len: 3.2, width: 0.9, echo: 0.7 },
 };
 const BLOOM_VOICE = {
   felt: (g, f, v, len, o) => {
@@ -4722,6 +4888,13 @@ const BLOOM_VOICE = {
     g.t(f, len, "sine", v, { attack: 0.35, to: f * 0.992, ...o });
     g.t(f * 1.5, len * 0.8, "sine", v * 0.42, { attack: 0.5, detune: 7, to: f * 1.5 * 0.99, ...o });
     g.t(f * 2.7, len * 0.4, "sine", v * 0.1, { attack: 0.3, ...o });
+  },
+  // 3.47.0: the Club's bloom: a struck vibraphone bar, smooth, with the metallic partials dying fast
+  // (the 9.2 partial carries the same 16 kHz guard as the motif voice)
+  vibe: (g, f, v, len, o) => {
+    g.t(f, len, "sine", v, { attack: 0.004, ...o });
+    g.t(f * 4.01, len * 0.25, "sine", v * 0.18, { attack: 0.002, ...o });
+    if (f * 9.2 < 16000) g.t(f * 9.2, 0.12, "sine", v * 0.08, { attack: 0.001, ...o });
   },
 };
 function calmBloom(k, c, biome) {
@@ -5037,6 +5210,71 @@ function voidCalm(e, c) {
         at: (i * c.barSec) / 16,
         opt: true,
         pan: P(c, 20 + i, 0.7),
+      });
+}
+
+/* ---- Onyx Club, 84 BPM, C minor (Cm Ab Eb G): the band upstairs between sets. A vibraphone motif, a warm
+   Rhodes-ish pad, the sub; the fingers snap the backbeat (the signature of the place) and a walking bass keeps
+   the time; a muted horn sighs in the corner every eighth bar, glasses clink far away (the murmur of the room and
+   the thump of the stage are the atmosphere). 3.47.0. ---- */
+const CLUB_SNAP = "....x.......x...";
+/* a finger snap: two grains of pink noise, the second a touch lower, the pan wanders with the room */
+function snaps(k, c, v, o = {}) {
+  k.m.n(0.012, v, { type: "bandpass", f: o.f || 2100, q: 2.4, attack: 0.001, pan: o.pan ?? 0.3 });
+  k.m.n(0.02, v * 0.75, {
+    type: "bandpass",
+    f: (o.f || 2100) * 0.72,
+    q: 2,
+    attack: 0.001,
+    at: 0.014,
+    pan: (o.pan ?? 0.3) * -0.6,
+  });
+}
+function clubCalm(e, c) {
+  const { b, bar, L, chord, root } = c,
+    k = kit(e, c);
+  calmMotif(k, c, "vibes");
+  calmPad(k, c, "club");
+  calmFloor(k, c, { f0: 95, f1: 38, dur: 0.26 });
+  // the signature: fingers on the backbeat, snapping the room along (more present as it swells)
+  if (L > 0.25 && pat(CLUB_SNAP)[b]) snaps(k, c, 0.05 * L, { pan: (bar & 1) * 0.5 - 0.25 });
+  // noir shared with the City: a walking bass on every beat as it swells (root, fifth, third, a step)
+  if (L > 0.3 && b % 4 === 0) {
+    const walk = [root - 24, chord[2] - 24, chord[1] - 24, root - 23][b >> 2];
+    k.p.t(midiToFreq(walk), 0.4, "triangle", 0.055, { lp: 560, attack: 0.004 });
+  }
+  // a Rhodes comp answers on the "and" of two, the swing pushes it late
+  if (L > 0.45 && (b === 3 || b === 11) && R(c, 30) < 0.7) {
+    const pan = b === 3 ? -0.4 : 0.4;
+    VOICE.vibes(k.d, midiToFreq(chord[1] + 12), 0.016, { pan, lite: true });
+    VOICE.vibes(k.d, midiToFreq(chord[0] + 19), 0.012, { pan, lite: true, at: 0.014 });
+  }
+  // brushes on 2 and 4, light taps on the off eighths
+  if (L > 0.35 && (b === 4 || b === 12))
+    k.m.n(0.22, 0.012, { type: "bandpass", f: 3200, to: 2400, q: 0.8, attack: 0.06, pan: -0.2, rev: 0.3 });
+  if (L > 0.4 && b % 2 === 1 && R(c, 3) < 0.2)
+    k.m.n(0.03, 0.004, { type: "highpass", f: 5400, attack: 0.002, pan: 0.2 });
+  // the horn in the corner: every eighth bar a muted line sighs down the chord, wide in the room
+  if ((bar & 7) === 6 && b === 0) {
+    const n = chord[[0, 2, 1][(bar >> 3) % 3]] + 24;
+    k.d.t(midiToFreq(n), c.barSec * 0.9, "triangle", 0.014, {
+      to: midiToFreq(n - 3),
+      lp: 1900,
+      attack: 0.25,
+      rev: 0.7,
+      pan: -0.55,
+      opt: true,
+    });
+  }
+  // glasses clink far away on a beat (the bar of the club, inside the band's own time)
+  if (b % 4 === 2 && R(c, 10) < 0.05)
+    for (let i = 0; i < 2; i++)
+      k.d.t(2400 + R(c, 11 + i) * 900, 0.05, "sine", 0.012, {
+        to: 1500,
+        opt: true,
+        pan: P(c, 13),
+        rev: 0.3,
+        at: i * 0.09,
       });
 }
 
@@ -5442,6 +5680,85 @@ function voidBoss(e, c) {
   }
 }
 
+/* Onyx Club boss (The Kingpin), 110 BPM, C minor: the doors lock and the band plays the meanest thing it knows - a
+   noir-funk stomp, all its own. Drop: a driving eighth-note bass that will not let go (an octave jump on the head of
+   every second bar), kick on 1 and the "and" of 3, big snare on 2 and 4 with the fingers doubling it, taikos on the
+   off-beats, brass stabs between, the vibraphone motif, strings walking the chord late in the drop; variation: brass
+   takes the chord, the strings answer, the choir in the last four bars; breakdown: half time, the choir and the vibe,
+   big taikos, a bottle smashed against the far wall; build: the taiko roll, the bass climbs, the SCREAM rises over it
+   all, riser. */
+const FUNK_BASS = "x.x.x.x.x.x.x.x.",
+  FUNK_OCT = [0, 0, 12, 0, 0, 7, 0, 12, 0, 0, 12, 0, 3, 0, 10, 12];
+/* the SCREAM of the build: two detuned saws glide up a fifth while a formant band sweeps (an "ah" that turns into an
+   "ee") - a synthesised voice, all the Club's own, that breaks into the drop */
+function scream(k, c) {
+  if (c.bar !== 20 || c.b !== 0) return;
+  const d = c.barSec * 2,
+    f0 = midiToFreq(c.root + 12);
+  for (const det of [-11, 11])
+    k.d.t(f0, d, "sawtooth", 0.016, {
+      to: f0 * 1.5,
+      detune: det,
+      lp: 900,
+      lpTo: 3400,
+      attack: d * 0.55,
+      hold: d * 0.1,
+      opt: true,
+      pan: det < 0 ? -0.2 : 0.2,
+    });
+  k.d.n(d, 0.02, { type: "bandpass", f: 700, to: 2100, q: 6, color: "pink", attack: d * 0.5, opt: true });
+}
+function clubBoss(e, c) {
+  const { b, bar, sec, root, chord } = c,
+    k = kit(e, c);
+  if (sec <= 2) calmMotif(k, c, "vibes", sec === 2 ? 1.4 : 1.7, sec !== 2, sec !== 2);
+  sectionHit(k, c);
+  bossFill(k, c);
+  bossCycle(k, c);
+  if (sec <= 1) {
+    if (b === 0 || b === 10) kick(k, 0.5, { f0: 140, f1: 44, dur: 0.16, pump: 0.5 });
+    if (b === 8) kick(k, 0.3, { f0: 130, f1: 42, dur: 0.13, pump: 0.4 });
+    if (b === 4 || b === 12) {
+      bigSnare(k, 0.2, { f: 1500, bf: 185 });
+      // the fingers double the snare: the club claps along
+      snaps(k, c, 0.045, { pan: b === 4 ? -0.35 : 0.35 });
+    }
+    if (b === 6 || b === 14) taiko(k, 0.3, { f: 88, pan: b === 6 ? -0.3 : 0.3 });
+    if (pat(FUNK_BASS)[b]) {
+      k.p.t(midiToFreq(root - 24 + FUNK_OCT[b]), 0.13, "sawtooth", 0.055, { lp: 1050, lpTo: 420, q: 2.2 });
+      if (b % 8 === 0) sub(k, root, 0.22, 0.14);
+    }
+    // a brass stab on the "and" of every first beat while the drop walks
+    if (b === 2 && (bar & 1) === 0) brass(k, chord[0], 0.18, 0.03, { lp: 500, lpTo: 2600, hold: 0.08 });
+    if (sec === 1) {
+      if (b === 0 || b === 8) brass(k, chord[[0, 2][(bar >> 1) & 1]], 0.4, 0.032, { lp: 450, lpTo: 2900, hold: 0.14 });
+      if (b % 2 === 0 && bar >= 12) strings(k, chord[[0, 2, 1, 2][(b >> 1) & 3]] + 12, 0.02, { lp: 2000 });
+      if (bar >= 12 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec, 0.03);
+    }
+  } else if (sec === 2) {
+    if (b === 0) {
+      taiko(k, 0.55, { f: 66, deep: true, dur: 0.75 });
+      sub(k, root, 1.1, 0.22);
+      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.4, 0.03);
+    }
+    if (b === 8) bigSnare(k, 0.24, { f: 1300, bf: 170, dur: 0.28, rev: 0.8 });
+    if (b % 4 === 2) snaps(k, c, 0.03, { pan: P(c, 20, 0.8) });
+    // a bottle smashed against the far wall
+    if (bar === 17 && b === 0) {
+      k.d.n(0.05, 0.02, { type: "bandpass", f: 3400, q: 2, color: "pink", opt: true, pan: -0.7 });
+      k.d.n(0.4, 0.012, { type: "bandpass", f: 5200, to: 2600, q: 1, color: "pink", at: 0.06, opt: true, pan: -0.7 });
+      k.d.t(1900, 0.1, "sine", 0.012, { to: 700, at: 0.02, opt: true, pan: -0.7 });
+    }
+  } else {
+    buildRoll(k, c, 95);
+    if (b % 4 === 0) kick(k, 0.3 + 0.1 * (bar - 20), { f0: 140, f1: 44, dur: 0.15 });
+    k.p.t(midiToFreq(root - 24 + Math.floor(((bar - 20) * 16 + b) / 2)), 0.09, "sawtooth", 0.05, { lp: 1150, q: 2 });
+    // the SCREAM rises over the last two bars and breaks into the drop
+    scream(k, c);
+    buildRiser(k, c);
+  }
+}
+
 /* what a phase change (heat 1) and the enrage (heat 2) add to every boss track: shakers on the off sixteenths and a
    taiko on the last beat; enraged: staccato strings in sixteenths on the root, a brass stab every second beat and a
    rising line of strings every fourth bar */
@@ -5468,7 +5785,7 @@ function bossHeatLayer(e, c) {
    below and a short choir (the crash of the metal tracks was a burst of hiss). The last hit when the boss is dead: a
    deep taiko, the brass on the root with a major third (the victory), a choir and the instrument of the biome once
    more. A phase change or the enrage jumps to the head of the drop, whose own hit (sectionHit) marks it. */
-const BIOME_VOICE = { yard: "piano", works: "pipes", vault: "ice", marsh: "kalimba", void: "glass" };
+const BIOME_VOICE = { yard: "piano", works: "pipes", vault: "ice", marsh: "kalimba", void: "glass", club: "vibes" };
 function musicImpact(e, biome, at) {
   const root = (musicChords[biome] || musicChords.yard)[0][0],
     k = kit(e, { at });
@@ -5520,6 +5837,13 @@ const MUSIC_TRACKS = {
     // (the deep-test wants every boss track clearly louder than its calm theme; the glue compressor
     // eats part of a track-gain raise, so this one goes to 1.25)
     boss: { bpm: 172, bars: 22, swing: 0, gain: 1.25, play: voidBoss },
+  },
+  // 3.47.0: the Onyx Club: the calm theme swings harder than any other place (a smoky 84), the boss
+  // track is straight and mean (110, the noir-funk). The boss gain keeps the versus rule clear of
+  // the line (1.56x measured at 1.1) - the glue compressor eats part of a raise, the same as the Core's.
+  club: {
+    fight: { bpm: 84, bars: 16, swing: 0.33, gain: 1, play: clubCalm },
+    boss: { bpm: 110, bars: 22, swing: 0, gain: 1.2, play: clubBoss },
   },
 };
 function musicTrack(kind, biome) {
@@ -5591,9 +5915,13 @@ function rlSoundCatalog() {
     "eshotCore",
     "eshotPrism",
     "eshotForge",
+    "eshotKingpin",
     "eshotWeaver",
     "eshotCarrier",
     "eshotFrost",
+    "tcPyro",
+    "tsPyro",
+    "tribute",
     "bwCryo",
     "bwAcid",
     "bwFlame",

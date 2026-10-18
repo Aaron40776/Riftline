@@ -1788,6 +1788,59 @@ function buildBossModel(type, color) {
       [-1.05, 4.05, -0.55],
     ];
     group.userData.mats = [ironMat];
+  } else if (type === "kingpin") {
+    // 3.47.0: THE KINGPIN, owner of the Onyx Club: a broad figure in a pinstripe suit (hullMat, the
+    // boss colour turned suit-dark) with a fedora, a glowing gold tie and watch chain, a tommy gun
+    // in one hand and a cigar in the other. The renderer throws ember puffs off the cigar
+    // (userData.chimneys) and draws his charge aim-line.
+    const suitTrim = new MeshLambertMaterial({ color: 0x1a1216, emissive: 0, flatShading: true });
+    // the body: a broad torso, a starched shirt front, the tie
+    addMesh(new BoxGeometry(2.3, 1.7, 1.5), hullMat, 0, 1.95, 0);
+    addMesh(new BoxGeometry(0.62, 1.35, 0.14), suitTrim, 0, 2.05, 0.78);
+    addMesh(new BoxGeometry(0.16, 0.95, 0.06), glowMat, 0, 2.2, 0.86);
+    addMesh(new BoxGeometry(1.9, 0.5, 1.25), hullMat, 0, 0.85, 0);
+    for (const side of [-1, 1]) {
+      addMesh(new CylinderGeometry(0.34, 0.42, 1.15, 8), suitTrim, side * 0.55, 0.55, 0);
+      addMesh(new BoxGeometry(0.44, 0.22, 0.8), suitTrim, side * 0.55, 0.11, 0.12);
+      // shoulders and cuffs
+      addMesh(new SphereGeometry(0.52, 10, 8), hullMat, side * 1.28, 2.62, 0);
+      addMesh(new BoxGeometry(0.3, 0.12, 0.3), glowMat, side * 1.55, 1.72, 0.18);
+    }
+    // the head: a square jaw, glowing eyes under the brim
+    addMesh(new BoxGeometry(0.78, 0.72, 0.78), suitTrim, 0, 3.2, 0);
+    addMesh(new BoxGeometry(0.6, 0.14, 0.06), glowMat, 0, 3.3, 0.41);
+    addMesh(new BoxGeometry(0.1, 0.06, 0.04), glowMat, 0.18, 3.34, 0.42);
+    addMesh(new BoxGeometry(0.1, 0.06, 0.04), glowMat, -0.14, 3.34, 0.42);
+    // the fedora: a crown, a wide brim, a gold band
+    addMesh(new CylinderGeometry(0.42, 0.5, 0.42, 12), suitTrim, 0, 3.75, 0);
+    addMesh(new CylinderGeometry(0.88, 0.92, 0.06, 14), suitTrim, 0, 3.55, 0);
+    addMesh(new CylinderGeometry(0.52, 0.52, 0.09, 12), glowMat, 0, 3.6, 0);
+    // the tommy gun: barrel, drum magazine, a hot muzzle
+    const gun = addMesh(new BoxGeometry(1.7, 0.24, 0.22), suitTrim, 1.35, 1.75, 0.95);
+    gun.rotation.y = -0.25;
+    const drum = addMesh(new CylinderGeometry(0.26, 0.26, 0.16, 12), suitTrim, 1.15, 1.42, 1.02);
+    drum.rotation.x = Math.PI / 2;
+    addMesh(new BoxGeometry(0.14, 0.14, 0.14), glowMat, 2.2, 1.85, 0.75);
+    // the cigar: a stub in the jaw with a glowing tip (the ember puffs come off it)
+    const cigar = addMesh(new CylinderGeometry(0.09, 0.09, 0.5, 8), suitTrim, 0.62, 3.12, 0.28);
+    cigar.rotation.set(Math.PI / 2 - 0.18, 0, 0.12);
+    addMesh(new SphereGeometry(0.07, 6, 5), glowMat, 0.86, 3.2, 0.3);
+    group.userData.chimneys = [[0.92, 3.22, 0.3]];
+    // the watch chain across the vest, a ring of gold coins at the foot
+    const chain = addMesh(new TorusGeometry(0.52, 0.045, 5, 26), glowMat, 0, 2.35, 0.62);
+    chain.rotation.x = 1.25;
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const coin = addMesh(
+        new CylinderGeometry(0.09, 0.09, 0.02, 10),
+        glowMat,
+        Math.cos(angle) * 2.05,
+        0.05,
+        Math.sin(angle) * 2.05,
+      );
+      coin.rotation.x = Math.PI / 2;
+    }
+    group.userData.mats = [hullMat, suitTrim];
   } else {
     addMesh(new SphereGeometry(1.15, 18, 12), glowMat, 0, 2.4, 0);
     for (let i = 0; i < 3; i++) {

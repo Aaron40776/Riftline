@@ -125,6 +125,7 @@ function computeStats(weaponId, run, workshop) {
   stats.shardField = has("shardfield");
   stats.brood = has("brood");
   stats.collapse = has("collapse");
+  stats.tribute = has("tribute");
   stats.speed *= 1 + 0.04 * stats.skates;
   stats.acidCoat = level("acidcoat");
   stats.heatSink = level("heatsink");

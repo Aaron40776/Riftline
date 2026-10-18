@@ -523,15 +523,25 @@ const bossPatterns = {
 };
 // 2.4.6: THE CRUCIBLE of Ember Works (its attacks are in updateCrucible at the end of this file)
 bossPatterns.forge = ["hammer", "slag", "eruption", "furnace", "hammer", "slag", "stoke"];
+// 3.47.0: THE KINGPIN of the Onyx Club: the tommy gun (a sweeping fan of slugs), the shoulder
+// charge, the boys in the back room, the dance-floor slam, and the molotovs (a lob where you are heading)
+bossPatterns.kingpin = ["barrage", "charge", "summon", "ring", "barrage", "rain"];
 // 2.4.6: colour of the Frost Prism's live beams (the warning lines keep the warning colour)
 const PRISM_ICE = 12578815;
 /* 3.3.0: the Overdrive of every boss. Once it is enraged a boss adds one signature attack to its pattern (right after
    the enrage, then once per pattern cycle). Each is built from telegraphed attacks of the game: the Warden's laser
    lockdown grid, the Crucible's expanding lava rings, the Prism's three-beam whiteout, the Queen's acid plague, the
    Core's collapse (a bombardment grid under a beam cross). */
-const OVERDRIVE = { warden: "lockdown", forge: "meltdown", prism: "whiteout", queen: "plague", core: "collapse" },
+const OVERDRIVE = {
+    warden: "lockdown",
+    forge: "meltdown",
+    prism: "whiteout",
+    queen: "plague",
+    core: "collapse",
+    kingpin: "lastcall",
+  },
   /* the bosses that call reinforcements of their biome when enraged (the Queen and the Core summon anyway) */
-  REINFORCE = { warden: true, forge: true, prism: true };
+  REINFORCE = { warden: true, forge: true, prism: true, kingpin: true };
 function initBoss(game, boss) {
   boss.st = "walk";
   boss.t = 2.2;
@@ -1091,12 +1101,134 @@ function updateBoss(game, boss, dt) {
     case "forge":
       if (updateCrucible(game, boss, dt, aim, dist, shotDmg, rage)) return;
       break;
+    // 3.47.0: THE KINGPIN of the Onyx Club
+    case "kingpin": {
+      if (boss.st === "barrage") {
+        // the tommy gun: he plants his feet and walks a fan of slugs through the room; the fan swings
+        // with the drone, side to side with every burst
+        boss.vx *= 0.82;
+        boss.vy *= 0.82;
+        if (boss.t >= 0.45 + boss.n * 0.5 && boss.n < 3 + rage) {
+          const swing = (boss.n % 2 ? 1 : -1) * (0.12 + 0.06 * boss.n);
+          for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, aim + swing + (k - 2) * 0.13, 10.5, shotDmg);
+          boss.n++;
+          bossVolley(game, boss, 0.25);
+        }
+        if (boss.t > 2.2) endBossAttack(boss, 1.8 - rage * 0.4);
+        return;
+      }
+      if (boss.st === "charge") {
+        // the shoulder charge: he lines it up like the Warden, but he keeps his hat on (a shorter
+        // wind-up, and a slug ring only when he hits the wall while enraged)
+        let charges = 2 + rage;
+        if (boss.t2 === 0) {
+          boss.t2 = 1;
+          boss.ta = aim;
+          boss.sub = 0;
+          boss.subT = 0;
+          game.emit("charge", { x: boss.x, y: boss.y, type: "kingpin" });
+        }
+        boss.subT += dt;
+        if (boss.sub === 0) {
+          boss.vx = 0;
+          boss.vy = 0;
+          if (boss.subT < 0.5) boss.ta = turnToward(boss.ta, aim, 3 * dt);
+          boss.face = turnToward(boss.face, boss.ta, 8 * dt);
+          if (boss.subT > (rage ? 0.55 : 0.7)) {
+            boss.sub = 1;
+            boss.subT = 0;
+          }
+        } else if (boss.sub === 1) {
+          let chargeSpeed = rage ? 17 : 14.5;
+          boss.vx = Math.cos(boss.ta) * chargeSpeed;
+          boss.vy = Math.sin(boss.ta) * chargeSpeed;
+          boss.charging = true;
+          if ((boss.hitWall && boss.subT > 0.1) || boss.subT > 0.75) {
+            boss.charging = false;
+            if (boss.hitWall) {
+              game.emit("thud", { x: boss.x, y: boss.y, big: true });
+              game.explode(boss.x, boss.y, 2.2, 0, { kind: "stomp", src: "kingpin" });
+              if (rage) shootRing(game, boss, 10, 7.5, shotDmg, boss.spin);
+            }
+            boss.sub = 2;
+            boss.subT = 0;
+          }
+        } else {
+          boss.vx *= 0.8;
+          boss.vy *= 0.8;
+          if (boss.subT > 0.4) {
+            boss.n++;
+            if (boss.n >= charges) endBossAttack(boss, 2 - rage * 0.5);
+            else {
+              boss.sub = 0;
+              boss.subT = 0;
+              boss.ta = aim;
+              game.emit("charge", { x: boss.x, y: boss.y, type: "kingpin" });
+            }
+          }
+        }
+        return;
+      }
+      if (boss.st === "summon") {
+        // the boys in the back room: a mixed crew of his own mob pours out around him
+        moveBoss(game, boss, dt, aim, dist, 0.4);
+        if (boss.n === 0) {
+          boss.n = 1;
+          let count = game.enemies.length > 70 ? 0 : 4 + rage * 2,
+            crew = ["gunner", "brute", "bomber"];
+          for (let k = 0; k < count; k++) {
+            let angle = (k / count) * TAU + boss.spin,
+              kid = game.spawnEnemy(crew[k % 3], boss.x + Math.cos(angle) * 2.4, boss.y + Math.sin(angle) * 2.4, {
+                hpF: 1,
+              });
+            kid.spawnT = 0.3;
+            kid.noDrop = game.rng.chance(0.6);
+            kid.kx = Math.cos(angle) * 5;
+            kid.ky = Math.sin(angle) * 5;
+          }
+          game.emit("hatch", { x: boss.x, y: boss.y, big: true });
+        }
+        if (boss.t > 1) endBossAttack(boss, 1.5);
+        return;
+      }
+      if (boss.st === "ring") {
+        // the dance-floor slam: he stamps the beat, the floor jumps, then the slugs answer
+        boss.vx *= 0.85;
+        boss.vy *= 0.85;
+        if (boss.n === 0) {
+          boss.n = 1;
+          game.hazard({ x: boss.x, y: boss.y, r: 4.2, delay: 0.9, dmg: boss.dmg * 0.9, kind: "stomp", src: "kingpin" });
+        }
+        let rings = 2 + rage,
+          gap = 0.6;
+        if (boss.t >= 1 + boss.n * gap && boss.n < rings) {
+          shootRing(game, boss, 14 + rage * 6, 8 + rage, shotDmg, (boss.n % 2) * (Math.PI / (14 + rage * 6)));
+          boss.n++;
+        }
+        if (boss.t > 1 + rings * gap + 0.4) endBossAttack(boss, 2.2 - rage * 0.6);
+        return;
+      }
+      if (boss.st === "rain") {
+        // the molotovs: bottles lobbed where you are heading, they burst into fire on landing
+        moveBoss(game, boss, dt, aim, dist, 0.4);
+        if (boss.t >= 0.5 + boss.n * 0.55 && boss.n < 4 + rage) {
+          const lead = 1.5,
+            tx = clamp(player.x + player.vx * lead, -game.arena.W + 1, game.arena.W - 1),
+            ty = clamp(player.y + player.vy * lead, -game.arena.H + 1, game.arena.H - 1);
+          game.hazard({ x: tx, y: ty, r: 1.9, delay: 1.15, dmg: boss.dmg * 0.75, kind: "rain", src: "kingpin" });
+          boss.n++;
+        }
+        if (boss.t > 3) endBossAttack(boss, 1.5);
+        return;
+      }
+      break;
+    }
   }
   endBossAttack(boss, 1);
 }
 // 3.33.0: every place has its beam: the security laser, the flame jet of the Ember Works, a lance of ice, a jet of bile, the
 // rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Cryo Vault and the Toxin Marsh)
-const SENTINEL_SKIN = { yard: "laser", works: "flame", vault: "cryo", marsh: "acid", void: "rift" };
+const SENTINEL_SKIN = { yard: "laser", works: "flame", vault: "cryo", marsh: "acid", void: "rift", club: "laser" };
 /* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
    telegraphed portals around the player: 2 at the first boss, up to 5 later */
 function bossReinforce(game, boss) {
@@ -1281,6 +1413,52 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
         game.emit("beamWarn", { x: boss.x, y: boss.y });
       }
       if (boss.t > 4.4) endBossAttack(boss, 1.4);
+      return;
+    }
+    case "lastcall": {
+      // 3.47.0: LAST CALL: the Kingpin calls the whole mob in (a squad of the Club's champions
+      // through the portals and a crew of his own around him), torches the exits around the drone
+      // (a ring of molotovs) and sweeps the floor while they pour out
+      moveBoss(game, boss, dt, aim, dist, 0.3);
+      if (boss.n === 0) {
+        boss.n = 1;
+        bossReinforce(game, boss);
+        let count = game.enemies.length > 70 ? 0 : 3 + Math.min(3, boss.tier || 0),
+          crew = ["gunner", "bomber", "brute"];
+        for (let k = 0; k < count; k++) {
+          const angle = (k / count) * TAU + boss.spin,
+            kid = game.spawnEnemy(crew[k % 3], boss.x + Math.cos(angle) * 2.6, boss.y + Math.sin(angle) * 2.6, {});
+          kid.spawnT = 0.35;
+          kid.noDrop = true;
+          kid.kx = Math.cos(angle) * 6;
+          kid.ky = Math.sin(angle) * 6;
+        }
+        // the molotovs close the ring around the drone: six fires, one gap left to find
+        const start = game.rng.next() * TAU,
+          gap = game.rng.int(0, 6);
+        for (let k = 0; k < 7; k++) {
+          const angle = start + (k / 7) * TAU;
+          if (k === gap) continue;
+          game.hazard({
+            x: clamp(player.x + Math.cos(angle) * 4.6, -arena.W + 1, arena.W - 1),
+            y: clamp(player.y + Math.sin(angle) * 4.6, -arena.H + 1, arena.H - 1),
+            r: 1.9,
+            delay: 1.3,
+            dmg: boss.dmg * 0.7,
+            kind: "rain",
+            src: "kingpin",
+          });
+        }
+        game.emit("hatch", { x: boss.x, y: boss.y, big: true });
+      }
+      if (boss.t > 1.1)
+        for (boss.t2 += dt; boss.t2 > 0.11; ) {
+          boss.t2 -= 0.11;
+          boss.ta = (boss.ta || 0) + 0.26;
+          for (let k = 0; k < 6; k++) game.shoot(boss.x, boss.y, boss.ta + (k / 6) * TAU, 6.6, shotDmg, { r: 0.26 });
+          bossVolley(game, boss, 0.3);
+        }
+      if (boss.t > 3.4) endBossAttack(boss, 1.6);
       return;
     }
   }

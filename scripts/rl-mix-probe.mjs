@@ -115,7 +115,7 @@ const result = await page.evaluate(async (secs) => {
 
   // --- the five biome ambiences (a real mid-game wave drives engine.place; the room tone of the
   // biome is on, like in the game; three takes averaged - the far sounds and hazards are random) ---
-  for (const biome of ["yard", "works", "vault", "marsh", "void"]) {
+  for (const biome of ["yard", "works", "vault", "marsh", "void", "club"]) {
     const acc = { rms: 0, peak: 0, p95: 0 };
     let takes = 0;
     for (let take = 0; take < 3; take++) {

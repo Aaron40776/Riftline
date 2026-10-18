@@ -274,8 +274,25 @@ Object.assign(waveEvents, {
     biome: "void",
     plan: {},
   },
+  // 3.47.0: the Onyx Club: the vice squad kicks the door. The house lights die (the renderer dims
+  // like a Blackout) and every pyro vent fires in step, all the way down (Meltdown's timing).
+  raid: {
+    id: "raid",
+    name: "RAID",
+    desc: "The vice squad kicks the door: lights out, every pyro jets in step · shards +25%",
+    shardMul: 1.25,
+    biome: "club",
+    plan: {},
+  },
 });
-const RL_BIOME_EVENT = { yard: "blackout", works: "meltdown", vault: "whiteout", marsh: "bloom", void: "riftstorm" };
+const RL_BIOME_EVENT = {
+  yard: "blackout",
+  works: "meltdown",
+  vault: "whiteout",
+  marsh: "bloom",
+  void: "riftstorm",
+  club: "raid",
+};
 // Signature enemies: the enemies a biome's mix favours (weight >= 1) can spawn in that biome from
 // its first wave (before, Void Core's phantom came from wave 20 and weaver from 28 although Void
 // Core is waves 16–20). Enemies pulled forward this way spawn at half their weight until their

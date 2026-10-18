@@ -74,6 +74,14 @@ const STAGE = {
     ["mortar", "mortar", true],
     ["drill", "driller"],
   ],
+  // 3.47.0: the Kingpin's molotovs and the stage pyro's fire jets
+  club: [
+    ["rain", "kingpin", true],
+    ["rain", "kingpin", true],
+    ["fire", "gunner"],
+    ["fire", "gunner"],
+    ["stomp", "kingpin"],
+  ],
 };
 const ids = await ev(() => window.__riftTest.game.world.route.slice());
 for (const id of ids) {

@@ -38,6 +38,9 @@ import { clamp, TAU, makeRng } from "../core/util.js";
 const WHITE = new Color(0xffffff),
   LAVA = new Color(0xff6a1f),
   LAVA_HOT = new Color(0xffd27a),
+  // 3.47.0: the Onyx Club's stage pyro sprays gold
+  PYRO = new Color(0xffc94a),
+  PYRO_HOT = new Color(0xfff0b8),
   ARC = new Color(0x8fd0ff),
   ARC_WHITE = new Color(0xdff2ff),
   ICE = new Color(0xbff4ff),
@@ -141,6 +144,28 @@ void main() {
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
+  // 3.47.0: the stage pyro's molten heart: the same pool in gold (the Onyx Club's nozzles)
+  gold: `
+void main() {
+  float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 41.0, heat = vI.r;
+  float edge = 0.84 + 0.1 * vnoise(vec2(a * 1.6 + seed, seed));
+  if (r > edge) discard;
+  vec2 q = vP * 3.2 + seed;
+  vec2 flow = vec2(fbm(q * 0.7 + uTime * 0.12), fbm(q * 0.7 - uTime * 0.1 + 7.0));
+  vec3 v = voro(q + flow * 1.3);
+  float melt = clamp(heat * 0.55, 0.0, 0.85);
+  float crust = smoothstep(0.03 + melt * 0.12, 0.1 + melt * 0.3, v.y) * smoothstep(0.1, 0.55, r / edge + 0.1);
+  vec3 hot = mix(vec3(0.95, 0.45, 0.03), vec3(1.0, 0.85, 0.4), fbm(q * 1.6 + vec2(0.0, uTime * 0.6)));
+  hot *= 0.7 + heat * 0.45 + 0.08 * sin(uTime * 2.0 + seed);
+  vec3 rock = vec3(0.018, 0.012, 0.008) * (0.6 + 0.8 * fbm(q * 4.0));
+  rock += vec3(0.14, 0.09, 0.015) * smoothstep(0.12, 0.03, v.y) * (0.4 + heat * 0.4);
+  vec3 col = mix(hot, rock, crust);
+  float cool = smoothstep(edge - 0.2, edge, r);
+  col = mix(col, rock * 0.8 + hot * 0.05, cool * 0.8);
+  gl_FragColor = vec4(col, 1.0);
+  #include <fog_fragment>
+  #include <colorspace_fragment>
+}`,
   // ice: a frozen sheet with frost drifts, facets, white cracks, a bright rim and glints; the floor shows through
   ice: `
 void main() {
@@ -221,9 +246,20 @@ void main() {
   vec3 col = mix(vec3(0.9, 0.16, 0.01), vec3(1.0, 0.6, 0.18), smoothstep(0.3, 0.8, body));
   gl_FragColor = vec4(col * flame * vI.r, 1.0);
 }`,
+  // 3.47.0: the stage pyro: the same pillar in gold (the Onyx Club's jets)
+  pyro: `
+void main() {
+  float h = vP.y;
+  vec2 q = vec2(vP.x * 7.0, h * 2.4 - uTime * 3.4);
+  float n = fbm(q) * 0.75 + fbm(q * 2.1 + 5.0) * 0.45;
+  float body = n - h * 0.95 + 0.25;
+  float flame = smoothstep(0.0, 0.32, body) * smoothstep(0.0, 0.08, h);
+  vec3 col = mix(vec3(1.0, 0.5, 0.05), vec3(1.0, 0.88, 0.42), smoothstep(0.3, 0.8, body));
+  gl_FragColor = vec4(col * flame * vI.r, 1.0);
+}`,
 };
 function surfaceMaterial(kind) {
-  const fire = kind === "fire";
+  const fire = kind === "fire" || kind === "pyro";
   return new ShaderMaterial({
     uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 }, uLod: { value: 0 } }]),
     vertexShader: (fire ? "#define FIRE\n" : "") + SURF_VERT,
@@ -275,6 +311,39 @@ const MODELS = {
         r1 = rng.range(1.18, 1.36);
       glow.push(
         box(i % 2 ? 0xff6a1f : 0xff8a3a, r1 - r0, 0.012, rng.range(0.025, 0.045), {
+          x: Math.cos(a) * (r0 + r1) * 0.5,
+          z: Math.sin(a) * (r0 + r1) * 0.5,
+          y: 0.012,
+          ry: -a,
+        }),
+      );
+    }
+    return { body, glow };
+  },
+  // 3.47.0: the Onyx Club's stage pyro: a brass ring bolted to the dance floor around the molten
+  // pool, gold glow studs where the footlights would sit, no rocks
+  nozzle: () => {
+    const rng = makeRng(0x1a7b),
+      body = [meshPart(new CylinderGeometry(0.92, 1.1, 0.07, 22, 1, true), 0x241418, { y: 0.035 })],
+      glow = [];
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * TAU + rng.range(-0.08, 0.08),
+        d = rng.range(1.0, 1.08);
+      body.push(
+        box(i % 2 ? 0x6a5320 : 0x8a6a30, 0.22, 0.09, 0.1, {
+          x: Math.cos(a) * d,
+          z: Math.sin(a) * d,
+          y: 0.075,
+          ry: -a,
+        }),
+      );
+    }
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU + 0.2 + rng.range(-0.15, 0.15),
+        r0 = 0.9,
+        r1 = rng.range(1.2, 1.34);
+      glow.push(
+        box(0xffd166, r1 - r0, 0.012, rng.range(0.025, 0.04), {
           x: Math.cos(a) * (r0 + r1) * 0.5,
           z: Math.sin(a) * (r0 + r1) * 0.5,
           y: 0.012,
@@ -497,9 +566,13 @@ class HazardView {
   vents(dt, world, quality) {
     const r = this.r,
       time = r.time,
-      crater = this.get("crater"),
-      lava = this.surf("lava"),
-      fire = this.surf("fire", 32);
+      // 3.47.0: the Onyx Club's nozzles sit on brass, their molten heart burns gold, the jet is gold
+      club = world.arena.biome.id === "club",
+      spray = club ? PYRO : LAVA,
+      sprayHot = club ? PYRO_HOT : LAVA_HOT,
+      crater = this.get(club ? "nozzle" : "crater"),
+      lava = this.surf(club ? "gold" : "lava"),
+      fire = this.surf(club ? "pyro" : "fire", 32);
     for (const vent of world.arena.vents) {
       const { state, k } = this.ventState(world, vent),
         x = vent.x,
@@ -517,7 +590,7 @@ class HazardView {
         const dome = this.get("dome");
         const s = rr * (0.15 + 0.35 * k) * (1 + Math.sin(time * 24) * 0.05 * k);
         dome.glow.colC(dome.glow.y(x, 0.03, z, 0, s, 0.2 + 0.5 * k, s), WHITE, 0.55 + 0.45 * k);
-        this.ring(x, z, rr, LAVA, 0.35 + k * 0.6);
+        this.ring(x, z, rr, spray, 0.35 + k * 0.6);
         if (Math.random() < dt * (4 + 18 * k) * quality)
           r.emit(
             x + (Math.random() - 0.5) * rr,
@@ -528,7 +601,7 @@ class HazardView {
             0,
             0.45,
             0.22,
-            Math.random() < 0.5 ? LAVA : LAVA_HOT,
+            Math.random() < 0.5 ? spray : sprayHot,
             { drag: 1, grav: 3 },
           );
       } else if (erupt) {
@@ -537,8 +610,8 @@ class HazardView {
         this.put(fire, x, 0.02, z, time * 0.8, rr * 0.82, 0.55, seed, 0, 3.4 * lick);
         this.put(fire, x, 0.02, z, -time * 1.1, rr * 0.45, 0.6, seed, 0, 4.3 / lick);
         const glow = r.sprites.bb(x, 0.6, z, rr * 2.6, r.B);
-        r.sprites.colC(glow, LAVA, 0.3);
-        this.ring(x, z, rr, LAVA_HOT, 0.6);
+        r.sprites.colC(glow, spray, 0.3);
+        this.ring(x, z, rr, sprayHot, 0.6);
         if (Math.random() < dt * 40 * quality)
           r.emit(
             x + (Math.random() - 0.5) * rr * 1.2,
@@ -549,12 +622,12 @@ class HazardView {
             (Math.random() - 0.5) * 3,
             0.7,
             0.35,
-            Math.random() < 0.4 ? LAVA_HOT : LAVA,
+            Math.random() < 0.4 ? sprayHot : spray,
             { drag: 1.2, grav: 7, grow: 0.5 },
           );
       } else {
         if (Math.random() < dt * 1.2 * rr * quality)
-          r.emit(x + (Math.random() - 0.5) * rr, 0.1, z + (Math.random() - 0.5) * rr, 0, 0.8, 0, 0.6, 0.16, LAVA, {
+          r.emit(x + (Math.random() - 0.5) * rr, 0.1, z + (Math.random() - 0.5) * rr, 0, 0.8, 0, 0.6, 0.16, spray, {
             drag: 1,
           });
       }

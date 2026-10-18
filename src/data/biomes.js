@@ -10,6 +10,8 @@ const RL_BIOME_HAZARD = {
   vault: "ice",
   void: "portals",
   marsh: "acid",
+  // 3.47.0: the Onyx Club's stage pyro: vents with a golden skin (they jet flame between the tables)
+  club: "vents",
 };
 const biomeList = [
   {
@@ -93,6 +95,29 @@ const biomeList = [
     ],
   },
   {
+    // 3.47.0: the Onyx Club: a speakeasy under the city. A checkerboard dance floor, brass and velvet,
+    // round cocktail tables, the stage at the head of the room - and the stage pyro that jets gold
+    // between the tables. The palette keeps the rule: the rose checker reads against every other grid.
+    id: "club",
+    name: "Onyx Club",
+    W: 18,
+    H: 18,
+    floor: 0x151014,
+    grid: 0xc4586e,
+    accent: 0xffd166,
+    fog: 0x0a0607,
+    sky: 0x3d1a26,
+    ground: 0x0f0a0c,
+    wall: 0x2b1721,
+    obstacles: [
+      { t: "b", x: 0, y: -7.6, w: 2.6, h: 0.8 },
+      { t: "c", x: -6.5, y: 6.5, r: 1.2 },
+      { t: "c", x: 6.5, y: 6.5, r: 1.2 },
+      { t: "c", x: -6.5, y: -3, r: 1.1 },
+      { t: "c", x: 6.5, y: -3, r: 1.1 },
+    ],
+  },
+  {
     id: "marsh",
     name: "Toxin Marsh",
     W: 18,
@@ -128,9 +153,9 @@ function planBiomeRoute(rng) {
   return ["yard", ids[0], ids[1], "void", ...ids.slice(2)];
 }
 
-/* 2.4.0: 19 biomes → 5, and the biome changes after every boss again (it changed every wave
- since 2.1). Waves 1–5 are always Blackout City (the Neon Yard until 3.4.0); the other four follow in a seeded order, one per
- boss cycle, so a 20-wave run shows four biomes and Endless reaches the fifth at wave 21.
+/* 2.4.0: 19 biomes → 5 (3.47.0: 6), and the biome changes after every boss again (it changed every wave
+ since 2.1). Waves 1–5 are always Blackout City (the Neon Yard until 3.4.0); the others follow in a seeded order, one per
+ boss cycle, so a 20-wave run shows four biomes and Endless reaches the fifth at wave 21 and the sixth at wave 26.
  Each biome plays differently, not only in colour:
    Blackout City live manholes that arc (3.4.0, was the Neon Yard: open ground); armed gangs (gunner)
    Ember Works  lava vents; heavy and explosive enemies (brute, bomber, charger, minebot …)
@@ -138,6 +163,7 @@ function planBiomeRoute(rng) {
                 ranged enemies (bulwark, sniper, turret, sentinel …)
    Toxin Marsh  acid pools, thick fog; swarms (splitter, hive, swarmer, sapper …)
    Void Core    portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
+   Onyx Club    stage pyro that jets gold (3.47.0); the mob in tailored suits (gunner, brute, bomber …)
  The look of each biome (floor, props, border, particles, light) is in the renderer part of
  2.4.0 further down. */
 const RL_BIOME_INFO = {
@@ -158,6 +184,12 @@ const RL_BIOME_INFO = {
   void: {
     tag: "Portals",
     mix: { striker: 2.2, phantom: 2.4, weaver: 2.2, leaper: 1.8, drone: 1.8, sniper: 0.6 },
+  },
+  // 3.47.0: the Club: armed gangs in tailored suits (gunner), the doormen (brute), molotovs (bomber),
+  // getaway drivers (charger) and the dynamite boys (sapper)
+  club: {
+    tag: "Stage pyro",
+    mix: { gunner: 2.2, brute: 2, bomber: 1.8, charger: 1.4, sapper: 1.2, swarmer: 0.6 },
   },
 };
 for (const [id, info] of Object.entries(RL_BIOME_INFO)) {

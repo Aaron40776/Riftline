@@ -1,4 +1,4 @@
-// Biome detail layer (2.9.0): clutter, backdrop and ground decals for the five biomes.
+// Biome detail layer (2.9.0): clutter, backdrop and ground decals for the biomes.
 // Everything a biome adds here is baked into ONE lit mesh and ONE unlit (glow) mesh, so a biome costs
 // two draw calls however many props it has. Placement comes from the arena seed (rng), never from
 // Math.random. Inside the arena only flat or low things are placed (the drone flies over them, nothing
@@ -999,7 +999,79 @@ function voidDetail(biome, W, H, obs, rng) {
   return out;
 }
 
-const RL_DETAIL = { yard: yardDetail, works: worksDetail, vault: vaultDetail, marsh: marshDetail, void: voidDetail };
+/* ---- Onyx Club (3.47.0): the rest of the cellar around the room. Outside the walls: brick piers,
+   stacks of barrels and crates, hanging pipes and swaying bulbs; inside: the red carpet from the
+   entrance, coasters and confetti on the dance floor, an ice bucket with glasses by a table. ---- */
+function clubDetail(biome, W, H, obs, rng) {
+  const out = list(),
+    gold = biome.accent,
+    red = 0x5a1420,
+    brick = [0x241418, 0x2a181c, 0x1f1114];
+  // brick piers and barrel stacks out in the cellar
+  for (const p of outsideSpots(rng, W, H, 14, 2.6, 7, 3.4)) {
+    const t = list();
+    if (rng.chance(0.45)) {
+      t.body.push(box(rng.pick(brick), 1.1, 5.5, 1.1, { y: 2.75 }), box(dim(gold, 0.22), 1.14, 0.06, 1.14, { y: 0.5 }));
+    } else {
+      const bark = 0x2e2018;
+      for (let k = 0; k < 2; k++) t.body.push(cyl(bark, 0.5, 0.55, 0.9, 12, 0, 0.95 * k, 0));
+      if (rng.chance(0.5)) t.body.push(cyl(bark, 0.5, 0.55, 0.9, 12, 0.78, 0, 0.12));
+      t.body.push(ring(0x4a3a24, 0.56, 0.04, 0, 0.5, 0), ring(0x4a3a24, 0.56, 0.04, 0, 1.35, 0));
+    }
+    put(out, t, p.x, 0, p.z, rng.range(0, TAU));
+  }
+  // crates and kegs against the walls, a light in a few of them
+  for (const p of outsideSpots(rng, W, H, 10, 1.4, 3.2, 2.8)) {
+    const t = list(),
+      s = rng.range(0.5, 0.8);
+    t.body.push(box(0x3a2c1a, s, s, s, { y: s / 2, ry: rng.range(0, PI) }));
+    if (rng.chance(0.5)) t.body.push(box(0x342818, s * 0.9, s * 0.9, s * 0.9, { y: s * 1.35, ry: rng.range(0, PI) }));
+    if (rng.chance(0.35)) t.glow.push(box(dim(gold, 0.5), 0.06, 0.1, 0.02, { y: s * 0.5, z: s / 2 + 0.01 }));
+    put(out, t, p.x, 0, p.z, faceIn(p.nx, p.nz));
+  }
+  // pipes along the cellar ceiling and a few warm bulbs
+  for (const p of outsideSpots(rng, W, H, 8, 2.2, 6, 3)) {
+    out.body.push(pipe(0x1c1a1e, 0.06, 0.05, 4, [p.x, 5.2, p.z], [p.x, 5.2, p.z + rng.range(-2.5, 2.5)]));
+    if (rng.chance(0.5)) out.glow.push(box(0xffd9a0, 0.1, 0.14, 0.1, { x: p.x, y: rng.range(3.6, 4.4), z: p.z }));
+  }
+  // the red carpet runs from the entrance to the stage, gold bands at both ends
+  out.body.push(box(red, 2.4, 0.02, 10.6, { y: 0.012, z: -2.2 }));
+  out.body.push(
+    box(dim(gold, 0.55), 2.5, 0.015, 0.08, { y: 0.022, z: 3.1 }),
+    box(dim(gold, 0.55), 2.5, 0.015, 0.08, { y: 0.022, z: -7.4 }),
+  );
+  // coasters on the tables' neighbourhood and confetti all over the dance floor
+  for (const p of scatter(rng, W, H, obs, 8, { gap: 3.2 })) {
+    out.body.push(disc(0x1c1014, 0.16, p.x, 0.014, p.z, 10), ring(0x6a5320, 0.16, 0.015, p.x, 0.026, p.z));
+  }
+  const confetti = [0xffd166, 0xc4586e, 0x8fd0ff, 0xffe7c0];
+  for (const p of scatter(rng, W, H, obs, 26, { gap: 0.9 })) {
+    out.body.push(
+      box(rng.pick(confetti), rng.range(0.05, 0.1), 0.008, rng.range(0.03, 0.06), {
+        x: p.x,
+        y: 0.01,
+        z: p.z,
+        ry: rng.range(0, PI),
+      }),
+    );
+  }
+  // an ice bucket with a few glasses near a table
+  for (const p of scatter(rng, W, H, obs, 2, { gap: 6 })) {
+    out.body.push(cyl(0x4a4a52, 0.18, 0.22, 0.3, 10, p.x, 0, p.z));
+    for (let k = 0; k < 3; k++)
+      out.body.push(cyl(0x9fb8c4, 0.03, 0.045, 0.16, 8, p.x + (k - 1) * 0.1, 0.3, p.z + rng.range(-0.05, 0.05)));
+  }
+  return out;
+}
+
+const RL_DETAIL = {
+  yard: yardDetail,
+  works: worksDetail,
+  vault: vaultDetail,
+  marsh: marshDetail,
+  void: voidDetail,
+  club: clubDetail,
+};
 
 // Adds the detail layer of a biome to an ArenaView: two meshes (lit body and unlit glow).
 function addBiomeDetail(view, biome, W, H, obs, rng) {

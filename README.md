@@ -1,15 +1,15 @@
 # Riftline
 
-**Riftline** is a 3D arena roguelite wave shooter for the browser — one arena, five biomes, escalating waves, one broken drone against all of it. Built with three.js and WebAudio, no framework, no build-time game engine: the game IS the code in `src/`.
+**Riftline** is a 3D arena roguelite wave shooter for the browser — one arena, six biomes, escalating waves, one broken drone against all of it. Built with three.js and WebAudio, no framework, no build-time game engine: the game IS the code in `src/`.
 
 **Play it:** https://aaron40776.github.io/Riftline/ — installable (PWA), runs offline after the first visit, playable on desktop and on phones/tablets in landscape.
 
 ## What's in the game
 
 - **7 weapons**, each with its own projectile behaviour, plus one evolution path per weapon
-- **25 enemy types** with late-run role diversity, champions, elites and **5 bosses** (one per biome cycle), each with phases, enrage and a boss card reward
-- **5 biomes** — Blackout City, The Foundry, Cryo Vault, The Marsh, The Void — each with its own floor, props, hazards (live vents, lava, ice, acid, portals), light, music theme and soundscape
-- **60 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
+- **25 enemy types** with late-run role diversity, champions, elites and **6 bosses** (one per biome cycle), each with phases, enrage and a boss card reward
+- **6 biomes** — Blackout City, Ember Works, Cryo Vault, Toxin Marsh, Void Core, the Onyx Club — each with its own floor, props, hazards (live vents, lava, ice, acid, portals, stage pyro), light, music theme and soundscape
+- **61 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
 - **19 persistent workshop modules**, milestones through wave 200, threat levels, medals
 - **Endless** mode with mutators, and a **daily run** with a fixed seed
 - A dynamic wave director that mixes 12+ encounter modes instead of a fixed spawn table

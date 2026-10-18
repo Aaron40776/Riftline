@@ -283,6 +283,14 @@ const biomeVariants = {
     color: 11861821,
     desc: "Bursts into an acid pool when it dies.",
   },
+  // 3.47.0: the Club: they go out with a show - the stage pyro jets where they fall
+  club: {
+    id: "showy",
+    name: "Showy",
+    types: ["gunner", "brute", "bomber"],
+    color: 0xffd166,
+    desc: "It goes out with a show: the stage pyro jets where it falls.",
+  },
 };
 const eliteAffixes = {
   shielded: { name: "Shielded", color: 7325951, desc: "A barrier soaks the first hits. Elites from wave 10." },
@@ -352,11 +360,25 @@ bossDefs.forge = {
   shards: 125,
   color: 16741924,
 };
-const bossByBiome = { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core" };
+// 3.47.0: the Onyx Club's owner. He runs this town: he sprays the floor with his tommy gun, charges
+// like a man who has never been told no, calls the boys in from the back room, and when he is hurt
+// he calls LAST CALL - the whole mob pours in.
+bossDefs.kingpin = {
+  id: "kingpin",
+  name: "THE KINGPIN",
+  title: "Owner of the Onyx Club",
+  hp: 1500,
+  r: 2,
+  speed: 2.2,
+  dmg: 22,
+  shards: 60,
+  color: 0xf0b23e,
+};
+const bossByBiome = { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core", club: "kingpin" };
 // hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
 const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
 const bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" }; // before 2.4.6; kept for old tests
-const bossOrder = ["warden", "queen", "prism", "forge", "core"];
+const bossOrder = ["warden", "queen", "prism", "forge", "kingpin", "core"];
 /* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
 Object.assign(enemyDefs, {
   charger: {

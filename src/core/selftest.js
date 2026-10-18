@@ -37,6 +37,7 @@ import {
   BROOD_EVERY,
   BROOD_MAX,
   COLLAPSE_TIME,
+  TRIBUTE_EVERY,
 } from "./boss-cards.js";
 import {
   RL_RETIRE_NOTE,
@@ -481,7 +482,49 @@ function rlSelfTest() {
   result = selfTestV3260(result);
   result = selfTestV3270(result);
   result = selfTestV3280(result);
+  result = selfTestV3470(result);
   return result;
+}
+/* ---- 3.47.0: the Onyx Club: the biome, its boss and its reward behave. The live parts of the Kingpin
+   (his attacks, his Overdrive, his sounds) are covered by the generic loops over bossOrder; this checks
+   the pieces that only exist once: the RAID event, the Showy death jet and the tribute payout. ---- */
+function selfTestV3470(result) {
+  const fail = [];
+  try {
+    // the RAID is the Club's event and it is wired like the others
+    if (RL_BIOME_EVENT.club !== "raid") fail.push("raid-missing");
+    const raid = waveEvents.raid;
+    if (!raid || raid.biome !== "club" || raid.shardMul !== 1.25) fail.push("raid-def");
+    // the Showy variant goes out with a show: its death plants a fire jet
+    const world = new World({ seed: 0x347, weapon: "pulse", threat: 0, ws: {} });
+    world.startWave(6);
+    world.state = "fight";
+    const showy = world.spawnEnemy("gunner", 6, 6, {});
+    showy.variant = "showy";
+    showy.dmg = 10;
+    const hazards = world.hazards.length;
+    world.killEnemy(showy);
+    const jet = world.hazards.slice(hazards).find((h) => h.kind === "fire");
+    if (!jet) fail.push("showy-no-jet");
+    else if (jet.delay !== 0.5) fail.push("showy-jet-delay");
+    // the tribute: every 20th kill pays out (shards on the floor, a bandage, one event)
+    const paid = new World({ seed: 0x348, weapon: "pulse", threat: 0, ws: {} });
+    paid.startWave(6);
+    paid.state = "fight";
+    paid.up.tribute = 1;
+    paid.stats.tribute = 1;
+    for (let k = 0; k < TRIBUTE_EVERY; k++) {
+      const victim = paid.spawnEnemy("swarmer", 8 + k * 0.1, 8, {});
+      paid.killEnemy(victim);
+    }
+    if (!paid.fx.some((e) => e.k === "tribute")) fail.push("tribute-event");
+    if (paid.tributeN !== 0) fail.push("tribute-counter:" + paid.tributeN);
+    if (!paid.pickups.some((p) => p.kind === "shard")) fail.push("tribute-shards");
+    if (!paid.pickups.some((p) => p.kind === "heal")) fail.push("tribute-heal");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3470: { ok: fail.length === 0, fail } };
 }
 /* ---- 2.2.3 deep self-test additions: each case reproduces a bug class that
  slipped through 2.2.2 (plan members, event names, save loader, texts, arena features).
@@ -612,7 +655,7 @@ function selfTestExpansion23(result) {
     }
     for (const issue of rlBiomeDistinct()) bad("biome-lookalike", issue);
     for (const [biomeId, variant] of Object.entries(biomeVariants)) {
-      if (!["scorch", "frost", "phase", "toxic", "shorted"].includes(variant.id)) {
+      if (!["scorch", "frost", "phase", "toxic", "shorted", "showy"].includes(variant.id)) {
         bad("variant-dead", `${biomeId} → ${variant.id}`);
       }
       // 3.34.0: the Codex and the first-time tip read what it does
@@ -673,8 +716,8 @@ function selfTestExpansion23(result) {
           );
       }
     }
-    // five calm themes and five boss tracks, five different tempos each
-    if (tempos.size !== 10) bad("music-tempos", [...tempos].join(","));
+    // six calm themes and six boss tracks, six different tempos each
+    if (tempos.size !== 12) bad("music-tempos", [...tempos].join(","));
   });
   // 2d. stragglers: a hunting enemy of every type closes in on a stationary player
   section("hunt", () => {
@@ -992,16 +1035,17 @@ function selfTestExpansion21(result) {
 function selfTestV240(result) {
   const fail = [];
   if (weaponOrder.length !== 7 || Object.keys(weaponDefs).length !== 7) fail.push("weapon-count:" + weaponOrder.length);
-  if (biomeList.length !== 5) fail.push("biome-count:" + biomeList.length);
+  // 3.47.0: six biomes
+  if (biomeList.length !== 6) fail.push("biome-count:" + biomeList.length);
   for (const upgrade of upgradeList)
     if (upgrade.weapon && !weaponDefs[upgrade.weapon]) fail.push("evo-weapon:" + upgrade.id);
-  // route: Blackout City first, then one biome per boss cycle, all five by wave 21
+  // route: Blackout City first, then one biome per boss cycle, all six by wave 26
   for (const seed of [11, 222, 3333, 44444]) {
     const world = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
       seen = new Set();
     for (let wave = 1; wave <= 30; wave++) {
       const biome = world.biomeFor(wave).id;
-      if (wave <= 21) {
+      if (wave <= 26) {
         seen.add(biome);
       }
       if (wave <= 5 && biome !== "yard") {
@@ -1010,12 +1054,12 @@ function selfTestV240(result) {
       if (wave > 1 && (biome === world.biomeFor(wave - 1).id) !== ((wave - 1) % 5 !== 0))
         fail.push(`route-cycle:${seed}:${wave}`);
     }
-    if (seen.size !== 5) {
+    if (seen.size !== 6) {
       fail.push(`route-coverage:${seed}:${seen.size}`);
     }
   }
   // every hazard biome has its hazard in a normal wave, and only that one
-  const want = { works: "vents", vault: "ice", marsh: "acid", void: "portals" };
+  const want = { works: "vents", vault: "ice", marsh: "acid", void: "portals", club: "vents" };
   for (const [id, kind] of Object.entries(want)) {
     const world = new World({ seed: 0x240 + id.length, weapon: "pulse", threat: 0, ws: {} }),
       wave = 2 + 5 * world.route.indexOf(id);
@@ -1114,8 +1158,8 @@ function selfTestV246(result) {
 function selfTestV250A(result) {
   const fail = [],
     NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
-  // 3.15.0: 55 and the five boss cards
-  if (upgradeList.length !== 60) fail.push("count:" + upgradeList.length);
+  // 3.15.0: 55 and the boss cards (3.47.0: six of them)
+  if (upgradeList.length !== 61) fail.push("count:" + upgradeList.length);
   for (const [id, retired] of Object.entries(RL_RETIRED_UPGRADES)) {
     if (upgradesById[id]) fail.push("still-offered:" + id);
     const target = upgradesById[retired.to];
@@ -2647,6 +2691,8 @@ function selfTestV380(result) {
           vault: { idle: ["s:ice", "shard"] },
           marsh: { idle: ["s:acid", "bank", "bubble"] },
           void: { idle: ["s:portal", "stone"] },
+          // 3.47.0: the Club's stage pyro: a brass nozzle, a gold molten heart, a gold jet
+          club: { idle: ["s:gold", "nozzle"], erupt: ["s:pyro"] },
         },
         drawn = (name) => {
           const set = view.pl[name];
@@ -2668,7 +2714,7 @@ function selfTestV380(result) {
         const arena = world.arena;
         if (biome === "marsh" && !arena.acid.length) arena.acid.push({ x: 6, y: 6, r: 2, life: null });
         if (biome === "vault" && !arena.ice.length) arena.ice.push({ x: 6, y: 6, r: 3 });
-        if ((biome === "works" || biome === "yard") && !arena.vents.length)
+        if ((biome === "works" || biome === "yard" || biome === "club") && !arena.vents.length)
           arena.vents.push({ x: 6, y: 6, r: 2, phase: 0, period: 4, st: "idle" });
         if (biome === "void" && !arena.portals.length) arena.portals.push({ ax: 6, ay: 6, bx: -6, by: -6 });
         draw(world);
@@ -2709,7 +2755,7 @@ function selfTestV390(result) {
     // every far sound of a biome exists, and every sound is in the catalog of the offline test
     for (const [biome, list] of Object.entries(BIOME_PLACE))
       for (const id of list) if (!PLACE_IDS.includes(id)) fail.push(`far-unknown:${biome}:${id}`);
-    for (const biome of ["yard", "works", "vault", "marsh", "void"])
+    for (const biome of ["yard", "works", "vault", "marsh", "void", "club"])
       if (!BIOME_PLACE[biome] || BIOME_PLACE[biome].length < 4) fail.push("far-missing:" + biome);
     const catalog = rlSoundCatalog();
     for (const id of PLACE_IDS)
@@ -2723,6 +2769,8 @@ function selfTestV390(result) {
         vault: ["iceCrack|iceCreak", "iceTink"],
         marsh: ["acidBubble", "acidSizzle"],
         void: ["portalHum"],
+        // 3.47.0: the Club's vents bubble like any lava vent, and the band's thump comes through the floor
+        club: ["lavaBlub", "lavaWarn", "stageThump"],
       };
       for (const biome of Object.keys(want)) {
         const world = new World({ seed: 0x390, weapon: "pulse", threat: 0, ws: {} }),
@@ -2732,7 +2780,7 @@ function selfTestV390(result) {
         world.state = "fight";
         const arena = world.arena,
           player = world.player;
-        if ((biome === "works" || biome === "yard") && !arena.vents.length)
+        if ((biome === "works" || biome === "yard" || biome === "club") && !arena.vents.length)
           arena.vents.push({ x: 4, y: 4, r: 2, phase: 0, period: 4, st: "idle" });
         if (biome === "vault" && !arena.ice.length) arena.ice.push({ x: 4, y: 4, r: 3 });
         if (biome === "marsh" && !arena.acid.length) arena.acid.push({ x: 4, y: 4, r: 2, life: null });
@@ -2848,6 +2896,7 @@ function selfTestV3100(result) {
       "glacier|prism",
       "rain|queen",
       "rain|core",
+      "rain|kingpin",
       "mortar|mortar",
       "mine|minebot",
       "sapper|sapper",
@@ -2858,6 +2907,8 @@ function selfTestV3100(result) {
       "rain|core": [ATTACK_LOOK.rift, "aRift"],
       "rain|queen": [ATTACK_LOOK.acid, "aAcid"],
       "rain|forge": [ATTACK_LOOK.molten, "aLava"],
+      // 3.47.0: the Kingpin's molotovs burst into fire
+      "rain|kingpin": [ATTACK_LOOK.burn, "aFire"],
       "stomp|forge": [ATTACK_LOOK.lavaCrack, "aQuake"],
       "stomp|warden": [ATTACK_LOOK.crack, "aQuake"],
       "glacier|prism": [ATTACK_LOOK.frost, "aIce"],
@@ -3063,7 +3114,7 @@ function selfTestV3150(result) {
   try {
     // one card per boss, all rarity 6, none in a normal offer
     const bosses = Object.keys(BOSS_CARD).sort().join(",");
-    if (bosses !== "core,forge,prism,queen,warden") fail.push("cards:" + bosses);
+    if (bosses !== "core,forge,kingpin,prism,queen,warden") fail.push("cards:" + bosses);
     if (Object.values(BOSS_CARD).some((id) => upgradesById[id].rarity !== 6 || upgradesById[id].max !== 1))
       fail.push("card-rarity");
     const normal = new World({ seed: 0x315, weapon: "pulse", threat: 0, ws: {} });
@@ -3311,7 +3362,7 @@ function selfTestV3150(result) {
    orb any more), every boss beam has a skin or a colour, and a boss volley names its boss for its sound ---- */
 function selfTestV3160(result) {
   const fail = [];
-  const WANT = { warden: "siren", queen: "spore", core: "riftorb", prism: "shard", forge: "slag" };
+  const WANT = { warden: "siren", queen: "spore", core: "riftorb", prism: "shard", forge: "slag", kingpin: "siren" };
   try {
     for (const type of Object.keys(WANT)) {
       const world = new World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });
@@ -3452,6 +3503,7 @@ function selfTestV3160(result) {
       vault: "cryo",
       marsh: "acid",
       void: "rift",
+      club: "laser",
     })) {
       const world = new World({ seed: 0x3161, weapon: "pulse", threat: 0, ws: {} });
       world.startWave(2);
