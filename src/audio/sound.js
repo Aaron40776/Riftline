@@ -3971,7 +3971,10 @@ const musicChords = {
       if (kind === "fight" || kind === "boss") {
         let track = musicTrack(kind, biome),
           bar = Math.floor(step / 16),
-          [root, quality] = chords[bar % 4],
+          // 3.46.0: a biome can let its chords breathe over more than one bar (chordBars): the Works, the
+          // Vault and the Core change their chord every second bar (the drone of the place), the City and
+          // the Marsh keep one chord per bar. The boss tracks stay at one chord per bar: the drama.
+          [root, quality] = chords[Math.floor(bar / (track.chordBars || 1)) % 4],
           level = kind === "boss" ? 1 : this.intensity,
           s = step,
           c = {
@@ -3984,7 +3987,7 @@ const musicChords = {
             heat: this.heat,
             root,
             q: quality,
-            ch: bar % 4,
+            ch: Math.floor(bar / (track.chordBars || 1)) % 4,
             sec: kind === "boss" ? bossSection(bar) : bar >> 2,
             chord: [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
             salt: biome.charCodeAt(0) * 7 + biome.charCodeAt(1),
@@ -4549,10 +4552,14 @@ const BED_LEVEL = { fight: 1, boss: 1 },
 
 /* ---------- calm themes ---------- */
 
-/* 3.5.0: the calm themes all follow the Cryo Vault: no beat at all until the intensity is high (then a slow heartbeat),
+/* 3.5.0: the calm themes all followed the Cryo Vault: no beat at all until the intensity is high (then a slow heartbeat),
    a motif of struck notes in the echo and the room whose pattern changes per section, a soft pad, a deep sub on every
    chord, flakes of texture and the sounds of the place; each biome has an instrument of its own for the motif and its
-   own pad. The boss tracks carry the same motif, so that they sound like the same place at its darkest. */
+   own pad. The boss tracks carry the same motif, so that they sound like the same place at its darkest.
+   3.46.0: the themes still share that skeleton, but each place now walks out of it with a gait of its own: the City
+   swings (noir), the Marsh drags (bayou), the Works, the Vault and the Core let their chords breathe over two bars,
+   and every theme carries one signature voice of its own (a comping chord, a machine bass, a glass run, a dub answer,
+   a chant). */
 const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", "x.x..x.x..x.x..x"],
   /* the instruments of the motif: (bus, frequency, level, options); options.lite leaves out the upper partials */
   VOICE = {
@@ -4642,12 +4649,22 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
     },
   };
 /* the motif of a biome on the chord tones (a fixed walk through them, an octave higher now and then) */
-function calmMotif(k, c, voice, v = 1, lite = false) {
+function calmMotif(k, c, voice, v = 1, lite = false, heroic = false) {
   const { b, bar, sec } = c;
   if (!pat(CALM_MOTIF[sec & 3])[b]) return;
   if (lite && R(c, 3) < 0.4) return;
   const n = c.chord[[0, 2, 1, 3, 2, 1, 3][(bar * 7 + b) % 7]] + (R(c, 1) < 0.25 ? 36 : 24);
   VOICE[voice](k.d, midiToFreq(n), 0.045 * v * VOICE_GAIN[voice], { pan: P(c, 2, 0.6), bright: sec >= 2, lite });
+  // 3.46.0: the boss tracks state the theme of their place in two octaves (the heroic form: the same
+  // note an octave down, softer, on the other side of the stereo field - darker and bigger than a
+  // top-octave doubling, and under the 2-12 kHz band the phone-speaker tests measure)
+  if (heroic)
+    VOICE[voice](k.m, midiToFreq(n - 12), 0.016 * v * VOICE_GAIN[voice], {
+      pan: -P(c, 2, 0.6),
+      bright: false,
+      lite: true,
+      rev: 0.15,
+    });
 }
 /* the pad of a biome, one swell per bar on the first step */
 /* 3.19.0: the ambient bloom (the direction of the owner: "Osmos": a subtle melody and soft effects, noticeable and nice,
@@ -4755,6 +4772,13 @@ function yardCalm(e, c) {
   calmMotif(k, c, "piano");
   calmPad(k, c, "yard");
   calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
+  // 3.46.0: the club under the rain: a piano comp on the "and" of the first and the third beat, a short
+  // seventh chord in the echo that answers the walking bass (the swing of the track carries the rest)
+  if (L > 0.35 && (b === 2 || b === 10) && R(c, 30) < 0.8) {
+    const pan = b === 2 ? -0.35 : 0.35;
+    VOICE.piano(k.d, midiToFreq(chord[1] + 12), 0.018 * VOICE_GAIN.piano, { pan, lite: true });
+    VOICE.piano(k.d, midiToFreq(chord[0] + 22), 0.014 * VOICE_GAIN.piano, { pan, lite: true, at: 0.012 });
+  }
   // 3.14.0: noir. As it swells, a walking bass on every beat (root, fifth, third, a step towards the next chord) and
   // brushes: a soft sweep on 2 and 4, light taps on the eighths
   if (L > 0.3 && b % 4 === 0) {
@@ -4801,8 +4825,9 @@ function yardCalm(e, c) {
 }
 
 const WORKS_PISTON = "X..x..X.x..X..x.";
-/* Ember Works, 66 BPM, D minor (Dm Bb C Am): a sleeping foundry. A motif of struck pipes, a warm dark pad, the sub;
-   in the dark a far anvil, a chain, a breath of steam, crackling embers (the furnace is the atmosphere) */
+/* Ember Works, 66 BPM, D minor (Dm Bb C Am, the chords breathe over two bars): a sleeping foundry. A motif of struck
+   pipes, a warm dark pad, the sub; a machine bass chugs in eighths as it swells; in the dark a far anvil, a chain, a
+   breath of steam, crackling embers (the furnace is the atmosphere) */
 function worksCalm(e, c) {
   const { b, bar, L, chord } = c,
     k = kit(e, c);
@@ -4810,6 +4835,12 @@ function worksCalm(e, c) {
   calmPad(k, c, "works");
   // the heartbeat of the works is a piston: a chuff and a low thump
   calmFloor(k, c, { f0: 90, f1: 38, dur: 0.3 });
+  // 3.46.0: the machine never quite stops: a saw bass chugs in eighths on the root (the octave answers
+  // at the head of the second bar), under the same pump the kicks duck - the foundry breathes with it
+  if (L > 0.4 && b % 2 === 0) {
+    const midi = chord[0] - 24 + (b === 8 && (bar & 1) === 1 ? 12 : 0);
+    k.p.t(midiToFreq(midi), 0.13, "sawtooth", L > 0.6 ? 0.042 : 0.03, { lp: 620, q: 1.5, attack: 0.004 });
+  }
   if (L > 0.5 && b === 0) k.m.n(0.2, 0.014, { f: 300, to: 80, q: 1.2, color: "brown" });
   if (b === 4 && (bar & 3) === 1) clang(k.m, midiToFreq(chord[0] + 24), 0.04, { rev: 0.8, pan: -0.4 });
   // 3.14.0: the works keep time as it swells: a piston in a machine groove (3-3-2, accents on the strong hits), a
@@ -4858,10 +4889,11 @@ function worksCalm(e, c) {
       });
 }
 
-/* Cryo Vault, 72 BPM, E minor (Em C G D): an ice cavern. No beat at all until the intensity is high (then a slow
-   heartbeat), bells of ice in the echo and the room whose pattern changes per section, a glass pad, a deep sub on
-   every chord, ticks of ice, cracks, wind chimes and a creak (a wind that sings on the chord is the atmosphere). The
-   model of the other themes. */
+/* Cryo Vault, 72 BPM, E minor (Em C G D, the chords breathe over two bars): an ice cavern. No beat at all until the
+   intensity is high (then a slow heartbeat), bells of ice in the echo and the room whose pattern changes per section,
+   a glass pad, a deep sub on every chord, ticks of ice, cracks, wind chimes and a creak (a wind that sings on the chord
+   is the atmosphere). The model of the other themes. Every eighth bar a run of glass slides down the chord and rings
+   out in the echo (the harmonica of the cavern). */
 const VAULT_CHIME = [76, 79, 81, 83, 86, 88];
 function vaultCalm(e, c) {
   const { b, bar, L } = c,
@@ -4869,6 +4901,13 @@ function vaultCalm(e, c) {
   calmMotif(k, c, "ice");
   calmPad(k, c, "vault");
   calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
+  // 3.46.0: the harmonica of the cavern: on every eighth bar a slow run of glass slides down the chord
+  // (five tones over the bar, wide in the room), the sound of a breath on the frozen walls
+  if ((bar & 7) === 3 && b % 3 === 0) {
+    const i = b / 3,
+      f = midiToFreq(c.chord[[3, 2, 1, 0, 2, 1][i]] + 36);
+    k.d.t(f, 1.1, "sine", 0.011, { to: f * 0.985, attack: 0.09, pan: (i - 2) * 0.35, rev: 0.8, opt: true });
+  }
   if (b % 4 === 2 && R(c, 5) < 0.08) {
     k.m.n(0.02, 0.06, { type: "bandpass", f: 4600, q: 1.4, color: "pink", opt: true, pan: P(c, 6), rev: 0.4 });
     k.m.t(3800, 0.08, "sine", 0.025, { to: 900, opt: true, pan: P(c, 6) });
@@ -4901,13 +4940,20 @@ function vaultCalm(e, c) {
 
 const LOG_DRUM = "x..x..x...x.x...";
 /* Toxin Marsh, 69 BPM, F minor (Fm Ab Eb Cm): a foggy bayou at night. A kalimba motif, a soft wobbling pad, the sub;
-   rising bubbles, frog croaks, mud squelches, crickets (the murk is the atmosphere) */
+   a dub answer of the kalimba in the low octave (the echo carries it); rising bubbles, frog croaks, mud squelches,
+   crickets (the murk is the atmosphere) */
 function marshCalm(e, c) {
   const { b, bar, L, chord } = c,
     k = kit(e, c);
   calmMotif(k, c, "kalimba");
   calmPad(k, c, "marsh");
   calmFloor(k, c, { f0: 115, f1: 40, dur: 0.24 });
+  // 3.46.0: the dub answer: on the last off-beat of the bar the kalimba drops an octave and the echo
+  // carries the note into the next one (lazy, out of the swamp)
+  if (L > 0.25 && (b === 7 || b === 15) && R(c, 20) < 0.55)
+    VOICE.kalimba(k.d, midiToFreq(chord[b === 7 ? 0 : 2] - 12), 0.026 * VOICE_GAIN.kalimba, {
+      pan: b === 7 ? 0.4 : -0.4,
+    });
   if (R(c, 4) < 0.08 + 0.05 * L) {
     const f = 170 + R(c, 5) * 500,
       pan = P(c, 6, 0.8);
@@ -4941,9 +4987,9 @@ function marshCalm(e, c) {
   }
 }
 
-/* Void Core, 60 BPM, F# minor (F#m D A E): dark and breathing. A glass motif, low detuned drones as the pad, the sub;
-   a reversed swell before every fourth bar, whispers, long pings far away (the beating drones, the space wind and the
-   eerie tone are the atmosphere) */
+/* Void Core, 60 BPM, F# minor (F#m D A E, the chords breathe over two bars): dark and breathing. A glass motif, low
+   detuned drones as the pad, the sub; a whisper chant on the head of every second bar; a reversed swell before every
+   fourth bar, long pings far away (the beating drones, the space wind and the eerie tone are the atmosphere) */
 const VOID_FORMANTS = [
   [700, 1200],
   [300, 2300],
@@ -4955,6 +5001,17 @@ function voidCalm(e, c) {
   calmMotif(k, c, "glass");
   calmPad(k, c, "void");
   calmFloor(k, c, { f0: 90, f1: 32, dur: 0.35 });
+  // 3.46.0: the chant of the core: a whisper on the head of every second bar, a vowel that walks the
+  // formants and leans to the other side each time (something is in there, and it is breathing)
+  if ((bar & 1) === 0 && b === 0 && L > 0.15) {
+    const [f1, f2] = VOID_FORMANTS[(bar >> 1) % 3];
+    formant(k.d, chord[0] < 50 ? f1 : f1 * 1.12, f2, c.barSec * 0.7, 0.014, {
+      attack: 0.25,
+      pan: (bar >> 1) & 1 ? 0.5 : -0.5,
+      rev: 0.6,
+      opt: true,
+    });
+  }
   if ((bar & 3) === 3 && b === 6) {
     k.m.n(1.6, 0.05, { type: "bandpass", f: 500, to: 2600, q: 0.9, color: "pink", attack: 1.45, opt: true });
     k.m.t(200, 1.6, "sawtooth", 0.016, { to: 1200, attack: 1.5, lp: 2000, opt: true });
@@ -4990,7 +5047,11 @@ function voidCalm(e, c) {
    strings, brass that opens like a horn, a choir, arpeggios, a sub bass that pumps with the kick, and no cymbal at all
    (soft shakers keep the time). Each boss has a style of its own, and each track still carries the motif of its biome
    on the instrument of the calm theme, so a boss sounds like its place at its darkest. The sections stay: drop (bars
-   0-7), variation (8-15), breakdown (16-19), build (20-21); a section opens with a deep taiko and a brass swell. */
+   0-7), variation (8-15), breakdown (16-19), build (20-21); a section opens with a deep taiko and a brass swell.
+   3.46.0: the boss tracks are epic now, not just loud: the theme of the place rings out in two octaves (the heroic
+   motif), a choir pedal breathes under the drop from the first bar, tom fills walk into every section change, the
+   hits land with a sub drop of their own, and a long fight grows - from the second loop a string counter-line walks
+   above the drop. The arrival itself (musicImpact below) is a braam now. */
 function bossSection(bar) {
   return bar < 8 ? 0 : bar < 16 ? 1 : bar < 20 ? 2 : 3;
 }
@@ -4998,7 +5059,20 @@ function bossSection(bar) {
 function sectionHit(k, c) {
   if (c.b !== 0 || !(c.bar === 8 || c.bar === 16 || (c.bar === 0 && c.cycle > 0))) return;
   taiko(k, 0.5, { f: 64, deep: true, dur: 0.7, rev: 0.6 });
+  // 3.46.0: the sections land harder: a sub drops with the hit under the brass
+  sub(k, c.root, 0.9, 0.16);
   brass(k, c.root - 12, c.barSec * 0.9, 0.035, { lp: 200, lpTo: 1600 });
+}
+/* 3.46.0: a tom fill walks the last three sixteenths of bars 7 and 15 into every section change */
+function bossFill(k, c) {
+  if ((c.bar === 7 || c.bar === 15) && c.b >= 13)
+    tom(k, 0.14 + 0.04 * (c.b - 13), 150 + (c.b - 13) * 55, { pan: (c.b - 14) * 0.5 });
+}
+/* 3.46.0: a long fight grows: from the second loop of a boss track a quiet string counter-line walks the chord one
+   bar in four, two octaves up (short notes, so the voice budget of the drop never fills) */
+function bossCycle(k, c) {
+  if (c.cycle > 0 && c.sec <= 1 && c.b % 4 === 0)
+    strings(k, c.chord[[0, 2, 1, 2][(c.b >> 2) & 3]] + 24, 0.013, { lp: 2400, dur: 0.08, single: true });
 }
 /* the build (bars 20 and 21): a taiko roll that thickens (eighths, then sixteenths) and swells */
 function buildRoll(k, c, f = 110) {
@@ -5033,8 +5107,10 @@ const CHASE_BASS = ["x.xxx.xxx.xxx.xx", "xxxxx.xxxxxx.xxx"],
 function yardBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c);
-  if (sec <= 2) calmMotif(k, c, "piano", sec === 2 ? 1.4 : 1.6, sec !== 2);
+  if (sec <= 2) calmMotif(k, c, "piano", sec === 2 ? 1.4 : 1.6, sec !== 2, sec !== 2);
   sectionHit(k, c);
+  bossFill(k, c);
+  bossCycle(k, c);
   if (sec <= 1) {
     if (b % 4 === 0) kick(k, 0.5, { f0: 150, f1: 45, dur: 0.16, pump: 0.5, rel: 0.11 });
     if (b === 4 || b === 12) bigSnare(k, 0.2, { f: 1500, bf: 190 });
@@ -5099,6 +5175,8 @@ function worksBoss(e, c) {
   if (sec <= 2) calmMotif(k, c, "pipes", 1.7, sec !== 2);
   sectionHit(k, c);
   if (sec <= 1) {
+    // 3.46.0: three hammer blows walk the track into every section change
+    if ((bar === 7 || bar === 15) && b >= 13) anvil(k, midiToFreq(chord[0] + 24), 0.045, (b - 14) * 0.45);
     if (pat(FORGE_DEEP)[b]) taiko(k, 0.5, { f: 72, deep: b === 0, pan: b === 6 ? -0.3 : b === 10 ? 0.3 : 0 });
     if (pat(FORGE_MID)[b]) taiko(k, 0.3, { f: 115, dur: 0.3, pan: 0.35 });
     if (b >= 12 && (bar & 1) === 1) tom(k, 0.1 + 0.04 * (b - 12), 160 + (b - 12) * 20, { pan: -0.4 + (b - 12) * 0.25 });
@@ -5207,6 +5285,9 @@ function vaultBoss(e, c) {
       });
   } else {
     const n = (bar - 20) * 16 + b;
+    // 3.46.0: the bells of the vault run down the chord into the drop (the cascade before the wall)
+    if (b % 4 === 0)
+      bell(k.d, midiToFreq(chord[[3, 2, 1, 0, 0, 1, 2, 3][(bar - 20) * 4 + (b >> 2)]] + 24), 0.04, 0.8, { rev: 0.6 });
     if (bar === 20 ? b % 4 === 0 : b % 2 === 0) kick(k, 0.4, { f0: 130, f1: 44, dur: 0.16 });
     if (bar === 21 || b % 2 === 0) clap(k, 0.025 + 0.06 * (n / 32));
     pluck(k, chord[ICE_ARP[b % 8]] + 24 + Math.floor(n / 8), 0.02, { wave: "triangle", lp: 1200 + n * 90 });
@@ -5237,8 +5318,10 @@ function marshBoss(e, c) {
         q: 9,
       });
     };
-  if (sec <= 2) calmMotif(k, c, "kalimba", 1.7, sec !== 2);
+  if (sec <= 2) calmMotif(k, c, "kalimba", 1.7, sec !== 2, sec !== 2);
   sectionHit(k, c);
+  bossFill(k, c);
+  bossCycle(k, c);
   if (sec <= 1) {
     if (pat(TRIBE_DEEP)[b]) taiko(k, 0.45, { f: 78, deep: b === 0, pan: b === 6 ? -0.25 : b === 12 ? 0.25 : 0 });
     if (pat(TRIBE_HAND)[b]) {
@@ -5264,6 +5347,8 @@ function marshBoss(e, c) {
     if (b === 0 && (bar & 1) === 0) swarm(k, [chord[0] + 12, chord[2] + 12], c.barSec * 2, 0.016);
     if (sec === 1) {
       shaker(k, b % 2 ? 0.018 : 0.03, b % 4 < 2 ? -0.5 : 0.5);
+      // 3.46.0: the war chant gets its horns: the brass answers every deep drum of the chant
+      if (pat(TRIBE_DEEP)[b]) brass(k, chord[0] + 12, 0.22, 0.02, { lp: 500, lpTo: 2400, hold: 0.06 });
       if (b === 0) choir(k, [chord[0], chord[2]], c.barSec, 0.03);
     }
   } else if (sec === 2) {
@@ -5304,10 +5389,11 @@ function voidBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
     q = bar & 3;
-  // the glass rings long: at 172 BPM always the short (lite) form
+  // the glass rings long: at 172 BPM always the short (lite) form (the four quotes of the variation carry the theme)
   if (sec === 0 || sec === 2) calmMotif(k, c, "glass", 1.6, true);
   else if (sec === 1) calmMotif(k, c, QUOTES[q], 1.6, true);
   sectionHit(k, c);
+  bossFill(k, c);
   if (sec <= 1) {
     if (pat(BREAK_K[q === 3 ? 1 : 0])[b]) kick(k, 0.5, { f0: 160, f1: 44, dur: 0.14, pump: 0.5 });
     if (b === 4 || b === 12) bigSnare(k, 0.2, { f: 1700, bf: 230, dur: 0.12, rev: 0.25 });
@@ -5339,8 +5425,9 @@ function voidBoss(e, c) {
       brass(k, chord[0], 0.22, 0.026, { lp: 700, lpTo: 2600, hold: 0.08 });
   } else if (sec === 2) {
     if (b === 0) {
+      // 3.46.0: the breakdown choir takes the octave too (the hall sings above the glass)
       taiko(k, 0.55, { f: 62, deep: true, dur: 0.9 });
-      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.5, 0.028);
+      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12, chord[0] + 24], c.barSec + 0.5, 0.028);
       sub(k, root, c.barSec, 0.2);
     }
     if (b === 0 || b === 3) kick(k, b === 0 ? 0.4 : 0.25, { f0: 110, f1: 36, dur: 0.22 });
@@ -5385,10 +5472,15 @@ const BIOME_VOICE = { yard: "piano", works: "pipes", vault: "ice", marsh: "kalim
 function musicImpact(e, biome, at) {
   const root = (musicChords[biome] || musicChords.yard)[0][0],
     k = kit(e, { at });
-  taiko(k, 0.7, { f: 58, deep: true, dur: 1.2, rev: 0.8 });
+  // 3.46.0: the arrival is a braam now: two detuned saws two octaves down open into the hall under the
+  // brass, a second taiko answers the deep one and the choir takes the octave
+  taiko(k, 0.75, { f: 48, deep: true, dur: 1.4, rev: 0.8 });
+  taiko(k, 0.45, { f: 92, dur: 0.45, rev: 0.4 });
   k.m.t(95, 1.4, "sine", 0.45, { to: 28 });
+  for (const det of [-9, 9])
+    k.p.t(midiToFreq(root - 24), 2.4, "sawtooth", 0.055, { lp: 130, lpTo: 850, detune: det, attack: 0.02, hold: 0.9 });
   brass(k, root - 12, 1.6, 0.05, { lp: 180, lpTo: 2200, attack: 0.05, hold: 0.5, rev: 0.5 });
-  choir(k, [root, root + 7, root + 12], 1.6, 0.03, { fade: 0.15 });
+  choir(k, [root, root + 7, root + 12, root + 24], 1.6, 0.03, { fade: 0.15 });
 }
 function musicResolve(e, biome, at) {
   const root = (musicChords[biome] || musicChords.yard)[0][0],
@@ -5402,24 +5494,28 @@ function musicResolve(e, biome, at) {
 }
 
 const MUSIC_TRACKS = {
+  // 3.46.0: each calm theme now moves like the place it is: the City swings (noir), the Marsh drags (bayou),
+  // the Works, the Vault and the Core let their chords breathe over two bars (chordBars). The boss tracks
+  // stay straight and keep one chord per bar (the drama). The gains are the measured ones of 3.45.5 (see
+  // the mix note at MUSIC_SCALE) - the epic and the identity come from the notes, not from the level.
   yard: {
-    fight: { bpm: 78, bars: 16, swing: 0, gain: 1, play: yardCalm },
+    fight: { bpm: 78, bars: 16, swing: 0.26, gain: 1, play: yardCalm },
     boss: { bpm: 128, bars: 22, swing: 0, gain: 1.1, play: yardBoss },
   },
   works: {
-    fight: { bpm: 66, bars: 16, swing: 0, gain: 1, play: worksCalm },
+    fight: { bpm: 66, bars: 16, swing: 0, chordBars: 2, gain: 1, play: worksCalm },
     boss: { bpm: 104, bars: 22, swing: 0, gain: 1, play: worksBoss },
   },
   vault: {
-    fight: { bpm: 72, bars: 16, swing: 0, gain: 1, play: vaultCalm },
+    fight: { bpm: 72, bars: 16, swing: 0, chordBars: 2, gain: 1, play: vaultCalm },
     boss: { bpm: 138, bars: 22, swing: 0, gain: 1, play: vaultBoss },
   },
   marsh: {
-    fight: { bpm: 69, bars: 16, swing: 0, gain: 1, play: marshCalm },
+    fight: { bpm: 69, bars: 16, swing: 0.17, gain: 1, play: marshCalm },
     boss: { bpm: 116, bars: 22, swing: 0, gain: 1, play: marshBoss },
   },
   void: {
-    fight: { bpm: 60, bars: 16, swing: 0, gain: 1, play: voidCalm },
+    fight: { bpm: 60, bars: 16, swing: 0, chordBars: 2, gain: 1, play: voidCalm },
     // 3.45.5: the mix note above trimmed the boss make-up; the Void Core boss keeps a step of its own
     // (the deep-test wants every boss track clearly louder than its calm theme; the glue compressor
     // eats part of a track-gain raise, so this one goes to 1.25)
