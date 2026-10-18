@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.46.0",
+    title: "Every place sings its own song",
+    items: [
+      "The boss tracks are epic now: the theme of the arena rings out in two octaves, tom fills walk into every section change and a long fight keeps growing.",
+      "The arrival of a boss is a braam: a hall-filling hit with a sub drop, brass and the choir taking the octave.",
+      "Each biome walks its own gait: the City swings like noir, the Marsh drags like the bayou, and the Works, the Vault and the Core let their chords breathe over two bars.",
+      "New signature voices: a comping piano under the rain, a machine bass in the foundry, a glass run in the ice cavern, a dub answer in the marsh and a whisper chant in the core.",
+    ],
+  },
+  {
     version: "3.45.5",
     title: "A mix you can hear",
     items: [
