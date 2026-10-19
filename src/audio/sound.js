@@ -3891,9 +3891,21 @@ const musicChords = {
             drift(shimmer.frequency, 0.05, 600);
             break;
           }
-          // (the Ashfall Caldera has no music bed: its rumble lives on the ambience bus - the scape's
-          // calderaRumble and the crater's room tone - and a music-bus copy of it only painted a flat
-          // skirt across the band the phone test measures. The march owns the music bus alone.)
+          case "club": {
+            // 3.49.0: the Ashfall Caldera: the crater breathes - the rumble under everything, the
+            // crackle of the cooling crust, the far hiss of gas. The mountain's slow pulse swells
+            // the rumble. (No music-bus bed: the march owns the music bus alone - a copy of the
+            // rumble there only painted a flat skirt across the band the phone test measures.)
+            const drone = amp(filter("lowpass", 160, 0.8, osc("sawtooth", 42)), 0.075);
+            drift(drone.gain, 0.06, 0.015);
+            const rumble = amp(filter("lowpass", 120, 0.9, loop(0.7, "brown")), 0.04);
+            drift(rumble.gain, 0.09, 0.015);
+            const crackle = amp(filter("bandpass", 2200, 6, loop(0.7, "pink")), 0.008);
+            drift(crackle.gain, 0.11, 0.005);
+            const hiss = amp(filter("highpass", 4800, 1, loop(1.1, "pink")), 0.004);
+            drift(hiss.gain, 0.05, 0.003);
+            break;
+          }
         }
       } catch (err) {
         // back out cleanly: stop what started (stopTone also detaches the nodes and the gain),
@@ -4694,20 +4706,9 @@ const BED_LEVEL = { fight: 1, boss: 1 },
         lfo(0.07, 0.004, high.gain);
       },
     },
-    // 3.49.0: the Ashfall Caldera: the crater breathes - the rumble under everything, the crackle
-    // of the cooling crust, the far hiss of gas. The mountain's slow pulse swells the rumble.
-    club: {
-      gain: 0.5,
-      boss: 0.55,
-      build({ osc, loop, filt, lfo, level }) {
-        const rumble = level(filt("lowpass", 120, 0.9, loop(0.7, "brown")), 0.024);
-        lfo(0.06, 0.012, rumble.gain);
-        const crackle = level(filt("bandpass", 2200, 6, loop(0.7, "pink")), 0.007);
-        lfo(0.11, 0.005, crackle.gain);
-        const hiss = level(filt("highpass", 4800, 1, loop(1.1, "pink")), 0.004);
-        lfo(0.05, 0.003, hiss.gain);
-      },
-    },
+    // (the Ashfall Caldera has no music bed of its own: its rumble and crackle live on the ambience
+    // bus - the scape's calderaRumble and the crater's room tone - and a music-bus copy only painted
+    // a flat skirt across the band the phone test measures. The march owns the music bus alone.)
   };
 
 /* ---------- calm themes ---------- */
