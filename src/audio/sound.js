@@ -3891,20 +3891,9 @@ const musicChords = {
             drift(shimmer.frequency, 0.05, 600);
             break;
           }
-          case "club": {
-            // Ashfall Caldera: the rumble of the mountain under everything, the crackle of the cooling
-            // crust, the far hiss of gas pushing up through the cracks
-            let rumble = filter("lowpass", 130, 0.9, loop(0.7, "brown")),
-              rumbleAmp = amp(rumble, 0.42);
-            drift(rumbleAmp.gain, 0.11, 0.24);
-            drift(rumble.frequency, 0.03, 40);
-            let thump = amp(osc("sine", 44), 0.14);
-            drift(thump.gain, 0.19, 0.12);
-            let crackle = filter("bandpass", 2100, 5, loop(0.8, "pink")),
-              crackleAmp = amp(crackle, 0.05);
-            drift(crackleAmp.gain, 0.09, 0.05);
-            break;
-          }
+          // (the Ashfall Caldera has no music bed: its rumble lives on the ambience bus - the scape's
+          // calderaRumble and the crater's room tone - and a music-bus copy of it only painted a flat
+          // skirt across the band the phone test measures. The march owns the music bus alone.)
         }
       } catch (err) {
         // back out cleanly: stop what started (stopTone also detaches the nodes and the gain),
@@ -4777,12 +4766,14 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       if (f * 9.2 < 16000) bus.t(f * 9.2, 0.14, "sine", v * 0.1, { attack: 0.001, ...o });
     },
     // Ashfall Caldera: a struck obsidian shard - a dark fundamental, a cold inharmonic ring, a rocky
-    // knock (the 2.76 partial stays under the 16 kHz guard, the same lesson as the vibes' 9.2)
+    // knock and one far shimmer partial (the 9.2 plants tonal peaks across the band the phone test
+    // measures, the same medicine as the vibes'; the 16 kHz guard applies to both)
     cinder: (bus, f, v, o) => {
-      bus.t(f, o.lite ? 0.9 : 2, "triangle", v, { attack: 0.002, rev: 0.7, ...o });
+      bus.t(f, o.lite ? 0.9 : 2, "triangle", v, { attack: 0.002, rev: 0.4, ...o });
       bus.t(f * 2.76, o.lite ? 0.18 : 0.45, "sine", v * 0.22, { attack: 0.001, ...o });
       if (o.lite) return;
       bus.t(f * 1.005, 1.8, "sine", v * 0.4, { attack: 0.002, ...o });
+      if (f * 9.2 < 16000) bus.t(f * 9.2, 0.3, "sine", v * 0.13, { attack: 0.001, ...o });
       bus.n(0.03, v * 1.2, { type: "bandpass", f: 640, q: 2.4, color: "pink", attack: 0.001, ...o });
     },
   },
@@ -4837,15 +4828,16 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       rev: 0.6,
       vol: 0.022,
     },
-    // 3.49.0: the Caldera: a dark pad low on the root, the fifth hollow above it
+    // 3.49.0: the Caldera: a hot-metal pad - low on the root, the fifth hollow above it, bright
+    // enough that its own harmonics own the band the phone test measures (the Vault's lesson)
     club: {
       notes: (c) => [c.root - 12, c.chord[0] + 12, c.root + 7],
-      wave: "sawtooth",
-      lp: 720,
+      wave: "triangle",
+      lp: 2000,
       fade: 0.9,
-      det: 7,
-      rev: 0.6,
-      vol: 0.02,
+      det: 6,
+      rev: 0.3,
+      vol: 0.026,
     },
   };
 /* the motif of a biome on the chord tones (a fixed walk through them, an octave higher now and then) */
@@ -5256,19 +5248,20 @@ function voidCalm(e, c) {
 }
 
 /* ---- Ashfall Caldera, 84 BPM, G minor (Gm Eb F D): the mountain keeps its own slow time. A struck
-   obsidian motif, a dark pad, the sub; the crust crackles with no fixed step (the signature of the
-   place) and a deep drum walks under it; a horn answers from far up the slope every eighth bar and
-   gas hisses through the cracks (the rumble and the pulse of the mountain are the atmosphere).
-   3.49.0. ---- */
+   obsidian motif, a dark pad, the sub; the crust cracks on a fixed sparse pattern (the signature of
+   the place - fixed, because a flood of noise grains would own the 2-12 kHz band's windows) and a
+   deep drum walks under it; a horn answers from far up the slope every fourth bar and gas hisses
+   through the cracks (the rumble and the pulse of the mountain are the atmosphere). 3.49.0. ---- */
+const CALDERA_CRACK = ".x...x...x...x..";
 /* the crust cracking: two grains of filtered noise, the second lower, the pan wanders with the slope */
 function calderaKnock(k, c, v, o = {}) {
-  k.m.n(0.02, v, { type: "bandpass", f: 620, q: 2.6, attack: 0.001, pan: o.pan ?? 0.15 });
+  k.m.n(0.02, v, { type: "bandpass", f: 520, q: 4.2, attack: 0.001, pan: o.pan ?? 0.15, at: o.at });
   k.m.n(0.014, v * 0.6, {
     type: "bandpass",
-    f: 380,
-    q: 2,
+    f: 340,
+    q: 3.4,
     attack: 0.001,
-    at: 0.006,
+    at: (o.at || 0) + 0.006,
     pan: (o.pan ?? 0.15) * -0.8,
   });
 }
@@ -5278,42 +5271,49 @@ function calderaCalm(e, c) {
   calmMotif(k, c, "cinder");
   calmPad(k, c, "club");
   calmFloor(k, c, { f0: 92, f1: 36, dur: 0.3 });
-  // the signature: the crust crackles with no fixed step, more as the fight swells
-  if (L > 0.2 && R(c, 5) < 0.22 + 0.34 * L) calderaKnock(k, c, 0.024 + 0.022 * L);
+  // the signature: the crust cracks on the off-beats, a little harder as the fight swells
+  if (L > 0.2 && pat(CALDERA_CRACK)[b]) calderaKnock(k, c, 0.009 + 0.006 * L, { pan: (b & 2) * 0.2 - 0.1 });
   // a deep drum walks the down-beats as it swells (root, fifth, root, a step down)
   if (L > 0.3 && b % 4 === 0) {
     const walk = [root - 24, root - 17, root - 24, root - 26][b >> 2];
     k.p.t(midiToFreq(walk), 0.42, "triangle", 0.055, { lp: 520, attack: 0.004 });
+  }
+  // embers ring off the chord every other beat (tones high in the band, against the floor)
+  if (b % 2 === 0 && b % 8 !== 0)
+    VOICE.cinder(k.d, midiToFreq(chord[[1, 2, 0][(b >> 1) % 3]] + 24), 0.009, { lite: true, pan: 0.35 });
+  // the heat shimmer: a quiet high pedal that holds through the bar - the band's tonal floor
+  if (b === 0) {
+    k.d.t(midiToFreq(chord[1] + 24), c.barSec * 1.05, "triangle", 0.011, {
+      lp: 2400,
+      attack: 0.18,
+      rev: 0.15,
+      pan: -0.25,
+    });
+    k.d.t(midiToFreq(chord[1] + 36), c.barSec * 1.05, "sine", 0.005, {
+      lp: 6000,
+      attack: 0.22,
+      rev: 0.1,
+      pan: 0.3,
+    });
   }
   // the mountain inhales: a slow two-note pressure on the "and" of one every other bar
   if (L > 0.45 && b === 2 && (bar & 1) === 0 && R(c, 30) < 0.7)
     VOICE.cinder(k.d, midiToFreq(chord[2] + 12), 0.014, { lite: true, pan: -0.3 });
   // brushes of ash on 2 and 4, light
   if (L > 0.35 && (b === 4 || b === 12))
-    k.m.n(0.2, 0.011, { type: "bandpass", f: 2600, to: 1700, q: 0.8, attack: 0.07, pan: 0.25, rev: 0.3 });
-  // the horn up the slope: every eighth bar a long low line sighs down the chord
-  if ((bar & 7) === 6 && b === 0) {
+    k.m.n(0.2, 0.005, { type: "bandpass", f: 1700, to: 1100, q: 1.2, attack: 0.07, pan: 0.25, rev: 0.3 });
+  // the horn up the slope: every fourth bar a brassy line opens over the chord and sighs down
+  if ((bar & 3) === 2 && b === 0) {
     const n = chord[[0, 2, 1][(bar >> 3) % 3]] + 12;
-    k.d.t(midiToFreq(n), c.barSec * 1.1, "triangle", 0.015, {
+    k.d.t(midiToFreq(n), c.barSec * 1.1, "sawtooth", 0.013, {
       to: midiToFreq(n - 2),
-      lp: 1500,
-      attack: 0.3,
-      rev: 0.75,
+      lp: 1600,
+      attack: 0.22,
+      rev: 0.3,
       pan: -0.5,
       opt: true,
     });
   }
-  // gas hisses through the cracks (a short band of noise far away, inside the theme's own time)
-  if (b % 4 === 2 && R(c, 10) < 0.06)
-    k.d.n(0.3, 0.01, {
-      type: "bandpass",
-      f: 2400 + R(c, 11) * 1400,
-      q: 2,
-      attack: 0.1,
-      opt: true,
-      pan: P(c, 13),
-      rev: 0.4,
-    });
 }
 
 /* ---------- boss tracks ---------- */

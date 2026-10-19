@@ -211,13 +211,13 @@ const PLACE = {
   // ---- 3.49.0: the Ashfall Caldera: the mountain breathes, the vents hiss, the embers talk ----
   // the steady bed: the caldera's own rumble, a swell that never quite settles
   calderaRumble(e, a) {
-    N(e, a, 1.9, 0.027, { f: 110, to: 60, color: "brown", attack: 0.8 });
-    T(e, a, 46, 1.75, "sine", 0.024, { to: 40, attack: 0.85 });
+    N(e, a, 1.9, 0.02, { f: 110, to: 60, color: "brown", attack: 0.8 });
+    T(e, a, 46, 1.75, "sine", 0.018, { to: 40, attack: 0.85 });
   },
   // a pressure pulse through the ground: the mountain inhales
   ventPulse(e, a) {
-    T(e, a, 52, 0.9, "sine", 0.03, { to: 38, attack: 0.3 });
-    N(e, a, 0.5, 0.009, { f: 180, to: 70, color: "brown", attack: 0.25 });
+    T(e, a, 52, 0.9, "sine", 0.024, { to: 38, attack: 0.3 });
+    N(e, a, 0.5, 0.007, { f: 180, to: 70, color: "brown", attack: 0.25 });
   },
   // an ember cracks open: a sharp little pop, sometimes a second
   emberPop(e, a) {
