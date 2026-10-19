@@ -187,5 +187,35 @@ const newer = () => ({
   check("the old sound notes are cleared at start", !mem.has("riftline.soundNotes"));
 }
 
+// 3.48.0: resetSettings puts the stock settings back (audio, video, controls, HUD layout) and keeps
+// every bit of progress; the next store reads the same story back from the storage
+{
+  reset();
+  const store = new SaveStore();
+  store.data.shards = 4321;
+  store.data.stats.bestWave = 12;
+  store.data.settings.sfx = 0.1;
+  store.data.settings.music = 1;
+  store.data.settings.quality = "battery";
+  store.data.settings.hudLayout = { portrait: {}, landscape: null };
+  store.resetSettings();
+  const s = store.data.settings;
+  const d = newSave().settings;
+  check(
+    "resetSettings: the stock settings come back",
+    JSON.stringify(s) === JSON.stringify(d) &&
+      s.sfx === 0.8 &&
+      s.music === 0.45 &&
+      s.ambience === 0.8 &&
+      s.quality === "auto" &&
+      s.hudLayout === null,
+    JSON.stringify(s),
+  );
+  check("resetSettings: progress stays", store.data.shards === 4321 && store.data.stats.bestWave === 12);
+  check("resetSettings: written through", stored().settings.sfx === 0.8 && stored().shards === 4321);
+  const again = new SaveStore();
+  check("resetSettings: survives a reload", again.data.settings.music === 0.45 && again.data.shards === 4321);
+}
+
 console.log(failed ? `\nSAVE (node): ${failed} check(s) failed` : "\nSAVE (node): all checks passed");
 process.exit(failed ? 1 : 0);

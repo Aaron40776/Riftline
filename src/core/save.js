@@ -653,6 +653,12 @@ const safeStorage = {
       this.data.settings = settings;
       this.save("reset");
     }
+    /* 3.48.0: the stock settings come back (audio, video, controls and the HUD layout); the progress,
+       the run and the seen flags are not touched. The next load sanitizes the object as usual. */
+    resetSettings() {
+      this.data.settings = { ...defaultSettings };
+      this.save("settings");
+    }
   };
 
 // 2.5.0 A: a run saved with retired upgrades (RL_RETIRED_UPGRADES in data/upgrades.js) keeps their

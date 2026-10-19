@@ -22,9 +22,10 @@ import {
   MUSIC_DUCK,
   BOSS_SOUND,
   attackVoice,
+  AMB_PREVIEW,
 } from "../audio/sound.js";
 import { lookOf, ATTACK_LOOK } from "../render/attacks-view.js";
-import { PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, PROP_HEAR } from "../audio/place.js";
+import { PLACE, PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, PROP_HEAR } from "../audio/place.js";
 import { STEP_LEN, FLOOR } from "./walk.js";
 import { buildPlayerModel } from "../render/models.js";
 import {
@@ -1793,6 +1794,9 @@ function selfTestV270Sound(result) {
       else if (voice && voice.fire) trapVoices.push(voice.fire);
     }
     if (new Set(trapVoices).size !== trapVoices.length) fail.push("trap-sounds-shared");
+    // 3.48.0: every biome has its preview sound of the place for the Settings slider, and it exists
+    for (const biome of biomeList)
+      if (!PLACE_IDS.includes(AMB_PREVIEW[biome.id])) fail.push("preview-place:" + biome.id);
     for (const id of ["singThrow", "singPull", "singCollapse", "gadgetReady", "gadgetNo", "resist"])
       if (!known.has(id)) fail.push("no-sound:" + id);
     for (const table of [RL_CHARGE_VOICE, RL_DASH_VOICE, RL_BOSS_ATK])
@@ -1842,6 +1846,16 @@ function selfTestV270Sound(result) {
     suspended.ctx = { state: "running" };
     suspended.sfxVol = 0;
     suspended.play("hurt");
+    // 3.48.0: the slider previews answer the same gates — a muted bus stays silent on a live
+    // context, and a missing context is survived without an error
+    suspended.musVol = 0;
+    suspended.ambVol = 0;
+    suspended.previewBus("sfx", "pulse");
+    suspended.previewBus("music");
+    suspended.previewBus("ambience");
+    idle.previewBus("sfx", "pulse");
+    idle.previewBus("music");
+    idle.previewBus("ambience");
     if (played.length) fail.push("sound-while-suspended-or-muted:" + played);
     if (idle.failed || suspended.failed) fail.push("engine-error-without-ctx");
     // (c) every event that should sound reaches a sound, and the voices end
@@ -1862,6 +1876,18 @@ function selfTestV270Sound(result) {
           if (!heard.length) fail.push("event-silent:" + kind);
         }
       if (engine.failed) fail.push("engine-error-in-consume");
+      // 3.48.0: the previews of the sliders are heard once per tick of the throttle, on their buses,
+      // and none of them breaks the engine
+      engine.sfxVol = 0.8;
+      engine.musVol = 0.45;
+      engine.ambVol = 0.8;
+      heard.length = 0;
+      engine.previewBus("sfx", "pulse");
+      engine.previewBus("sfx", "pulse");
+      if (heard.length !== 1) fail.push("preview-throttle:" + heard.length);
+      engine.previewBus("music");
+      engine.previewBus("ambience");
+      if (engine.failed) fail.push("preview-error");
       // 2.8.2: sounds never take voices from the music
       for (let i = 0; i < 6; i++) engine.tone(220 + i * 10, 1, "sine", 0.01, { dest: engine.mus, at: 0.1 });
       const musicBefore = engine.musicVoiceList.filter((voice) => voice.node).length;

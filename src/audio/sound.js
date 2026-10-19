@@ -676,6 +676,8 @@ const musicChords = {
       this.duckGain = null;
       this.duckT = -1e9;
       this.duckDepth = 0;
+      // 3.48.0: the last tick of every slider preview, per bus (see previewBus)
+      this.previewT = {};
       this.musicScheduled = 0;
       this.musicSkipped = 0;
       // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the boss heat (0 calm, 1 after a phase change,
@@ -1253,6 +1255,30 @@ const musicChords = {
       } finally {
         this.curPri = 1;
         this.curRev = 0;
+      }
+    }
+    /* 3.48.0: the volume sliders of the Settings let the ear check what they set: every bus answers with
+       one real sound of the game on that bus, at the level the slider just put in. Effects fire the shot
+       of the weapon in hand, music plays the arrival braam of the biome, the ambience sounds one far
+       voice of the place. A short throttle per bus keeps a drag from machine-gunning the sample, and the
+       usual gates apply (no live context or a muted bus: nothing sounds, nothing throws). */
+    previewBus(bus, weapon) {
+      if (!this.live()) return;
+      // the gate comes first: a muted bus answers nothing and its throttle stays clean, so turning
+      // the volume back up is heard at once
+      if (bus === "sfx" && this.sfxVol <= 0) return;
+      if (bus === "music" && this.musVol <= 0) return;
+      if (bus === "ambience" && this.ambVol <= 0) return;
+      let now = this.nowT(),
+        gap = bus === "music" ? 0.5 : 0.22;
+      if (now - (this.previewT[bus] ?? -1e9) < gap) return;
+      this.previewT[bus] = now;
+      try {
+        if (bus === "sfx") this.play(weapon || "pulse");
+        else if (bus === "music") musicImpact(this, this.wantBiome(), 0);
+        else if (bus === "ambience") this.placePlay(AMB_PREVIEW[this.wantBiome()] || "glassClink", { g: 1, pan: 0 });
+      } catch (err) {
+        this.fail(err);
       }
     }
     /* 2.9.0: a light sidechain: the music gain dips by `depth` (at most 15 %) for about 80 ms and comes back
@@ -5786,6 +5812,17 @@ function bossHeatLayer(e, c) {
    deep taiko, the brass on the root with a major third (the victory), a choir and the instrument of the biome once
    more. A phase change or the enrage jumps to the head of the drop, whose own hit (sectionHit) marks it. */
 const BIOME_VOICE = { yard: "piano", works: "pipes", vault: "ice", marsh: "kalimba", void: "glass", club: "vibes" };
+/* 3.48.0: the ambience preview of the Settings slider — one far sound that says "this is the place":
+   the City sparks a broken lamp, the Works lets off a steam valve, icicles fall in the Vault, the
+   Marsh answers with frogs, the Core shimmers and the Club clinks a glass. */
+const AMB_PREVIEW = {
+  yard: "sparks",
+  works: "steam",
+  vault: "icicles",
+  marsh: "frogs",
+  void: "shimmer",
+  club: "glassClink",
+};
 function musicImpact(e, biome, at) {
   const root = (musicChords[biome] || musicChords.yard)[0][0],
     k = kit(e, { at });
@@ -6054,4 +6091,5 @@ export {
   MUSIC_DUCK,
   BOSS_SOUND,
   attackVoice,
+  AMB_PREVIEW,
 };
