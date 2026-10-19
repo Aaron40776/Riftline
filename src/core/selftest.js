@@ -486,13 +486,14 @@ function rlSelfTest() {
   result = selfTestV3470(result);
   return result;
 }
-/* ---- 3.47.0: the Onyx Club: the biome, its boss and its reward behave. The live parts of the Kingpin
-   (his attacks, his Overdrive, his sounds) are covered by the generic loops over bossOrder; this checks
-   the pieces that only exist once: the RAID event, the Showy death jet and the tribute payout. ---- */
+/* ---- 3.49.0 (was 3.47.0): the Ashfall Caldera: the biome, its boss and its reward behave. The live
+   parts of the Ash Tyrant (its attacks, its Overdrive, its sounds) are covered by the generic loops over
+   bossOrder; this checks the pieces that only exist once: the ASHFALL event, the Flareheart death jet
+   and the tithe payout. ---- */
 function selfTestV3470(result) {
   const fail = [];
   try {
-    // the RAID is the Club's event and it is wired like the others
+    // ASHFALL is the Caldera's event and it is wired like the others
     if (RL_BIOME_EVENT.club !== "raid") fail.push("raid-missing");
     const raid = waveEvents.raid;
     if (!raid || raid.biome !== "club" || raid.shardMul !== 1.25) fail.push("raid-def");
@@ -2717,8 +2718,8 @@ function selfTestV380(result) {
           vault: { idle: ["s:ice", "shard"] },
           marsh: { idle: ["s:acid", "bank", "bubble"] },
           void: { idle: ["s:portal", "stone"] },
-          // 3.47.0: the Club's stage pyro: a brass nozzle, a gold molten heart, a gold jet
-          club: { idle: ["s:gold", "nozzle"], erupt: ["s:pyro"] },
+          // 3.49.0: the Caldera's fumarole: a basalt nozzle, a molten heart, a magma jet
+          club: { idle: ["s:molten", "nozzle"], erupt: ["s:pyro"] },
         },
         drawn = (name) => {
           const set = view.pl[name];
@@ -2795,8 +2796,8 @@ function selfTestV390(result) {
         vault: ["iceCrack|iceCreak", "iceTink"],
         marsh: ["acidBubble", "acidSizzle"],
         void: ["portalHum"],
-        // 3.47.0: the Club's vents bubble like any lava vent, and the band's thump comes through the floor
-        club: ["lavaBlub", "lavaWarn", "stageThump"],
+        // 3.49.0: the Caldera's vents bubble like any lava vent, and the mountain's pulse comes through the floor
+        club: ["lavaBlub", "lavaWarn", "ventPulse"],
       };
       for (const biome of Object.keys(want)) {
         const world = new World({ seed: 0x390, weapon: "pulse", threat: 0, ws: {} }),
@@ -2933,7 +2934,7 @@ function selfTestV3100(result) {
       "rain|core": [ATTACK_LOOK.rift, "aRift"],
       "rain|queen": [ATTACK_LOOK.acid, "aAcid"],
       "rain|forge": [ATTACK_LOOK.molten, "aLava"],
-      // 3.47.0: the Kingpin's molotovs burst into fire
+      // 3.49.0: the Ash Tyrant's molotovs burst into fire
       "rain|kingpin": [ATTACK_LOOK.burn, "aFire"],
       "stomp|forge": [ATTACK_LOOK.lavaCrack, "aQuake"],
       "stomp|warden": [ATTACK_LOOK.crack, "aQuake"],
@@ -3529,7 +3530,7 @@ function selfTestV3160(result) {
       vault: "cryo",
       marsh: "acid",
       void: "rift",
-      club: "laser",
+      club: "flame",
     })) {
       const world = new World({ seed: 0x3161, weapon: "pulse", threat: 0, ws: {} });
       world.startWave(2);

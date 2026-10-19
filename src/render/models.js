@@ -1789,44 +1789,51 @@ function buildBossModel(type, color) {
     ];
     group.userData.mats = [ironMat];
   } else if (type === "kingpin") {
-    // 3.47.0: THE KINGPIN, owner of the Onyx Club: a broad figure in a pinstripe suit (hullMat, the
-    // boss colour turned suit-dark) with a fedora, a glowing gold tie and watch chain, a tommy gun
-    // in one hand and a cigar in the other. The renderer throws ember puffs off the cigar
-    // (userData.chimneys) and draws his charge aim-line.
-    const suitTrim = new MeshLambertMaterial({ color: 0x1a1216, emissive: 0, flatShading: true });
-    // the body: a broad torso, a starched shirt front, the tie
+    // 3.49.0: THE ASH TYRANT, master of the Ashfall Caldera (was the Onyx Club's Kingpin): a hulking
+    // figure in cracked obsidian plate (hullMat, the boss colour turned ember) with molten seams, an
+    // ember crest on the helm and molten fists. The renderer throws embers off its shoulder vents
+    // (userData.chimneys) and draws its charge aim-line.
+    const plateTrim = new MeshLambertMaterial({ color: 0x1a1412, emissive: 0, flatShading: true });
+    // the body: a broad chest plate with a molten seam down the front, the lava core under it
     addMesh(new BoxGeometry(2.3, 1.7, 1.5), hullMat, 0, 1.95, 0);
-    addMesh(new BoxGeometry(0.62, 1.35, 0.14), suitTrim, 0, 2.05, 0.78);
+    addMesh(new BoxGeometry(0.62, 1.35, 0.14), plateTrim, 0, 2.05, 0.78);
     addMesh(new BoxGeometry(0.16, 0.95, 0.06), glowMat, 0, 2.2, 0.86);
     addMesh(new BoxGeometry(1.9, 0.5, 1.25), hullMat, 0, 0.85, 0);
     for (const side of [-1, 1]) {
-      addMesh(new CylinderGeometry(0.34, 0.42, 1.15, 8), suitTrim, side * 0.55, 0.55, 0);
-      addMesh(new BoxGeometry(0.44, 0.22, 0.8), suitTrim, side * 0.55, 0.11, 0.12);
-      // shoulders and cuffs
+      addMesh(new CylinderGeometry(0.34, 0.42, 1.15, 8), plateTrim, side * 0.55, 0.55, 0);
+      addMesh(new BoxGeometry(0.44, 0.22, 0.8), plateTrim, side * 0.55, 0.11, 0.12);
+      // pauldrons and molten cuffs
       addMesh(new SphereGeometry(0.52, 10, 8), hullMat, side * 1.28, 2.62, 0);
       addMesh(new BoxGeometry(0.3, 0.12, 0.3), glowMat, side * 1.55, 1.72, 0.18);
     }
-    // the head: a square jaw, glowing eyes under the brim
-    addMesh(new BoxGeometry(0.78, 0.72, 0.78), suitTrim, 0, 3.2, 0);
+    // the head: a basalt helm, glowing eyes deep in its shadow
+    addMesh(new BoxGeometry(0.78, 0.72, 0.78), plateTrim, 0, 3.2, 0);
     addMesh(new BoxGeometry(0.6, 0.14, 0.06), glowMat, 0, 3.3, 0.41);
     addMesh(new BoxGeometry(0.1, 0.06, 0.04), glowMat, 0.18, 3.34, 0.42);
     addMesh(new BoxGeometry(0.1, 0.06, 0.04), glowMat, -0.14, 3.34, 0.42);
-    // the fedora: a crown, a wide brim, a gold band
-    addMesh(new CylinderGeometry(0.42, 0.5, 0.42, 12), suitTrim, 0, 3.75, 0);
-    addMesh(new CylinderGeometry(0.88, 0.92, 0.06, 14), suitTrim, 0, 3.55, 0);
-    addMesh(new CylinderGeometry(0.52, 0.52, 0.09, 12), glowMat, 0, 3.6, 0);
-    // the tommy gun: barrel, drum magazine, a hot muzzle
-    const gun = addMesh(new BoxGeometry(1.7, 0.24, 0.22), suitTrim, 1.35, 1.75, 0.95);
+    // the ember crest: a molten ridge over the helm between two horn plates swept back
+    addMesh(new CylinderGeometry(0.42, 0.5, 0.42, 12), plateTrim, 0, 3.75, 0);
+    addMesh(new BoxGeometry(0.1, 0.34, 0.7), glowMat, 0, 4.06, -0.05);
+    const hornL = addMesh(new ConeGeometry(0.16, 0.66, 6), plateTrim, 0.3, 4.12, -0.18);
+    hornL.rotation.x = -0.55;
+    hornL.rotation.z = -0.22;
+    const hornR = addMesh(new ConeGeometry(0.16, 0.66, 6), plateTrim, -0.3, 4.12, -0.18);
+    hornR.rotation.x = -0.55;
+    hornR.rotation.z = 0.22;
+    // the cinder thrower: a slab barrel over a molten drum, a hot muzzle
+    const gun = addMesh(new BoxGeometry(1.7, 0.24, 0.22), plateTrim, 1.35, 1.75, 0.95);
     gun.rotation.y = -0.25;
-    const drum = addMesh(new CylinderGeometry(0.26, 0.26, 0.16, 12), suitTrim, 1.15, 1.42, 1.02);
+    const drum = addMesh(new CylinderGeometry(0.26, 0.26, 0.16, 12), plateTrim, 1.15, 1.42, 1.02);
     drum.rotation.x = Math.PI / 2;
     addMesh(new BoxGeometry(0.14, 0.14, 0.14), glowMat, 2.2, 1.85, 0.75);
-    // the cigar: a stub in the jaw with a glowing tip (the ember puffs come off it)
-    const cigar = addMesh(new CylinderGeometry(0.09, 0.09, 0.5, 8), suitTrim, 0.62, 3.12, 0.28);
-    cigar.rotation.set(Math.PI / 2 - 0.18, 0, 0.12);
-    addMesh(new SphereGeometry(0.07, 6, 5), glowMat, 0.86, 3.2, 0.3);
-    group.userData.chimneys = [[0.92, 3.22, 0.3]];
-    // the watch chain across the vest, a ring of gold coins at the foot
+    // the shoulder vents: the embers drift off them (the old cigar's chimney, twice over)
+    addMesh(new CylinderGeometry(0.1, 0.14, 0.14, 8), plateTrim, 1.02, 2.86, 0.1);
+    addMesh(new CylinderGeometry(0.1, 0.14, 0.14, 8), plateTrim, -1.02, 2.86, 0.1);
+    group.userData.chimneys = [
+      [1.02, 2.98, 0.1],
+      [-1.02, 2.98, 0.1],
+    ];
+    // the molten chain across the chest plate, a ring of cast-off embers burning at the feet
     const chain = addMesh(new TorusGeometry(0.52, 0.045, 5, 26), glowMat, 0, 2.35, 0.62);
     chain.rotation.x = 1.25;
     for (let i = 0; i < 6; i++) {
@@ -1840,7 +1847,7 @@ function buildBossModel(type, color) {
       );
       coin.rotation.x = Math.PI / 2;
     }
-    group.userData.mats = [hullMat, suitTrim];
+    group.userData.mats = [hullMat, plateTrim];
   } else {
     addMesh(new SphereGeometry(1.15, 18, 12), glowMat, 0, 2.4, 0);
     for (let i = 0; i < 3; i++) {

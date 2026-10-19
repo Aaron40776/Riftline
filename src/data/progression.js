@@ -102,11 +102,11 @@ const milestones = [
     reward: 175,
     test: (save) => (save.stats.bosses.forge || 0) > 0,
   },
-  // 3.47.0: the Kingpin, boss of the Onyx Club
+  // 3.49.0: the Ash Tyrant, boss of the Ashfall Caldera
   {
     id: "kingpin",
-    name: "Hostile Takeover",
-    desc: "Defeat the Kingpin",
+    name: "Mountain Falls",
+    desc: "Defeat the Ash Tyrant",
     reward: 175,
     test: (save) => (save.stats.bosses.kingpin || 0) > 0,
   },

@@ -37,9 +37,9 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
     eruption: "ERUPTION",
     furnace: "FURNACE BLAST",
     stoke: "STOKE",
-    // 3.47.0: The Kingpin
-    barrage: "TOMMY GUN",
-    lastcall: "OVERDRIVE · LAST CALL",
+    // 3.49.0: The Ash Tyrant
+    barrage: "MOLTEN FAN",
+    lastcall: "OVERDRIVE · FIRESTORM",
   },
   Overlay = class {
     constructor(canvas) {

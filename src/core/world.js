@@ -572,7 +572,7 @@ const rlStep = 1 / 60,
         vault: ["bulwark", "gunner", "sentinel", "turret"],
         void: ["striker", "brute", "phantom", "weaver"],
         marsh: ["splitter", "brute", "sapper", "carrier"],
-        // 3.47.0: the Club's champions: the made men of the mob
+        // 3.49.0: the Caldera's champions: the burning dead the Tyrant calls up
         club: ["gunner", "brute", "bomber", "sapper", "charger"],
       }[biome];
       if (special) {
@@ -2323,8 +2323,8 @@ const rlStep = 1 / 60,
         this._src = src;
         this.emit("shortArm", { x: enemy.x, y: enemy.y, r: SHORT_R });
       }
-      // 3.47.0: a Showy enemy goes out with a show: the stage pyro jets where it falls (a short
-      // golden geyser that burns what stands in it - the same fire the scorch trail uses)
+      // 3.49.0: a Flareheart enemy goes out in a flare: a fumarole jets where it falls (a short
+      // molten geyser that burns what stands in it - the same fire the scorch trail uses)
       if (enemy.variant === "showy") {
         const src = this._src;
         this._src = enemy.type;
@@ -3450,8 +3450,8 @@ const rlStep = 1 / 60,
           vent.st = "idle";
         });
       } else if (id === "raid") {
-        // 3.47.0: the RAID: three more pyro vents, the house lights die (the renderer dims), and every
-        // jet fires in step, Meltdown's timing - the club fights back all at once
+        // 3.49.0: ASHFALL: three more fumaroles, the lights die under the ash (the renderer dims), and
+        // every jet fires in step, Meltdown's timing - the caldera fights back all at once
         add("vents", 3);
         const period = RL_MELTDOWN_PERIOD;
         for (const vent of arena.vents) {

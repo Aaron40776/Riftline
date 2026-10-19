@@ -700,7 +700,7 @@ const placeMusic =
         vault: (log) =>
           log.filter((v) => v.bus === "m" && ((v.kind === "t" && v.pitch > 1000 && v.dur <= 0.06) || v.kind === "n"))
             .length,
-        // 3.47.0: the Onyx Club's finger snaps (short band-passed noises on the music bus)
+        // 3.49.0: the Ashfall Caldera's cracking crust (short band-passed noises on the music bus)
         club: (log) => log.filter((v) => v.kind === "n" && v.bus === "m" && v.dur <= 0.03).length,
       };
     for (const [biome, count] of Object.entries(want)) {

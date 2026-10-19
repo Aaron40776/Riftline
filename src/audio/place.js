@@ -208,61 +208,53 @@ const PLACE = {
   glitch(e, a) {
     for (let i = 0; i < 5; i++) T(e, a, rand(200, 2200), 0.03, "square", 0.02, { at: i * 0.045, lp: 3000 });
   },
-  // ---- 3.47.0: the Onyx Club: the room at its tables, the band through the floor, the door ----
-  // a glass set down on a wet bar top: two bright ticks and a low knock
-  glassClink(e, a) {
-    const f = rand(2100, 3100);
-    T(e, a, f, 0.09, "sine", 0.05, { to: f * 0.6 });
-    T(e, a, f * 1.5, 0.05, "sine", 0.025, { at: 0.012 });
-    T(e, a, rand(120, 180), 0.08, "sine", 0.04, { at: 0.03, to: 80 });
+  // ---- 3.49.0: the Ashfall Caldera: the mountain breathes, the vents hiss, the embers talk ----
+  // the steady bed: the caldera's own rumble, a swell that never quite settles
+  calderaRumble(e, a) {
+    N(e, a, 1.9, 0.02, { f: 110, to: 60, color: "brown", attack: 0.8 });
+    T(e, a, 46, 1.75, "sine", 0.018, { to: 40, attack: 0.85 });
   },
-  // a bottle slides along the bar and is caught
-  bottleSet(e, a) {
-    N(e, a, 0.22, 0.05, { type: "bandpass", f: 900, to: 400, q: 1.2, attack: 0.01 });
-    T(e, a, rand(150, 210), 0.1, "sine", 0.05, { at: 0.2, to: 90 });
-    T(e, a, rand(2200, 2800), 0.06, "sine", 0.03, { at: 0.22 });
+  // a pressure pulse through the ground: the mountain inhales
+  ventPulse(e, a) {
+    T(e, a, 52, 0.9, "sine", 0.024, { to: 38, attack: 0.3 });
+    N(e, a, 0.5, 0.007, { f: 180, to: 70, color: "brown", attack: 0.25 });
   },
-  // the crowd away from the room swells for a moment (a band of voices, never words)
-  crowdMur(e, a) {
-    N(e, a, 1.6, 0.09, { type: "bandpass", f: 440, to: 700, q: 1.1, attack: 0.5 });
-    N(e, a, 1.6, 0.05, { type: "bandpass", f: 1300, to: 1600, q: 2.5, attack: 0.6, dp: 0.2 });
+  // an ember cracks open: a sharp little pop, sometimes a second
+  emberPop(e, a) {
+    N(e, a, 0.03, 0.09, { type: "bandpass", f: rand(2600, 3800), q: 2.2 });
+    T(e, a, rand(900, 1400), 0.05, "triangle", 0.03, { at: 0.015, to: 500 });
+    if (Math.random() < 0.5) N(e, a, 0.02, 0.05, { type: "bandpass", f: rand(3200, 4600), q: 3, at: 0.05 });
   },
-  // a stage thump through the floor: the band lands a low note
-  stageThump(e, a) {
-    T(e, a, 62, 0.4, "sine", 0.12, { to: 40, attack: 0.01 });
-    N(e, a, 0.12, 0.045, { f: 220, to: 90, color: "brown" });
+  // a fumarole lets off gas: a narrow hiss that finds its pitch and holds it
+  fumarole(e, a) {
+    N(e, a, 0.9, 0.06, { type: "bandpass", f: 1600, to: 2600, q: 1.2, attack: 0.18 });
+    N(e, a, 0.5, 0.03, { type: "highpass", f: 5200, attack: 0.3, at: 0.15 });
   },
-  // a whistle at the door: two rising notes (the vice squad shows)
+  // stones come down somewhere on the slope: a few knocks and a rattle
+  rockFall(e, a) {
+    for (let i = 0; i < 4; i++) T(e, a, rand(140, 320), 0.08, "sine", 0.06, { to: 90, at: i * rand(0.06, 0.14) });
+    N(e, a, 0.1, 0.05, { type: "bandpass", f: rand(900, 1600), q: 2, at: 0.02 });
+  },
+  // the caldera grumbles far away: a boom with a long brown tail
+  farBoom(e, a) {
+    T(e, a, 68, 1.3, "sine", 0.13, { to: 34, attack: 0.06 });
+    N(e, a, 1.1, 0.07, { f: 160, to: 60, color: "brown", attack: 0.12 });
+    N(e, a, 0.7, 0.03, { type: "bandpass", f: 700, to: 260, q: 1, attack: 0.2, at: 0.08 });
+  },
+  // a vent blasts steam in one short violent breath
+  steamBlast(e, a) {
+    N(e, a, 0.45, 0.1, { type: "bandpass", f: 2200, to: 3600, q: 0.8, attack: 0.015 });
+    T(e, a, 120, 0.2, "sine", 0.05, { to: 70 });
+  },
+  // the hot wind rises off the slope and drags the ash with it
+  cinderGust(e, a) {
+    N(e, a, 1.7, 0.07, { type: "bandpass", f: 480, to: 900, q: 1.4, attack: 0.55, dp: 0.2 });
+    N(e, a, 1.7, 0.03, { type: "bandpass", f: 1900, to: 2600, q: 2.4, attack: 0.7, dp: 0.25 });
+  },
+  // a whistle over the slope: two rising notes (the evacuation siren of the Ashfall event)
   raidWhistle(e, a) {
     T(e, a, 2300, 0.3, "triangle", 0.05, { to: 2900, attack: 0.02 });
     T(e, a, 2900, 0.35, "triangle", 0.05, { at: 0.32, to: 2300 });
-  },
-  // a cork gives up: a pop and a short fizz
-  bottlePop(e, a) {
-    T(e, a, rand(700, 950), 0.09, "sine", 0.08, { to: 240, attack: 0.001 });
-    N(e, a, 0.05, 0.1, { type: "bandpass", f: 2400, q: 1.4, at: 0.01 });
-    N(e, a, 0.5, 0.045, { type: "bandpass", f: 5200, to: 3400, q: 1, attack: 0.03, at: 0.05 });
-  },
-  // the back door swings and slams: a wooden knock and a rattle
-  doorSlam(e, a) {
-    T(e, a, rand(90, 130), 0.16, "sine", 0.14, { to: 55 });
-    N(e, a, 0.08, 0.1, { f: 500, to: 180, color: "brown" });
-    for (let i = 0; i < 3; i++)
-      N(e, a, 0.02, 0.04, { type: "bandpass", f: rand(1800, 2600), q: 4, at: 0.1 + i * 0.05 });
-  },
-  // the room cheers for a moment (a brighter band of the crowd, up and gone)
-  cheerFar(e, a) {
-    N(e, a, 1.8, 0.1, { type: "bandpass", f: 800, to: 1250, q: 1, attack: 0.35 });
-    N(e, a, 1.8, 0.06, { type: "bandpass", f: 2200, to: 2600, q: 2, attack: 0.45, dp: 0.25 });
-  },
-  // a glass goes down badly: a bright smash and a few tumbles
-  glassBreak(e, a) {
-    N(e, a, 0.09, 0.13, { type: "bandpass", f: 3400, to: 1800, q: 1.4 });
-    for (let i = 0; i < 5; i++) {
-      const f = rand(1600, 4200);
-      T(e, a, f, 0.07, "sine", 0.03, { to: f * 0.6, at: 0.08 + i * 0.055 });
-    }
-    N(e, a, 0.2, 0.03, { type: "bandpass", f: 2800, to: 1200, q: 2, at: 0.25 });
   },
   // ---- 3.17.0: the props near the drone (placeTick, PROP_HEAR) ----
   // Blackout City: a street lamp at the edge buzzes on the mains (100 Hz and its harmonics), now and then it ticks
@@ -557,21 +549,21 @@ const SCAPE = {
       { id: "glitch", every: [20, 45] },
     ],
   },
-  // 3.47.0: the Onyx Club: the murmur and the thump are the steady bed (the band plays on through the
-  // fight); the far sounds live at the tables and the door (none of them is a bed id: the scape rules
-  // count a far sound against its own rate, and a bed would break it)
+  // 3.49.0: the Ashfall Caldera: the rumble and the pressure pulse are the steady bed (the mountain
+  // breathes through the fight); the far sounds live on the slope around the arena (none of them is a
+  // bed id: the scape rules count a far sound against its own rate, and a bed would break it)
   club: {
     bed: [
-      ["crowdMur", 1.4, 2.6, 0.9],
-      ["stageThump", 0.9, 1.5, 0.7, 0],
+      ["calderaRumble", 1.4, 2.6, 0.9],
+      ["ventPulse", 0.9, 1.5, 0.7, 0],
     ],
     far: [
-      { id: "glassClink", every: [12, 26] },
-      { id: "bottleSet", every: [16, 34] },
-      { id: "bottlePop", every: [18, 40] },
-      { id: "glassBreak", every: [22, 48] },
-      { id: "doorSlam", every: [24, 50] },
-      { id: "cheerFar", every: [30, 60] },
+      { id: "emberPop", every: [12, 26] },
+      { id: "fumarole", every: [16, 34] },
+      { id: "rockFall", every: [18, 40] },
+      { id: "farBoom", every: [22, 48] },
+      { id: "steamBlast", every: [24, 50] },
+      { id: "cinderGust", every: [30, 60] },
       { id: "raidWhistle", every: [45, 90], big: true },
     ],
   },

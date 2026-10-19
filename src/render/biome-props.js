@@ -999,67 +999,68 @@ function voidDetail(biome, W, H, obs, rng) {
   return out;
 }
 
-/* ---- Onyx Club (3.47.0): the rest of the cellar around the room. Outside the walls: brick piers,
-   stacks of barrels and crates, hanging pipes and swaying bulbs; inside: the red carpet from the
-   entrance, coasters and confetti on the dance floor, an ice bucket with glasses by a table. ---- */
-function clubDetail(biome, W, H, obs, rng) {
+/* ---- Ashfall Caldera (3.49.0): the crater around the arena. Outside the walls: basalt piers, vent
+   mounds that breathe embers, charred stumps, standing stones with a warm tip; inside: the old lava
+   channel runs from the caldera mouth to the dyke (still glowing where its crust broke), ember scars
+   dot the plates, a scatter of settling embers, clusters of obsidian shards. ---- */
+function calderaDetail(biome, W, H, obs, rng) {
   const out = list(),
-    gold = biome.accent,
-    red = 0x5a1420,
-    brick = [0x241418, 0x2a181c, 0x1f1114];
-  // brick piers and barrel stacks out in the cellar
+    hot = biome.accent,
+    crust = 0x1c0f08,
+    basalt = [0x241a16, 0x2a1e18, 0x1e1512];
+  // basalt piers and vent mounds out in the crater
   for (const p of outsideSpots(rng, W, H, 14, 2.6, 7, 3.4)) {
     const t = list();
     if (rng.chance(0.45)) {
-      t.body.push(box(rng.pick(brick), 1.1, 5.5, 1.1, { y: 2.75 }), box(dim(gold, 0.22), 1.14, 0.06, 1.14, { y: 0.5 }));
+      t.body.push(box(rng.pick(basalt), 1.1, 5.5, 1.1, { y: 2.75 }), box(dim(hot, 0.22), 1.14, 0.06, 1.14, { y: 0.5 }));
     } else {
-      const bark = 0x2e2018;
-      for (let k = 0; k < 2; k++) t.body.push(cyl(bark, 0.5, 0.55, 0.9, 12, 0, 0.95 * k, 0));
-      if (rng.chance(0.5)) t.body.push(cyl(bark, 0.5, 0.55, 0.9, 12, 0.78, 0, 0.12));
-      t.body.push(ring(0x4a3a24, 0.56, 0.04, 0, 0.5, 0), ring(0x4a3a24, 0.56, 0.04, 0, 1.35, 0));
+      const mound = 0x211712;
+      for (let k = 0; k < 2; k++) t.body.push(cyl(mound, 0.55, 0.5, 0.9, 9, 0, 0.95 * k, 0));
+      if (rng.chance(0.5)) t.body.push(cyl(mound, 0.45, 0.4, 0.7, 9, 0.78, 0, 0.12));
+      t.glow.push(ring(dim(hot, 0.5), 0.5, 0.04, 0, 0.52, 0), ring(dim(hot, 0.35), 0.45, 0.035, 0, 1.4, 0));
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // crates and kegs against the walls, a light in a few of them
+  // charred stumps and ash banks against the walls, a few still glowing from inside
   for (const p of outsideSpots(rng, W, H, 10, 1.4, 3.2, 2.8)) {
     const t = list(),
       s = rng.range(0.5, 0.8);
-    t.body.push(box(0x3a2c1a, s, s, s, { y: s / 2, ry: rng.range(0, PI) }));
-    if (rng.chance(0.5)) t.body.push(box(0x342818, s * 0.9, s * 0.9, s * 0.9, { y: s * 1.35, ry: rng.range(0, PI) }));
-    if (rng.chance(0.35)) t.glow.push(box(dim(gold, 0.5), 0.06, 0.1, 0.02, { y: s * 0.5, z: s / 2 + 0.01 }));
+    t.body.push(rock(0x1a120e, s, 0, s * 0.7, 0, { ry: rng.range(0, PI) }));
+    if (rng.chance(0.5)) t.body.push(rock(0x181009, s * 0.75, s * 0.8, s * 0.4, s * 0.3, { ry: rng.range(0, PI) }));
+    if (rng.chance(0.35)) t.glow.push(box(dim(hot, 0.5), 0.06, 0.1, 0.02, { y: s * 0.5, z: s / 2 + 0.01 }));
     put(out, t, p.x, 0, p.z, faceIn(p.nx, p.nz));
   }
-  // pipes along the cellar ceiling and a few warm bulbs
+  // standing stones: thin basalt stacks, a warm glow at the tip of a few
   for (const p of outsideSpots(rng, W, H, 8, 2.2, 6, 3)) {
-    out.body.push(pipe(0x1c1a1e, 0.06, 0.05, 4, [p.x, 5.2, p.z], [p.x, 5.2, p.z + rng.range(-2.5, 2.5)]));
-    if (rng.chance(0.5)) out.glow.push(box(0xffd9a0, 0.1, 0.14, 0.1, { x: p.x, y: rng.range(3.6, 4.4), z: p.z }));
+    out.body.push(cone(0x1c1512, 0.5, rng.range(3.5, 5.5), 6, p.x, 0, p.z));
+    if (rng.chance(0.5)) out.glow.push(box(0xffb45a, 0.1, 0.14, 0.1, { x: p.x, y: rng.range(3.0, 4.2), z: p.z }));
   }
-  // the red carpet runs from the entrance to the stage, gold bands at both ends
-  out.body.push(box(red, 2.4, 0.02, 10.6, { y: 0.012, z: -2.2 }));
+  // the old lava channel runs from the caldera mouth to the dyke, glowing where its crust broke
+  out.body.push(box(crust, 2.4, 0.02, 10.6, { y: 0.012, z: -2.2 }));
   out.body.push(
-    box(dim(gold, 0.55), 2.5, 0.015, 0.08, { y: 0.022, z: 3.1 }),
-    box(dim(gold, 0.55), 2.5, 0.015, 0.08, { y: 0.022, z: -7.4 }),
+    box(dim(hot, 0.55), 2.3, 0.014, 0.08, { y: 0.022, z: 3.1 }),
+    box(dim(hot, 0.55), 2.3, 0.014, 0.08, { y: 0.022, z: -7.4 }),
   );
-  // coasters on the tables' neighbourhood and confetti all over the dance floor
+  // ember scars on the plates and a scatter of settling embers
   for (const p of scatter(rng, W, H, obs, 8, { gap: 3.2 })) {
-    out.body.push(disc(0x1c1014, 0.16, p.x, 0.014, p.z, 10), ring(0x6a5320, 0.16, 0.015, p.x, 0.026, p.z));
+    out.body.push(disc(0x160e0a, 0.16, p.x, 0.014, p.z, 10), ring(dim(hot, 0.6), 0.16, 0.015, p.x, 0.026, p.z));
   }
-  const confetti = [0xffd166, 0xc4586e, 0x8fd0ff, 0xffe7c0];
+  const embers = [hot, 0xff9c3a, 0x8a7f74, 0xffe19a];
   for (const p of scatter(rng, W, H, obs, 26, { gap: 0.9 })) {
-    out.body.push(
-      box(rng.pick(confetti), rng.range(0.05, 0.1), 0.008, rng.range(0.03, 0.06), {
+    const c = rng.pick(embers),
+      chip = box(c, rng.range(0.05, 0.1), 0.008, rng.range(0.03, 0.06), {
         x: p.x,
         y: 0.01,
         z: p.z,
         ry: rng.range(0, PI),
-      }),
-    );
+      });
+    (c === 0x8a7f74 ? out.body : out.glow).push(chip);
   }
-  // an ice bucket with a few glasses near a table
+  // a cluster of obsidian shards near a spire
   for (const p of scatter(rng, W, H, obs, 2, { gap: 6 })) {
-    out.body.push(cyl(0x4a4a52, 0.18, 0.22, 0.3, 10, p.x, 0, p.z));
-    for (let k = 0; k < 3; k++)
-      out.body.push(cyl(0x9fb8c4, 0.03, 0.045, 0.16, 8, p.x + (k - 1) * 0.1, 0.3, p.z + rng.range(-0.05, 0.05)));
+    out.body.push(cone(0x141018, 0.2, 0.5, 5, p.x, 0, p.z));
+    out.body.push(cone(0x141018, 0.13, 0.34, 5, p.x + 0.18, 0, p.z + 0.1));
+    out.glow.push(box(dim(hot, 0.5), 0.05, 0.08, 0.02, { x: p.x - 0.05, y: 0.14, z: p.z + 0.16 }));
   }
   return out;
 }
@@ -1070,7 +1071,7 @@ const RL_DETAIL = {
   vault: vaultDetail,
   marsh: marshDetail,
   void: voidDetail,
-  club: clubDetail,
+  club: calderaDetail,
 };
 
 // Adds the detail layer of a biome to an ArenaView: two meshes (lit body and unlit glow).

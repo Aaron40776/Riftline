@@ -74,7 +74,7 @@ const STAGE = {
     ["mortar", "mortar", true],
     ["drill", "driller"],
   ],
-  // 3.47.0: the Kingpin's molotovs and the stage pyro's fire jets
+  // 3.49.0: the Ash Tyrant's molotovs and the fumaroles' magma jets
   club: [
     ["rain", "kingpin", true],
     ["rain", "kingpin", true],

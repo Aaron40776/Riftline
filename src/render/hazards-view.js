@@ -38,9 +38,11 @@ import { clamp, TAU, makeRng } from "../core/util.js";
 const WHITE = new Color(0xffffff),
   LAVA = new Color(0xff6a1f),
   LAVA_HOT = new Color(0xffd27a),
-  // 3.47.0: the Onyx Club's stage pyro sprays gold
-  PYRO = new Color(0xffc94a),
-  PYRO_HOT = new Color(0xfff0b8),
+  // 3.49.0: the Ashfall Caldera's fumaroles spray molten rock; their idle breath is ash smoke
+  PYRO = new Color(0xffa843),
+  PYRO_HOT = new Color(0xffe9b0),
+  ASH_PUFF = new Color(0x4e463e),
+  ASH_HOT = new Color(0x6a5c50),
   ARC = new Color(0x8fd0ff),
   ARC_WHITE = new Color(0xdff2ff),
   ICE = new Color(0xbff4ff),
@@ -144,8 +146,8 @@ void main() {
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
-  // 3.47.0: the stage pyro's molten heart: the same pool in gold (the Onyx Club's nozzles)
-  gold: `
+  // 3.49.0: the fumarole's molten heart: the pool where the jet stands (the Caldera's nozzles)
+  molten: `
 void main() {
   float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 41.0, heat = vI.r;
   float edge = 0.84 + 0.1 * vnoise(vec2(a * 1.6 + seed, seed));
@@ -246,7 +248,7 @@ void main() {
   vec3 col = mix(vec3(0.9, 0.16, 0.01), vec3(1.0, 0.6, 0.18), smoothstep(0.3, 0.8, body));
   gl_FragColor = vec4(col * flame * vI.r, 1.0);
 }`,
-  // 3.47.0: the stage pyro: the same pillar in gold (the Onyx Club's jets)
+  // 3.49.0: the fumarole: the same pillar, white-hot at the core (the Caldera's jets)
   pyro: `
 void main() {
   float h = vP.y;
@@ -320,8 +322,8 @@ const MODELS = {
     }
     return { body, glow };
   },
-  // 3.47.0: the Onyx Club's stage pyro: a brass ring bolted to the dance floor around the molten
-  // pool, gold glow studs where the footlights would sit, no rocks
+  // 3.49.0: the Caldera's fumarole: a basalt ring set into the crater floor around the molten
+  // pool, ember studs where the seams breathe, no rocks
   nozzle: () => {
     const rng = makeRng(0x1a7b),
       body = [meshPart(new CylinderGeometry(0.92, 1.1, 0.07, 22, 1, true), 0x241418, { y: 0.035 })],
@@ -330,7 +332,7 @@ const MODELS = {
       const a = (i / 12) * TAU + rng.range(-0.08, 0.08),
         d = rng.range(1.0, 1.08);
       body.push(
-        box(i % 2 ? 0x6a5320 : 0x8a6a30, 0.22, 0.09, 0.1, {
+        box(i % 2 ? 0x2a1c14 : 0x1c1210, 0.22, 0.09, 0.1, {
           x: Math.cos(a) * d,
           z: Math.sin(a) * d,
           y: 0.075,
@@ -343,7 +345,7 @@ const MODELS = {
         r0 = 0.9,
         r1 = rng.range(1.2, 1.34);
       glow.push(
-        box(0xffd166, r1 - r0, 0.012, rng.range(0.025, 0.04), {
+        box(0xffb45a, r1 - r0, 0.012, rng.range(0.025, 0.04), {
           x: Math.cos(a) * (r0 + r1) * 0.5,
           z: Math.sin(a) * (r0 + r1) * 0.5,
           y: 0.012,
@@ -566,12 +568,12 @@ class HazardView {
   vents(dt, world, quality) {
     const r = this.r,
       time = r.time,
-      // 3.47.0: the Onyx Club's nozzles sit on brass, their molten heart burns gold, the jet is gold
+      // 3.49.0: the Caldera's nozzles sit on basalt, their molten heart burns white, the jet is magma
       club = world.arena.biome.id === "club",
       spray = club ? PYRO : LAVA,
       sprayHot = club ? PYRO_HOT : LAVA_HOT,
       crater = this.get(club ? "nozzle" : "crater"),
-      lava = this.surf(club ? "gold" : "lava"),
+      lava = this.surf(club ? "molten" : "lava"),
       fire = this.surf(club ? "pyro" : "fire", 32);
     for (const vent of world.arena.vents) {
       const { state, k } = this.ventState(world, vent),
@@ -601,7 +603,7 @@ class HazardView {
             0,
             0.45,
             0.22,
-            Math.random() < 0.5 ? spray : sprayHot,
+            club ? (Math.random() < 0.5 ? ASH_PUFF : ASH_HOT) : Math.random() < 0.5 ? spray : sprayHot,
             { drag: 1, grav: 3 },
           );
       } else if (erupt) {
@@ -627,9 +629,18 @@ class HazardView {
           );
       } else {
         if (Math.random() < dt * 1.2 * rr * quality)
-          r.emit(x + (Math.random() - 0.5) * rr, 0.1, z + (Math.random() - 0.5) * rr, 0, 0.8, 0, 0.6, 0.16, spray, {
-            drag: 1,
-          });
+          r.emit(
+            x + (Math.random() - 0.5) * rr,
+            0.1,
+            z + (Math.random() - 0.5) * rr,
+            0,
+            0.8,
+            0,
+            0.6,
+            0.16,
+            club ? ASH_PUFF : spray,
+            { drag: 1 },
+          );
       }
     }
   }

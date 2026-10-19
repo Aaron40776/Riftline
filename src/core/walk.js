@@ -9,7 +9,7 @@ const STEP_LEN = 1,
   DASH_TIME = 0.17;
 
 // the ground under the drone: the sheets of ice and the pools of acid of the arena, else the floor of the biome
-const FLOOR = { yard: "asphalt", works: "grate", vault: "frost", marsh: "mud", void: "glass", club: "parquet" };
+const FLOOR = { yard: "asphalt", works: "grate", vault: "frost", marsh: "mud", void: "glass", club: "crust" };
 function groundOf(world) {
   const player = world.player;
   if (player.onIce) return "ice";

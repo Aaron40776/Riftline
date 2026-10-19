@@ -10,7 +10,8 @@ const RL_BIOME_HAZARD = {
   vault: "ice",
   void: "portals",
   marsh: "acid",
-  // 3.47.0: the Onyx Club's stage pyro: vents with a golden skin (they jet flame between the tables)
+  // 3.49.0: the Ashfall Caldera (was the Onyx Club): fumaroles - vents with a molten skin (they jet
+  // white-hot rock between the spires). The id stays "club" for saves and records, like the Yard in 3.4.0.
   club: "vents",
 };
 const biomeList = [
@@ -95,20 +96,22 @@ const biomeList = [
     ],
   },
   {
-    // 3.47.0: the Onyx Club: a speakeasy under the city. A checkerboard dance floor, brass and velvet,
-    // round cocktail tables, the stage at the head of the room - and the stage pyro that jets gold
-    // between the tables. The palette keeps the rule: the rose checker reads against every other grid.
+    // 3.49.0: the Ashfall Caldera replaces the Onyx Club (the id stays "club" for saves and records,
+    // like the Yard in 3.4.0): the floor of a volcano - charred basalt plates split by molten seams,
+    // obsidian spires, falling ash and a sky the colour of a banked fire. The palette keeps the rule:
+    // the molten amber grid reads against every other grid (min CIE76 dE 37 to the Works' orange).
     id: "club",
-    name: "Onyx Club",
+    name: "Ashfall Caldera",
     W: 18,
     H: 18,
-    floor: 0x151014,
-    grid: 0xc4586e,
-    accent: 0xffd166,
-    fog: 0x0a0607,
-    sky: 0x3d1a26,
-    ground: 0x0f0a0c,
-    wall: 0x2b1721,
+    // the base is neutral charcoal so the only warm thing on the field is the molten light itself
+    floor: 0x121112,
+    grid: 0xffb520,
+    accent: 0xffe19a,
+    fog: 0x0c0a0b,
+    sky: 0x4c1f14,
+    ground: 0x0e0c0d,
+    wall: 0x241a18,
     obstacles: [
       { t: "b", x: 0, y: -7.6, w: 2.6, h: 0.8 },
       { t: "c", x: -6.5, y: 6.5, r: 1.2 },
@@ -163,7 +166,8 @@ function planBiomeRoute(rng) {
                 ranged enemies (bulwark, sniper, turret, sentinel …)
    Toxin Marsh  acid pools, thick fog; swarms (splitter, hive, swarmer, sapper …)
    Void Core    portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
-   Onyx Club    stage pyro that jets gold (3.47.0); the mob in tailored suits (gunner, brute, bomber …)
+   Ashfall Caldera  fumaroles that jet molten rock (3.49.0, was the Onyx Club: stage pyro); the
+                burning dead in armour (gunner, brute, bomber …)
  The look of each biome (floor, props, border, particles, light) is in the renderer part of
  2.4.0 further down. */
 const RL_BIOME_INFO = {
@@ -185,10 +189,10 @@ const RL_BIOME_INFO = {
     tag: "Portals",
     mix: { striker: 2.2, phantom: 2.4, weaver: 2.2, leaper: 1.8, drone: 1.8, sniper: 0.6 },
   },
-  // 3.47.0: the Club: armed gangs in tailored suits (gunner), the doormen (brute), molotovs (bomber),
-  // getaway drivers (charger) and the dynamite boys (sapper)
+  // 3.49.0: the Caldera: ash-shrouded burners (gunner), slag brutes (brute), ember carriers (bomber),
+  // scorched runners (charger) and the powder boys (sapper)
   club: {
-    tag: "Stage pyro",
+    tag: "Magma vents",
     mix: { gunner: 2.2, brute: 2, bomber: 1.8, charger: 1.4, sapper: 1.2, swarmer: 0.6 },
   },
 };

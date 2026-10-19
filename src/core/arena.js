@@ -449,7 +449,7 @@ const OBSTACLE_GAP = 2.7,
       ],
       [3, (rng) => ({ t: "c", r: rng.range(0.9, 1.3) })],
     ],
-    // 3.47.0: the Onyx Club: round cocktail tables and the velvet booths / bar ends
+    // 3.49.0: the Ashfall Caldera: obsidian spires and the charred slabs / lava dykes
     club: [
       [4, (rng) => ({ t: "c", r: rng.range(0.9, 1.3) })],
       [
@@ -1033,7 +1033,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
       }
     }
   } else if (biomeId === "club") {
-    // 3.47.0: the stage pyro: nozzles out on the dance floor, a little tighter than the Works' jets
+    // 3.49.0: the fumaroles: nozzles out on the crater floor, a little tighter than the Works' jets
     let count = rng.int(3, 5),
       period = rng.range(6.5, 8);
     for (let k = 0; k < count; k++) {
