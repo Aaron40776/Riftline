@@ -137,7 +137,7 @@ const iconPaths = {
     '<ellipse cx="12" cy="14" rx="4" ry="6"/><path d="M8 11l-5-3M16 11l5-3M8 15l-4 2M16 15l4 2M10 8l-1-4M14 8l1-4"/>',
   collapse:
     '<circle cx="12" cy="12" r="9" stroke-dasharray="3 2.5"/><path d="M12 5v4M12 15v4M5 12h4M15 12h4"/><circle cx="12" cy="12" r="1.6"/>',
-  // 3.47.0: the Kingpin's Cut (a coin paying out a shard)
+  // 3.49.0: the Tyrant's Tithe (a shard rising off the ember)
   tribute: '<circle cx="12" cy="12" r="8.5"/><path d="M12 6.5l2.8 4L12 17.5l-2.8-7z"/>',
 };
 function iconSvg(name, cls = "") {
@@ -1929,7 +1929,7 @@ const RL_BIOME_CARD = {
   vault: "Slick floor and ice sheets — mind your drift",
   marsh: "Acid pools eat your hull — and weaken enemies",
   void: "Portal pairs fold the arena — shots pass through",
-  club: "Stage pyro jets gold — the show burns everyone",
+  club: "Magma vents jet molten rock — the ground itself burns",
 };
 // Codex texts for enemies without a first-encounter tip. Mites only come out of splitters (no
 // spawn event, no tip), so they are known together with the Splitter.
@@ -2090,8 +2090,8 @@ const RL_OVERDRIVE_INFO = {
     desc: "Bombardments under and around you while a cross of six beams turns.",
   },
   kingpin: {
-    name: "Last Call",
-    desc: "The whole mob pours in through gold portals, molotovs close a ring around you (one gap), and the Kingpin sweeps the floor.",
+    name: "Firestorm",
+    desc: "The burning dead pour in through ember portals, molotovs close a ring around you (one gap), and the Ash Tyrant sweeps the floor.",
   },
 };
 // ---- 2.5.0 D: title card helpers

@@ -222,16 +222,16 @@ const RL_BIOME_LOOK = {
     gain: 1.0,
     fog: [1.25, 3.0],
   },
-  // 3.47.0: the Onyx Club: warm and low - a champagne key, a crimson fill, a hazy room
+  // 3.49.0: the Ashfall Caldera: a low ember key, a molten bounce from below, thick ash in the air
   club: {
     style: 6,
-    hemi: 0.85,
-    sun: 0xffd9a0,
-    sunI: 1.75,
-    fill: [0xc4385e, 0.95],
-    vivid: 1.2,
+    hemi: 0.8,
+    sun: 0xc48a60,
+    sunI: 1.45,
+    fill: [0xff5a20, 0.55],
+    vivid: 1.15,
     gain: 1.0,
-    fog: [1.1, 2.6],
+    fog: [1.3, 2.8],
   },
 };
 // 3.41.0: the tone the flying debris of a kill calms into. The style guide of the owner (Viridi, Penguin's
@@ -243,8 +243,8 @@ const RL_BIOME_TINT = {
   vault: new Color(0xcfdde8),
   marsh: new Color(0x8fa88a),
   void: new Color(0x9a92b8),
-  // 3.47.0: the Club calms its debris into warm plum-grey
-  club: new Color(0x9c8a90),
+  // 3.49.0: the Caldera calms its debris into settled ash
+  club: new Color(0x98897e),
 };
 // 3.44.0: the fireflies of the marsh are the one warm light in the cold fog
 const RL_FLOOR_FRAG = `
@@ -389,22 +389,26 @@ void main() {
     col = mix(col, uGrid * 0.4, lane * wear * inside * (1.0 - puddle * 0.6));
     lit = 0.4 + 0.75 * puddle + lane * 0.3;
   } else if (st == 6) {
-    // Onyx Club (3.47.0): a checkerboard dance floor of worn parquet - two woods a clear step apart,
-    // brass seams between the tiles, two spotlight pools that sway with the band, scuffs and stains
-    float chk = mod(floor(p.x / 2.2) + floor(p.y / 2.2), 2.0);
-    vec3 lightWood = uBase * (1.9 + 0.5 * vnoise(p * 3.1)) + uGrid * 0.05;
-    vec3 darkWood = uBase * 0.5;
-    col = mix(darkWood, lightWood, chk) * (0.85 + 0.3 * fbm(p * 0.9)) * (0.85 + 0.5 * pl);
-    vec2 gp = abs(fract(p / 2.2) - 0.5) * 2.2;
-    float seam = smoothstep(0.1, 0.03, min(gp.x, gp.y));
-    col += uGrid * seam * 0.14 * inside;
-    vec2 s1 = p - vec2(sin(uTime * 0.5) * 1.6, 2.0);
-    vec2 s2 = p - vec2(sin(uTime * 0.4 + 2.2) * -1.9, -3.0);
-    float spot = exp(-dot(s1, s1) * 0.02) * 0.1 + exp(-dot(s2, s2) * 0.016) * 0.07;
-    col += uAccent * spot * inside;
-    float scuff = smoothstep(0.62, 0.78, fbm(p * 1.4 + 4.0));
-    col = mix(col, uBase * 1.3, scuff * 0.3);
-    lit = 0.4 + 0.5 * seam + spot * 4.0;
+    // Ashfall Caldera (3.49.0): a cooled crust, the opposite of the Works' crack network - charcoal
+    // plates with dark grooves between them, ash drifted over it all, embers smouldering in sparse
+    // spots, and two big fissures that breathe molten light where the crust never closed
+    vec3 cell = voro(p * 0.5);
+    float plate = 0.65 + 0.6 * h21(cell.zz + 7.0);
+    col = uBase * (0.85 + 0.5 * fbm(p * 1.4)) * plate * (0.8 + 0.5 * pl);
+    float groove = smoothstep(0.16, 0.05, cell.y);
+    col *= 1.0 - groove * 0.55;
+    float ash = smoothstep(0.5, 0.9, fbm(p * 1.5 + 3.0));
+    col = mix(col, vec3(0.045, 0.043, 0.046) * (0.55 + 0.75 * plate), ash * 0.5);
+    vec2 ec = floor(p * 0.9);
+    float ember = step(0.958, h21(ec)) * smoothstep(0.3, 0.06, length(fract(p * 0.9) - 0.5));
+    float emberP = 0.55 + 0.45 * sin(uTime * 1.7 + h21(ec + 2.0) * 40.0);
+    col += uGrid * ember * emberP * 0.6 * inside;
+    vec2 f1 = p - vec2(-4.5, 3.0), f2 = p - vec2(5.0, -2.5);
+    float fis = exp(-dot(f1, f1) * 0.1) + exp(-dot(f2, f2) * 0.085);
+    float breath = 0.7 + 0.3 * sin(uTime * 0.8);
+    col += uAccent * fis * breath * 0.14 * inside;
+    col += uGrid * 0.05 * fis * smoothstep(0.35, 0.75, fbm(p * 2.0 - uTime * 0.1));
+    lit = 0.22 + fis * 2.0 + ember * emberP * 0.6;
   } else {
     // (every biome has its style; a plain floor if one ever had none)
     col = uBase * (0.75 + 0.7 * pl);
@@ -1283,115 +1287,131 @@ const RL_BIOME_BUILD = {
         rlFootSlab(props, obstacle, rim, 0.2);
       }
   },
-  // Onyx Club (3.47.0): art-deco wall panels with brass trim and warm sconces, a spotlight rig over
-  // the dance floor, cocktail tables, velvet booths and the brass foot rail
+  // Ashfall Caldera (3.49.0): a basalt rampart around the crater with ember pockets in it, three fire
+  // beacons over the floor, obsidian spires where the tables stood, charred slabs and the long lava dyke
   club(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      panel = new MeshLambertMaterial({ color: 0x2e1a22, flatShading: true }),
-      darkPanel = new MeshLambertMaterial({ color: 0x1c1016, flatShading: true }),
-      velvet = new MeshLambertMaterial({ color: 0x571d2c, flatShading: true }),
-      wood = new MeshLambertMaterial({ color: 0x3a2418, flatShading: true }),
-      brassTrim = new MeshLambertMaterial({ color: 0x6a5320, flatShading: true }),
-      lamp = rlGlow(0xffd166),
+      rock = new MeshLambertMaterial({ color: 0x271c17, flatShading: true }),
+      darkRock = new MeshLambertMaterial({ color: 0x181009, flatShading: true }),
+      obsidian = new MeshLambertMaterial({ color: 0x141018, flatShading: true }),
+      emberMat = rlGlow(0xff9c3a),
+      hotMat = rlGlow(0xffe19a),
       accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false }),
       bake = rlMerger();
-    // the walls: tall deco panels, a brass strip along the top, a warm sconce between every second pair
+    // the rampart: rough basalt blocks with a dark cap, a molten seam behind every second block and
+    // an ember pocket breathing in the others
     rlAlongBorder(W, H, 0.5, 2.2, (x, z, nx, nz) => {
       const along = nx === 0,
-        ry = along ? 0 : Math.PI / 2;
-      bake.add(new BoxGeometry(2.1, 1.6, 0.24), panel, x, 0.8, z, ry);
-      bake.add(new BoxGeometry(2.1, 0.09, 0.3), brassTrim, x, 1.62, z, ry);
+        ry = along ? 0 : Math.PI / 2,
+        ix = x - nx * 0.2,
+        iz = z - nz * 0.2;
+      bake.add(new BoxGeometry(2.1, 1.5, 0.36), rock, x, 0.75, z, ry);
+      bake.add(new BoxGeometry(2.16, 0.3, 0.44), darkRock, x, 1.6, z, ry);
       const k = Math.round((along ? x : z) / 2.2);
       if (k % 2 === 0) {
-        bake.add(new BoxGeometry(0.14, 0.55, 0.14), darkPanel, x, 1.95, z, ry);
-        bake.add(new BoxGeometry(0.26, 0.18, 0.26), lamp, x, 2.28, z, ry);
+        bake.add(new BoxGeometry(0.16, 0.5, 0.14), darkRock, ix, 1.0, iz, ry);
+        bake.add(new BoxGeometry(0.3, 0.22, 0.08), emberMat, ix, 1.42, iz, ry);
       } else {
-        bake.add(new BoxGeometry(2.1, 0.85, 0.2), darkPanel, x, 2.05, z, ry);
+        bake.add(new BoxGeometry(1.9, 0.05, 0.06), emberMat, ix, 1.47, iz, ry);
       }
     });
-    // the spotlight rig: three warm beams from high above the floor (static, additive, open cones)
-    const beamMat = additiveMaterial(null, { color: 0xffd9a0, opacity: 0.06, side: DoubleSide });
+    // the fire beacons: three basalt pillars with burning bowls, their heat rising as open glow
+    const heatMat = additiveMaterial(null, { color: 0xffb45a, opacity: 0.035, side: DoubleSide });
     for (const [sx, sz] of [
       [-4.6, 2.4],
       [4.8, -2.2],
       [0.4, -5.4],
     ]) {
-      bake.add(new CylinderGeometry(0.22, 1.75, 7.4, 12, 1, true), beamMat, sx, 4.15, sz);
-      bake.add(new CylinderGeometry(0.32, 0.42, 0.3, 10), darkPanel, sx, 7.9, sz);
+      bake.add(new CylinderGeometry(0.24, 0.4, 2.6, 7), rock, sx, 1.3, sz);
+      bake.add(new CylinderGeometry(0.36, 0.2, 0.34, 8), emberMat, sx, 2.72, sz);
+      bake.add(new ConeGeometry(0.24, 0.6, 7), hotMat, sx, 3.1, sz);
+      bake.add(new CylinderGeometry(0.5, 1.5, 5.4, 10, 1, true), heatMat, sx, 5.6, sz);
     }
-    // the brass foot rail runs the inside of the room
+    // the fissure line: a low rock ridge just inside the wall, cracked with a molten seam
     for (const [bx, bz, len, rot] of [
       [0, -H + 0.7, W * 2 - 2.4, 0],
       [0, H - 0.7, W * 2 - 2.4, 0],
       [-W + 0.7, 0, H * 2 - 2.4, Math.PI / 2],
       [W - 0.7, 0, H * 2 - 2.4, Math.PI / 2],
-    ])
-      bake.add(new CylinderGeometry(0.045, 0.045, len, 8), brassTrim, bx, 0.28, bz, rot, 0, Math.PI / 2);
+    ]) {
+      bake.add(new CylinderGeometry(0.1, 0.15, len, 6), darkRock, bx, 0.12, bz, rot, 0, Math.PI / 2);
+      bake.add(new CylinderGeometry(0.045, 0.045, len * 0.94, 6), emberMat, bx, 0.21, bz, rot, 0, Math.PI / 2);
+    }
     bake.flush(group);
     for (const obstacle of obs)
       if (obstacle.t === "c") {
-        // a cocktail table: a brass pole, a velvet top with a brass rim, a hanging lamp above
+        // an obsidian spire: a shard stack over a skirt, a molten crack ring at its foot
         const r = obstacle.r,
-          top = 1.0;
-        rlMesh(props, new CylinderGeometry(0.08, 0.13, top, 8), brassTrim, obstacle.x, top / 2, obstacle.y);
-        rlMesh(props, new CylinderGeometry(r, r, 0.1, 20), velvet, obstacle.x, top + 0.05, obstacle.y);
-        rlMesh(
+          tilt = rng.range(-0.07, 0.07);
+        rlMesh(props, new ConeGeometry(r * 0.95, 0.5, 6), darkRock, obstacle.x, 0.25, obstacle.y);
+        const spire = rlMesh(
           props,
-          new CylinderGeometry(r * 1.03, r * 1.03, 0.05, 20),
-          brassTrim,
+          new ConeGeometry(r * 0.6, 1.5 + 0.3 * r, 5),
+          obsidian,
           obstacle.x,
-          top + 0.13,
+          0.95 + 0.2 * r,
           obstacle.y,
         );
-        rlMesh(props, new CylinderGeometry(0.018, 0.018, 1.5, 6), brassTrim, obstacle.x, top + 0.85, obstacle.y);
-        const shade = rlMesh(props, new ConeGeometry(0.32, 0.32, 12), lamp, obstacle.x, top + 0.2, obstacle.y);
-        shade.rotation.x = Math.PI;
-        rlFootRing(props, obstacle.x, obstacle.y, r * 1.06, brassTrim);
+        spire.rotation.z = tilt;
+        const shard = rlMesh(
+          props,
+          new ConeGeometry(r * 0.34, 0.8, 5),
+          obsidian,
+          obstacle.x + r * 0.5,
+          0.6,
+          obstacle.y - r * 0.35,
+        );
+        shard.rotation.z = -tilt * 1.6;
+        rlFootRing(props, obstacle.x, obstacle.y, r * 0.88, emberMat);
+        rlMesh(props, new SphereGeometry(0.07, 6, 5), hotMat, obstacle.x + r * 0.28, 0.34, obstacle.y);
       } else if (obstacle.w < 1.3 && obstacle.h < 1.3) {
-        // a velvet booth: a seat with a tall back and a brass foot
+        // a charred slab: a leaning monolith with an ember seam across its face
         const height = 1.15;
-        rlMesh(
+        const slab = rlMesh(
           props,
           new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2),
-          velvet,
+          darkRock,
           obstacle.x,
           height / 2,
           obstacle.y,
         );
+        slab.rotation.z = 0.045;
         rlMesh(
           props,
-          new BoxGeometry(obstacle.w * 2 + 0.08, 0.06, obstacle.h * 2 + 0.08),
-          brassTrim,
+          new BoxGeometry(obstacle.w * 2 + 0.05, 0.05, 0.05),
+          emberMat,
           obstacle.x,
-          height + 0.03,
-          obstacle.y,
+          height * 0.62,
+          obstacle.y + obstacle.h - 0.03,
         );
-        rlFootSlab(props, obstacle, brassTrim, 0.24);
+        rlFootSlab(props, obstacle, emberMat, 0.24);
       } else {
-        // the bar end / the stage wing: a wooden counter with a brass edge and bottles on it
+        // the lava dyke: a long ridge of rock with a crust on top, cracked open down its spine, three
+        // molten nodules where the gas gathers
         const long = obstacle.w >= obstacle.h,
           L = (long ? obstacle.w : obstacle.h) * 2,
           D = (long ? obstacle.h : obstacle.w) * 2,
           ry = long ? 0 : Math.PI / 2,
-          counter = rlMesh(props, new BoxGeometry(L, 1.05, D), wood, obstacle.x, 0.52, obstacle.y, ry);
-        counter.matrixAutoUpdate = false;
-        counter.updateMatrix();
+          ridge = rlMesh(props, new BoxGeometry(L, 0.95, D), rock, obstacle.x, 0.48, obstacle.y, ry);
+        ridge.matrixAutoUpdate = false;
+        ridge.updateMatrix();
+        rlMesh(props, new BoxGeometry(L + 0.06, 0.1, D + 0.06), darkRock, obstacle.x, 1.0, obstacle.y, ry);
         rlMesh(
           props,
-          new BoxGeometry(long ? L + 0.1 : 0.1, 0.06, long ? 0.1 : D + 0.1),
-          brassTrim,
+          new BoxGeometry(long ? L * 0.88 : 0.07, 0.05, long ? 0.07 : D * 0.88),
+          emberMat,
           obstacle.x,
-          1.08,
+          1.07,
           obstacle.y,
         );
         for (let k = 0; k < 3; k++) {
           const along = (k - 1) * (long ? L : D) * 0.26,
             bx = obstacle.x + (long ? along : 0),
             bz = obstacle.y + (long ? 0 : along);
-          rlMesh(props, new CylinderGeometry(0.07, 0.07, 0.34, 8), rng.chance(0.5) ? lamp : accentMat, bx, 1.28, bz);
+          rlMesh(props, new CylinderGeometry(0.09, 0.12, 0.18, 6), k === 1 ? hotMat : accentMat, bx, 1.14, bz);
         }
-        rlFootSlab(props, obstacle, brassTrim, 0.24);
+        rlFootSlab(props, obstacle, emberMat, 0.24);
       }
   },
 };
@@ -1405,6 +1425,7 @@ const RL_C = {
   rain: new Color(0x9fb4cc),
   steam: new Color(0x5a6270),
   fly: new Color(0xffd98a), // 3.44.0: the marsh fireflies
+  ash: new Color(0x8a7f74), // 3.49.0: the caldera's falling ash
 };
 function rlAmbient(renderer, dt, world, opt) {
   const biome = renderer.biome,
@@ -1554,19 +1575,32 @@ function rlAmbient(renderer, dt, world, opt) {
         );
       break;
     case "club":
-      // 3.47.0: the Onyx Club: golden dust hangs in the spotlight beams and drifts down through the haze
-      for (let j = count(13); j--; )
+      // 3.49.0: the Ashfall Caldera: ash drifts down through the heat, embers climb off the seams
+      for (let j = count(18); j--; )
+        renderer.emit(
+          rx(15),
+          3.4 + Math.random() * 4.2,
+          rz(13),
+          (Math.random() - 0.5) * 0.5,
+          -0.5 - Math.random() * 0.45,
+          (Math.random() - 0.5) * 0.5,
+          5.5,
+          0.1,
+          RL_C.ash,
+          { drag: 0 },
+        );
+      for (let j = count(9); j--; )
         renderer.emit(
           rx(),
-          0.4 + Math.random() * 3.6,
+          0.15,
           rz(),
-          (Math.random() - 0.5) * 0.3,
-          -0.1 - Math.random() * 0.16,
-          (Math.random() - 0.5) * 0.3,
-          4.5,
+          (Math.random() - 0.5) * 0.7,
+          1.1 + Math.random() * 1.3,
+          (Math.random() - 0.5) * 0.7,
+          1.5,
           0.09,
-          Math.random() < 0.6 ? acc : grid,
-          { drag: 0.6 },
+          Math.random() < 0.5 ? RL_C.ember : acc,
+          { drag: 0.3 },
         );
       break;
     default:
@@ -1664,6 +1698,7 @@ function rlAmbient(renderer, dt, world, opt) {
    Cryo Vault   frost on the upper surfaces with glints, a cold tint, frost flakes
    Toxin Marsh  slime running down with glowing toxic spots, green drops
    Void Core    violet rim glow and star specks, motes rising
+  Ashfall Caldera a charred cinder shell, white-hot fissures that breathe, an ember rim (3.49.0)
  The skin is only visual; how an enemy fights does not change. ---- */
 const RL_SKIN = { uSkin: { value: 0 }, uSkinT: { value: 0 } };
 const RL_SKIN_VERT_HEAD = `
@@ -1734,14 +1769,17 @@ if (rlS == 1) {
   float st = step(0.94, rlH3(floor(sc))) * smoothstep(0.32, 0.12, length(fract(sc) - 0.5));
   outgoingLight += vec3(0.9, 0.8, 1.0) * st * 0.6;
 } else if (rlS == 6) {
-  // 3.47.0: the Onyx Club: pinstripe tailoring, a gold sheen on the rims, a glint of the spotlight
+  // 3.49.0: the Ashfall Caldera: ash settles on the upper faces while the shell beneath smoulders -
+  // thin white-hot fissures that breathe and an ember rim (the Works' skin burns orange, this one whitens)
   float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
-  float stripes = smoothstep(0.24, 0.05, abs(fract((vRlP.x + vRlP.z) * 6.5) - 0.5));
-  outgoingLight = outgoingLight * vec3(0.68, 0.6, 0.63);
-  outgoingLight += vec3(0.95, 0.85, 0.6) * stripes * 0.16;
-  outgoingLight += vec3(1.0, 0.82, 0.45) * fres * 0.5;
-  float glint = step(0.9, rlN3(vRlP * 14.0 + vec3(0.0, uSkinT * 0.5, 0.0)));
-  outgoingLight += vec3(1.0, 0.9, 0.65) * glint * 0.28;
+  float ashTop = smoothstep(0.15, 0.75, vRlN.y);
+  outgoingLight = mix(outgoingLight * vec3(0.45, 0.42, 0.4), vec3(0.5, 0.47, 0.44), ashTop * 0.55);
+  float n = rlN3(vRlP * 5.5);
+  float crack = smoothstep(0.1, 0.0, abs(n - 0.5)) * smoothstep(0.3, 0.75, 0.5 + 0.5 * sin(uSkinT * 2.2 + vRlP.y * 3.0));
+  outgoingLight += vec3(1.0, 0.78, 0.42) * crack * (1.0 - ashTop * 0.6);
+  outgoingLight += vec3(1.0, 0.55, 0.18) * fres * 0.45;
+  float glint = step(0.93, rlN3(vRlP * 12.0 + vec3(0.0, uSkinT * 0.4, 0.0)));
+  outgoingLight += vec3(1.0, 0.88, 0.6) * glint * 0.22;
 }
 }`;
 // Adds the skin (and, for enemy bodies, the hit flash they already had) to a Lambert material.
@@ -1776,8 +1814,8 @@ const RL_SKIN_FX = {
   4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: false },
   // 3.4.0: Blackout City: water dripping off
   5: { c: new Color(0xa8c4e0), vy: -0.4, grav: 9, life: 0.5, size: 0.08, spark: true },
-  // 3.47.0: the Onyx Club: gold sparks off the tailoring
-  6: { c: new Color(0xffd166), vy: 1.0, grav: 3, life: 0.6, size: 0.09, spark: true },
+  // 3.49.0: the Ashfall Caldera: embers lift off the cinder shell
+  6: { c: new Color(0xffc87a), vy: 1.1, grav: 2.5, life: 0.55, size: 0.08, spark: true },
 };
 function rlSkinParticles(renderer, dt, world) {
   const fx = RL_SKIN_FX[RL_SKIN.uSkin.value];

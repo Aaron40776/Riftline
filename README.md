@@ -8,7 +8,7 @@
 
 - **7 weapons**, each with its own projectile behaviour, plus one evolution path per weapon
 - **25 enemy types** with late-run role diversity, champions, elites and **6 bosses** (one per biome cycle), each with phases, enrage and a boss card reward
-- **6 biomes** — Blackout City, Ember Works, Cryo Vault, Toxin Marsh, Void Core, the Onyx Club — each with its own floor, props, hazards (live vents, lava, ice, acid, portals, stage pyro), light, music theme and soundscape
+- **6 biomes** — Blackout City, Ember Works, Cryo Vault, Toxin Marsh, Void Core, the Ashfall Caldera — each with its own floor, props, hazards (live vents, lava, ice, acid, portals, magma vents), light, music theme and soundscape
 - **61 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
 - **19 persistent workshop modules**, milestones through wave 200, threat levels, medals
 - **Endless** mode with mutators, and a **daily run** with a fixed seed

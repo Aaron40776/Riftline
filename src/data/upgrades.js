@@ -512,15 +512,15 @@ upgradeList.push(
     icon: "collapse",
     desc: () => "Your Nova first pulls enemies in, then blasts 40% harder",
   },
-  // 3.47.0: the Kingpin's card: the protection racket pays out
+  // 3.49.0: the Tyrant's card: the caldera pays its tithe
   {
     id: "tribute",
-    name: "Kingpin's Cut",
+    name: "Tyrant's Tithe",
     rarity: 6,
     max: 1,
     boss: "kingpin",
     icon: "tribute",
-    desc: () => "Every 20 kills the tribute pays out: a burst of shards and a bandage",
+    desc: () => "Every 20 kills the caldera pays out: a burst of shards and a bandage",
   },
 );
 upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));

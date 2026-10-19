@@ -283,13 +283,13 @@ const biomeVariants = {
     color: 11861821,
     desc: "Bursts into an acid pool when it dies.",
   },
-  // 3.47.0: the Club: they go out with a show - the stage pyro jets where they fall
+  // 3.49.0: the Caldera: they go out in a flare - the fumaroles jet where they fall (was the Club's Showy)
   club: {
     id: "showy",
-    name: "Showy",
+    name: "Flareheart",
     types: ["gunner", "brute", "bomber"],
-    color: 0xffd166,
-    desc: "It goes out with a show: the stage pyro jets where it falls.",
+    color: 0xffb520,
+    desc: "It goes out in a flare: the magma vents jet where it falls.",
   },
 };
 const eliteAffixes = {
@@ -360,19 +360,19 @@ bossDefs.forge = {
   shards: 125,
   color: 16741924,
 };
-// 3.47.0: the Onyx Club's owner. He runs this town: he sprays the floor with his tommy gun, charges
-// like a man who has never been told no, calls the boys in from the back room, and when he is hurt
-// he calls LAST CALL - the whole mob pours in.
+// 3.49.0: the Ashfall Caldera's master (was the Onyx Club's owner). The mountain walks: it sprays the
+// floor with a fan of molten slugs, charges like a thing that has never stopped, calls the burning dead
+// up from the cracks, and when it is hurt it calls FIRESTORM - the whole caldera pours in.
 bossDefs.kingpin = {
   id: "kingpin",
-  name: "THE KINGPIN",
-  title: "Owner of the Onyx Club",
+  name: "THE ASH TYRANT",
+  title: "Master of the Ashfall Caldera",
   hp: 1500,
   r: 2,
   speed: 2.2,
   dmg: 22,
   shards: 60,
-  color: 0xf0b23e,
+  color: 0xff8c2e,
 };
 const bossByBiome = { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core", club: "kingpin" };
 // hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late

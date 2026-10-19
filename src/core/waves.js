@@ -274,12 +274,12 @@ Object.assign(waveEvents, {
     biome: "void",
     plan: {},
   },
-  // 3.47.0: the Onyx Club: the vice squad kicks the door. The house lights die (the renderer dims
-  // like a Blackout) and every pyro vent fires in step, all the way down (Meltdown's timing).
+  // 3.49.0: the Ashfall Caldera: the mountain wakes. The lights die under the ash (the renderer dims
+  // like a Blackout) and every fumarole fires in step, all the way down (Meltdown's timing).
   raid: {
     id: "raid",
-    name: "RAID",
-    desc: "The vice squad kicks the door: lights out, every pyro jets in step · shards +25%",
+    name: "ASHFALL",
+    desc: "The caldera wakes: lights out under the ash, every fumarole jets in step · shards +25%",
     shardMul: 1.25,
     biome: "club",
     plan: {},

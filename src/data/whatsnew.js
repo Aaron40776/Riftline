@@ -2,6 +2,17 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.49.0",
+    title: "The caldera takes the club's place",
+    items: [
+      "The Onyx Club is gone: the sixth biome is now the Ashfall Caldera — charred basalt plates split by molten seams, obsidian spires, falling ash and fumaroles that jet magma.",
+      "Its boss is THE ASH TYRANT, the mountain that walks: a molten fan of slugs, a shoulder charge, the burning dead — and when it is hurt it calls FIRESTORM.",
+      "The caldera plays its own music: a slow march with cracking crust and a deep drum, and a boss track that ends in a roar.",
+      "The ASHFALL event replaces the RAID: lights out under the ash, every fumarole jets in step.",
+      "The Kingpin's Cut card is now the Tyrant's Tithe (same payout); saves and records carry over untouched.",
+    ],
+  },
+  {
     version: "3.48.0",
     title: "Hear what you set",
     items: [

@@ -523,8 +523,8 @@ const bossPatterns = {
 };
 // 2.4.6: THE CRUCIBLE of Ember Works (its attacks are in updateCrucible at the end of this file)
 bossPatterns.forge = ["hammer", "slag", "eruption", "furnace", "hammer", "slag", "stoke"];
-// 3.47.0: THE KINGPIN of the Onyx Club: the tommy gun (a sweeping fan of slugs), the shoulder
-// charge, the boys in the back room, the dance-floor slam, and the molotovs (a lob where you are heading)
+// 3.49.0: THE ASH TYRANT of the Ashfall Caldera: the cinder fan (a sweeping spray of molten
+// slugs), the shoulder charge, the burning dead in the cracks, the quake slam, and the molotovs (a lob where you are heading)
 bossPatterns.kingpin = ["barrage", "charge", "summon", "ring", "barrage", "rain"];
 // 2.4.6: colour of the Frost Prism's live beams (the warning lines keep the warning colour)
 const PRISM_ICE = 12578815;
@@ -1101,10 +1101,10 @@ function updateBoss(game, boss, dt) {
     case "forge":
       if (updateCrucible(game, boss, dt, aim, dist, shotDmg, rage)) return;
       break;
-    // 3.47.0: THE KINGPIN of the Onyx Club
+    // 3.49.0: THE ASH TYRANT of the Ashfall Caldera
     case "kingpin": {
       if (boss.st === "barrage") {
-        // the tommy gun: he plants his feet and walks a fan of slugs through the room; the fan swings
+        // the cinder fan: it plants its feet and walks a spray of molten slugs through the room; the fan swings
         // with the drone, side to side with every burst
         boss.vx *= 0.82;
         boss.vy *= 0.82;
@@ -1228,7 +1228,7 @@ function updateBoss(game, boss, dt) {
 }
 // 3.33.0: every place has its beam: the security laser, the flame jet of the Ember Works, a lance of ice, a jet of bile, the
 // rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Cryo Vault and the Toxin Marsh)
-const SENTINEL_SKIN = { yard: "laser", works: "flame", vault: "cryo", marsh: "acid", void: "rift", club: "laser" };
+const SENTINEL_SKIN = { yard: "laser", works: "flame", vault: "cryo", marsh: "acid", void: "rift", club: "flame" };
 /* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
    telegraphed portals around the player: 2 at the first boss, up to 5 later */
 function bossReinforce(game, boss) {
@@ -1416,8 +1416,8 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
       return;
     }
     case "lastcall": {
-      // 3.47.0: LAST CALL: the Kingpin calls the whole mob in (a squad of the Club's champions
-      // through the portals and a crew of his own around him), torches the exits around the drone
+      // 3.49.0: FIRESTORM: the Tyrant calls the burning dead in (a squad of the Caldera's champions
+      // through the portals and a crew of cinders around it), torches the ground around the drone
       // (a ring of molotovs) and sweeps the floor while they pour out
       moveBoss(game, boss, dt, aim, dist, 0.3);
       if (boss.n === 0) {

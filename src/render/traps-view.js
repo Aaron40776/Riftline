@@ -42,8 +42,8 @@ const LOOK = {
   frost: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff), led: hex(0xc8f6ff) },
   spore: { main: hex(0xa8f03a), alt: hex(0xe6ff8a), dust: hex(0x4a7a1a), led: hex(0xd7ff4a) },
   riftmine: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650), led: hex(0xff4de0) },
-  // 3.47.0: the Onyx Club's stage pyro: gold
-  pyro: { main: hex(0xffd166), alt: hex(0xfff0b8), dust: hex(0x6a5320) },
+  // 3.49.0: the Caldera's fumarole: molten
+  pyro: { main: hex(0xffb45a), alt: hex(0xffe9b0), dust: hex(0x3a2418) },
 };
 // 3.12.0: the Singularity: a dark violet core, the cyan of the player on its rim, violet arms (never the red of a
 // warning: it is the player's own)
@@ -245,15 +245,15 @@ const MODELS = {
       mover: [meshPart(new SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), 0x6faa2a, { y: 0.2 })],
     };
   },
-  // 3.47.0: the Onyx Club: a brass nozzle set into the dance floor, gold in the mouth, a cap that
-  // lifts before the jet
+  // 3.49.0: the Caldera: a basalt nozzle set into the crater floor, molten in the mouth, a cap
+  // that lifts before the jet
   pyro: () => {
     seed = 5;
     return {
       body: [
         cyl(0x1c1014, 0.95, 1, 0.05, 12),
-        cyl(0x6a5320, 0.55, 0.9, 0.14, 12, { y: 0.03 }),
-        meshPart(new TorusGeometry(0.5, 0.09, 6, 14), 0x8a6a30, { y: 0.16, rx: Math.PI / 2 }),
+        cyl(0x2a1c14, 0.55, 0.9, 0.14, 12, { y: 0.03 }),
+        meshPart(new TorusGeometry(0.5, 0.09, 6, 14), 0x241812, { y: 0.16, rx: Math.PI / 2 }),
         cyl(0x0d0808, 0.42, 0.42, 0.02, 12, { y: 0.17 }),
         ...ring(6, (a) =>
           ball(0x3a2418, 0.09 + rnd() * 0.06, 6, 4, {
@@ -265,7 +265,7 @@ const MODELS = {
         ),
         ...ring(5, (a) =>
           spike(
-            0x8a6a30,
+            0x3a2a1a,
             0.04,
             4,
             [Math.cos(a) * 0.72, 0.1, Math.sin(a) * 0.72],
