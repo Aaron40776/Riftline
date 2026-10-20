@@ -240,6 +240,16 @@ Object.assign(waveEvents, {
     biome: "vault",
     plan: {},
   },
+  // 3.53.0: the Glass Flats: the devils multiply. Three more dust devils rise when it starts and
+  // wander the glass from there on (the first moving hazard, now in numbers)
+  devils: {
+    id: "devils",
+    name: "DUST DEVILS",
+    desc: "The devils multiply · shards +25%",
+    shardMul: 1.25,
+    biome: "flats",
+    plan: {},
+  },
   // 3.50.0: the Glowmarsh: the bloom tide. The id stays "bloom" (the event is wired by id); the
   // name tells what it is now - the pools swell like before, and once the tide is in it breathes:
   // a slow pull-back and return, so the glowing water opens windows to cross
@@ -286,6 +296,7 @@ const RL_BIOME_EVENT = {
   marsh: "bloom",
   void: "riftstorm",
   club: "raid",
+  flats: "devils",
 };
 // Signature enemies: the enemies a biome's mix favours (weight >= 1) can spawn in that biome from
 // its first wave (before, Void Core's phantom came from wave 20 and weaver from 28 although Void

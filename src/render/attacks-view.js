@@ -86,10 +86,12 @@ const DUST = {
     void: new Color(0x5a3a90),
     // 3.49.0: the Ashfall Caldera: warm ash dust
     club: new Color(0x7a6c5e),
+    // 3.53.0: the Glass Flats: pale sand
+    flats: new Color(0xd8c8a8),
   },
   // 3.49.0: the atlas slot 1 was the Ember Works' glowing-cracks mark; the index stays for the
   // atlas layout (the marks are painted by index, the empty slot costs nothing)
-  BIOME_INDEX = { yard: 0, vault: 2, marsh: 3, void: 4, club: 5 };
+  BIOME_INDEX = { yard: 0, vault: 2, marsh: 3, void: 4, club: 5, flats: 6 };
 
 /* the look of a zone (index into the zone shader) */
 const Z = { crack: 0, lavaCrack: 1, molten: 2, frost: 3, acid: 4, rift: 5, target: 6, burn: 7 };
@@ -280,6 +282,12 @@ ${LAYERS}void main() {
       lay(vec3(0.03, 0.022, 0.018), ch * 0.9);
       float crack = smoothstep(0.5, 0.42, abs(h21(floor(q * 1.7) + 3.0) - 0.5));
       lay(vec3(1.0, 0.62, 0.18), crack * smoothstep(0.9, 0.2, t) * f * 0.7);
+    } else if (b == 6) {
+      // 3.53.0: the Glass Flats: a blast fuses a glassy star into the sand, hot at the middle
+      lay(vec3(0.05, 0.04, 0.025), ch * 0.85);
+      float star = pow(abs(cos(a * 3.0 + seed)), 12.0);
+      lay(vec3(1.0, 0.9, 0.65), star * smoothstep(0.85, 0.1, t) * f * 0.75);
+      lay(vec3(1.0, 0.97, 0.9), smoothstep(0.5, 0.0, t) * f * 0.3);
     } else {
       // The Shattered Core: a violet scar, veins of light and specks like stars
       lay(vec3(0.02, 0.0, 0.04), ch * 0.85);

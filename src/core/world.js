@@ -143,7 +143,7 @@ function rlNearHazard(world) {
   const arena = world.arena,
     player = world.player;
   if (!arena || !player.alive) return false;
-  for (const list of [arena.vents, arena.ice, arena.acid])
+  for (const list of [arena.vents, arena.ice, arena.acid, arena.devils])
     for (const hazard of list || [])
       // 2.5.0: the player's own Acid Coating puddles (mine) are not a map hazard
       if (!hazard.mine && Math.hypot(player.x - hazard.x, player.y - hazard.y) - (hazard.r || 0) < RL_ATTUNE_RANGE)
@@ -165,6 +165,7 @@ function rlNearHazard(world) {
 //                            the blizzard itself breathes: grip freezes in and thaws out (~20 s, 3.51.0)
 //   The Glowmarsh Spore Tide   the pools grow by up to 40% over the wave, a new one sprouts every 7 s;
 //                            once the tide is in it breathes - a slow pull-back and return (3.50.0)
+//   The Glass Flats Dust Devils three more devils rise and wander the glass (3.53.0)
 //   The Shattered Core Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
 // (3.49.0: the Ember Works' Meltdown retired with the foundry - the ASHFALL event kept its step.)
 // Extra and moved hazards follow the fairness rules of the wave hazards (arena.js) and keep off
@@ -594,6 +595,8 @@ const rlStep = 1 / 60,
         marsh: ["splitter", "brute", "sapper", "carrier"],
         // 3.49.0: the Caldera's champions: the burning dead the Tyrant calls up
         club: ["gunner", "brute", "bomber", "sapper", "charger"],
+        // 3.53.0: the Flats' champions: the noon-baked crews the Crucible calls up
+        flats: ["gunner", "charger", "driller", "mortar", "sniper", "brute"],
       }[biome];
       if (special) {
         const valid = special.filter((id) => enemyDefs[id] && enemyDefs[id].from <= wave);
@@ -607,6 +610,7 @@ const rlStep = 1 / 60,
           void: ["striker", "brute"],
           marsh: ["splitter", "brute"],
           club: ["grunt", "gunner"],
+          flats: ["gunner", "charger"],
         }[biome] || ["grunt"]
       ).filter((type) => enemyDefs[type].from <= wave);
       return pool.length ? rng.pick(pool) : "grunt";
@@ -1055,6 +1059,12 @@ const rlStep = 1 / 60,
         this._src = enemy.type;
         this.hazard({ x: enemy.x, y: enemy.y, r: 1, delay: 0.8, dmg: enemy.dmg * 0.6, kind: "fire" });
         this._src = src;
+      } else if (enemy.variant === "sunstruck" && enemy.vt <= 0) {
+        // 3.53.0: the Glass Flats' variant: it gleams, then sprints - a short solar burst toward
+        // its aim (the ai reads enemy.sunT for the speed)
+        enemy.vt = 2.6 + this.rng.next();
+        enemy.sunT = 0.6;
+        this.emit("blink", { x: enemy.x, y: enemy.y, small: true, phase: true });
       } else if (enemy.variant === "phase" && enemy.vt <= 0) {
         enemy.vt = 2.4 + this.rng.next();
         let dx = player.x - enemy.x,
@@ -1150,6 +1160,60 @@ const rlStep = 1 / 60,
           // 2.8.1: when the last pool is gone nobody stands in acid any more
           for (let enemy of this.enemies) enemy.corrode = false;
         }
+        // 3.53.0: the Glass Flats' dust devils - the first hazard that moves. Each wanders on its own
+        // heading (a slow deterministic wobble from its phase - no rng draw), reflects off the walls
+        // and the obstacles, and the wind hurts and shoves the player (the enemies walk through
+        // untouched - it is weather, not a weapon of either side)
+        if (arena.devils && arena.devils.length && this.state === "fight") {
+          for (const devil of arena.devils) {
+            devil.a += Math.sin(this.time * 0.37 + devil.ph) * dt * 0.7;
+            const nx = devil.x + Math.cos(devil.a) * devil.spd * dt,
+              ny = devil.y + Math.sin(devil.a) * devil.spd * dt;
+            if (
+              Math.abs(nx) < arena.W - 1.2 - devil.r &&
+              Math.abs(ny) < arena.H - 1.2 - devil.r &&
+              !arena.blocked(nx, ny, devil.r * 0.7)
+            ) {
+              devil.x = nx;
+              devil.y = ny;
+            } else {
+              // reflect: a deterministic half-turn plus its wobble sends it back over the glass
+              devil.a += Math.PI * (0.5 + 0.4 * Math.sin(devil.ph * 3.1));
+            }
+            const dxp = player.x - devil.x,
+              dyp = player.y - devil.y,
+              d2 = dxp * dxp + dyp * dyp;
+            if (player.alive && d2 < devil.r * devil.r) {
+              const away = Math.atan2(dyp, dxp);
+              player.vx += Math.cos(away) * 5.5 * dt;
+              player.vy += Math.sin(away) * 5.5 * dt;
+              player.devilT = (player.devilT || 0) - dt;
+              if (player.devilT <= 0) {
+                player.devilT = 0.5;
+                this.hurtPlayer(
+                  3 * this.dmgMul * Math.max(0, 1 - (this.stats.hazardResist || 0)),
+                  null,
+                  null,
+                  "devil",
+                  true,
+                );
+              }
+            } else if (player.devilT > 0.3) player.devilT = 0.3;
+            // a rising howl when one bears down on the player (the vents' "sounds where they are" rule)
+            devil.nearT = (devil.nearT || 0) - dt;
+            if (d2 < 25 && devil.nearT <= 0) {
+              devil.nearT = 2.2 + (devil.ph % 1);
+              this.emit("devilNear", { x: devil.x, y: devil.y });
+            }
+          }
+          player.inDevil =
+            player.alive &&
+            arena.devils.some((d) => {
+              const dx = player.x - d.x,
+                dy = player.y - d.y;
+              return dx * dx + dy * dy < d.r * d.r;
+            });
+        } else player.inDevil = false;
         // 3.4.0: in Blackout City the vents are live manholes: they arc (shock) instead of erupting lava, and the
         // current stuns the enemies it catches (slowed) besides burning them
         const shock = arena.biome.id === "yard";
@@ -3457,7 +3521,10 @@ const rlStep = 1 / 60,
           }
         };
       arena.rlEvent = id;
-      if (id === "blackout") {
+      if (id === "devils") {
+        // 3.53.0: three more devils rise and wander the glass from there on
+        add("devils", 3);
+      } else if (id === "blackout") {
         // three more manholes; they arc in a chain (one after another, ordered around the centre), every 4.8 s
         add("vents", 3);
         const vents = arena.vents.slice().sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x)),

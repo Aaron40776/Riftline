@@ -198,6 +198,19 @@ const RL_BIOME_LOOK = {
     gain: 0.78,
     fog: [1.05, 2.45],
   },
+  // 3.53.0: the Glass Flats: the one daylight place - a hard white sun over pale glass, a
+  // sand-bounce fill, pale hot haze at the horizon (the fog hex stays dark for the luma rule;
+  // the light comes from the sun and the rendering)
+  flats: {
+    style: 7,
+    hemi: 1.15,
+    sun: 0xfff2d8,
+    sunI: 2.2,
+    fill: [0xffd8a0, 0.65],
+    vivid: 1.3,
+    gain: 1.05,
+    fog: [1.15, 2.6],
+  },
   // 3.50.0: the Glowmarsh: a pale teal moon low over the water, the bioluminescence bounces
   // from below (the fill), everything else stays dark so the glow carries the scene
   marsh: {
@@ -242,6 +255,8 @@ const RL_BIOME_TINT = {
   void: new Color(0x9a92b8),
   // 3.49.0: the Caldera calms its debris into settled ash
   club: new Color(0x98897e),
+  // 3.53.0: the Flats calms its debris into sand
+  flats: new Color(0xd8c8a8),
 };
 // 3.44.0: the fireflies of the Glowmarsh are the one warm light in the cold night
 const RL_FLOOR_FRAG = `
@@ -390,6 +405,29 @@ void main() {
     col = mix(tile, uLod > 1.5 ? uAccent * 0.05 + uGrid * 0.03 : starfield(p), max(gap, 1.0 - inside));
     lit = (0.3 + rim) * (1.0 - gap);
     outside = 1.0;
+  } else if (st == 7) {
+    // The Glass Flats (3.53.0): sheet glass fused into the sand under a platinum noon - broad pale
+    // plates (they dominate; the sand shows in the seams and where the sheet gave up), a thin-film
+    // sheen that shifts across them, hot glare glints, and the heat rising off it (the ambient
+    // carries the motes). The plates stay bright: the noon is the floor's own light (the Shelf's
+    // lesson - the camera never sees the sky, the ground carries the time of day)
+    float plate = fbm(p * 0.13 + 9.0);
+    float sheet = smoothstep(0.36, 0.44, plate);
+    vec3 sand = uBase * 2.3 + vec3(0.105, 0.088, 0.056) * (0.8 + 0.4 * fbm(p * 3.1));
+    vec3 glass = uBase * 3.2 + vec3(0.5, 0.465, 0.385);
+    float film = fbm(p * 0.55 + 3.0);
+    vec3 irid = vec3(0.5 + 0.5 * sin(film * 9.0), 0.5 + 0.5 * sin(film * 9.0 + 2.1), 0.5 + 0.5 * sin(film * 9.0 + 4.2));
+    glass += irid * 0.045;
+    col = mix(sand, glass, sheet);
+    // the seams between the sheets: sand ground down into the grooves
+    vec3 v = voro(p * 0.16 + 4.0);
+    col = mix(col, sand * 0.72, smoothstep(0.09, 0.015, v.y) * 0.85);
+    col *= 0.9 + 0.5 * pl;
+    vec2 gc = floor(p * 1.4), gf = fract(p * 1.4) - 0.5;
+    float glint = step(0.965, h21(gc)) * smoothstep(0.16, 0.0, length(gf)) * (0.4 + 0.6 * sin(uTime * 0.9 + h21(gc + 7.0) * 30.0));
+    col += vec3(1.0, 0.95, 0.85) * glint * 0.22 * sheet * inside;
+    col += uAccent * pl * 0.05;
+    lit = 0.62 + 0.38 * sheet;
   } else if (st == 5) {
     // Blackout City (3.4.0): wet black asphalt with grain and glossy tar seams, puddles that mirror the lights with
     // rain rings in them, worn lane markings (dashed lines every 9 m, a crosswalk near each side) and cracks
@@ -1369,6 +1407,93 @@ void main() {
         rlFootSlab(props, obstacle, emberMat, 0.24);
       }
   },
+  // The Glass Flats (3.53.0): a low sand berm with glass shards along the border, glass ridges and
+  // half-melted sandstone slabs on the field - the noon light does the rest
+  flats(view, biome, W, H, obs, rng) {
+    const group = view.group,
+      props = view.obsGroup,
+      sand = new MeshLambertMaterial({ color: 0x4a3c24, flatShading: true }),
+      sandstone = new MeshLambertMaterial({ color: 0x4a3a22, flatShading: true }),
+      glass = new MeshLambertMaterial({
+        color: 0xd0c298,
+        emissive: 0x4a4028,
+        transparent: true,
+        opacity: 0.84,
+        flatShading: true,
+      }),
+      hotGlass = new MeshLambertMaterial({ color: 0xe8dcb8, emissive: 0x6a5428, flatShading: true }),
+      glow = rlGlow(biome.grid, 0.7),
+      hot = rlGlow(biome.accent, 0.8),
+      bake = rlMerger();
+    // the berm: pale drifts piled along the border, glass shards standing in them
+    rlAlongBorder(W, H, 0.5, 1.9, (x, z, nx, nz) => {
+      const along = nx === 0;
+      bake.add(new BoxGeometry(along ? 2.4 : 0.9, 0.5, along ? 0.9 : 2.4), sand, x, 0.22, z, 0);
+      bake.add(new SphereGeometry(0.55, 7, 5), sand, x + nx * 0.2, 0.3, z + nz * 0.2);
+      if (Math.round((along ? x : z) * 7) % 2 === 0)
+        bake.add(new ConeGeometry(0.14, rng.range(0.7, 1.5), 4), glass, x, 0.75, z, 0, 0, rng.range(-0.3, 0.3));
+    });
+    bake.flush(group);
+    for (const obstacle of obs)
+      if (obstacle.t === "c") {
+        // a glass ridge: two low sheets fused at the middle and leaning a little, a hot core of
+        // sand under a glare ring (tall sheets read as dark scribbles from the steep camera - the
+        // first take's lesson)
+        const a = rng.range(0, Math.PI);
+        for (const [dx, dz, lean] of [
+          [0, 0, 0.14],
+          [Math.cos(a + 1.2) * 0.55, Math.sin(a + 1.2) * 0.55, -0.12],
+        ]) {
+          const sheet = rlMesh(
+            props,
+            new BoxGeometry(obstacle.r * 1.3, obstacle.r * 1.1, 0.14),
+            glass,
+            obstacle.x + dx,
+            obstacle.r * 0.4,
+            obstacle.y + dz,
+          );
+          sheet.rotation.set(lean * Math.sin(a), a, lean * Math.cos(a));
+        }
+        rlMesh(
+          props,
+          new CylinderGeometry(obstacle.r * 0.5, obstacle.r * 0.7, 0.24, 7),
+          hotGlass,
+          obstacle.x,
+          0.12,
+          obstacle.y,
+        );
+        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, glow);
+        view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 1.2, k: "glint" });
+      } else {
+        // a sandstone slab half-melted: the top ran to glass, the sand piled against the wind side
+        const hgt = 1.0;
+        rlMesh(
+          props,
+          new BoxGeometry(obstacle.w * 2 * 0.8, hgt * 0.75, obstacle.h * 2 * 0.8),
+          sandstone,
+          obstacle.x,
+          hgt * 0.36,
+          obstacle.y,
+        );
+        rlMesh(
+          props,
+          new BoxGeometry(obstacle.w * 2 * 0.86, 0.14, obstacle.h * 2 * 0.86),
+          hotGlass,
+          obstacle.x,
+          hgt * 0.78,
+          obstacle.y,
+        );
+        rlMesh(
+          props,
+          new BoxGeometry(obstacle.w * 2 * 0.92, 0.14, obstacle.h * 2 * 0.92),
+          glass,
+          obstacle.x,
+          hgt * 0.78 + 0.13,
+          obstacle.y,
+        );
+        rlFootSlab(props, obstacle, hot, 0.22);
+      }
+  },
 };
 
 // Ambient particles: the air of the biome, around the camera, plus sparks/spores/glints from props.
@@ -1509,6 +1634,35 @@ function rlAmbient(renderer, dt, world, opt) {
           0.1,
           Math.random() < 0.5 ? acc : Math.random() < 0.5 ? grid : RL_C.white,
           { drag: 0 },
+        );
+      break;
+    case "flats":
+      // 3.53.0: the Glass Flats: the noon heat lifts pale motes off the glass, dust wisps slide low
+      for (let j = count(11); j--; )
+        renderer.emit(
+          rx(),
+          0.15,
+          rz(),
+          (Math.random() - 0.5) * 0.5,
+          0.9 + Math.random() * 1.2,
+          (Math.random() - 0.5) * 0.5,
+          2.6,
+          0.08,
+          hexColor(0xffe9c4),
+          { drag: 0.4 },
+        );
+      for (let j = count(7); j--; )
+        renderer.emit(
+          rx(17),
+          0.3 + Math.random() * 1.2,
+          rz(14),
+          (Math.random() - 0.5) * 1.6,
+          -0.06,
+          (Math.random() - 0.5) * 1.6,
+          3.2,
+          0.11,
+          hexColor(0xd8c8a8),
+          { drag: 0.9 },
         );
       break;
     case "club":
@@ -1712,6 +1866,18 @@ if (rlS == 2) {
   outgoingLight += vec3(1.0, 0.55, 0.18) * fres * 0.45;
   float glint = step(0.93, rlN3(vRlP * 12.0 + vec3(0.0, uSkinT * 0.4, 0.0)));
   outgoingLight += vec3(1.0, 0.88, 0.6) * glint * 0.22;
+} else if (rlS == 7) {
+  // 3.53.0: the Glass Flats: sun-bleached shells - pale hot tops, a glare that slides over them,
+  // sand in the seams, and the Sunstruck's gleam rides the rim
+  float top = smoothstep(0.1, 0.7, vRlN.y);
+  outgoingLight = mix(outgoingLight * vec3(0.9, 0.82, 0.7), vec3(1.0, 0.94, 0.82) * (0.55 + 0.3 * top), top * 0.5);
+  float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
+  float slide = 0.5 + 0.5 * sin(uSkinT * 1.1 + vRlP.x * 4.0 + vRlP.z * 3.0);
+  outgoingLight += vec3(1.0, 0.92, 0.7) * fres * (0.2 + 0.25 * slide);
+  float sand = step(0.88, rlN3(vRlP * 9.0)) * smoothstep(0.2, 0.0, vRlN.y);
+  outgoingLight += vec3(0.55, 0.45, 0.3) * sand * 0.3;
+  float gl = step(0.94, rlN3(vRlP * 14.0 + vec3(uSkinT * 0.3, 0.0, 0.0)));
+  outgoingLight += vec3(1.0, 0.97, 0.88) * gl * 0.3;
 }
 }`;
 // Adds the skin (and, for enemy bodies, the hit flash they already had) to a Lambert material.
@@ -1747,6 +1913,8 @@ const RL_SKIN_FX = {
   5: { c: new Color(0xa8c4e0), vy: -0.4, grav: 9, life: 0.5, size: 0.08, spark: true },
   // 3.49.0: the Ashfall Caldera: embers lift off the cinder shell
   6: { c: new Color(0xffc87a), vy: 1.1, grav: 2.5, life: 0.55, size: 0.08, spark: true },
+  // 3.53.0: the Glass Flats: the heat lifts pale motes off the shells
+  7: { c: new Color(0xffe9c4), vy: 1.4, grav: 0.6, life: 0.7, size: 0.07, spark: false },
 };
 function rlSkinParticles(renderer, dt, world) {
   const fx = RL_SKIN_FX[RL_SKIN.uSkin.value];

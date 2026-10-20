@@ -29,6 +29,9 @@ const TRAP_SKINS = {
   // 3.49.0: the Caldera's fumarole: a molten geyser between the spires (no side effect: it just
   // cooks whatever stands in it - the jet and the embers are the show)
   pyro: { fam: "floor", dmg: 21, r: 2.1, warn: 1.0, cd: 4.0, frac: 0.12 },
+  // 3.53.0: the Flats' sunspike: fused glass erupts from the sheet (no side effect - the shards
+  // are the hit; the noon light does the rest)
+  sunspike: { fam: "floor", dmg: 22, r: 2.1, warn: 1.0, cd: 4.1, frac: 0.12 },
 };
 // which skin each biome uses for each family (a biome can lack a family)
 const BIOME_TRAPS = {
@@ -37,6 +40,7 @@ const BIOME_TRAPS = {
   marsh: { floor: "geyser", mine: "spore" },
   void: { floor: "riftburst", beam: "rift", mine: "riftmine" },
   club: { floor: "pyro", beam: "laser", mine: "mine" },
+  flats: { floor: "sunspike", mine: "mine" },
 };
 // first wave of each family, and the number of traps per family on a wave
 const TRAP_FROM = { floor: 6, beam: 9, mine: 12 };

@@ -184,6 +184,56 @@ const PLACE = {
     T(e, a, f * rand(1.1, 1.5), 0.06, "sine", 0.014, { to: f * 0.5, at: 0.13, rev: 0.5 });
     N(e, a, 0.04, 0.018, { type: "bandpass", f: f * 1.6, q: 4, at: 0.01 });
   },
+  // ---- The Glass Flats (3.53.0) ----
+  // a sheet of glass settles: a hot ping with a glassy tail
+  glassPing(e, a) {
+    const f = rand(1600, 2900);
+    T(e, a, f, 0.18, "sine", 0.014, { to: f * 0.98, rev: 0.8 });
+    T(e, a, f * 2.76, 0.1, "sine", 0.006, { at: 0.005, to: f * 2.5 });
+  },
+  // the heat hisses over the glass: a slow band of pink that swells and dies
+  heatHiss(e, a) {
+    N(e, a, 2.2, 0.012, {
+      type: "bandpass",
+      f: rand(2600, 3400),
+      to: rand(2100, 2900),
+      q: 1.6,
+      color: "pink",
+      attack: 0.9,
+      rev: 0.3,
+    });
+  },
+  // a far devil moans: a low wind that leans and dies
+  devilMoan(e, a) {
+    const f = rand(130, 190);
+    T(e, a, f, 1.9, "sawtooth", 0.02, { to: f * 0.72, lp: 420, q: 3, attack: 0.7, rev: 0.5 });
+    N(e, a, 1.6, 0.01, { type: "bandpass", f: f * 6, to: f * 4, q: 2, color: "pink", attack: 0.6 });
+  },
+  // a dust rush rolls past: grains hissing low and fast
+  dustRush(e, a) {
+    N(e, a, 1.4, 0.02, {
+      type: "bandpass",
+      f: rand(900, 1400),
+      to: rand(500, 800),
+      q: 1.1,
+      color: "pink",
+      attack: 0.35,
+      rev: 0.2,
+    });
+  },
+  // a devil is right there: the sand hisses hard against the drone and the wind roars low under it
+  devilHiss(e, a) {
+    N(e, a, 1.1, 0.045, {
+      type: "bandpass",
+      f: rand(1500, 2100),
+      to: rand(900, 1300),
+      q: 1.2,
+      color: "pink",
+      attack: 0.18,
+      rev: 0.25,
+    });
+    T(e, a, rand(72, 96), 0.9, "sawtooth", 0.03, { lp: 330, attack: 0.3, rev: 0.4 });
+  },
   // ---- The Shattered Core ----
   swell(e, a) {
     T(e, a, 38, 1.8, "sine", 0.09, { to: 55, attack: 1.2 });
@@ -472,6 +522,18 @@ const SCAPE = {
       { id: "mud", every: [20, 40] },
     ],
   },
+  flats: {
+    bed: [["heatHiss", 3.2, 6.4, 0.8, 0]],
+    far: [
+      { id: "glassPing", every: [14, 30] },
+      { id: "devilMoan", every: [22, 46] },
+      { id: "dustRush", every: [16, 34] },
+      { id: "cicada", every: [22, 45] },
+      { id: "crystals", every: [26, 52] },
+      { id: "gust", every: [30, 60] },
+      { id: "howl", every: [45, 90], big: true },
+    ],
+  },
   void: {
     bed: [["heartbeat", 1.1, 1.3, 0.8, 0.5]],
     far: [
@@ -593,6 +655,12 @@ function placeTick(e, world, dt) {
   if (arena.acid.length) {
     for (const pool of arena.acid) if (!pool.mine && due(pool, 0.5, 1.6)) play("acidBubble", at(pool.x, pool.y, 0.8));
     if (player.inAcid && fight && due("sizzle", 0.45, 0.6)) play("acidSizzle", { g: 0.8, pan: 0 });
+  }
+  // 3.53.0: the dust devils of the Flats: each hisses where it wanders (they move, so their sound
+  // follows them), and inside one the wind roars past the drone
+  if (arena.devils && arena.devils.length) {
+    for (const devil of arena.devils) if (due(devil, 0.7, 1.9)) play("devilHiss", at(devil.x, devil.y, 0.9));
+    if (player.inDevil && fight && due("devilWind", 0.5, 0.7)) play("devilHiss", { g: 0.95, pan: 0 });
   }
   // portals: both ends hum, sometimes one whispers
   arena.portals.forEach((portal, i) => {

@@ -14,6 +14,7 @@
 // language of the game: a ring at the edge of the danger that lights up.
 
 import {
+  BoxGeometry,
   CircleGeometry,
   Color,
   ConeGeometry,
@@ -36,6 +37,9 @@ import { meshPart, mergeParts, box } from "./models.js";
 import { clamp, TAU, makeRng } from "../core/util.js";
 
 const WHITE = new Color(0xffffff),
+  SAND = new Color(0xd8c8a8), // 3.53.0: the Flats' dust
+  SAND_HOT = new Color(0xffe9c4),
+  SAND_DEEP = new Color(0x9a8a5e),
   LAVA = new Color(0xff6a1f),
   LAVA_HOT = new Color(0xffd27a),
   // 3.49.0: the Ashfall Caldera's fumaroles spray molten rock; their idle breath is ash smoke
@@ -250,6 +254,24 @@ void main() {
   vec3 col = mix(vec3(0.9, 0.16, 0.01), vec3(1.0, 0.6, 0.18), smoothstep(0.3, 0.8, body));
   gl_FragColor = vec4(col * flame * vI.r, 1.0);
 }`,
+  // 3.53.0: the dust devil's skirt: pale sand in a spiral that turns with the devil, thin enough
+  // for the glass to show through; the level (instance r) carries the swirl, the seed (g) varies each
+  dust: `
+void main() {
+  float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 41.0, level = vI.r;
+  float edge = 0.8 + 0.2 * vnoise(vec2(a * 3.0 + seed, seed));
+  if (r > edge) discard;
+  // the spiral: arms that wind tighter as they rise, turning with the devil's own spin
+  float spin = uTime * 1.3 + seed;
+  vec2 q = vec2(cos(a + spin * (0.4 + r)), sin(a + spin * (0.4 + r))) * (r * 3.4 + 0.4) + seed;
+  float arms = smoothstep(0.25, 0.75, vnoise(q) * 0.7 + vnoise(q * 2.3 + 7.0) * 0.45);
+  float skirt = smoothstep(edge, edge * 0.35, r) * (0.35 + 0.65 * arms) * level;
+  vec3 col = mix(vec3(0.34, 0.27, 0.16), vec3(0.62, 0.5, 0.32), arms * smoothstep(0.7, 0.15, r));
+  col *= 0.8 + 0.2 * sin(uTime * 2.1 + seed);
+  gl_FragColor = vec4(col, skirt);
+  #include <fog_fragment>
+  #include <colorspace_fragment>
+}`,
   // 3.49.0: the fumarole: the same pillar, white-hot at the core (the Caldera's jets)
   pyro: `
 void main() {
@@ -420,6 +442,35 @@ const MODELS = {
     geo.translate(0, 0.5, 0);
     return { body: [meshPart(geo, 0xcfeeff)] };
   },
+  // dust devil (the Glass Flats): two open cones of dust - a wide skirt and the funnel above it -
+  // both turning fast (the update spins them); built for radius 1 and scaled with the devil
+  // built for radius 1: a helix of flat dust shards winding up around a hot core, so the devil's
+  // spin is real (a smooth cone reads as a dune - the look pass's lesson). The update spins the set.
+  funnel: () => {
+    const body = [],
+      turns = 2.1,
+      steps = 11;
+    for (let i = 0; i < steps; i++) {
+      const f = i / (steps - 1),
+        a = f * turns * TAU,
+        rad = 1.02 - f * 0.72,
+        w = 0.34 - f * 0.16;
+      body.push(
+        meshPart(new BoxGeometry(w, 0.16 + f * 0.1, 0.42), i % 2 ? 0x6a5230 : 0x54401f, {
+          x: Math.cos(a) * rad,
+          y: 0.2 + f * 2.5,
+          z: Math.sin(a) * rad,
+          ry: -a + Math.PI / 2,
+          rz: 0.18,
+        }),
+      );
+    }
+    body.push(meshPart(new ConeGeometry(0.34, 0.9, 6, 1, true), 0x54401f, { y: 0.35 }));
+    return {
+      body,
+      glow: [meshPart(new ConeGeometry(0.3, 2.7, 6, 1, true), 0xe8dcb8, { y: 1.4 })],
+    };
+  },
   // bloom pool: a bank of peat lumps and a few dead reeds
   bank: () => {
     const rng = makeRng(0xac1d),
@@ -553,6 +604,36 @@ class HazardView {
     if (arena.ice.length) this.ice(dt, world, quality);
     if (arena.acid.length) this.acid(dt, world, quality);
     if (arena.portals.length) this.portals(dt, world, quality);
+    if (arena.devils && arena.devils.length) this.devils(dt, world, quality);
+  }
+  // The Glass Flats: dust devils - the disc swirls, the funnel turns, dust kicks off it as it wanders
+  devils(dt, world, quality) {
+    const r = this.r,
+      time = r.time,
+      funnel = this.get("funnel"),
+      dust = this.surf("dust", 24);
+    for (const devil of world.arena.devils) {
+      const x = devil.x,
+        z = devil.y,
+        rr = devil.r,
+        seed = devil.ph;
+      funnel.body.y(x, 0, z, time * (3.4 + devil.spd), rr, 1, rr);
+      funnel.glow.colC(funnel.glow.y(x, 0.4, z, -time * 2.2, rr * 0.62, 1, rr * 0.62), WHITE, 0.45);
+      this.put(dust, x, 0.045, z, time * 1.3 + seed, rr, 0.9, seed);
+      if (Math.random() < dt * 24 * quality)
+        r.emit(
+          x + (Math.random() - 0.5) * rr * 1.7,
+          0.1 + Math.random() * 1.5,
+          z + (Math.random() - 0.5) * rr * 1.7,
+          (Math.random() - 0.5) * 2.4,
+          1.6 + Math.random() * 2.6,
+          (Math.random() - 0.5) * 2.4,
+          0.8,
+          0.24,
+          Math.random() < 0.5 ? SAND : SAND_DEEP,
+          { drag: 1.4, grow: 0.8 },
+        );
+    }
   }
   // the state of a vent: idle, warn (k 0..1 how far) or erupt
   ventState(world, vent) {

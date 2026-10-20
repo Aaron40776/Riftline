@@ -12,6 +12,8 @@ const RL_BIOME_HAZARD = {
   // 3.49.0: the Ashfall Caldera: fumaroles - vents with a molten skin (they jet white-hot rock
   // between the spires). The id stays "club" for saves and records, like the Yard in 3.4.0.
   club: "vents",
+  // 3.53.0: the Glass Flats: dust devils - the first hazard that moves (they wander the glass)
+  flats: "devils",
 };
 const biomeList = [
   {
@@ -135,11 +137,37 @@ const biomeList = [
       { t: "b", x: -8, y: 7, w: 1.6, h: 0.8 },
     ],
   },
+  {
+    // 3.53.0: The Glass Flats, the sixth biome - a new id, the first daylight place: an ancient
+    // heat fused the sand into sheet glass under a platinum noon. The light comes from the
+    // rendering (a hard white sun over pale glass), the palette hexes keep the night rules (the
+    // deep-test's luma floors and the grid's CIE76 dE 32.2 to the yard's gold). Its hazard is the
+    // dust devil - the first hazard that moves - and the Crucible comes out of retirement to
+    // boss it.
+    id: "flats",
+    name: "The Glass Flats",
+    W: 18,
+    H: 17,
+    // 2.3.3: the palette rule (grid dE >= 30 to every other grid, checked by rlBiomeDistinct)
+    floor: 0x1a130a,
+    grid: 0xfff3d6,
+    accent: 0xffd27a,
+    fog: 0x181209,
+    sky: 0x8a7248,
+    ground: 0x14100a,
+    wall: 0x3a2e1a,
+    obstacles: [
+      { t: "c", x: -7, y: -4.5, r: 1.35 },
+      { t: "c", x: 7, y: 4.5, r: 1.35 },
+      { t: "b", x: -5.5, y: 5.5, w: 2.6, h: 0.8 },
+      { t: "b", x: 5.5, y: -5.5, w: 2.6, h: 0.8 },
+    ],
+  },
 ];
 const biomesById = Object.fromEntries(biomeList.map((biome) => [biome.id, biome]));
 // 2.4.6: Void Core is always the fourth biome (waves 16–20), so the Rift Core stays the final
-// boss. The Aurora Shelf, the Glowmarsh and the Ashfall Caldera are shuffled: two of them in waves
-// 6–15, the third from wave 21 in Endless.
+// boss. The Aurora Shelf, the Glowmarsh, the Ashfall Caldera and the Glass Flats are shuffled: two
+// of them in waves 6–15, the third from wave 21 and the fourth from wave 26 in Endless (3.53.0).
 function planBiomeRoute(rng) {
   let ids = biomeList
     .slice(1)
@@ -167,6 +195,9 @@ function planBiomeRoute(rng) {
                 swarms (splitter, hive, swarmer, sapper …)
    The Shattered Core
                 portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
+   The Glass Flats dust devils wander the glass (the first hazard that moves); noon-baked open
+                ground (the whole floor is fast), the burning dead's cousins (gunner, charger,
+                driller, mortar …)
  The look of each biome (floor, props, border, particles, light) is in the renderer part of
  2.4.0 further down. */
 const RL_BIOME_INFO = {
@@ -193,6 +224,12 @@ const RL_BIOME_INFO = {
   // 3.49.0: the Caldera: ash-shrouded burners (gunner), slag brutes (brute), ember carriers (bomber),
   // scorched runners (charger), the powder boys (sapper) - and the foundry's heavy crews that came
   // over with the Ember Works' retirement, so the mortar, minebot and driller keep a home
+  // 3.53.0: the Flats: plain noon-baked ground (no grip trick - this is the fast, fair place) and
+  // dust devils that wander the glass
+  flats: {
+    tag: "Dust devils",
+    mix: { gunner: 2, charger: 2, driller: 1.6, mortar: 1.4, sniper: 1.4, brute: 1.2, swarmer: 0.6 },
+  },
   club: {
     tag: "Magma vents",
     mix: {
