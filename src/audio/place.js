@@ -191,15 +191,16 @@ const PLACE = {
     T(e, a, f, 0.18, "sine", 0.014, { to: f * 0.98, rev: 0.8 });
     T(e, a, f * 2.76, 0.1, "sine", 0.006, { at: 0.005, to: f * 2.5 });
   },
-  // the heat hisses over the glass: a slow band of pink that swells and dies
+  // the heat hisses over the glass: a slow band of pink that swells and dies (1.9 s: a voice ends
+  // by the 2.05 s cap - the caldera rumble's lesson)
   heatHiss(e, a) {
-    N(e, a, 2.2, 0.012, {
+    N(e, a, 1.9, 0.012, {
       type: "bandpass",
       f: rand(2600, 3400),
       to: rand(2100, 2900),
       q: 1.6,
       color: "pink",
-      attack: 0.9,
+      attack: 0.75,
       rev: 0.3,
     });
   },
