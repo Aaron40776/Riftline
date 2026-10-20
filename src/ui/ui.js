@@ -1926,7 +1926,7 @@ function closePauseSettings(ui) {
 const RL_BIOME_CARD = {
   yard: "Live manholes arc — lure enemies onto them",
   vault: "Slick floor and ice sheets — mind your drift",
-  marsh: "Acid pools eat your hull — and weaken enemies",
+  marsh: "The mud clings, the glowing tide eats your hull — and marks enemies",
   void: "Portal pairs fold the arena — shots pass through",
   club: "Magma vents jet molten rock — the ground itself burns",
 };
@@ -2082,7 +2082,7 @@ const RL_OVERDRIVE_INFO = {
   },
   queen: {
     name: "Plague",
-    desc: "Acid wells up in a ring around you, two eggs hatch, then a dense spiral of spores.",
+    desc: "The bloom wells up in a ring around you, two eggs hatch, then a dense spiral of spores.",
   },
   core: {
     name: "Collapse",

@@ -234,7 +234,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
     aAcid: 0.15,
     aRift: 0.35,
   },
-  /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Toxin Marsh damp;
+  /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Glowmarsh damp;
      3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
   SFX_ROOM_BIOME = { yard: 0.28, vault: 0.5, marsh: 0.2, void: 0.55, club: 0.32 },
   /* the open "ah" of the choir: band-passes on its formants (frequency, Q, level) and a little of the voice */
@@ -3659,7 +3659,7 @@ const musicChords = {
       delete this.beds[name];
     }
     /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (a
-       singing wind in the Cryo Vault, murk in the Toxin Marsh, soft rain and city hum
+       singing wind in the Cryo Vault, murk in the Glowmarsh, soft rain and city hum
        in Blackout City, beating drones in the Void Core; see MUSIC_BEDS). It goes through the music chain (volume,
        fade, glue) and is not a voice of the budget. */
     startMusicBed(kind, biome, fadeIn = 1.5) {
@@ -3820,7 +3820,8 @@ const musicChords = {
             break;
           }
           case "marsh": {
-            // Toxin Marsh: a heavy drone over water that laps against the mud
+            // The Glowmarsh (3.50.0): a heavy drone over water that laps against the peat, and a faint
+            // glassy sheen far above - the bioluminescence humming to itself
             let drone = filter("lowpass", 190, 0.8, loop(0.5, "brown"));
             amp(drone, 0.55);
             let deep = osc("sine", 55);
@@ -3829,6 +3830,10 @@ const musicChords = {
               lapAmp = amp(lap, 0.3);
             drift(lapAmp.gain, 0.12, 0.16);
             drift(lap.frequency, 0.07, 90);
+            let sheen = filter("bandpass", 2100, 5, loop(1.2, "pink")),
+              sheenAmp = amp(sheen, 0.06);
+            drift(sheenAmp.gain, 0.09, 0.03);
+            drift(sheen.frequency, 0.04, 300);
             break;
           }
           case "void": {
@@ -4328,7 +4333,7 @@ const musicChords = {
  length and a play(engine, c) function that is called for every sixteenth step and schedules that step's notes (see
  SoundEngine.note for the fields of c). Under the notes a track has its atmosphere (MUSIC_BEDS: a soft bed of pink or
  brown noise and tones), which is a loop and no voice of the budget.
- The calm themes belong to their place (the Cryo Vault icy and windy, the Toxin Marsh damp and alive, the Caldera a
+ The calm themes belong to their place (the Cryo Vault icy and windy, the Glowmarsh damp and alive, the Caldera a
  sleeping mountain, Blackout City a noir night in the rain, the Void Core dark and breathing); 3.7.0: the boss tracks
  are cinematic synth (taikos, strings, brass, choir, arpeggios, a pumping sub; no guitars and no cymbals), one style
  per boss. Rules that keep the music cheap and the same everywhere:
@@ -4565,7 +4570,7 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
 
 /* 3.7.0: the atmospheres hold no white noise any more. They were a one-second loop of white noise, filtered into rain,
    wind, insects and steam; on a phone speaker (nothing below about 200 Hz) that hiss was most of what one heard of a
-   calm theme (Cryo Vault about three quarters, Toxin Marsh half, Blackout City a third). Now an atmosphere is a soft
+   calm theme (Cryo Vault about three quarters, the Glowmarsh half, Blackout City a third). Now an atmosphere is a soft
    bed of pink or brown noise well below the music (low rumbles, a gentle band of rain, a wind that sings on the notes
    of the chord) and the sounds of the place are notes of the theme: drops, crickets, embers, ice (see the calm themes).
    gain: the level of the calm atmosphere, boss: the factor under the boss track */
@@ -4651,7 +4656,7 @@ const BED_LEVEL = { fight: 1, boss: 1 },
    chord, flakes of texture and the sounds of the place; each biome has an instrument of its own for the motif and its
    own pad. The boss tracks carry the same motif, so that they sound like the same place at its darkest.
    3.46.0: the themes still share that skeleton, but each place now walks out of it with a gait of its own: the City
-   swings (noir), the Marsh drags (bayou), the Works, the Vault and the Core let their chords breathe over two bars,
+   swings (noir), the Glowmarsh drags (bayou), the Works, the Vault and the Core let their chords breathe over two bars,
    and every theme carries one signature voice of its own (a comping chord, a machine bass, a glass run, a dub answer,
    a chant). */
 const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", "x.x..x.x..x.x..x"],
@@ -4677,7 +4682,7 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
     },
     // Cryo Vault: ice bells
     ice: (bus, f, v, o) => bell(bus, f, v, o.lite ? 0.7 : 1.4, { rev: 0.7, ...o }),
-    // Toxin Marsh: a kalimba, a short triangle with a ping on top and a wooden tick
+    // The Glowmarsh: a kalimba, a short triangle with a ping on top and a wooden tick
     kalimba: (bus, f, v, o) => {
       bus.t(f, o.lite ? 0.6 : 1.1, "triangle", v, { attack: 0.002, rev: 0.5, ...o });
       if (o.lite) return;
@@ -4796,7 +4801,7 @@ const BLOOM = {
   yard: { voice: "felt", extra: [14, 9], low: 12, span: 1, rate: 0.62, vol: 0.05, len: 3.4, width: 0.85, echo: 0.6 },
   // Cryo Vault: glass, high, the colour is the sharp eleventh (the Lydian fourth) and the ninth
   vault: { voice: "glass", extra: [18, 14], low: 24, span: 1, rate: 0.7, vol: 0.036, len: 4.8, width: 0.95, echo: 0.8 },
-  // Toxin Marsh: a kalimba, plucked and a little out of tune, the colour is the flat seventh and the fourth
+  // The Glowmarsh: a kalimba, plucked and a little out of tune, the colour is the flat seventh and the fourth
   marsh: {
     voice: "kalimba",
     extra: [10, 5],
@@ -4999,7 +5004,7 @@ function vaultCalm(e, c) {
 }
 
 const LOG_DRUM = "x..x..x...x.x...";
-/* Toxin Marsh, 69 BPM, F minor (Fm Ab Eb Cm): a foggy bayou at night. A kalimba motif, a soft wobbling pad, the sub;
+/* The Glowmarsh, 69 BPM, F minor (Fm Ab Eb Cm): a foggy bayou at night. A kalimba motif, a soft wobbling pad, the sub;
    a dub answer of the kalimba in the low octave (the echo carries it); rising bubbles, frog croaks, mud squelches,
    crickets (the murk is the atmosphere) */
 function marshCalm(e, c) {
@@ -5368,7 +5373,7 @@ function vaultBoss(e, c) {
   }
 }
 
-/* Toxin Marsh boss (Hive Queen), 116 BPM, F minor (Fm Ab Eb Cm): tribal and acid. Drop: deep drums every six
+/* The Glowmarsh boss (Hive Queen), 116 BPM, F minor (Fm Ab Eb Cm): tribal and acid. Drop: deep drums every six
    sixteenths over the four of the bar (three against four), hand drums answering, small drums as ghosts, an acid bass
    (a resonant filter that squelches on its accents), the kalimba motif, swarm strings (tremolo) every second bar;
    variation: the acid plays every sixteenth and opens up, the choir chants, shakers in sixteenths; breakdown: a deep
@@ -5624,7 +5629,7 @@ function bossHeatLayer(e, c) {
    more. A phase change or the enrage jumps to the head of the drop, whose own hit (sectionHit) marks it. */
 const BIOME_VOICE = { yard: "piano", vault: "ice", marsh: "kalimba", void: "glass", club: "cinder" };
 /* 3.48.0: the ambience preview of the Settings slider — one far sound that says "this is the place":
-   the City sparks a broken lamp, icicles fall in the Vault, the Marsh answers with frogs, the
+   the City sparks a broken lamp, icicles fall in the Vault, the Glowmarsh answers with frogs, the
    Core shimmers and the Caldera grumbles far away (3.49.0). */
 const AMB_PREVIEW = {
   yard: "sparks",

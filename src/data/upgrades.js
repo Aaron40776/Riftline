@@ -424,7 +424,7 @@ upgradeList.push(
     max: 2,
     icon: "skull",
     desc: (level, count = level + 1) =>
-      `${22 * count}% of hits leave acid for 3 s (enemies in it take +25% damage). Bigger in Toxin Marsh`,
+      `${22 * count}% of hits leave acid for 3 s (enemies in it take +25% damage). Bigger in the Glowmarsh`,
   },
   {
     id: "heatsink",

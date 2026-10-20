@@ -4,11 +4,11 @@
 //   the Caldera's fumaroles: lava bubbles in the vents; a vent draws breath (a rising rumble and roar) before it erupts
 //   Blackout City the live manholes hum when you are close and crackle faster and faster while they charge
 //   Cryo Vault    the ice cracks and creaks under the drone while it moves on a sheet, sheets tinkle now and then
-//   Toxin Marsh   bubbles pop in the acid pools; the drone sizzles while it stands in acid
+//   The Glowmarsh  bubbles pop in the bloom pools; the drone sizzles while it stands in acid
 //   Void Core     the portals hum (two tones that beat) and whisper
 //   far away      thunder, a car alarm, a passing car, police radio, sparks of a broken lamp (Blackout City); an anvil,
 //                 the caldera's fumaroles and rock falls; an ice crack with a boom, falling icicles, a gust, the
-//                 groan of the glacier (Cryo Vault); frogs, a bird, an owl, mud (Toxin Marsh); a deep swell, a glass
+//                 groan of the glacier (Cryo Vault); frogs, a bird, an owl, mud (the Glowmarsh); a deep swell, a glass
 //                 shimmer, a breath, a glitch (Void Core)
 // 3.13.0: soundscapes. Every biome also has a soft steady layer (rain drops and gutters, wind,
 // crickets, the heartbeat of the core) and more far sounds in variants, each with its own rate (thunder every 25 to 50 s,
@@ -158,7 +158,7 @@ const PLACE = {
   groan(e, a) {
     T(e, a, 62, 1.5, "sawtooth", 0.04, { to: 44, lp: 260, q: 5, attack: 0.5, rev: 0.5 });
   },
-  // ---- Toxin Marsh ----
+  // ---- The Glowmarsh (3.50.0; the bayou base stays: frogs, crickets, mud - the night adds drips) ----
   frogs(e, a) {
     const n = 2 + Math.floor(Math.random() * 3),
       f = rand(95, 130);
@@ -176,6 +176,13 @@ const PLACE = {
   },
   mud(e, a) {
     for (let i = 0; i < 4; i++) T(e, a, rand(70, 140), 0.12, "sine", 0.05, { to: 220, at: i * rand(0.1, 0.2) });
+  },
+  // a glowcap drips into the pool: one drop, sometimes a second (the night's clock)
+  drip(e, a) {
+    const f = rand(1400, 2600);
+    T(e, a, f, 0.05, "sine", 0.02, { to: f * 0.55, rev: 0.5 });
+    T(e, a, f * rand(1.1, 1.5), 0.06, "sine", 0.014, { to: f * 0.5, at: 0.13, rev: 0.5 });
+    N(e, a, 0.04, 0.018, { type: "bandpass", f: f * 1.6, q: 4, at: 0.01 });
   },
   // ---- Void Core ----
   swell(e, a) {
@@ -283,7 +290,7 @@ const PLACE = {
       dp: rand(-0.5, 0.5),
     });
   },
-  // Toxin Marsh: crickets (short trains of high chirps)
+  // The Glowmarsh: crickets (short trains of high chirps)
   cricket(e, a) {
     const f = rand(4200, 5200),
       n = 3 + Math.floor(Math.random() * 3),
@@ -360,7 +367,7 @@ const PLACE = {
     ])
       T(e, a, base * k, 1.4, "sine", v, { rev: 0.8, dp: rand(-0.2, 0.2) });
   },
-  // Toxin Marsh: a chorus of frogs, cicadas, an insect flying past, a splash, a heron
+  // The Glowmarsh: a chorus of frogs, cicadas, an insect flying past, a splash, a heron - and drips
   frogChorus(e, a) {
     for (let i = 0; i < 9; i++) {
       const f = rand(90, 150);
@@ -453,6 +460,7 @@ const SCAPE = {
   marsh: {
     bed: [["cricket", 0.4, 1.1, 1, 0]],
     far: [
+      { id: "drip", every: [12, 26] },
       { id: "frogChorus", every: [20, 40] },
       { id: "cicada", every: [25, 50] },
       { id: "insect", every: [20, 45] },

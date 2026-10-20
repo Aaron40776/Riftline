@@ -162,7 +162,8 @@ function rlNearHazard(world) {
 //   Blackout City  Blackout      three extra manholes; they arc in a chain, the lights die
 //   Ashfall Caldera  ASHFALL     three extra fumaroles, every jet fires in step, the lights die
 //   Cryo Vault   Whiteout     three extra ice sheets; the renderer thickens the fog (snow storm)
-//   Toxin Marsh  Spore Bloom  the pools grow by up to 40% over the wave, a new one sprouts every 7 s
+//   The Glowmarsh Spore Tide   the pools grow by up to 40% over the wave, a new one sprouts every 7 s;
+//                            once the tide is in it breathes - a slow pull-back and return (3.50.0)
 //   Void Core    Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
 // (3.49.0: the Ember Works' Meltdown retired with the foundry - the ASHFALL event kept its step.)
 // Extra and moved hazards follow the fairness rules of the wave hazards (arena.js) and keep off
@@ -171,8 +172,17 @@ const RL_RAID_PERIOD = 3.4,
   RL_BLOOM_GROW = 1.4,
   RL_BLOOM_GROW_T = 35,
   RL_BLOOM_EVERY = 7,
+  // 3.50.0: the tide's breath: after the swell, the radius swings between 44% and 100% of the
+  // gained growth with this period (per pool phase from its position, so the pools do not
+  // all breathe in step). The trough keeps the pool bigger than it started.
+  RL_TIDE_PERIOD = 22,
   RL_STORM_EVERY = 6,
   RL_STORM_WARN = 1.6;
+// 3.50.0: a stable phase for a tide pool from where it lies (no rng draw - the run's roll
+// sequence is untouched; the same seed places the same pool with the same phase)
+function rlTidePhase(x, y) {
+  return (((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1) + 1) % 1;
+}
 
 // 3.16.0: the shots of each boss (the Warden's siren slugs, the Hive Queen's spores, the Rift Core's rift rings; the
 // Frost Prism and the Crucible name theirs, shard and slag, in their attacks)
@@ -633,7 +643,7 @@ const rlStep = 1 / 60,
       return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
     }
     // 2.4.6: the boss of a boss wave is the boss of its biome (Blackout City: Warden, Ember Works:
-    // Crucible, Cryo Vault: Frost Prism, Toxin Marsh: Hive Queen, Void Core: Rift Core). In waves 5–20
+    // Crucible, Cryo Vault: Frost Prism, the Glowmarsh: Hive Queen, Void Core: Rift Core). In waves 5–20
     // its hull follows the slot (wave 5, 10, 15, 20, see spawnBoss), because Queen, Prism and Crucible
     // can each come at wave 10 or 15; Endless keeps each boss's own hull as before.
     bossFor(wave) {
@@ -1067,7 +1077,7 @@ const rlStep = 1 / 60,
     }
     updateFeatures(dt) {
       // 2.5.0 C: the biome event ticks first. The player's Acid Coating puddles (mine) are not map
-      // pools: Spore Bloom neither grows them nor counts them when it looks for room or checks its
+      // pools: Spore Tide neither grows them nor counts them when it looks for room or checks its
       // pool cap.
       if (this.bioEv && this.state === "fight") {
         // 3.46.0: the player's pools are partitioned in place (a pair of filters used to hand the
@@ -1315,9 +1325,10 @@ const rlStep = 1 / 60,
         if (player.slowT > 0) {
           player.slowT -= dt;
         }
-        // 2.4.0: a biome can set its own floor grip (Cryo Vault: the whole floor is slick)
+        // 2.4.0: a biome can set its own floor grip (Cryo Vault: the whole floor is slick); 3.50.0:
+        // the Glowmarsh's mud clings (grip 24) and drags a little speed (biome.mud)
         let grip = dampFactor(onIce ? 2.4 : this.arena.biome.grip || 16, dt),
-          speed = stats.speed * (onIce ? 1.12 : 1) * (player.slowT > 0 ? 0.65 : 1);
+          speed = stats.speed * (onIce ? 1.12 : 1) * (this.arena.biome.mud || 1) * (player.slowT > 0 ? 0.65 : 1);
         player.vx += (mx * speed - player.vx) * grip;
         player.vy += (my * speed - player.vy) * grip;
       }
@@ -2313,7 +2324,9 @@ const rlStep = 1 / 60,
         });
         this.explode(enemy.x, enemy.y, 2.2, 18 * this.stats.dmgMul, { enemies: true, knock: 2, kind: "inferno" });
       }
-      if (enemy.variant === "toxic") {
+      // 3.50.0: a Bloomed enemy bursts into a shining pool (the same acid burst, in the glow
+      // family - the sim is untouched, only the skin's name and colours follow the Glowmarsh)
+      if (enemy.variant === "bloomed") {
         this.arena.acid.push({ x: enemy.x, y: enemy.y, r: 1.4, life: 5 });
       }
       // 3.34.0: a Shorted enemy's spot crackles, then arcs once: it hurts and slows the drone, and shocks the enemies
@@ -3460,13 +3473,14 @@ const rlStep = 1 / 60,
               to: rlHazardRoom250(arena, pool, pool.r * RL_BLOOM_GROW),
               t0: 0,
               dur: RL_BLOOM_GROW_T,
+              ph: rlTidePhase(pool.x, pool.y),
             };
           }
         }
         this.bioEv = { id, t: 0, next: RL_BLOOM_EVERY, n: 0, rng };
       } else if (id === "riftstorm") this.bioEv = { id, t: 0, next: RL_STORM_EVERY, rng };
     }
-    // 2.5.0 C: Spore Bloom and Rift Storm over the wave (from updateFeatures)
+    // 2.5.0 C: Spore Tide and Rift Storm over the wave (from updateFeatures)
     tickBiomeEvent(event, dt) {
       const arena = this.arena,
         player = this.player;
@@ -3474,8 +3488,15 @@ const rlStep = 1 / 60,
       if (event.id === "bloom") {
         for (const pool of arena.acid) {
           if (pool.grow) {
-            pool.r =
-              pool.grow.r0 + (pool.grow.to - pool.grow.r0) * clamp((event.t - pool.grow.t0) / pool.grow.dur, 0, 1);
+            const g = pool.grow;
+            if (event.t < g.dur) {
+              // the swell: the tide creeps in over the wave (as Spore Bloom always grew)
+              pool.r = g.r0 + (g.to - g.r0) * clamp((event.t - g.t0) / g.dur, 0, 1);
+            } else {
+              // 3.50.0: the breath: a slow pull-back and return around the swell's high mark
+              const k = 0.72 + 0.28 * Math.sin(((event.t - g.dur) / RL_TIDE_PERIOD) * Math.PI * 2 + g.ph * Math.PI * 2);
+              pool.r = g.r0 + (g.to - g.r0) * k;
+            }
           }
         }
         if (event.t >= event.next && event.n < 4) {
@@ -3493,7 +3514,7 @@ const rlStep = 1 / 60,
             });
           if (pool) {
             event.n++;
-            pool.grow = { r0: 0.3, to: pool.r, t0: event.t, dur: 2.5 };
+            pool.grow = { r0: 0.3, to: pool.r, t0: event.t, dur: 2.5, ph: rlTidePhase(pool.x, pool.y) };
             pool.r = 0.3;
             this.emit("hatch", { x: pool.x, y: pool.y, big: true });
           }

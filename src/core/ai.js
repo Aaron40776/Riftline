@@ -788,7 +788,7 @@ function updateBoss(game, boss, dt) {
             egg.kx = Math.cos(angle) * 9;
             egg.ky = Math.sin(angle) * 9;
             egg.noDrop = true;
-            // 2.4.6: every hatched egg leaves a short-lived acid puddle where it lay (Toxin Marsh)
+            // 2.4.6: every hatched egg leaves a short-lived acid puddle where it lay (the Glowmarsh)
             if (game.arena.acid.filter((puddle) => puddle.life != null).length < 12) {
               game.arena.acid.push({
                 x: clamp(boss.x + Math.cos(angle) * 2, -game.arena.W + 1, game.arena.W - 1),
@@ -1227,7 +1227,7 @@ function updateBoss(game, boss, dt) {
   endBossAttack(boss, 1);
 }
 // 3.33.0: every place has its beam: the security laser, the flame jet of the Ember Works, a lance of ice, a jet of bile, the
-// rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Cryo Vault and the Toxin Marsh)
+// rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Cryo Vault and the Glowmarsh)
 const SENTINEL_SKIN = { yard: "laser", vault: "cryo", marsh: "acid", void: "rift", club: "flame" };
 /* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
    telegraphed portals around the player: 2 at the first boss, up to 5 later */
@@ -1344,7 +1344,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
       return;
     }
     case "plague": {
-      // acid wells up in a loose ring around the player, two eggs hatch, then a dense spiral
+      // the bloom wells up in a loose ring around the player, two eggs hatch, then a dense spiral
       moveBoss(game, boss, dt, aim, dist, 0.3);
       if (boss.n === 0) {
         boss.n = 1;

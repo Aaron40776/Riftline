@@ -1538,6 +1538,17 @@ function buildBossModel(type, color) {
         Math.sin(angle * 1.7) * 0.75,
       );
     }
+    // 3.50.0: a crown of glowcaps on the abdomen - the marsh's own light lives on the mother of
+    // the swarm (small stems, glowing cap domes; the glow follows her colour)
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.3,
+        mx = -1.3 + Math.cos(a) * 0.5,
+        my = 2.4 + Math.sin(a * 1.7) * 0.14,
+        mz = Math.sin(a * 1.7) * 0.62;
+      addMesh(new CylinderGeometry(0.035, 0.05, 0.3, 5), darkMat, mx, my, mz);
+      addMesh(new SphereGeometry(0.12, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2), glowMat, mx, my + 0.14, mz).scale.y =
+        0.62;
+    }
   } else if (type === "prism") {
     // 2.4.6: Frost Prism, a floating ice golem: a tall translucent crystal body with a cold glow
     // core and visor, crystal shoulders and crown (hullMat: frosted ice, flashes on hits), dark-blue

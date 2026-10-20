@@ -688,7 +688,7 @@ const placeMusic =
       out = {},
       voices = async (biome, intensity) =>
         (await E.renderOffline({ music: "fight", biome, intensity, log: true, seed: 3, room: false }, 8)).musicLog,
-      // what each place adds: Blackout City a walking bass (short low notes on the pump bus), Toxin Marsh a log drum
+      // what each place adds: Blackout City a walking bass (short low notes on the pump bus), the Glowmarsh a log drum
       // (short low notes on the pump bus), Void Core a choir and glitches (the choir bus, short high notes)
       want = {
         yard: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 130 && v.dur < 0.6).length,
@@ -864,7 +864,7 @@ const bloomRes =
     // each biome has its own register (the Vault's glass above the Marsh's kalimba, the biggest gap)
     const centre = (b) => Math.sqrt(out[b].lowHz * out[b].highHz);
     if (!(centre("vault") > centre("marsh") * 1.8))
-      fail.push("the glass of the Cryo Vault is not clearly above the kalimba of the Toxin Marsh");
+      fail.push("the glass of the Cryo Vault is not clearly above the kalimba of the Glowmarsh");
     return { ...out, fail };
   }));
 res.bloom = bloomRes;

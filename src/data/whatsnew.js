@@ -2,6 +2,18 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.50.0",
+    title: "The marsh glows in the dark",
+    items: [
+      "The Toxin Marsh is now THE GLOWMARSH — the swamp after dark: black water over dark peat, veins of glowing algae, glowcap mushrooms and drifting spores. The light is the warning: the brightest water is where the acid is.",
+      "The SPORE TIDE event: the pools swell like before, and once the tide is in it breathes — a slow pull-back and return that opens windows to cross.",
+      "The mud clings: quick to stop, slow to sprint — the marsh is the opposite of the Vault's slick floor.",
+      "The Hive Queen wears a crown of glowcaps now, and she goes out in a burst of spores. The Toxic variant is the Bloomed: it still bursts into a pool when it dies.",
+      "The marsh's own sounds stay bayou — frogs, crickets, mud — and the night adds drips off the glowcaps.",
+      "Saves and records carry over untouched: it is still the same biome underneath.",
+    ],
+  },
+  {
     version: "3.49.0",
     title: "The caldera takes the foundry's place",
     items: [
