@@ -158,7 +158,7 @@ void main() {
    floor    Blackout City (3.4.0): wet asphalt and road markings · Ashfall Caldera (3.49.0): a charcoal
             crust with dark grooves, ash and two molten fissures · The Aurora Shelf (3.51.0): indigo ice
             under snow drifts, wind scours, cracks and the aurora's sheen · The Glowmarsh (3.50.0): black
-            water over dark peat, glowing algae veins and reed tufts · Void Core: hex tiles floating over
+            water over dark peat, glowing algae veins and reed tufts · The Shattered Core: hex tiles floating over
             a starfield
    props    (same collision shapes) pylons and crates · obsidian spires and lava dykes · crystal clusters,
             blue ice ridges and half-buried arks · glowcap mushrooms, dead trees and logs · floating
@@ -367,7 +367,10 @@ void main() {
       (0.6 + 0.4 * sin(uTime * 1.7 + h21(sc + 2.0) * 20.0)) * inside;
     lit = 0.4 + 0.6 * water;
   } else if (st == 4) {
-    // Void Core: hex tiles with glowing rims floating over a starfield; beyond the border only the abyss
+    // The Shattered Core (3.52.0): hex tiles with glowing rims floating over a starfield, a web of
+    // shatter lines across the field, and fissure rings that flash on the Core's own heartbeat (its
+    // fight theme walks at 60 BPM and its scape breathes in the same beat); beyond the border only
+    // the abyss, where debris of the other places drifts past
     vec2 q = p / 2.3, r = vec2(1.0, 1.7320508), hh = r * 0.5;
     vec2 a = mod(q, r) - hh, b = mod(q - hh, r) - hh;
     vec2 g = dot(a, a) < dot(b, b) ? a : b, cid = floor((q - g) * 2.0 + 0.5);
@@ -376,6 +379,14 @@ void main() {
     float gap = smoothstep(0.465, 0.48, hd), rim = smoothstep(0.4, 0.46, hd) * (1.0 - gap);
     float pulse = step(0.94, h21(cid)) * (0.5 + 0.5 * sin(uTime * 2.2 + h21(cid + 1.0) * 20.0));
     vec3 tile = uBase * (0.75 + 0.35 * h21(cid + 5.0)) * (0.8 + 0.6 * pl) + uGrid * rim * 0.2 + uAccent * pulse * 0.06;
+    // the shatter: dark cracks wandering over the tiles, a faint rift glow along them
+    vec3 web = voro(p * 0.13 + 23.0);
+    tile = mix(tile, uBase * 0.45, smoothstep(0.055, 0.0, web.y) * 0.55 * inside);
+    tile += uGrid * smoothstep(0.014, 0.0, abs(web.y - 0.04)) * 0.12 * inside;
+    // the fissures: one tile in ~18 carries an inner ring that flashes with the heartbeat
+    float beat = pow(max(0.0, 1.0 - fract(uTime)), 2.6);
+    float ringIn = smoothstep(0.24, 0.29, hd) * (1.0 - smoothstep(0.33, 0.38, hd));
+    tile += uAccent * ringIn * step(0.945, h21(cid + 9.0)) * (0.3 + 0.7 * beat) * 0.4;
     col = mix(tile, uLod > 1.5 ? uAccent * 0.05 + uGrid * 0.03 : starfield(p), max(gap, 1.0 - inside));
     lit = (0.3 + rim) * (1.0 - gap);
     outside = 1.0;
@@ -1060,7 +1071,7 @@ void main() {
         rlFootSlab(props, obstacle, ring, 0.2);
       }
   },
-  // Void Core: an energy barrier over the abyss, floating obelisks and hovering monoliths
+  // The Shattered Core: an energy barrier over the abyss, floating obelisks and hovering monoliths
   void(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
@@ -1115,6 +1126,63 @@ void main() {
       rocks,
     );
     view.rlAnim.push({ o: drift, k: "bob", b: 0, ph: 0, a: 0.25, s: 0.35 });
+    // 3.52.0: the Shattered Core: the rift's shattering throws the other places' debris past the
+    // tiles - obsidian from the caldera, ice from the Shelf, glowcap wood from the marsh, a lit
+    // splinter of the City's neon - drifting on the same slow bob
+    const debris = [];
+    for (let j = 0; j < 26; j++) {
+      const side = rng.int(0, 3),
+        along = rng.range(-1, 1),
+        out = rng.range(1.8, 8),
+        px = side < 2 ? along * (W + 5) : (side === 2 ? -1 : 1) * (W + out),
+        pz = side < 2 ? (side === 0 ? -1 : 1) * (H + out) : along * (H + 5),
+        size = rng.range(0.2, 0.7);
+      debris.push({
+        x: px,
+        y: rng.range(-2, 2.2),
+        z: pz,
+        rx: rng.range(0, 6),
+        ry: rng.range(0, 6),
+        sx: size,
+        sy: size * rng.range(1.3, 2.4),
+        sz: size,
+        c: rng.pick([0x241a30, 0x241a30, 0x9fd8f0, 0x2a4a3c, 0x46e8ff, 0x2a1a4a]),
+      });
+    }
+    rlInst(
+      drift,
+      new OctahedronGeometry(0.6),
+      new MeshLambertMaterial({ emissive: 0x0a0a18, flatShading: true }),
+      debris,
+    );
+    // a few of the City's broken signposts hang in the abyss, their neon still buzzing
+    for (let j = 0; j < 4; j++) {
+      const side = rng.int(0, 3),
+        along = rng.range(-0.7, 0.7),
+        out = rng.range(3, 7),
+        px = side < 2 ? along * (W + 4) : (side === 2 ? -1 : 1) * (W + out),
+        pz = side < 2 ? (side === 0 ? -1 : 1) * (H + out) : along * (H + 4),
+        post = rlMesh(
+          drift,
+          new BoxGeometry(0.09, 2.6, 0.09),
+          new MeshLambertMaterial({ color: 0x1a2030, flatShading: true }),
+          px,
+          rng.range(-1.5, 0.5),
+          pz,
+        ),
+        panel = rlMesh(
+          drift,
+          new BoxGeometry(1.1, 0.55, 0.07),
+          new MeshLambertMaterial({ color: 0x202838, flatShading: true }),
+          px + 0.4,
+          post.position.y + 0.9,
+          pz,
+        );
+      panel.rotation.y = rng.range(0, 3);
+      post.rotation.z = rng.range(-0.35, 0.35);
+      rlMesh(drift, new BoxGeometry(1.14, 0.08, 0.03), hot, px + 0.4, panel.position.y + 0.24, pz);
+      view.rlAnim.push({ o: panel, k: "spin", s: 0.22, b: panel.position.y, ph: j * 1.7 });
+    }
     for (const obstacle of obs)
       if (obstacle.t === "c") {
         // floating obelisk with an orbiting ring over a rune circle
@@ -1565,7 +1633,8 @@ function rlAmbient(renderer, dt, world, opt) {
    Blackout City rain-wet with a cold sheen, drops running down, red and blue emergency light on the rims (3.4.0)
    The Aurora Shelf frost on the upper surfaces with glints, a cold tint, a rim that drifts aurora green to pink (3.51.0)
    The Glowmarsh a wet dark hide, veins of cold light that breathe, a shine of drips (3.50.0)
-   Void Core    violet rim glow and star specks, motes rising
+   The Shattered Core
+                 violet rim glow and star specks, motes rising
   Ashfall Caldera a charred cinder shell, white-hot fissures that breathe, an ember rim (3.49.0)
  The skin is only visual; how an enemy fights does not change. ---- */
 const RL_SKIN = { uSkin: { value: 0 }, uSkinT: { value: 0 } };

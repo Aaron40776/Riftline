@@ -3107,7 +3107,7 @@ function selfTestV3140(result) {
         silent = level(0, "fight");
       if (!(alone > 0 && Math.abs(under - alone * 0.5) < 1e-9)) fail.push(`rain-not-halved:${alone}/${under}`);
       if (silent !== alone) fail.push(`rain-halved-without-music:${silent}/${alone}`);
-      // the calm theme of the Void Core plays its heartbeat only above intensity 0.5: below it the bed stays full
+      // the calm theme of the Shattered Core plays its heartbeat only above intensity 0.5: below it the bed stays full
       const beatAlone = level(0.45, "boss", "void", "heartbeat", 0.3),
         beatLow = level(0.45, "fight", "void", "heartbeat", 0.3),
         beatHigh = level(0.45, "fight", "void", "heartbeat", 0.8);
@@ -3454,7 +3454,7 @@ function selfTestV3160(result) {
       if (ground && inside && !(target.burnT > 0)) fail.push("searing-not-burning");
     }
     // the props near the drone sound (the street lamps of Blackout City, the machines of the Ember Works, the obelisks of
-    // the Void Core), and only near them
+    // the Shattered Core), and only near them
     if (typeof OfflineAudioContext !== "undefined") {
       const heard = (biome, where) => {
         const world = new World({ seed: 0x3170, weapon: "pulse", threat: 0, ws: {} });

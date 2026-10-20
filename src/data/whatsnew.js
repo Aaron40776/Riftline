@@ -2,6 +2,17 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.52.0",
+    title: "The Core shatters, and the pieces drift",
+    items: [
+      "The Void Core is now THE SHATTERED CORE — the broken heart of the rift, the same place underneath (saves and records untouched).",
+      "A web of shatter lines wanders across the hex tiles, and fissure rings flash with the Core's own 60 BPM heartbeat.",
+      "Debris of the other places drifts past the abyss: obsidian from the caldera, ice from the Shelf, glowcap wood from the marsh, a lit splinter of the City's neon.",
+      "A few of the City's broken signposts hang in the dark, their neon still buzzing.",
+      "Nothing about how it plays changes — the portals fold the arena exactly as before.",
+    ],
+  },
+  {
     version: "3.51.0",
     title: "The shelf sings under the aurora",
     items: [

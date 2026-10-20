@@ -63,8 +63,11 @@ const biomeList = [
     ],
   },
   {
+    // 3.52.0: The Shattered Core (a light polish, not a re-theme: the id stays "void" for saves and
+    // records, like the Yard in 3.4.0): the broken heart of the rift - debris of the other places
+    // drifts past the hex tiles and the fissures flash on the Core's own 60 BPM heartbeat
     id: "void",
-    name: "Void Core",
+    name: "The Shattered Core",
     W: 17,
     H: 17,
     floor: 854040,
@@ -162,7 +165,8 @@ function planBiomeRoute(rng) {
                 enemies (bulwark, sniper, turret, sentinel …)
    The Glowmarsh the mud clings (quick to stop, slow to sprint), acid pools, thick night fog;
                 swarms (splitter, hive, swarmer, sapper …)
-   Void Core    portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
+   The Shattered Core
+                portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
  The look of each biome (floor, props, border, particles, light) is in the renderer part of
  2.4.0 further down. */
 const RL_BIOME_INFO = {

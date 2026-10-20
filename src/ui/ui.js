@@ -1962,7 +1962,7 @@ function rlCodexEntries(save) {
       ...Object.keys(enemyDefs).filter((id) => !enemyOrder.includes(id)),
     ],
     bossBiome = Object.fromEntries(Object.entries(bossByBiome).map(([biomeId, id]) => [id, biomesById[biomeId]])),
-    // the usual route: Blackout City first, Void Core last
+    // the usual route: Blackout City first, the Shattered Core last
     rank = (id) => (id === "warden" ? 0 : id === "core" ? 9 : 1),
     bossIds = [
       ...new Set([
