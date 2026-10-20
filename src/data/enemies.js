@@ -279,6 +279,14 @@ const biomeVariants = {
     color: 0x46ffc0,
     desc: "Sick with the glow: bursts into a shining pool when it dies.",
   },
+  // 3.53.0: the Glass Flats: it gleams, then sprints - a short solar burst toward its aim
+  flats: {
+    id: "sunstruck",
+    name: "Sunstruck",
+    types: ["grunt", "gunner", "charger", "driller"],
+    color: 0xffd27a,
+    desc: "It gleams and sprints - a short solar burst every few seconds.",
+  },
   // 3.49.0: the Caldera: they go out in a flare - the fumaroles jet where they fall (was the Club's Showy)
   club: {
     id: "showy",
@@ -348,10 +356,11 @@ const bossDefs = {
 // World.bossFor). The Crucible is new; Prism became the Frost Prism of the Aurora Shelf. 3.49.0: the
 // Crucible sits out (the Ember Works retired) but stays defined and tested - it takes a new post
 // with a coming biome, and the Codex keeps listing every defined boss.
+// 3.53.0: the Crucible serves the Glass Flats now (the foundry is gone; the card's title follows)
 bossDefs.forge = {
   id: "forge",
   name: "THE CRUCIBLE",
-  title: "Heart of the Works",
+  title: "Hammer of the Flats",
   hp: 3700,
   r: 2.1,
   speed: 1.8,
@@ -373,7 +382,8 @@ bossDefs.kingpin = {
   shards: 60,
   color: 0xff8c2e,
 };
-const bossByBiome = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin" };
+// 3.53.0: the Crucible comes out of retirement - the Glass Flats is its new post
+const bossByBiome = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin", flats: "forge" };
 // hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
 const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
 const bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" }; // before 2.4.6; kept for old tests

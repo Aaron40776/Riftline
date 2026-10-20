@@ -31,7 +31,10 @@ const r = await page.evaluate(() => {
       // 2.4.6: Void Core is always waves 16–20; every boss wave has the boss of its biome
       if (wave >= 16 && wave <= 20 && b.id !== "void") add("route-void-last", `seed ${seed} wave ${wave} ${b.id}`);
       if (wave % 5 === 0) {
-        const want = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin" }[b.id];
+        // 3.53.0: the Glass Flats is the Crucible's new post
+        const want = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin", flats: "forge" }[
+          b.id
+        ];
         if ((w.bossPending || (w.boss && w.boss.type)) !== want)
           add("boss-biome", `seed ${seed} wave ${wave} ${b.id}: ${w.bossPending}`);
       }

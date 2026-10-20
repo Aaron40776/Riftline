@@ -236,7 +236,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
   },
   /* how much room each biome gives the sounds: the Aurora Shelf and the Shattered Core are vast, the Glowmarsh damp;
      3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
-  SFX_ROOM_BIOME = { yard: 0.28, vault: 0.5, marsh: 0.2, void: 0.55, club: 0.32 },
+  SFX_ROOM_BIOME = { yard: 0.28, vault: 0.5, marsh: 0.2, void: 0.55, club: 0.32, flats: 0.3 },
   /* the open "ah" of the choir: band-passes on its formants (frequency, Q, level) and a little of the voice */
   CHOIR_VOWEL = [
     [760, 5, 1],
@@ -249,7 +249,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
      upgrade, pause, fight). The events pile onto it: the whiteout storm rises out of the vault's calm wind.
      3.45.5: raised so the place stays audible while the music plays (the mix note above); the vault needs the
      most, its events are the sparsest. */
-  ROOM_TONE_LEVEL = { yard: 0.038, vault: 0.046, marsh: 0.036, void: 0.038, club: 0.04 },
+  ROOM_TONE_LEVEL = { yard: 0.038, vault: 0.046, marsh: 0.036, void: 0.038, club: 0.04, flats: 0.034 },
   /* 3.43.0: the event beds gather and pass instead of snapping on and off - a storm builds over about
      three seconds and dies away over about four, while the room tone stays underneath. */
   BED_ATTACK = { blackout: 0.6, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, raid: 1.0 },
@@ -310,6 +310,8 @@ const RL_TRAP_SOUND = {
   riftmine: { warn: "tmRift", fire: "tsRiftMine" },
   // 3.47.0: the stage pyro: gas hisses into the nozzle, then a golden burst
   pyro: { warn: "tcPyro", fire: "tsPyro" },
+  // 3.53.0: the Flats' sunspike: glass creaks as the pressure builds, then the sheet bursts
+  sunspike: { warn: "tcSun", fire: "tsSun" },
 };
 /* the beeps of the mines per skin: pitch, wave, filter (and an end-pitch factor for a chirp) */
 const RL_MINE_BEEP = {
@@ -367,6 +369,8 @@ const RL_SOUND_EVENTS = {
   die: [{}],
   enrage: [{ id: "warden" }],
   erupt: [{}],
+  // 3.53.0: a dust devil of the Flats bears down on the player
+  devilNear: [{}],
   eshot: [
     { type: "gunner" },
     { type: "gunner", frost: true },
@@ -562,6 +566,14 @@ function softClipCurve() {
 }
 
 const musicChords = {
+    // 3.53.0: the Glass Flats: D A Bm G - bright open noon chords (the Crucible's own root, D, was
+    // kept in BOSS_ROOT through the foundry's retirement)
+    flats: [
+      [50, "M"],
+      [45, "M"],
+      [47, "m"],
+      [43, "M"],
+    ],
     // 3.4.0: Blackout City: Am F Dm E (the E major pulls back to A minor: film noir)
     yard: [
       [57, "m"],
@@ -602,6 +614,7 @@ const musicChords = {
     void: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
     marsh: { arp: "triangle", bass: "sawtooth", lp: 1200, lead: "triangle" },
     club: { arp: "square", bass: "sawtooth", lp: 1500, lead: "sawtooth" },
+    flats: { arp: "sine", bass: "triangle", lp: 3800, lead: "sine" },
   },
   midiToFreq = (midi) => 440 * Math.pow(2, (midi - 69) / 12),
   arpPatterns = [
@@ -1551,6 +1564,12 @@ const musicChords = {
               n(0.05, 0.032, { type: "bandpass", f: 1500, to: 800, q: 1.1, color: "pink" });
               t(96, 0.06, "triangle", 0.03, { to: 62 });
               break;
+            case "sandglass":
+              // 3.53.0: the Flats: sand over sheet glass - a dry hiss and a squeak of glass under it
+              n(0.07, 0.03, { type: "bandpass", f: 2200, to: 1200, q: 1.4, color: "pink" });
+              t(2100, 0.045, "sine", 0.012, { to: 2700, at: 0.02 });
+              t(88, 0.06, "triangle", 0.026, { to: 56 });
+              break;
             case "acid":
               // in an acid pool: a splash with a sizzle
               n(0.15, 0.04, { type: "bandpass", f: 2600, to: 1400, q: 1.2, color: "pink" });
@@ -1735,6 +1754,16 @@ const musicChords = {
           break;
         case "event":
           this.eventCue(arg);
+          break;
+        case "devilNear":
+          // 3.53.0: a dust devil bears down on the player: a rising wind that howls past (the event's
+          // own position pans it, like every world event's voice)
+          if (this.gate(id, 0.3)) {
+            const f = 500 + Math.random() * 260;
+            this.noise(1.1, 0.09, { type: "bandpass", f, to: f * 1.9, q: 1.6, color: "pink", attack: 0.35 });
+            this.noise(0.8, 0.05, { type: "bandpass", f: f * 2.6, to: f * 3.4, q: 3, at: 0.1 });
+            this.tone(84, 0.9, "sawtooth", 0.02, { lp: 380, attack: 0.4 });
+          }
           break;
         case "erupt":
           // 3.4.0: a live manhole of Blackout City arcs: a hard snap, crackles, a mains buzz and a falling zap
@@ -2494,6 +2523,14 @@ const musicChords = {
             this.tone(2200, 0.06, "triangle", 0.03, { to: 1600, at: d * 0.7 });
           }
           break;
+        case "tcSun":
+          // 3.53.0: the sunspike primes: the fused sheet creaks and ticks as the pressure builds
+          if (this.gate(id, 0.12)) {
+            this.tone(1800 + Math.random() * 500, 0.1, "sine", 0.028, { to: 2400, at: 0.02 });
+            this.tone(2600, 0.07, "sine", 0.02, { at: d * 0.45, to: 2100 });
+            this.noise(d, 0.03, { type: "highpass", f: 5200, attack: d * 0.9 });
+          }
+          break;
         case "tcRift":
           // a reversed swell: the sound is drawn inwards
           if (this.gate(id, 0.12)) {
@@ -2613,6 +2650,15 @@ const musicChords = {
             this.tone(110, 0.26, "sine", 0.26, { to: 55 });
             for (let i = 0; i < 6; i++)
               this.tone(1900 + r() * 1600, 0.08, "sine", 0.03, { to: 700, at: 0.05 + i * 0.06 });
+          }
+          break;
+        case "tsSun":
+          // 3.53.0: the sheet bursts: a glassy snap, shards ringing out, sand hissing down
+          if (this.gate(id, 0.05)) {
+            this.noise(0.12, 0.14, { type: "highpass", f: 2400, attack: 0.002 });
+            this.tone(2400, 0.16, "sine", 0.05, { to: 3200 });
+            this.tone(3600, 0.12, "sine", 0.035, { at: 0.03, to: 2900 });
+            this.noise(0.5, 0.07, { type: "bandpass", f: 1600, to: 700, q: 1.2, at: 0.05, color: "pink" });
           }
           break;
         case "tsRift":
@@ -3159,6 +3205,10 @@ const musicChords = {
             break;
           case "erupt":
             this.play("erupt");
+            break;
+          case "devilNear":
+            // 3.53.0: a dust devil of the Flats bears down on the player (the consume pan carried its spot)
+            this.play("devilNear");
             break;
           case "warp":
             this.play("warp");
@@ -3846,6 +3896,18 @@ const musicChords = {
               shimmerAmp = amp(shimmer, 0.08);
             drift(shimmerAmp.gain, 0.06, 0.06);
             drift(shimmer.frequency, 0.05, 600);
+            break;
+          }
+          case "flats": {
+            // 3.53.0: the Glass Flats: the noon hiss - hot air over the glass, a low sand drone and
+            // the far tick of the sheets settling (the amps stay well over the tone gate: the first
+            // CI round measured 0.0008 - the club's silent-tone lesson)
+            const hiss = amp(filter("bandpass", 3400, 1.4, loop(1.3, "pink")), 0.05);
+            drift(hiss.gain, 0.14, 0.012);
+            const drone = amp(filter("lowpass", 130, 0.8, osc("sine", 48)), 0.075);
+            drift(drone.gain, 0.08, 0.02);
+            const tick = amp(filter("highpass", 5200, 1, loop(1.7, "pink")), 0.009);
+            drift(tick.gain, 0.06, 0.004);
             break;
           }
           case "club": {
@@ -4615,6 +4677,20 @@ const BED_LEVEL = { fight: 1, boss: 1 },
         }
       },
     },
+    // 3.53.0: the Glass Flats: the heat shimmer - a wide hot band that sings against the notes, and
+    // the low sand drone under it. Under the boss track the shimmer thins (boss 0.55): the hammer
+    // carries the fight, and the broadband bed would floor the track's flatness (the club lesson)
+    flats: {
+      gain: 0.34,
+      boss: 0.55,
+      build({ osc, loop, filt, lfo, level, root }) {
+        const shimmer = filt("bandpass", 2900, 4.5, loop(1.2, "pink"));
+        lfo(0.05, 260, shimmer.frequency);
+        level(shimmer, 0.05);
+        const drone = level(osc("sine", root / 4), 0.05);
+        lfo(0.07, 0.012, drone.gain);
+      },
+    },
     marsh: {
       gain: 0.3,
       boss: 1.4,
@@ -4709,6 +4785,15 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       bus.t(f * 1.004, 2.2, "sine", v * 0.5, { attack: 0.002, ...o });
       if (f * 9.2 < 16000) bus.t(f * 9.2, 0.14, "sine", v * 0.1, { attack: 0.001, ...o });
     },
+    // 3.53.0: the Glass Flats: glassine - a struck glass harmonic (a sine with the glass's 2.76
+    // partial) and a hot ping on top: noon light on sheet glass
+    glassine: (bus, f, v, o) => {
+      bus.t(f, o.lite ? 0.8 : 1.6, "sine", v, { attack: 0.002, rev: 0.75, ...o });
+      bus.t(f * 2.76, o.lite ? 0.4 : 0.9, "sine", v * 0.3, { attack: 0.002, ...o });
+      if (o.lite) return;
+      bus.t(f * 5.4, 0.35, "sine", v * 0.12, { attack: 0.001, ...o });
+      bus.t(f * 7.9, 0.12, "sine", v * 0.22, { attack: 0.001, ...o });
+    },
     // Ashfall Caldera: a struck obsidian shard - a dark fundamental, a cold inharmonic ring, a rocky
     // knock and one far shimmer partial (the 9.2 plants tonal peaks across the band the phone test
     // measures, the same medicine as the vibes'; the 16 kHz guard applies to both)
@@ -4723,7 +4808,8 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
   },
   /* the level of each instrument against the ice bells (the pipes, the kalimba, the glass and the vibes are
      softer by nature) */
-  VOICE_GAIN = { piano: 1.4, pipes: 1.6, ice: 1, kalimba: 1.5, glass: 1.5, vibes: 1.35, cinder: 1.45 },
+  // 3.53.0: the Flats' glassine joins the voices
+  VOICE_GAIN = { piano: 1.4, pipes: 1.6, ice: 1, kalimba: 1.5, glass: 1.5, vibes: 1.35, cinder: 1.45, glassine: 1.4 },
   /* the pad of each biome: notes (from the step data), wave, low-pass, fade, detune, room, level, tremolo rate */
   CALM_PAD = {
     yard: {
@@ -4734,6 +4820,16 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       det: 6,
       rev: 0.7,
       vol: 0.017,
+    },
+    // 3.53.0: the Flats: a wide bright pad, an octave up, the fifth under it - noon air
+    flats: {
+      notes: (c) => [c.chord[0] + 12, c.chord[1] + 12, c.chord[2] + 12],
+      wave: "triangle",
+      lp: 2000,
+      fade: 0.9,
+      det: 7,
+      rev: 0.7,
+      vol: 0.018,
     },
     vault: {
       notes: (c) => [c.chord[0] + 12, c.chord[2] + 12, c.chord[1] + 24],
@@ -4805,6 +4901,9 @@ const BLOOM = {
   yard: { voice: "felt", extra: [14, 9], low: 12, span: 1, rate: 0.62, vol: 0.05, len: 3.4, width: 0.85, echo: 0.6 },
   // The Aurora Shelf: glass, high, the colour is the sharp eleventh (the Lydian fourth) and the ninth
   vault: { voice: "glass", extra: [18, 14], low: 24, span: 1, rate: 0.7, vol: 0.036, len: 4.8, width: 0.95, echo: 0.8 },
+  // 3.53.0: the Glass Flats: the glassine, bright and close - the colour is the major seventh and
+  // the ninth (the noon glare); the register sits under the Shelf's glass, above the marsh
+  flats: { voice: "glassine", extra: [14, 11], low: 19, span: 1, rate: 0.66, vol: 0.04, len: 4, width: 0.9, echo: 0.7 },
   // The Glowmarsh: a kalimba, plucked and a little out of tune, the colour is the flat seventh and the fourth
   marsh: {
     voice: "kalimba",
@@ -4838,6 +4937,13 @@ const BLOOM_VOICE = {
     g.t(f, len, "triangle", v, { attack: 0.004, lp: 3000, ...o });
     g.t(f * 5.2, 0.12, "sine", v * 0.14, { attack: 0.002, ...o });
     g.t(f * 0.5, len * 0.6, "sine", v * 0.25, { attack: 0.004, ...o });
+  },
+  // 3.53.0: the Flats' bloom: the glassine with a hotter ping (the noon glare rings off the sheets)
+  glassine: (g, f, v, len, o) => {
+    g.t(f, len, "sine", v, { attack: 0.003, ...o });
+    g.t(f * 2.76, len * 0.35, "sine", v * 0.32, { attack: 0.002, ...o });
+    if (f * 5.4 < 12000) g.t(f * 5.4, len * 0.12, "sine", v * 0.1, { attack: 0.002, ...o });
+    if (f * 7.9 < 12000) g.t(f * 7.9, 0.1, "sine", v * 0.18, { attack: 0.001, ...o });
   },
   ether: (g, f, v, len, o) => {
     g.t(f, len, "sine", v, { attack: 0.35, to: f * 0.992, ...o });
@@ -4895,6 +5001,100 @@ function calmFloor(k, c, beat) {
   if (L > 0.5 && b === 3) kick(k, 0.18, { ...beat, dur: 0.2 });
   if (L > 0.2 && b % 2 === 1 && R(c, 3) < 0.25 + 0.3 * L)
     k.m.n(0.008, 0.035, { type: "bandpass", f: 5200, q: 1.2, color: "pink", pan: P(c, 4, 0.8), rev: 0.6 });
+}
+
+/* The Glass Flats, 92 BPM, D major (D A Bm G): noon over the sheet glass. A glassine motif, a wide
+   bright pad, the sub; the heat shimmers in two slow bands that sing against the chords, glass pings
+   ring off the chord tones and the dust hisses on the off beats as it swells */
+function glassCalm(e, c) {
+  const { b, bar, L, chord, root } = c,
+    k = kit(e, c);
+  calmMotif(k, c, "glassine");
+  calmPad(k, c, "flats");
+  calmFloor(k, c, { f0: 110, f1: 44, dur: 0.26 });
+  // the signature: the heat shimmer - two slow bands that hold through the bar and bend against
+  // each chord (the band's tonal floor, like the Caldera's pedal but wide)
+  if (b === 0) {
+    k.d.t(midiToFreq(chord[0] + 24), c.barSec * 1.06, "sine", 0.012, { lp: 5200, attack: 0.2, pan: -0.3, rev: 0.2 });
+    k.d.t(midiToFreq(chord[2] + 24), c.barSec * 1.06, "sine", 0.009, {
+      lp: 6200,
+      attack: 0.24,
+      pan: 0.32,
+      det: 4,
+      rev: 0.2,
+    });
+  }
+  // glass pings ring off the chord every other beat (high, against the shimmer)
+  if (b % 2 === 0 && b % 8 !== 0)
+    VOICE.glassine(k.d, midiToFreq(chord[[1, 2, 0][(b >> 1) % 3]] + 24), 0.008, { lite: true, pan: 0.34 });
+  // sand hisses on the off beats as the fight swells
+  if (L > 0.3 && b % 4 === 3)
+    k.m.n(0.012, 0.004, { type: "bandpass", f: 2600, to: 1500, q: 1.3, color: "pink", pan: P(c, 6, 0.7) });
+  // the ground breathes: a low drum walks the down-beats late in the fight (root, fifth, root, a step up)
+  if (L > 0.45 && b % 4 === 0) {
+    const walk = [root - 24, root - 17, root - 24, root - 14][b >> 2];
+    k.p.t(midiToFreq(walk), 0.4, "triangle", 0.05, { lp: 560, attack: 0.004 });
+  }
+  // a far devil moans under every fourth bar's head (the scape carries the rest)
+  if (L > 0.2 && (bar & 3) === 3 && b === 0 && R(c, 30) < 0.5)
+    k.d.t(midiToFreq(chord[1] - 12), c.barSec * 1.3, "sawtooth", 0.006, { lp: 420, attack: 0.5, pan: -0.4 });
+}
+
+/* The Glass Flats boss (the Crucible, 126 BPM, D major): the hammer comes out of retirement. Drop: a
+   heavy four on the floor with the forge's anvil answering, the glassine motif over it, a hot brass
+   line; variation: the glass runs in sixteenths and the choir sings the chord; breakdown: the shimmer
+   alone, then the hammer builds it back */
+function forgeBoss(e, c) {
+  const { b, bar, sec, root, chord } = c,
+    k = kit(e, c);
+  if (sec <= 2) calmMotif(k, c, "glassine", sec === 2 ? 1.4 : 1.7, sec !== 2, sec !== 2);
+  sectionHit(k, c);
+  bossFill(k, c);
+  bossCycle(k, c);
+  if (sec <= 1) {
+    // the hammer: a heavy four, the anvil on the "and" of two and four
+    if (b === 0 || b === 8) kick(k, 0.5, { f0: 120, f1: 44, dur: 0.16, pump: 0.5 });
+    if (b === 4 || b === 12) {
+      bigSnare(k, 0.2, { f: 1500, bf: 185 });
+      forgeKnock(k, c, 0.04, { pan: b === 4 ? -0.32 : 0.32 });
+    }
+    if (b % 4 === 2) taiko(k, 0.22, { f: 92, pan: b === 2 ? -0.28 : 0.28 });
+    if (pat(CHUG_BASS)[b]) {
+      k.p.t(midiToFreq(root - 24 + CHUG_OCT[b]), 0.12, "sawtooth", 0.05, { lp: 900, lpTo: 420, q: 2.2 });
+      if (b % 8 === 0) sub(k, root, 0.2, 0.12);
+    }
+    // the brass stabs up the chord while the hammer walks
+    if (b === 6 && (bar & 1) === 0) brass(k, chord[2], 0.16, 0.028, { lp: 480, lpTo: 2500, hold: 0.08 });
+    if (sec === 1) {
+      if (b === 0 || b === 8) brass(k, chord[[0, 2][(bar >> 1) & 1]], 0.38, 0.03, { lp: 460, lpTo: 2700, hold: 0.13 });
+      if (b % 2 === 0 && bar >= 12) strings(k, chord[[0, 2, 1, 2][(b >> 1) & 3]] + 12, 0.019, { lp: 2000 });
+      if (bar >= 12 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec, 0.028);
+    }
+  } else if (sec === 2) {
+    if (b === 0) {
+      taiko(k, 0.52, { f: 64, deep: true, dur: 0.75 });
+      sub(k, root, 1.05, 0.2);
+      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.35, 0.028);
+    }
+    if (b === 8) bigSnare(k, 0.22, { f: 1300, bf: 175, dur: 0.26, rev: 0.8 });
+    if (b % 4 === 2) forgeKnock(k, c, 0.024, { pan: P(c, 20, 0.8) });
+    // the glass runs: a fast shimmer line up the chord late in the variation
+    if (bar >= 14 && b % 2 === 0)
+      k.d.t(midiToFreq(chord[[0, 1, 2, 3][(b >> 1) & 3]] + 24), 0.3, "sine", 0.008, { lp: 7000, pan: P(c, 30, 0.8) });
+  } else {
+    buildRoll(k, c, 84);
+    if (b % 4 === 0) kick(k, 0.3 + 0.1 * (bar - 20), { f0: 120, f1: 44, dur: 0.15 });
+    k.p.t(midiToFreq(root - 24 + Math.floor(((bar - 20) * 16 + b) / 2)), 0.09, "sawtooth", 0.048, { lp: 1000, q: 2 });
+    // the heat riser over the last two bars (the same slow burn the march's eruption had)
+    eruptionRiser(k, c);
+    buildRiser(k, c);
+  }
+}
+// the hammer's knock (the anvil of the old works, revoiced for the open sand - shorter, hotter; the
+// noise share stays near the caldera knock's so the boss track keeps its tonal floor)
+function forgeKnock(k, c, vol, o = {}) {
+  k.d.n(0.03, vol * 1.6, { type: "bandpass", f: 3100, q: 5, color: "pink", attack: 0.001, ...o });
+  k.d.t(1244, 0.14, "sine", vol, { at: 0.004, ...o, lp: 6200 });
 }
 
 /* Blackout City, 78 BPM, A minor (Am F Dm E): rain on empty streets. An electric piano motif, a soft pad, the sub; a
@@ -5631,7 +5831,7 @@ function bossHeatLayer(e, c) {
    below and a short choir (the crash of the metal tracks was a burst of hiss). The last hit when the boss is dead: a
    deep taiko, the brass on the root with a major third (the victory), a choir and the instrument of the biome once
    more. A phase change or the enrage jumps to the head of the drop, whose own hit (sectionHit) marks it. */
-const BIOME_VOICE = { yard: "piano", vault: "ice", marsh: "kalimba", void: "glass", club: "cinder" };
+const BIOME_VOICE = { yard: "piano", vault: "ice", marsh: "kalimba", void: "glass", club: "cinder", flats: "glassine" };
 /* 3.48.0: the ambience preview of the Settings slider — one far sound that says "this is the place":
    the City sparks a broken lamp, icicles fall in the Vault, the Glowmarsh answers with frogs, the
    Core shimmers and the Caldera grumbles far away (3.49.0). */
@@ -5641,6 +5841,7 @@ const AMB_PREVIEW = {
   marsh: "frogs",
   void: "shimmer",
   club: "farBoom",
+  flats: "devilMoan",
 };
 function musicImpact(e, biome, at) {
   const root = (musicChords[biome] || musicChords.yard)[0][0],
@@ -5697,6 +5898,13 @@ const MUSIC_TRACKS = {
   club: {
     fight: { bpm: 84, bars: 16, swing: 0, gain: 1, play: calderaCalm },
     boss: { bpm: 132, bars: 22, swing: 0, gain: 1.2, play: calderaBoss },
+  },
+  // 3.53.0: the Glass Flats: the calm theme keeps noon's even walk (92, straight), the boss track
+  // is the Crucible's hammer (126). The boss gain keeps the versus rule clear (the glue compressor
+  // eats part of a raise - the same note as the Core's and the Caldera's).
+  flats: {
+    fight: { bpm: 92, bars: 16, swing: 0, gain: 1, play: glassCalm },
+    boss: { bpm: 126, bars: 22, swing: 0, gain: 1.2, play: forgeBoss },
   },
 };
 function musicTrack(kind, biome) {
@@ -5785,6 +5993,7 @@ function rlSoundCatalog() {
     "boss",
     "click",
     "erupt",
+    "devilNear",
     "warp",
     "mend",
     "chill",
@@ -5843,11 +6052,12 @@ function rlSoundCatalog() {
   ids(["singThrow", "singPull", "singCollapse", "gadgetReady", "gadgetNo", "resist"]);
   // 3.3.0: the Endless mutator
   ids(["mutator"], "volatile");
-  ids(["tcPlate", "tcCrusher", "tcIce", "tcGeyser", "tcRift"], 1);
+  // 3.53.0: the sunspike joins the trap families (warn and fire of its own)
+  ids(["tcPlate", "tcCrusher", "tcIce", "tcGeyser", "tcRift", "tcSun"], 1);
   for (const id of ["tbLaser", "tbFlame", "tbRift"]) add(id, { id, arg: { delay: 0.7, dur: 1.2 } });
   ids(["tmMine", "tmFrost", "tmSpore", "tmRift"], 0.45);
   for (const skin of ["mine", "frost", "spore", "riftmine"]) ids(["tArm"], skin);
-  ids(["tsPlate", "tsCrusher", "tsIce", "tsGeyser", "tsRift", "tsMine", "tsFrost", "tsSpore", "tsRiftMine"]);
+  ids(["tsPlate", "tsCrusher", "tsIce", "tsGeyser", "tsRift", "tsMine", "tsFrost", "tsSpore", "tsRiftMine", "tsSun"]);
   // 3.10.0: the blasts of the attacks of enemies and bosses
   ids(["aQuake", "aLava", "aIce", "aAcid", "aRift"], 2);
   ids(["aFire"], 1);
@@ -5873,12 +6083,12 @@ function rlSoundCatalog() {
   }
   for (const rarity of [1, 2, 3, 4, 5, 6]) ids(["pick"], rarity);
   // 3.17.0: the walker: a footstep on every ground, the landing after a dash
-  for (const ground of ["asphalt", "grate", "frost", "ice", "mud", "glass", "acid"])
+  for (const ground of ["asphalt", "grate", "frost", "ice", "mud", "glass", "acid", "sandglass"])
     add("step:" + ground, { id: "step", arg: { ground } });
   add("land:grate", { id: "land", arg: { ground: "grate" } });
   // 3.15.0: the boss cards
   ids(["bcCage", "bcLock", "bcHammer", "bcReady", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
-  for (const id of ["elite", "rain", "blackout", "whiteout", "bloom", "riftstorm"]) ids(["event"], id);
+  for (const id of ["elite", "rain", "blackout", "whiteout", "bloom", "riftstorm", "devils"]) ids(["event"], id);
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
   // 3.43.0: the room tones render too (a short take of each, the real attack is slower than the test fade)
   for (const biome of Object.keys(ROOM_TONE_LEVEL)) add("tone:" + biome, { tone: biome, stopAt: 1.0, fade: 0.25 });

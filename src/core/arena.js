@@ -20,6 +20,8 @@ const Arena = class {
     this.ice = (features.ice || []).map((patch) => ({ ...patch }));
     this.portals = (features.portals || []).map((portal) => ({ ...portal }));
     this.acid = (features.acid || []).map((puddle) => ({ ...puddle }));
+    // 3.53.0: the Glass Flats' dust devils - the first hazards that move (World steps them)
+    this.devils = (features.devils || []).map((devil) => ({ ...devil }));
     this.flow = new FlowField(this);
   }
   ventState(vent, time) {
@@ -443,6 +445,17 @@ const OBSTACLE_GAP = 2.7,
             : { t: "b", w: rng.range(0.6, 0.9), h: rng.range(1.6, 2.8) },
       ],
     ],
+    // 3.53.0: the Glass Flats: fused sandstone mounds and the leaning sheets of sheet glass
+    flats: [
+      [4, (rng) => ({ t: "c", r: rng.range(1, 1.4) })],
+      [
+        3,
+        (rng) =>
+          rng.chance(0.5)
+            ? { t: "b", w: rng.range(1.5, 2.6), h: rng.range(0.6, 0.9) }
+            : { t: "b", w: rng.range(0.6, 0.9), h: rng.range(1.5, 2.6) },
+      ],
+    ],
   },
   mapTemplates = {
     yard: ["scatter", "ring", "rot4", "mirror2"],
@@ -450,6 +463,7 @@ const OBSTACLE_GAP = 2.7,
     void: ["scatter", "ring", "rot2", "mirror4"],
     marsh: ["scatter", "mirror2", "ring", "rot2"],
     club: ["scatter", "mirror2", "rot2", "ring"],
+    flats: ["scatter", "ring", "mirror2", "rot4"],
   };
 function classicLayout(biome) {
   return {
@@ -571,12 +585,13 @@ function rlAddDynamicFeatures(layout, biome, seed, wave, boss, mode = "standard"
     ice: [...(layout.features?.ice || [])],
     portals: [...(layout.features?.portals || [])],
     acid: [...(layout.features?.acid || [])],
+    devils: [...(layout.features?.devils || [])],
   };
   if (boss) return features;
   // 2.5.0 C: a biome with a vents/ice/acid theme gets about five hazards per wave (one more in the
   // heavy wave modes) placed by rlAddHazard250. This replaced the 2.1–2.4 rules (two per wave, 2.4.0,
   // plus the extra hazards of some wave modes), which only ever applied to these themes.
-  if (theme === "vents" || theme === "ice" || theme === "acid") {
+  if (theme === "vents" || theme === "ice" || theme === "acid" || theme === "devils") {
     const rng = makeRng(hashString(seed + ":director-features-v250:" + wave + ":" + mode));
     const target = Math.min(
       RL_HAZARD_CAP_250,
@@ -877,7 +892,7 @@ function isConnected(obs, W, H) {
   return reached >= openCount * 0.995;
 }
 function placeFeatures(rng, biomeId, obs, W, H) {
-  let features = { vents: [], ice: [], portals: [], acid: [] },
+  let features = { vents: [], ice: [], portals: [], acid: [], devils: [] },
     path = (x0, y0, x1, y1, minClear = 0.5) => {
       let clear = Math.max(minClear, spawnZone.r + 0.12),
         dx = x1 - x0,
@@ -1068,7 +1083,7 @@ export { mapTemplates, hitsObstacle, obstacleShapes, Arena, buildLayout, isConne
 // within ~3.3), stay 0.95 off every obstacle and leave a lane of 1.3 between each other.
 // The same helpers place the extra hazards of the biome events (see World in world.js).
 // 3.6.0: acid pools a little smaller (2.2–3.0 before): several of them covered most of the marsh floor
-const RL_HAZARD_SIZE_250 = { vents: [1.7, 2.2], ice: [2.7, 3.7], acid: [1.9, 2.6] },
+const RL_HAZARD_SIZE_250 = { vents: [1.7, 2.2], ice: [2.7, 3.7], acid: [1.9, 2.6], devils: [1.5, 2.1] },
   RL_HAZARD_COUNT_250 = 5,
   RL_HAZARD_CAP_250 = 9,
   // wave modes that used to add extra hazards keep one more
@@ -1079,7 +1094,7 @@ const RL_HAZARD_OBS_GAP_250 = 0.95,
   RL_HAZARD_SPAWN_GAP_250 = 0.6;
 function rlHazardTaken250(features) {
   const taken = [];
-  for (const k of ["vents", "ice", "acid"])
+  for (const k of ["vents", "ice", "acid", "devils"])
     for (const hz of features[k] || []) taken.push({ x: hz.x, y: hz.y, r: hz.r || 0.8 });
   for (const portal of features.portals || []) {
     taken.push({ x: portal.ax, y: portal.ay, r: 1.4 });
@@ -1119,7 +1134,11 @@ function rlAddHazard250(features, kind, rng, obs, W, H, opt = {}) {
       ? { ...spot, phase: rng.next() * 6, period: 2.8 + rng.next() * 1.6, st: "idle" }
       : kind === "acid"
         ? { ...spot, life: null }
-        : { ...spot };
+        : kind === "devils"
+          ? // 3.53.0: a dust devil wanders: a heading, its own phase (the wobble) and a pace; it
+            // reflects off walls and obstacles in World.updateFeatures
+            { ...spot, a: rng.next() * TAU, ph: rng.next() * 6, spd: 1.0 + rng.next() * 0.35 }
+          : { ...spot };
   features[kind].push(hazard);
   return hazard;
 }

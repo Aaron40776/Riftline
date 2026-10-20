@@ -95,6 +95,8 @@ const result = await page.evaluate(async () => {
     ["fight", "marsh"],
     ["fight", "club"],
     ["boss", "club"],
+    ["fight", "flats"],
+    ["boss", "flats"],
   ]) {
     sound.setMusic(kind, biome);
     await wait(150);

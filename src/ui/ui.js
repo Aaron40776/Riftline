@@ -1929,6 +1929,7 @@ const RL_BIOME_CARD = {
   marsh: "The mud clings, the glowing tide eats your hull — and marks enemies",
   void: "Portal pairs fold the arena — shots pass through",
   club: "Magma vents jet molten rock — the ground itself burns",
+  flats: "Dust devils wander the glass — they shove, and the wind bites",
 };
 // Codex texts for enemies without a first-encounter tip. Mites only come out of splitters (no
 // spawn event, no tip), so they are known together with the Splitter.

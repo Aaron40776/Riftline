@@ -45,6 +45,8 @@ const LOOK = {
   riftmine: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650), led: hex(0xff4de0) },
   // 3.49.0: the Caldera's fumarole: molten
   pyro: { main: hex(0xffb45a), alt: hex(0xffe9b0), dust: hex(0x3a2418) },
+  // 3.53.0: the Glass Flats' sunspike: fused glass erupts, hot white-gold, sand in the dust
+  sunspike: { main: hex(0xffe9c4), alt: hex(0xfff3d6), dust: hex(0xd8c8a8) },
 };
 // 3.12.0: the Singularity: a dark violet core, the cyan of the player on its rim, violet arms (never the red of a
 // warning: it is the player's own)
@@ -206,6 +208,45 @@ const MODELS = {
         spike(0xcdeeff, 0.1, 6, [0.1, 0, -0.12], [0.26, 0.5, -0.24]),
         spike(0xeaf8ff, 0.07, 5, [0.2, 0, 0.2], [0.4, 0.34, 0.34]),
         spike(0x8cc9ea, 0.07, 5, [-0.22, 0, -0.04], [-0.42, 0.3, -0.06]),
+      ],
+    };
+  },
+  // The Glass Flats: a sunspike - fused glass plates erupt from a sandy disc, the tips hot; the
+  // erupting spike is a shard of sheet glass that catches the noon light
+  sunspike: () => {
+    seed = 17;
+    return {
+      body: [
+        cyl(0x564628, 0.95, 1, 0.05, 12),
+        cyl(0x6a5834, 0.6, 0.7, 0.06, 10, { y: 0.02 }),
+        ...ring(8, (a, i) =>
+          spike(
+            i % 2 ? 0xd8ccb0 : 0xc8b890,
+            0.09 + rnd() * 0.04,
+            4,
+            [Math.cos(a) * 0.8, 0.03, Math.sin(a) * 0.8],
+            [Math.cos(a) * 0.9, 0.3 + rnd() * 0.5, Math.sin(a) * 0.9],
+          ),
+        ),
+        ...ring(6, (a) =>
+          box(0xb0a078, 0.16, 0.02, 0.1, {
+            x: Math.cos(a) * (0.35 + rnd() * 0.4),
+            y: 0.075,
+            z: Math.sin(a) * (0.35 + rnd() * 0.4),
+            ry: rnd() * 3,
+          }),
+        ),
+      ],
+      glow: [
+        ...ring(5, (a, i) => rbar(0xffe9c4, a + 0.3, 0.14, 0.6 + (i % 2) * 0.3, 0.028, 0.012, 0.08)),
+        ...ring(4, (a) => rbar(0xfff3d6, a + 0.7, 0.66, 0.88, 0.02, 0.012, 0.082)),
+      ],
+      mover: [
+        spike(0xfff3d6, 0.16, 5, [0, 0, 0], [0.02, 1, 0.01]),
+        spike(0xffe9c4, 0.12, 5, [0.14, 0, 0.05], [0.3, 0.7, 0.08]),
+        spike(0xffffff, 0.11, 5, [-0.11, 0, 0.12], [-0.22, 0.76, 0.2]),
+        spike(0xffe9c4, 0.1, 5, [-0.06, 0, -0.14], [-0.15, 0.6, -0.3]),
+        spike(0xfff3d6, 0.09, 4, [0.12, 0, -0.11], [0.28, 0.48, -0.24]),
       ],
     };
   },

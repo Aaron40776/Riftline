@@ -1176,6 +1176,13 @@ function handleWorldEvents(world) {
         if (!ev.boss && world.arena.portals.length) {
           showTipOnce("portal", "Portals move you across the arena. Shots fly through them too.");
         }
+        // 3.53.0: the Flats' dust devils - the first hazard that moves
+        if (!ev.boss && world.arena.devils && world.arena.devils.length) {
+          showTipOnce(
+            "devil",
+            "Dust devils wander the glass \u2014 the wind shoves you and bites. Enemies walk through untouched.",
+          );
+        }
         // 3.1.0: the boss track starts when the boss appears (case "boss"), until then the calm theme plays
         sound.setMusic("fight", biome.id);
         if (ev.n === 2) {

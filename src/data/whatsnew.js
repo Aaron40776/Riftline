@@ -2,6 +2,18 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.53.0",
+    title: "The sixth place: the Glass Flats",
+    items: [
+      "A new biome joins the route: THE GLASS FLATS — an ancient heat fused the sand into sheet glass under a platinum noon. The rift's first daylight place.",
+      "Dust devils wander the glass — the first hazard that moves. The wind shoves and bites; the enemies walk through untouched.",
+      "The DUST DEVILS event: three more devils rise and roam with you.",
+      "THE CRUCIBLE is back: the foundry's boss takes the Flats as its new post, hammer and all.",
+      "The Quenched milestone returns, and World Walker now wants wave 26 — all six biomes in one run.",
+      "The flats' own music: a glassine calm theme at noon, and the Crucible's hammer track when it wakes.",
+    ],
+  },
+  {
     version: "3.52.0",
     title: "The Core shatters, and the pieces drift",
     items: [

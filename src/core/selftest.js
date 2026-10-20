@@ -657,7 +657,7 @@ function selfTestExpansion23(result) {
     }
     for (const issue of rlBiomeDistinct()) bad("biome-lookalike", issue);
     for (const [biomeId, variant] of Object.entries(biomeVariants)) {
-      if (!["scorch", "frost", "phase", "bloomed", "shorted", "showy"].includes(variant.id)) {
+      if (!["scorch", "frost", "phase", "bloomed", "shorted", "showy", "sunstruck"].includes(variant.id)) {
         bad("variant-dead", `${biomeId} → ${variant.id}`);
       }
       // 3.34.0: the Codex and the first-time tip read what it does
@@ -719,7 +719,8 @@ function selfTestExpansion23(result) {
       }
     }
     // five calm themes and five boss tracks, five different tempos each (3.49.0: the roster is five)
-    if (tempos.size !== 10) bad("music-tempos", [...tempos].join(","));
+    // 3.53.0: six biomes, twelve tracks
+    if (tempos.size !== 12) bad("music-tempos", [...tempos].join(","));
   });
   // 2d. stragglers: a hunting enemy of every type closes in on a stationary player
   section("hunt", () => {
@@ -1038,16 +1039,17 @@ function selfTestV240(result) {
   const fail = [];
   if (weaponOrder.length !== 7 || Object.keys(weaponDefs).length !== 7) fail.push("weapon-count:" + weaponOrder.length);
   // 3.49.0: five biomes (the Ember Works retired)
-  if (biomeList.length !== 5) fail.push("biome-count:" + biomeList.length);
+  // 3.53.0: six biomes (the Glass Flats joined)
+  if (biomeList.length !== 6) fail.push("biome-count:" + biomeList.length);
   for (const upgrade of upgradeList)
     if (upgrade.weapon && !weaponDefs[upgrade.weapon]) fail.push("evo-weapon:" + upgrade.id);
-  // route: Blackout City first, then one biome per boss cycle, all five by wave 21
+  // route: Blackout City first, then one biome per boss cycle, all six by wave 26 (3.53.0)
   for (const seed of [11, 222, 3333, 44444]) {
     const world = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
       seen = new Set();
     for (let wave = 1; wave <= 30; wave++) {
       const biome = world.biomeFor(wave).id;
-      if (wave <= 21) {
+      if (wave <= 26) {
         seen.add(biome);
       }
       if (wave <= 5 && biome !== "yard") {
@@ -1056,19 +1058,19 @@ function selfTestV240(result) {
       if (wave > 1 && (biome === world.biomeFor(wave - 1).id) !== ((wave - 1) % 5 !== 0))
         fail.push(`route-cycle:${seed}:${wave}`);
     }
-    if (seen.size !== 5) {
+    if (seen.size !== 6) {
       fail.push(`route-coverage:${seed}:${seen.size}`);
     }
   }
   // every hazard biome has its hazard in a normal wave, and only that one
-  const want = { vault: "ice", marsh: "acid", void: "portals", club: "vents" };
+  const want = { vault: "ice", marsh: "acid", void: "portals", club: "vents", flats: "devils" };
   for (const [id, kind] of Object.entries(want)) {
     const world = new World({ seed: 0x240 + id.length, weapon: "pulse", threat: 0, ws: {} }),
       wave = 2 + 5 * world.route.indexOf(id);
     world.startWave(wave);
     if (world.arena.biome.id !== id) fail.push("hazard-biome:" + id);
     if (!world.arena[kind].length) fail.push("hazard-missing:" + id);
-    for (const other of ["vents", "ice", "acid", "portals"]) {
+    for (const other of ["vents", "ice", "acid", "portals", "devils"]) {
       if (other !== kind && world.arena[other].length) {
         fail.push(`hazard-foreign:${id}:${other}`);
       }
@@ -2708,6 +2710,8 @@ function selfTestV380(result) {
           void: { idle: ["s:portal", "stone"] },
           // 3.49.0: the Caldera's fumarole: a basalt nozzle, a molten heart, a magma jet
           club: { idle: ["s:molten", "nozzle"], erupt: ["s:pyro"] },
+          // 3.53.0: the Flats' dust devil: the two cones of dust and the kicked-up sand
+          flats: { idle: ["funnel", "s:dust"] },
         },
         drawn = (name) => {
           const set = view.pl[name];
@@ -2732,6 +2736,7 @@ function selfTestV380(result) {
         if ((biome === "yard" || biome === "club") && !arena.vents.length)
           arena.vents.push({ x: 6, y: 6, r: 2, phase: 0, period: 4, st: "idle" });
         if (biome === "void" && !arena.portals.length) arena.portals.push({ ax: 6, ay: 6, bx: -6, by: -6 });
+        if (biome === "flats" && !arena.devils.length) arena.devils.push({ x: 6, y: 6, r: 2, a: 0, ph: 0, spd: 1 });
         draw(world);
         for (const name of want[biome].idle) if (!(drawn(name) > 0)) fail.push(`${biome}-not-drawn:${name}`);
         if (want[biome].erupt) {
@@ -2770,7 +2775,7 @@ function selfTestV390(result) {
     // every far sound of a biome exists, and every sound is in the catalog of the offline test
     for (const [biome, list] of Object.entries(BIOME_PLACE))
       for (const id of list) if (!PLACE_IDS.includes(id)) fail.push(`far-unknown:${biome}:${id}`);
-    for (const biome of ["yard", "vault", "marsh", "void", "club"])
+    for (const biome of ["yard", "vault", "marsh", "void", "club", "flats"])
       if (!BIOME_PLACE[biome] || BIOME_PLACE[biome].length < 4) fail.push("far-missing:" + biome);
     const catalog = rlSoundCatalog();
     for (const id of PLACE_IDS)
@@ -2785,6 +2790,8 @@ function selfTestV390(result) {
         void: ["portalHum"],
         // 3.49.0: the Caldera's vents bubble like any lava vent, and the mountain's pulse comes through the floor
         club: ["lavaBlub", "lavaWarn", "ventPulse"],
+        // 3.53.0: the Flats: the devils hiss where they wander, and the sand hisses near them
+        flats: ["devilHiss"],
       };
       for (const biome of Object.keys(want)) {
         const world = new World({ seed: 0x390, weapon: "pulse", threat: 0, ws: {} }),
@@ -2799,14 +2806,17 @@ function selfTestV390(result) {
         if (biome === "vault" && !arena.ice.length) arena.ice.push({ x: 4, y: 4, r: 3 });
         if (biome === "marsh" && !arena.acid.length) arena.acid.push({ x: 4, y: 4, r: 2, life: null });
         if (biome === "void" && !arena.portals.length) arena.portals.push({ ax: 4, ay: 4, bx: -4, by: -4 });
+        if (biome === "flats" && !arena.devils.length) arena.devils.push({ x: 4, y: 4, r: 2, a: 0, ph: 0, spd: 1 });
         const spot = arena.vents[0] ||
           arena.ice[0] ||
-          arena.acid[0] || { x: arena.portals[0].ax, y: arena.portals[0].ay };
+          arena.acid[0] ||
+          arena.devils[0] || { x: arena.portals[0].ax, y: arena.portals[0].ay };
         player.x = spot.x;
         player.y = spot.y;
         player.vx = 6;
         player.onIce = biome === "vault";
         player.inAcid = biome === "marsh";
+        player.inDevil = biome === "flats";
         const engine = new SoundEngine();
         engine.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
         const heard = [],
@@ -3524,6 +3534,7 @@ function selfTestV3160(result) {
       marsh: "acid",
       void: "rift",
       club: "flame",
+      flats: "laser",
     })) {
       const world = new World({ seed: 0x3161, weapon: "pulse", threat: 0, ws: {} });
       world.startWave(2);

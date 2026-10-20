@@ -429,6 +429,8 @@ const MAX_PARTICLES = 1400,
     // 3.50.0: the Glowmarsh's Bloomed (was the Toxin Marsh's Toxic)
     bloomed: hexColor(0x46ffc0),
     shorted: hexColor(0x8fd0ff),
+    // 3.53.0: the Glass Flats' Sunstruck: a hot gleam
+    sunstruck: hexColor(0xffd27a),
   },
   beamColor = new Color(16732064),
   // 3.0.0: the grey-white of a hit that the burst cap swallowed

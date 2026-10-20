@@ -22,6 +22,11 @@ function updateEnemyCore(game, enemy, dt) {
     cdy = game.cdy,
     speed = enemy.speed,
     alive = player.alive;
+  // 3.53.0: a Sunstruck enemy sprints while its solar burst lasts (the gleam already showed)
+  if (enemy.sunT > 0) {
+    enemy.sunT -= dt;
+    speed *= 2.1;
+  }
   if (
     enemy.hunt &&
     (enemy.type === "gunner" ||
@@ -1228,7 +1233,7 @@ function updateBoss(game, boss, dt) {
 }
 // 3.33.0: every place has its beam: the security laser, the flame jet of the Ember Works, a lance of ice, a jet of bile, the
 // rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Aurora Shelf and the Glowmarsh)
-const SENTINEL_SKIN = { yard: "laser", vault: "cryo", marsh: "acid", void: "rift", club: "flame" };
+const SENTINEL_SKIN = { yard: "laser", vault: "cryo", marsh: "acid", void: "rift", club: "flame", flats: "laser" };
 /* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
    telegraphed portals around the player: 2 at the first boss, up to 5 later */
 function bossReinforce(game, boss) {

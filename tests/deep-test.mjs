@@ -375,7 +375,7 @@ const distinct = cached
       out.bosses.min < 0.35 &&
         out.fail.push(`boss intros too similar: ${out.bosses.pair} (${out.bosses.min.toFixed(2)})`);
       out.music = [];
-      for (const biome of ["yard", "vault", "void", "marsh", "club"])
+      for (const biome of ["yard", "vault", "void", "marsh", "club", "flats"])
         for (const music of ["fight", "boss"]) {
           const calm = await engine.renderOffline({ music, biome }, 4),
             busy = await engine.renderOffline({ music, biome, flood: true }, 4);
@@ -409,7 +409,7 @@ const music = cached
       const E = window.__riftTest.game.sound.constructor,
         SR = 44100,
         N = 4096,
-        BIOMES = ["yard", "vault", "marsh", "void", "club"],
+        BIOMES = ["yard", "vault", "marsh", "void", "club", "flats"],
         fail = [],
         out = { budget: [], tracks: {}, calmPairs: [], bossPairs: [], versus: [] };
       // ---- (1) the voice budget
@@ -700,6 +700,8 @@ const placeMusic =
             .length,
         // 3.49.0: the Ashfall Caldera's cracking crust (short band-passed noises on the music bus)
         club: (log) => log.filter((v) => v.kind === "n" && v.bus === "m" && v.dur <= 0.03).length,
+        // 3.53.0: the Flats: the sand hisses on the music bus as the noon heat rises
+        flats: (log) => log.filter((v) => v.kind === "n" && v.bus === "m").length,
       };
     for (const [biome, count] of Object.entries(want)) {
       const quiet = count(await voices(biome, 0.1)),
@@ -744,7 +746,7 @@ const ambience = await page.evaluate(async (under) => {
       for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
       return Math.sqrt(sum / x.length);
     };
-  for (const biome of ["yard", "vault", "marsh", "void", "club"]) {
+  for (const biome of ["yard", "vault", "marsh", "void", "club", "flats"]) {
     const music = rms(
       (await E.renderOffline({ music: "fight", biome, intensity: 0.5, wav: true, room: false, seed: 5 }, 20)).samples,
     );
@@ -832,7 +834,7 @@ const bloomRes =
         }
         return Math.sqrt(side / (mid || 1));
       };
-    for (const biome of ["yard", "vault", "marsh", "void", "club"]) {
+    for (const biome of ["yard", "vault", "marsh", "void", "club", "flats"]) {
       const info = E.trackInfo("fight", biome),
         seconds = (8 * 240) / info.bpm,
         spec = { music: "fight", biome, intensity: 0.2, wav: true, log: true, seed: 11, stereo: true, noBed: true },
