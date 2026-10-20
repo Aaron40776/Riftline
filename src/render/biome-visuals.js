@@ -187,16 +187,15 @@ const RL_BIOME_LOOK = {
   },
   vault: {
     style: 2,
-    // 3.51.0: the Aurora Shelf: an indigo arctic night - a cold moon key, a moonlit-ice fill, and
-    // the aurora's own light lives in the curtains and the sheen it drapes on the ice; the fog is a
-    // shade denser so the storm's breath can read (3.36.0/3.44.0 notes were the Cryo Vault's)
+    // 3.54.0: the Shelf at night: a cold moon key, an aurora-lit fill (the curtains' green bounces
+    // off the snow), and the aurora's own light lives in the curtains and the sheen on the ice
     hemi: 0.85,
     sun: 0xcfe2ff,
     sunI: 1.55,
-    fill: [0x9ec8ff, 0.55],
-    vivid: 1.1,
-    gain: 0.78,
-    fog: [1.05, 2.45],
+    fill: [0x7ad8a8, 0.5],
+    vivid: 1.15,
+    gain: 0.8,
+    fog: [0.98, 2.3],
   },
   // 3.53.0: the Glass Flats: the one daylight place - a hard white sun over pale glass, a
   // sand-bounce fill, pale hot haze at the horizon (the fog hex stays dark for the luma rule;
@@ -233,16 +232,17 @@ const RL_BIOME_LOOK = {
     gain: 1.0,
     fog: [1.25, 3.0],
   },
-  // 3.49.0: the Ashfall Caldera: a low ember key, a molten bounce from below, thick ash in the air
+  // 3.54.0: the Ashfall Caldera: a low ember key, a molten bounce from below, ash in the air -
+  // the fog sits a shade clearer so the volcano reads past the wall
   club: {
     style: 6,
-    hemi: 0.8,
+    hemi: 0.85,
     sun: 0xc48a60,
-    sunI: 1.45,
-    fill: [0xff5a20, 0.55],
-    vivid: 1.15,
-    gain: 1.0,
-    fog: [1.3, 2.8],
+    sunI: 1.5,
+    fill: [0xff6420, 0.6],
+    vivid: 1.12,
+    gain: 0.98,
+    fog: [1.18, 2.65],
   },
 };
 // 3.41.0: the tone the flying debris of a kill calms into. The style guide of the owner (Viridi, Penguin's
@@ -330,21 +330,29 @@ void main() {
   float lit = 0.35 + minor * 0.5 + major * 0.9; // how strongly muzzle flashes / blasts light it
   float outside = 0.3; // brightness of the floor beyond the border
   if (st == 2) {
-    // The Aurora Shelf (3.51.0): indigo ice under snow drifts - the wind scours the sheet into long
-    // streaks, the cracks show deep blue, and the aurora overhead drapes a slow green-pink sheen
-    // across the floor. The snow reads bright against the night, enemies keep their contrast.
-    vec3 iceb = uBase * (0.7 + 0.55 * fbm(p * 1.3));
-    float snow = smoothstep(0.5, 0.74, fbm(p * 0.22 + 7.0));
-    col = mix(iceb, uBase * 1.3 + vec3(0.04, 0.05, 0.07), snow) * (0.8 + 0.6 * pl);
+    // The Aurora Shelf (3.54.0): indigo ice at night - the wind scours the sheet into long
+    // streaks, the thin ice's cracks glow glacier blue and breathe with the storm, and the
+    // aurora overhead drapes its bands across the ice: green-pink sheets that drift, plus the
+    // curtains' reflection smearing over the far field. The snow reads bright against the night.
+    vec3 iceb = uBase * (0.6 + 0.5 * fbm(p * 1.3));
+    float snow = smoothstep(0.56, 0.78, fbm(p * 0.22 + 7.0));
+    col = mix(iceb, uBase * 1.2 + vec3(0.035, 0.045, 0.075), snow) * (0.8 + 0.6 * pl);
     float scour = fbm(vec2(p.x * 0.14, p.y * 0.75) + 2.0);
-    col *= 0.82 + 0.28 * scour;
+    col *= 0.8 + 0.3 * scour;
+    // the thin ice: cracks glow glacier blue, breathing on the storm's ~20 s clock
     vec3 v = voro(p * 0.3 + 11.0);
-    col += uGrid * smoothstep(0.03, 0.0, v.y) * 0.14 * inside;
-    float aur = fbm(vec2(p.x * 0.045 + uTime * 0.012, p.y * 0.22));
-    float band = smoothstep(0.46, 0.78, aur);
-    float ray = 0.55 + 0.45 * sin(p.x * 1.7 + aur * 9.0 + uTime * 0.1);
-    vec3 aurC = mix(vec3(0.12, 0.62, 0.4), vec3(0.4, 0.22, 0.5), 0.5 + 0.5 * sin(uTime * 0.035 + p.x * 0.03 + p.y * 0.05));
+    float breath = 0.7 + 0.3 * sin(uTime * 0.314);
+    col += uGrid * smoothstep(0.05, 0.0, v.y) * 0.3 * breath;
+    // the aurora's sheen: bands that cross the ice and shift with the curtains
+    float aur = fbm(vec2(p.x * 0.045 + uTime * 0.014, p.y * 0.2));
+    float band = smoothstep(0.44, 0.75, aur);
+    float ray = 0.55 + 0.45 * sin(p.x * 1.7 + aur * 9.0 + uTime * 0.12);
+    vec3 aurC = mix(vec3(0.1, 0.66, 0.38), vec3(0.42, 0.22, 0.5), 0.5 + 0.5 * sin(uTime * 0.035 + p.x * 0.03 + p.y * 0.05));
     col += aurC * band * ray * 0.5 * (0.7 + 0.3 * fbm(p * 0.8));
+    // the curtains' reflection: a vertical smear that strengthens toward the far field
+    float smear = smoothstep(0.55, 0.85, fbm(vec2(p.x * 0.3 + uTime * 0.02, p.y * 0.05))) *
+      (1.0 - smoothstep(-9.0, 2.0, p.y));
+    col += vec3(0.09, 0.5, 0.32) * smear * 0.3;
     float frost = smoothstep(0.55, 0.8, fbm(p * 1.1));
     // 3.44.0 lesson kept: the frost drifts rest low and the glints blink slow, so enemies read
     col = mix(col, uGrid * 0.2, frost * 0.18);
@@ -449,26 +457,36 @@ void main() {
     col = mix(col, uGrid * 0.4, lane * wear * inside * (1.0 - puddle * 0.6));
     lit = 0.4 + 0.75 * puddle + lane * 0.3;
   } else if (st == 6) {
-    // Ashfall Caldera (3.49.0): a cooled crust, the opposite of the Works' crack network - charcoal
-    // plates with dark grooves between them, ash drifted over it all, embers smouldering in sparse
-    // spots, and two big fissures that breathe molten light where the crust never closed
+    // Ashfall Caldera (3.54.0): the floor of a volcano - charcoal plates between deep grooves, ash
+    // drifted in the basins, and a web of molten cracks that breathes: every plate border is a
+    // fissure, how hot it burns falls off from the two fissure hearts, and a slow pulse wanders
+    // the veins (the light travels the crack network like a tide under the crust)
     vec3 cell = voro(p * 0.5);
     float plate = 0.65 + 0.6 * h21(cell.zz + 7.0);
-    col = uBase * (0.85 + 0.5 * fbm(p * 1.4)) * plate * (0.8 + 0.5 * pl);
-    float groove = smoothstep(0.16, 0.05, cell.y);
+    col = uBase * (0.6 + 0.5 * fbm(p * 1.4)) * plate * (0.8 + 0.5 * pl);
+    float groove = smoothstep(0.18, 0.05, cell.y);
     col *= 1.0 - groove * 0.55;
-    float ash = smoothstep(0.5, 0.9, fbm(p * 1.5 + 3.0));
-    col = mix(col, vec3(0.045, 0.043, 0.046) * (0.55 + 0.75 * plate), ash * 0.5);
-    vec2 ec = floor(p * 0.9);
-    float ember = step(0.958, h21(ec)) * smoothstep(0.3, 0.06, length(fract(p * 0.9) - 0.5));
-    float emberP = 0.55 + 0.45 * sin(uTime * 1.7 + h21(ec + 2.0) * 40.0);
-    col += uGrid * ember * emberP * 0.6 * inside;
-    vec2 f1 = p - vec2(-4.5, 3.0), f2 = p - vec2(5.0, -2.5);
-    float fis = exp(-dot(f1, f1) * 0.1) + exp(-dot(f2, f2) * 0.085);
+    float ash = smoothstep(0.52, 0.88, fbm(p * 1.5 + 3.0));
+    col = mix(col, vec3(0.042, 0.04, 0.041) * (0.5 + 0.75 * plate), ash * 0.5);
+    // the crack web and its two hearts: the borders glow only where a slow noise has opened them
+    // (broken segments, not honeycomb cells), dull ember far from the hearts, molten gold near them
+    float web = smoothstep(0.07, 0.0, cell.y);
+    float crack = web * smoothstep(0.42, 0.6, fbm(p * 0.33 + cell.z * 7.0));
+    vec2 h1 = p - vec2(-4.5, 3.0), h2 = p - vec2(5.0, -2.5);
+    float heart = exp(-dot(h1, h1) * 0.045) + exp(-dot(h2, h2) * 0.038);
     float breath = 0.7 + 0.3 * sin(uTime * 0.8);
-    col += uAccent * fis * breath * 0.14 * inside;
-    col += uGrid * 0.05 * fis * smoothstep(0.35, 0.75, fbm(p * 2.0 - uTime * 0.1));
-    lit = 0.22 + fis * 2.0 + ember * emberP * 0.6;
+    float flow = 0.55 + 0.45 * sin(cell.z * 43.0 - uTime * 1.3 + heart * 4.0);
+    float vein = crack * (0.12 + 1.05 * heart * breath);
+    vec3 hot = mix(vec3(0.38, 0.06, 0.01), vec3(1.0, 0.55, 0.1), clamp(heart * 0.9, 0.0, 1.0));
+    col += hot * vein * (0.5 + 0.5 * flow) * 1.2;
+    col += uAccent * crack * heart * breath * flow * 0.55;
+    col += uAccent * heart * breath * 0.12;
+    // embers pool along the open fissures instead of scattering evenly
+    vec2 ec = floor(p * 0.9);
+    float ember = step(0.96, h21(ec)) * smoothstep(0.26, 0.05, length(fract(p * 0.9) - 0.5));
+    float emberP = 0.55 + 0.45 * sin(uTime * 1.7 + h21(ec + 2.0) * 40.0);
+    col += uGrid * ember * emberP * (0.18 + 0.5 * crack) * inside;
+    lit = 0.22 + vein * (0.5 + 0.5 * flow) * 2.2 + heart * breath * 1.2;
   } else {
     // (every biome has its style; a plain floor if one ever had none)
     col = uBase * (0.75 + 0.7 * pl);
@@ -745,8 +763,9 @@ const RL_BIOME_BUILD = {
       glow = rlGlow(biome.grid, 0.8),
       wallW = 0.6,
       wallH = 0.45;
-    // the aurora: tall curtains past the border, a green base that pinks as it rises, bands that
-    // fold like cloth in the wind (each curtain on its own seed and height)
+    // the aurora: tall curtains standing past the far wall, a defined bright green foot that waves
+    // (the classic aurora's lower border), vertical rays that drift and breathe, the colour rising
+    // green -> violet -> pink (each curtain on its own seed and height)
     const auroraVert = `varying vec2 vUv;
 void main() {
   vUv = uv;
@@ -756,34 +775,51 @@ void main() {
 uniform float uTime;
 uniform float uSeed;
 uniform float uAlpha;
+uniform float uFoot;
 varying vec2 vUv;
 void main() {
   float x = vUv.x * (2.2 + uSeed * 0.7) + uSeed * 13.7;
   float w = sin(x * 1.9 + uTime * 0.1 + uSeed * 3.1) * 0.45 +
     sin(x * 3.3 - uTime * 0.061 + uSeed) * 0.25 +
     sin(x * 0.8 + uTime * 0.043) * 0.5;
-  float band = smoothstep(0.32, 0.0, abs(vUv.x - 0.5 + w * 0.26));
-  float rays = 0.55 + 0.45 * sin(x * 11.0 + w * 5.0 + uTime * 0.32 + sin(x * 4.7 + uTime * 0.11) * 1.5);
-  // bright from the lower fifth up: the shelf's camera sees the curtains' foot, not their crest
-  float rise = smoothstep(0.0, 0.12, vUv.y) * smoothstep(1.0, 0.55, vUv.y);
-  float pulse = 0.6 + 0.2 * sin(uTime * 0.16 + uSeed * 2.0);
-  vec3 col = mix(vec3(0.1, 1.0, 0.55), vec3(0.55, 0.3, 0.85), smoothstep(0.3, 0.95, vUv.y + w * 0.1));
-  col = mix(col, vec3(0.9, 0.45, 0.75), smoothstep(0.75, 1.0, vUv.y) * 0.4);
-  float a = band * rays * rise * pulse;
+  // the foot: a bright, fairly sharp lower border that waves - the aurora reads by its edge
+  float foot = uFoot + w * 0.05;
+  float fringe = smoothstep(foot + 0.07, foot, vUv.y) * smoothstep(foot - 0.05, foot - 0.005, vUv.y);
+  fringe *= smoothstep(0.0, 0.04, vUv.y);
+  // two scales of vertical rays with deep dark gaps between them
+  float rayN = 0.5 + 0.5 * sin(x * 13.0 + w * 4.0 + uTime * 0.33 + sin(x * 5.1 + uTime * 0.12) * 2.2);
+  rayN *= 0.72 + 0.28 * sin(x * 29.0 - uTime * 0.21 + uSeed * 9.0);
+  float rays = pow(rayN, 1.6);
+  // the body: bright just above the foot, fading up, gone before the crest
+  float body = (1.0 - smoothstep(foot, 0.9, vUv.y)) * rays;
+  float pulse = 0.72 + 0.28 * sin(uTime * 0.16 + uSeed * 2.0);
+  vec3 green = vec3(0.12, 1.0, 0.52), violet = vec3(0.45, 0.24, 0.8), pink = vec3(0.9, 0.35, 0.68);
+  float up = smoothstep(0.3, 0.95, vUv.y + w * 0.08);
+  vec3 col = mix(green, violet, up);
+  col = mix(col, pink, smoothstep(0.75, 1.0, vUv.y) * 0.4);
+  col += green * fringe * 0.5;
   // AdditiveBlending adds rgb * alpha: hand the full colour and put the intensity in the alpha
-  gl_FragColor = vec4(col * 1.15, a * uAlpha);
+  float a = (fringe * (0.6 + 0.4 * rayN) + body * 0.32) * pulse * uAlpha;
+  gl_FragColor = vec4(col * 1.2, a);
 }`;
     const curtains = [
-      // the shelf's camera never sees the sky (the frame's top edge hits the ground past the far
-      // wall), so the aurora hangs IN the frame: soft billboarded sheets of light standing over the
-      // far field, the way an aurora looks through a storm - and the floor's sheen carries the rest
-      { x: 0, z: -9.5, y: 2.6, w: 46, h: 9, seed: 0.37, al: 0.5 },
-      { x: -7, z: -6, y: 2.2, w: 22, h: 7, seed: 0.73, al: 0.34 },
-      { x: 8, z: -7.5, y: 2.2, w: 20, h: 7, seed: 0.11, al: 0.3 },
+      // the shelf's camera never sees the sky (the frame's top edge hits the ground inside the
+      // arena), so the aurora lives just past the far wall: the horizon curtains fill the backdrop
+      // band when the fight travels there, one low curtain peeks over the wall from anywhere, and
+      // the sheen on the ice carries the aurora through the rest of the run (the high near curtains
+      // of the first take washed the whole frame - additive sheets close to the camera are fog)
+      { x: 0, z: -H - 6, y: 5.2, w: 54, h: 12, seed: 0.55, al: 0.85, foot: 0.44 },
+      { x: -13.5, z: -H - 3.5, y: 4.2, w: 26, h: 9, seed: 0.73, al: 0.55, foot: 0.42 },
+      { x: 13.5, z: -H - 4.5, y: 4.4, w: 24, h: 9, seed: 0.11, al: 0.5, foot: 0.42 },
+      { x: -4, z: -H - 12, y: 6.2, w: 72, h: 15, seed: 0.91, al: 0.45, foot: 0.36 },
+      { x: 6, z: -H - 1.2, y: 3.4, w: 20, h: 7, seed: 0.37, al: 0.34, foot: 0.46 },
     ];
     for (const c of curtains) {
       const mat = new ShaderMaterial({
-        uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 }, uSeed: { value: c.seed } }]),
+        uniforms: UniformsUtils.merge([
+          UniformsLib.fog,
+          { uTime: { value: 0 }, uSeed: { value: c.seed }, uFoot: { value: c.foot } },
+        ]),
         vertexShader: auroraVert,
         fragmentShader: auroraFrag,
         transparent: true,
@@ -1334,7 +1370,8 @@ void main() {
     bake.flush(group);
     for (const obstacle of obs)
       if (obstacle.t === "c") {
-        // an obsidian spire: a shard stack over a skirt, a molten crack ring at its foot
+        // an obsidian spire: a shard stack over a skirt, a molten seam up its flank and a crack
+        // ring at its foot
         const r = obstacle.r,
           tilt = rng.range(-0.07, 0.07);
         rlMesh(props, new ConeGeometry(r * 0.95, 0.5, 6), darkRock, obstacle.x, 0.25, obstacle.y);
@@ -1356,6 +1393,18 @@ void main() {
           obstacle.y - r * 0.35,
         );
         shard.rotation.z = -tilt * 1.6;
+        // the seam: a molten vein up the spire's face, fed by the ground crack
+        rlMesh(
+          props,
+          new BoxGeometry(0.05, 1.2 + 0.2 * r, 0.05),
+          emberMat,
+          obstacle.x + r * 0.22,
+          0.9 + 0.2 * r,
+          obstacle.y + r * 0.1,
+          0,
+          0,
+          tilt,
+        );
         rlFootRing(props, obstacle.x, obstacle.y, r * 0.88, emberMat);
         rlMesh(props, new SphereGeometry(0.07, 6, 5), hotMat, obstacle.x + r * 0.28, 0.34, obstacle.y);
       } else if (obstacle.w < 1.3 && obstacle.h < 1.3) {
@@ -1395,9 +1444,22 @@ void main() {
           new BoxGeometry(long ? L * 0.88 : 0.07, 0.05, long ? 0.07 : D * 0.88),
           emberMat,
           obstacle.x,
-          1.07,
+          1.055,
           obstacle.y,
         );
+        // two cross-seams where the crust cracked, a molten nodule on each
+        for (const f of [-0.24, 0.24]) {
+          const bx = obstacle.x + (long ? L * f : 0),
+            bz = obstacle.y + (long ? 0 : D * f);
+          rlMesh(
+            props,
+            new BoxGeometry(long ? 0.06 : D * 0.72, 0.045, long ? D * 0.72 : 0.06),
+            emberMat,
+            bx,
+            1.055,
+            bz,
+          );
+        }
         for (let k = 0; k < 3; k++) {
           const along = (k - 1) * (long ? L : D) * 0.26,
             bx = obstacle.x + (long ? along : 0),
@@ -1667,20 +1729,21 @@ function rlAmbient(renderer, dt, world, opt) {
       break;
     case "club":
       // 3.49.0: the Ashfall Caldera: ash drifts down through the heat, embers climb off the seams
-      for (let j = count(18); j--; )
+      // 3.54.0: the ash leans with the wind and the embers come up a little denser
+      for (let j = count(22); j--; )
         renderer.emit(
           rx(15),
           3.4 + Math.random() * 4.2,
           rz(13),
-          (Math.random() - 0.5) * 0.5,
+          (Math.random() - 0.5) * 0.5 - 0.22,
           -0.5 - Math.random() * 0.45,
           (Math.random() - 0.5) * 0.5,
           5.5,
-          0.1,
+          0.11,
           RL_C.ash,
           { drag: 0 },
         );
-      for (let j = count(9); j--; )
+      for (let j = count(11); j--; )
         renderer.emit(
           rx(),
           0.15,

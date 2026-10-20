@@ -251,18 +251,70 @@ function rlStreet(out, W, H, rng, pale, red) {
 
 const pick3 = (rng, items) => items[Math.floor(rng.next() * items.length)];
 
-/* ---- The Aurora Shelf (3.51.0): blue ice ridges, snow drifts and half-buried arks outside;
-   frost, shards, cracks and snow on the floor. ---- */
+/* ---- The Aurora Shelf (3.54.0): blue ice ridges and great seracs beyond the wall, ice cliffs on
+   the horizon, snow drifts and half-buried arks around the arena; frost, shards, cracks and snow
+   on the floor. The crest of a tall ridge carries a faint aurora-green rim light. ---- */
 function vaultDetail(biome, W, H, obs, rng) {
   const out = list(),
     cyan = biome.grid,
     ice = [0x8fc4ec, 0xaadcf4, 0x6ea6d4, 0xc8e8ff, 0x5a92c4],
     snow = 0xe8f4ff;
-  // tall ridges: a main spire, leaning satellites, a few glowing gems in the ice
-  for (const p of outsideSpots(rng, W, H, 15, 2.2, 14, 3.6)) {
+  // the great seracs: three towers of ice on the horizon, their crests rim-lit by the aurora
+  const great = [
+    { x: -11, z: -H - 7.5, h: 13.5, r: 2.1 },
+    { x: 3.5, z: -H - 10.5, h: 15, r: 2.5 },
+    { x: 14.5, z: -H - 5.5, h: 12, r: 1.9 },
+  ];
+  for (const g of great) {
+    const t = list();
+    t.body.push(cone(rng.pick(ice), g.r, g.h, 6, 0, 0, 0, { ry: rng.range(0, 3) }));
+    for (let i = 0; i < 3; i++) {
+      const a = rng.range(0, TAU),
+        hh = g.h * rng.range(0.3, 0.55),
+        rr = g.r * rng.range(0.35, 0.6),
+        lean = rng.range(0.12, 0.3);
+      t.body.push(
+        cone(rng.pick(ice), rr, hh, 6, Math.cos(a) * g.r * 0.75, 0, Math.sin(a) * g.r * 0.75, {
+          rx: Math.sin(a) * lean,
+          rz: -Math.cos(a) * lean,
+        }),
+      );
+    }
+    // the crest rim: a faint green light where the aurora catches the ridge
+    t.glow.push(
+      box(dim(cyan, 0.55), 0.16, g.h * 0.5, 0.16, { x: g.r * 0.42, y: g.h * 0.55, z: 0 }),
+      gem(dim(cyan, 0.85), g.r * 0.24, -g.r * 0.3, g.h * 0.62, g.r * 0.2, { sy: 1.7 }),
+    );
+    put(out, t, g.x, 0, g.z, rng.range(0, TAU));
+  }
+  // ice cliffs: stacked tilted slabs standing on the horizon, snow on their tops
+  for (const p of [
+    { x: -5.5, z: -H - 4.5 },
+    { x: 9.5, z: -H - 3 },
+    { x: -W - 5, z: -H - 1.5 },
+    { x: W + 6, z: -H - 2 },
+  ]) {
     const t = list(),
-      h = rng.range(3, 9),
-      r = rng.range(0.5, 1.3);
+      n = 4 + rng.int(0, 2);
+    for (let i = 0; i < n; i++)
+      t.body.push(
+        box(rng.pick(ice), rng.range(2.2, 4.2), rng.range(0.9, 1.6), rng.range(1, 1.8), {
+          x: rng.range(-0.5, 0.5),
+          y: 0.45 + i * rng.range(1.05, 1.35),
+          z: rng.range(-0.4, 0.4),
+          rz: rng.range(-0.14, 0.14),
+          rx: rng.range(-0.1, 0.1),
+          ry: rng.range(0, 3),
+        }),
+      );
+    t.body.push(meshPart(new SphereGeometry(rng.range(1.4, 2), 8, 5), snow, { x: 0, y: n * 1.2, sy: 0.3, sz: 0.7 }));
+    put(out, t, p.x, 0, p.z, rng.range(0, TAU));
+  }
+  // tall ridges: a main spire, leaning satellites, a few glowing gems in the ice
+  for (const p of outsideSpots(rng, W, H, 16, 2.2, 13, 3.6)) {
+    const t = list(),
+      h = rng.range(3.5, 10),
+      r = rng.range(0.5, 1.4);
     t.body.push(cone(rng.pick(ice), r, h, 6, 0, 0, 0, { ry: rng.range(0, 3) }));
     for (let i = 0; i < rng.int(2, 4); i++) {
       const a = rng.range(0, TAU),
@@ -280,6 +332,7 @@ function vaultDetail(biome, W, H, obs, rng) {
       t.glow.push(
         gem(dim(cyan, 0.75), r * 0.22, rng.range(-0.3, 0.3) * r, h * rng.range(0.2, 0.45), r * 0.42, { sy: 1.7 }),
       );
+    if (h > 6.5) t.glow.push(box(dim(cyan, 0.45), 0.12, h * 0.45, 0.12, { x: r * 0.4, y: h * 0.52, z: 0 }));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // snow drifts with dark blue rocks
@@ -338,7 +391,7 @@ function vaultDetail(biome, W, H, obs, rng) {
   // 3.44.0: everything rests a step - fewer decals and dimmer glow, so enemies read on the white
   for (const p of scatter(rng, W, H, obs, 10, { gap: 2.6 }))
     out.body.push(
-      disc(rng.pick([0xc4dcea, 0xd2e6f2, 0xb4d0e2]), rng.range(0.8, 2), p.x, 0.012, p.z, 12, {
+      disc(rng.pick([0xa8c4d8, 0xb8d0e0, 0x98b4c8]), rng.range(0.8, 2), p.x, 0.012, p.z, 12, {
         sz: rng.range(0.55, 1),
         ry: rng.range(0, 3),
       }),
@@ -358,7 +411,7 @@ function vaultDetail(biome, W, H, obs, rng) {
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   for (const p of scatter(rng, W, H, obs, 6, { gap: 3.4 }))
-    crack(out, dim(cyan, 0.35), p.x, p.z, rng, rng.int(4, 7), 0.7);
+    crack(out, dim(cyan, 0.5), p.x, p.z, rng, rng.int(4, 7), 0.7);
   for (const p of scatter(rng, W, H, obs, 10, { gap: 1.4 })) {
     const r = rng.range(0.07, 0.17);
     out.body.push(meshPart(new SphereGeometry(r, 6, 4), snow, { x: p.x, y: r * 0.3, z: p.z, sy: 0.6 }));
@@ -866,41 +919,165 @@ function voidDetail(biome, W, H, obs, rng) {
   return out;
 }
 
-/* ---- Ashfall Caldera (3.49.0): the crater around the arena. Outside the walls: basalt piers, vent
-   mounds that breathe embers, charred stumps, standing stones with a warm tip; inside: the old lava
-   channel runs from the caldera mouth to the dyke (still glowing where its crust broke), ember scars
+/* ---- Ashfall Caldera (3.54.0): the floor of a volcano. Beyond the far wall the volcano itself
+   stands - dark truncated cones with glowing crater rims, lava veins down their flanks and ash
+   plumes leaning off their mouths - with basalt organ pipes, charred stumps and standing stones
+   around the arena; inside: the lava channel runs from the caldera mouth to the dyke, ember scars
    dot the plates, a scatter of settling embers, clusters of obsidian shards. ---- */
 function calderaDetail(biome, W, H, obs, rng) {
   const out = list(),
     hot = biome.accent,
+    lava = 0xff7a1e, // the interior molten glow - the accent is cream, too pale for lava
     crust = 0x1c0f08,
-    basalt = [0x241a16, 0x2a1e18, 0x1e1512];
-  // basalt piers and vent mounds out in the crater
-  for (const p of outsideSpots(rng, W, H, 14, 2.6, 7, 3.4)) {
-    const t = list();
-    if (rng.chance(0.45)) {
-      t.body.push(box(rng.pick(basalt), 1.1, 5.5, 1.1, { y: 2.75 }), box(dim(hot, 0.22), 1.14, 0.06, 1.14, { y: 0.5 }));
-    } else {
-      const mound = 0x211712;
-      for (let k = 0; k < 2; k++) t.body.push(cyl(mound, 0.55, 0.5, 0.9, 9, 0, 0.95 * k, 0));
-      if (rng.chance(0.5)) t.body.push(cyl(mound, 0.45, 0.4, 0.7, 9, 0.78, 0, 0.12));
-      t.glow.push(ring(dim(hot, 0.5), 0.5, 0.04, 0, 0.52, 0), ring(dim(hot, 0.35), 0.45, 0.035, 0, 1.4, 0));
+    basalt = [0x241a16, 0x2a1e18, 0x1e1512],
+    slope = [0x3a2a20, 0x40301f, 0x342318];
+  // the volcano and its two shoulder cones, out past the far wall: truncated dark slopes with a
+  // molten crater rim, veins of lava wandering down the flank, an ash plume leaning off the mouth
+  // (the camera looks at the -z far field, so the cone row is hand-placed there and on the back
+  // corners of the side walls - the near side is never in frame)
+  const cones = [
+    { x: -9, z: -H - 5.5, r: 8.2, h: 12.5 },
+    { x: 6.5, z: -H - 9.5, r: 10.5, h: 15.5 },
+    { x: -W - 8, z: -H - 2.5, r: 6.6, h: 10 },
+    { x: W + 9, z: -H - 3.5, r: 7.2, h: 11 },
+  ];
+  for (const c of cones) {
+    const t = list(),
+      col = rng.pick(slope);
+    // the slope (wide base, narrow flat top), a stepped skirt at its foot and the crater throat
+    t.body.push(
+      cyl(col, c.r, c.r * 0.42, c.h, 9, 0, 0, 0),
+      cyl(dim(col, 0.8), c.r * 1.12, c.r * 1.04, 1.4, 9, 0, 0, 0),
+    );
+    // the crater: a molten mouth flush with the flat top, a bright rim around it
+    t.glow.push(
+      meshPart(new TorusGeometry(c.r * 0.44, 0.16, 3, 22), dim(hot, 0.95), { x: 0, y: c.h + 0.08, z: 0, rx: PI / 2 }),
+      disc(dim(hot, 0.6), c.r * 0.36, 0, c.h + 0.06, 0, 12),
+    );
+    // lava veins wandering down the flank (they end on the slope: radius 0.88 r at 20 % height),
+    // a couple of branch stubs so the network reads from the wall
+    for (let v = 0; v < 8; v++) {
+      const a = (v / 8) * TAU + rng.range(-0.25, 0.25),
+        r0 = c.r * 0.4,
+        r1 = c.r * 0.88;
+      t.glow.push(
+        bar(
+          dim(hot, rng.range(0.55, 0.9)),
+          0.12,
+          [Math.cos(a) * r0, c.h + 0.2, Math.sin(a) * r0],
+          [Math.cos(a + rng.range(-0.15, 0.15)) * r1, c.h * 0.2, Math.sin(a + rng.range(-0.15, 0.15)) * r1],
+          0.05,
+        ),
+      );
+      if (rng.chance(0.5)) {
+        const b = a + rng.pick([-1, 1]) * rng.range(0.3, 0.6),
+          rm = c.r * rng.range(0.5, 0.7);
+        t.glow.push(
+          bar(
+            dim(hot, rng.range(0.45, 0.7)),
+            0.08,
+            [Math.cos(a) * rm, c.h * 0.62, Math.sin(a) * rm],
+            [Math.cos(b) * c.r * 0.82, c.h * 0.34, Math.sin(b) * c.r * 0.82],
+            0.04,
+          ),
+        );
+      }
+    }
+    // the ash plume: a leaning stack of puffs drifting off the mouth
+    let px = 0,
+      pz = 0,
+      py = c.h + 0.5,
+      pr = c.r * 0.22;
+    for (let s = 0; s < 4; s++) {
+      px += pr * rng.range(0.5, 0.9);
+      py += pr * rng.range(0.9, 1.2);
+      pr *= rng.range(1.12, 1.26);
+      t.body.push(
+        meshPart(new DodecahedronGeometry(pr, 0), s % 2 ? 0x3a322e : 0x322a26, {
+          x: px,
+          y: py,
+          z: pz,
+          ry: rng.range(0, TAU),
+        }),
+      );
+      pz += rng.range(-0.3, 0.3);
+    }
+    put(out, t, c.x, 0, c.z, rng.range(0, TAU));
+  }
+  // broad lava rivers in the backdrop, running from the cones toward the arena's flanks
+  for (let i = 0; i < 5; i++) {
+    const p = outside(rng, W, H, 1.2, 6.5);
+    if (p.nz > 0.5) continue; // the near side is never in frame
+    const a = rng.range(0, TAU),
+      L = rng.range(3, 6.5);
+    out.glow.push(
+      bar(
+        dim(hot, rng.range(0.4, 0.7)),
+        rng.range(0.5, 1),
+        [p.x, 0.02, p.z],
+        [p.x + Math.cos(a) * L, 0.02, p.z + Math.sin(a) * L],
+        0.02,
+      ),
+    );
+    out.body.push(
+      box(crust, Math.hypot(Math.cos(a) * L, Math.sin(a) * L) + 0.5, 0.014, rng.range(1.4, 2), {
+        x: p.x + Math.cos(a) * L * 0.5,
+        y: 0.008,
+        z: p.z + Math.sin(a) * L * 0.5,
+        ry: -a,
+      }),
+    );
+  }
+  // basalt organ pipes: clusters of hexagonal columns, a couple tipped with ember glow
+  for (const p of outsideSpots(rng, W, H, 12, 1.6, 8, 3)) {
+    const t = list(),
+      n = rng.int(3, 6);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + rng.range(-0.3, 0.3),
+        d = rng.range(0.1, 0.7),
+        h = rng.range(1.6, 4.4) * (i === 0 ? 1.25 : 1);
+      t.body.push(
+        cyl(rng.pick(basalt), 0.34, 0.28, h, 6, Math.cos(a) * d, 0, Math.sin(a) * d, {
+          rx: rng.range(-0.06, 0.06),
+          rz: rng.range(-0.06, 0.06),
+        }),
+      );
+      if (rng.chance(0.3))
+        t.glow.push(box(dim(hot, 0.6), 0.16, 0.1, 0.16, { x: Math.cos(a) * d, y: h + 0.04, z: Math.sin(a) * d }));
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // charred stumps and ash banks against the walls, a few still glowing from inside
+  // vent mounds out in the crater (the fumarole mounds, not the hazards): stacked cones with a
+  // glowing throat ring, a side vent on some
+  for (const p of outsideSpots(rng, W, H, 14, 2.6, 7, 3.4)) {
+    const t = list(),
+      mound = 0x211712;
+    if (rng.chance(0.45)) {
+      t.body.push(box(rng.pick(basalt), 1.1, 5.5, 1.1, { y: 2.75 }), box(dim(hot, 0.22), 1.14, 0.06, 1.14, { y: 0.5 }));
+    } else {
+      for (let k = 0; k < 2; k++) t.body.push(cyl(mound, 0.55 - 0.12 * k, 0.5 - 0.12 * k, 0.9, 9, 0, 0.95 * k, 0));
+      if (rng.chance(0.5)) t.body.push(cyl(mound, 0.45, 0.4, 0.7, 9, 0.78, 0, 0.12));
+      t.glow.push(ring(dim(hot, 0.5), 0.34, 0.04, 0, 1.86, 0), ring(dim(hot, 0.32), 0.24, 0.03, 0, 1.88, 0));
+    }
+    put(out, t, p.x, 0, p.z, rng.range(0, TAU));
+  }
+  // charred stumps and ash banks against the walls, most still glowing from inside
   for (const p of outsideSpots(rng, W, H, 10, 1.4, 3.2, 2.8)) {
     const t = list(),
       s = rng.range(0.5, 0.8);
     t.body.push(rock(0x1a120e, s, 0, s * 0.7, 0, { ry: rng.range(0, PI) }));
     if (rng.chance(0.5)) t.body.push(rock(0x181009, s * 0.75, s * 0.8, s * 0.4, s * 0.3, { ry: rng.range(0, PI) }));
-    if (rng.chance(0.35)) t.glow.push(box(dim(hot, 0.5), 0.06, 0.1, 0.02, { y: s * 0.5, z: s / 2 + 0.01 }));
+    if (rng.chance(0.6))
+      t.glow.push(
+        box(dim(hot, 0.6), 0.06, 0.1, 0.02, { y: s * 0.5, z: s / 2 + 0.01 }),
+        disc(dim(hot, 0.22), s * 0.9, 0, 0.012, 0, 10),
+      );
     put(out, t, p.x, 0, p.z, faceIn(p.nx, p.nz));
   }
   // standing stones: thin basalt stacks, a warm glow at the tip of a few
   for (const p of outsideSpots(rng, W, H, 8, 2.2, 6, 3)) {
-    out.body.push(cone(0x1c1512, 0.5, rng.range(3.5, 5.5), 6, p.x, 0, p.z));
-    if (rng.chance(0.5)) out.glow.push(box(0xffb45a, 0.1, 0.14, 0.1, { x: p.x, y: rng.range(3.0, 4.2), z: p.z }));
+    out.body.push(cone(0x1c1512, 0.5, rng.range(4, 6.5), 6, p.x, 0, p.z));
+    if (rng.chance(0.5)) out.glow.push(box(0xffb45a, 0.1, 0.14, 0.1, { x: p.x, y: rng.range(3.4, 5.2), z: p.z }));
   }
   // the old lava channel runs from the caldera mouth to the dyke, glowing where its crust broke
   out.body.push(box(crust, 2.4, 0.02, 10.6, { y: 0.012, z: -2.2 }));
@@ -908,14 +1085,59 @@ function calderaDetail(biome, W, H, obs, rng) {
     box(dim(hot, 0.55), 2.3, 0.014, 0.08, { y: 0.022, z: 3.1 }),
     box(dim(hot, 0.55), 2.3, 0.014, 0.08, { y: 0.022, z: -7.4 }),
   );
+  // interior: molten ponds in the crust (a glow under a dark float of rock), ash drifts, glowing
+  // fissure cracks, charred rubble and basalt pipe stubs - the floor of a volcano, not a car park
+  for (const p of scatter(rng, W, H, obs, 7, { gap: 2.8 })) {
+    const r = rng.range(0.55, 1.15);
+    out.body.push(
+      ring(crust, r, 0.12, p.x, 0.02, p.z),
+      disc(0x140d0a, r, p.x, 0.012, p.z, 12),
+      rock(0x1a120e, r * 0.32, r * 0.55, r * 0.18, r * 0.3, { ry: rng.range(0, PI), sy: 0.55 }),
+    );
+    out.glow.push(
+      disc(dim(lava, 0.4), r * 0.62, p.x, 0.017, p.z, 12),
+      disc(dim(lava, rng.range(0.65, 0.85)), r * rng.range(0.16, 0.28), p.x + r * 0.18, 0.021, p.z - r * 0.12, 8),
+    );
+  }
+  for (const p of scatter(rng, W, H, obs, 9, { gap: 2.6 }))
+    out.body.push(
+      disc(rng.pick([0x2e2a28, 0x262220, 0x332e2a]), rng.range(0.7, 1.5), p.x, 0.012, p.z, 12, {
+        sz: rng.range(0.5, 0.9),
+        ry: rng.range(0, 3),
+      }),
+    );
+  for (const p of scatter(rng, W, H, obs, 9, { gap: 2.6 }))
+    crack(out, dim(lava, rng.range(0.45, 0.7)), p.x, p.z, rng, rng.int(4, 7), 0.7, 0.045);
+  for (const p of scatter(rng, W, H, obs, 14, { gap: 1.6 })) {
+    const s = rng.range(0.08, 0.2);
+    out.body.push(
+      rock(rng.pick([0x1c1512, 0x221a16, 0x181210]), s, p.x, s * 0.4, p.z, {
+        ry: rng.range(0, PI),
+        sy: 0.6,
+      }),
+    );
+  }
+  for (const p of scatter(rng, W, H, obs, 6, { gap: 3 })) {
+    const t = list(),
+      n = rng.int(2, 4);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + rng.range(-0.4, 0.4),
+        d = rng.range(0.05, 0.3),
+        h = rng.range(0.14, 0.4);
+      t.body.push(cyl(rng.pick(basalt), 0.09, 0.075, h, 6, Math.cos(a) * d, 0, Math.sin(a) * d));
+      if (rng.chance(0.3))
+        t.glow.push(box(dim(lava, 0.6), 0.05, 0.04, 0.05, { x: Math.cos(a) * d, y: h + 0.02, z: Math.sin(a) * d }));
+    }
+    put(out, t, p.x, 0, p.z, rng.range(0, TAU));
+  }
   // ember scars on the plates and a scatter of settling embers
-  for (const p of scatter(rng, W, H, obs, 8, { gap: 3.2 })) {
-    out.body.push(disc(0x160e0a, 0.16, p.x, 0.014, p.z, 10), ring(dim(hot, 0.6), 0.16, 0.015, p.x, 0.026, p.z));
+  for (const p of scatter(rng, W, H, obs, 12, { gap: 2.4 })) {
+    out.body.push(disc(0x160e0a, 0.16, p.x, 0.014, p.z, 10), ring(dim(lava, 0.55), 0.16, 0.015, p.x, 0.026, p.z));
   }
   const embers = [hot, 0xff9c3a, 0x8a7f74, 0xffe19a];
-  for (const p of scatter(rng, W, H, obs, 26, { gap: 0.9 })) {
+  for (const p of scatter(rng, W, H, obs, 38, { gap: 0.7 })) {
     const c = rng.pick(embers),
-      chip = box(c, rng.range(0.05, 0.1), 0.008, rng.range(0.03, 0.06), {
+      chip = box(c, rng.range(0.04, 0.09), 0.008, rng.range(0.03, 0.05), {
         x: p.x,
         y: 0.01,
         z: p.z,
