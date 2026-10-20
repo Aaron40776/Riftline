@@ -58,7 +58,7 @@ const chunk = async (name, fn, arg) => {
   return r;
 };
 
-const BIOMES = ["yard", "works", "vault", "marsh", "void", "club"];
+const BIOMES = ["yard", "vault", "marsh", "void", "club"];
 const fail = [];
 const budgetRows = [],
   trackRows = {},

@@ -112,7 +112,6 @@ const RL_BOSS_ATK = {
   lastcall: "bSummon",
   // 3.3.0: the Overdrive attacks (they also sound the Overdrive alarm, bOverdrive)
   lockdown: "bLance",
-  meltdown: "bStoke",
   whiteout: "bNova",
   plague: "bSummon",
   collapse: "bRain",
@@ -141,7 +140,7 @@ function attackVoice(kind, src, biome, chill) {
     case "mortar":
       return src === "forge" ? "aLava" : null;
     case "rain": {
-      const who = src || { works: "forge", marsh: "queen", void: "core", club: "kingpin" }[biome];
+      const who = src || { marsh: "queen", void: "core", club: "kingpin" }[biome];
       return who === "forge"
         ? "aLava"
         : who === "queen"
@@ -237,7 +236,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
   },
   /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Toxin Marsh damp;
      3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
-  SFX_ROOM_BIOME = { yard: 0.28, works: 0.38, vault: 0.5, marsh: 0.2, void: 0.55, club: 0.32 },
+  SFX_ROOM_BIOME = { yard: 0.28, vault: 0.5, marsh: 0.2, void: 0.55, club: 0.32 },
   /* the open "ah" of the choir: band-passes on its formants (frequency, Q, level) and a little of the voice */
   CHOIR_VOWEL = [
     [760, 5, 1],
@@ -245,16 +244,16 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
     [2700, 9, 0.18],
     [0, 0.7, 0.12],
   ],
-  AMBIENCE_LEVEL = { blackout: 0.07, meltdown: 0.11, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055, raid: 0.07 },
+  AMBIENCE_LEVEL = { blackout: 0.07, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055, raid: 0.07 },
   /* 3.43.0: the room tone of each biome - the steady bed under everything, wherever the game is (home,
      upgrade, pause, fight). The events pile onto it: the whiteout storm rises out of the vault's calm wind.
      3.45.5: raised so the place stays audible while the music plays (the mix note above); the vault needs the
      most, its events are the sparsest. */
-  ROOM_TONE_LEVEL = { yard: 0.038, works: 0.038, vault: 0.046, marsh: 0.036, void: 0.038, club: 0.04 },
+  ROOM_TONE_LEVEL = { yard: 0.038, vault: 0.046, marsh: 0.036, void: 0.038, club: 0.04 },
   /* 3.43.0: the event beds gather and pass instead of snapping on and off - a storm builds over about
      three seconds and dies away over about four, while the room tone stays underneath. */
-  BED_ATTACK = { blackout: 0.6, meltdown: 1.0, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, raid: 1.0 },
-  BED_RELEASE = { blackout: 0.5, meltdown: 0.9, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1, raid: 0.9 },
+  BED_ATTACK = { blackout: 0.6, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, raid: 1.0 },
+  BED_RELEASE = { blackout: 0.5, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1, raid: 0.9 },
   // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
   AMB_REF = 0.8,
   /* 3.45.5: the mix balance (measured with scripts/rl-mix-probe.mjs, rms of 20 s offline renders at the default
@@ -570,12 +569,6 @@ const musicChords = {
       [50, "m"],
       [52, "M"],
     ],
-    works: [
-      [50, "m"],
-      [46, "M"],
-      [48, "M"],
-      [45, "m"],
-    ],
     vault: [
       [52, "m"],
       [48, "M"],
@@ -605,7 +598,6 @@ const musicChords = {
   },
   musicVoices = {
     yard: { arp: "square", bass: "sawtooth", lp: 2200, lead: "triangle" },
-    works: { arp: "sawtooth", bass: "square", lp: 1600, lead: "sawtooth" },
     vault: { arp: "sine", bass: "triangle", lp: 4200, lead: "sine" },
     void: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
     marsh: { arp: "triangle", bass: "sawtooth", lp: 1200, lead: "triangle" },
@@ -2846,12 +2838,6 @@ const musicChords = {
           }
           this.noise(0.9, 0.04, { type: "highpass", f: 6e3, attack: 0.3 });
           break;
-        case "meltdown":
-          this.noise(1.6, 0.2, { f: 200, to: 2500, attack: 0.9 });
-          this.tone(40, 1.6, "sawtooth", 0.2, { to: 72, lp: 200, attack: 0.8 });
-          this.tone(36, 1.6, "sine", 0.28, { attack: 0.5 });
-          this.noise(0.3, 0.12, { type: "highpass", f: 2500, at: 1.3 });
-          break;
         case "whiteout":
           this.noise(1.8, 0.16, { type: "bandpass", f: 300, to: 2200, q: 1.2, attack: 0.8 });
           this.noise(1.4, 0.04, { type: "bandpass", f: 4500, q: 1, attack: 0.6 });
@@ -3525,30 +3511,6 @@ const musicChords = {
             break;
           }
           // 3.7.0: the event beds take pink and brown noise (no white hiss), like the atmospheres of the music
-          case "meltdown": {
-            let rumble = filter("lowpass", 170, 0.8, loop(0.6, "brown")),
-              rumbleAmp = ctx.createGain();
-            rumbleAmp.gain.value = 0.55;
-            rumble.connect(rumbleAmp);
-            rumbleAmp.connect(gain);
-            let sub = osc("sine", 41),
-              amp = ctx.createGain();
-            amp.gain.value = 0.7;
-            sub.connect(amp);
-            amp.connect(gain);
-            // 2.9.0: a rough saw under it and the hiss of hot air
-            let grind = filter("lowpass", 120, 0.8, osc("sawtooth", 41.2)),
-              grindAmp = ctx.createGain();
-            grindAmp.gain.value = 0.3;
-            grind.connect(grindAmp);
-            grindAmp.connect(gain);
-            let hiss = filter("bandpass", 1600, 0.7, loop(1.3, "pink")),
-              hissAmp = ctx.createGain();
-            hissAmp.gain.value = 0.06;
-            hiss.connect(hissAmp);
-            hissAmp.connect(gain);
-            break;
-          }
           case "whiteout": {
             // wind: band-passed noise whose centre wanders slowly
             let wind = filter("bandpass", 700, 0.7, loop(1, "pink")),
@@ -3697,7 +3659,7 @@ const musicChords = {
       delete this.beds[name];
     }
     /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (a
-       singing wind in the Cryo Vault, murk in the Toxin Marsh, the furnace in the Ember Works, soft rain and city hum
+       singing wind in the Cryo Vault, murk in the Toxin Marsh, soft rain and city hum
        in Blackout City, beating drones in the Void Core; see MUSIC_BEDS). It goes through the music chain (volume,
        fade, glue) and is not a voice of the budget. */
     startMusicBed(kind, biome, fadeIn = 1.5) {
@@ -3841,16 +3803,6 @@ const musicChords = {
             drift(wash.frequency, 0.031, 60);
             let hum = filter("lowpass", 300, 1.1, osc("sawtooth", 50));
             amp(hum, 0.11);
-            break;
-          }
-          case "works": {
-            // Ember Works: the furnace two halls away, hot air ticking through the pipes
-            let furnace = filter("lowpass", 150, 0.7, loop(0.55, "brown")),
-              furnaceAmp = amp(furnace, 0.7);
-            drift(furnaceAmp.gain, 0.07, 0.25);
-            let air = filter("bandpass", 900, 0.8, loop(1.1, "pink"));
-            amp(air, 0.1);
-            drift(air.frequency, 0.043, 200);
             break;
           }
           case "vault": {
@@ -4005,14 +3957,6 @@ const musicChords = {
     }
     accentOf(name, now) {
       switch (name) {
-        case "meltdown":
-          // a low groan of the furnace with a couple of crackles
-          this.accentT = now + 0.9 + Math.random() * 1.4;
-          this.tone(70 + Math.random() * 30, 0.4, "sine", 0.07, { to: 40 });
-          this.noise(0.3, 0.05, { f: 300, to: 120 });
-          this.noise(0.025, 0.05, { type: "highpass", f: 4e3, at: Math.random() * 0.25 });
-          this.noise(0.025, 0.04, { type: "highpass", f: 5e3, at: Math.random() * 0.25 });
-          break;
         case "whiteout":
           // a gust of wind and a high icy ring
           this.accentT = now + 1.8 + Math.random() * 2.2;
@@ -4384,8 +4328,8 @@ const musicChords = {
  length and a play(engine, c) function that is called for every sixteenth step and schedules that step's notes (see
  SoundEngine.note for the fields of c). Under the notes a track has its atmosphere (MUSIC_BEDS: a soft bed of pink or
  brown noise and tones), which is a loop and no voice of the budget.
- The calm themes belong to their place (the Cryo Vault icy and windy, the Toxin Marsh damp and alive, the Ember Works a
- sleeping factory, Blackout City a noir night in the rain, the Void Core dark and breathing); 3.7.0: the boss tracks
+ The calm themes belong to their place (the Cryo Vault icy and windy, the Toxin Marsh damp and alive, the Caldera a
+ sleeping mountain, Blackout City a noir night in the rain, the Void Core dark and breathing); 3.7.0: the boss tracks
  are cinematic synth (taikos, strings, brass, choir, arpeggios, a pumping sub; no guitars and no cymbals), one style
  per boss. Rules that keep the music cheap and the same everywhere:
  - everything a step schedules is chosen by the step, the chord and the intensity, or by the deterministic hash
@@ -4647,17 +4591,6 @@ const BED_LEVEL = { fight: 1, boss: 1 },
         lfo(0.07, 0.005, blades.gain);
       },
     },
-    works: {
-      gain: 0.7,
-      boss: 0.6,
-      build({ loop, filt, lfo, level }) {
-        // the furnace rumbles and breathes, a dull roar of fire above it (the machines, embers and steam are notes)
-        const furnace = level(filt("lowpass", 150, 0.9, loop(0.8, "brown")), 0.05);
-        lfo(0.11, 0.018, furnace.gain);
-        const roar = level(filt("bandpass", 380, 0.8, loop(1, "pink")), 0.012);
-        lfo(0.07, 0.007, roar.gain);
-      },
-    },
     vault: {
       gain: 0.95,
       boss: 0.6,
@@ -4733,7 +4666,8 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       // limit of the sampling rate and warned): no one hears it, so it is left out
       if (f * 7.1 < 16000) bus.t(f * 7.1, 0.07, "sine", v * 0.12, { attack: 0.001, ...o });
     },
-    // Ember Works: a struck pipe, warm and deep, a fifth and a minor tenth above it, a soft knock
+    // a struck pipe, warm and deep, a fifth and a minor tenth above it, a soft knock (the foundry's
+    // voice once; the Rift Core's choir still quotes it)
     pipes: (bus, f, v, o) => {
       bus.t(f, o.lite ? 0.9 : 2, "sine", v, { attack: 0.002, rev: 0.8, ...o });
       bus.t(f * 1.505, o.lite ? 0.5 : 1.2, "sine", v * 0.45, { attack: 0.002, ...o });
@@ -4791,15 +4725,6 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       det: 6,
       rev: 0.7,
       vol: 0.017,
-    },
-    works: {
-      notes: (c) => [c.root - 12, c.root - 5, c.chord[0]],
-      wave: "sawtooth",
-      lp: 480,
-      fade: 0.9,
-      det: 5,
-      rev: 0.6,
-      vol: 0.022,
     },
     vault: {
       notes: (c) => [c.chord[0] + 12, c.chord[2] + 12, c.chord[1] + 24],
@@ -4869,8 +4794,6 @@ function calmMotif(k, c, voice, v = 1, lite = false, heroic = false) {
 const BLOOM = {
   // Blackout City: a felt piano a little above the electric piano motif, the colour is the ninth and the sixth
   yard: { voice: "felt", extra: [14, 9], low: 12, span: 1, rate: 0.62, vol: 0.05, len: 3.4, width: 0.85, echo: 0.6 },
-  // Ember Works: struck pipes, low and warm, the colour is the fourth and the ninth
-  works: { voice: "bowl", extra: [5, 14], low: 0, span: 1, rate: 0.5, vol: 0.06, len: 5, width: 0.7, echo: 0.5 },
   // Cryo Vault: glass, high, the colour is the sharp eleventh (the Lydian fourth) and the ninth
   vault: { voice: "glass", extra: [18, 14], low: 24, span: 1, rate: 0.7, vol: 0.036, len: 4.8, width: 0.95, echo: 0.8 },
   // Toxin Marsh: a kalimba, plucked and a little out of tune, the colour is the flat seventh and the fourth
@@ -4895,12 +4818,6 @@ const BLOOM_VOICE = {
     g.t(f, len, "sine", v, { attack: 0.012, lp: 2400, ...o });
     g.t(f * 2, len * 0.5, "triangle", v * 0.22, { attack: 0.01, lp: 1800, ...o });
     g.t(f * 4.02, 0.16, "sine", v * 0.07, { attack: 0.002, ...o });
-  },
-  bowl: (g, f, v, len, o) => {
-    g.t(f, len, "sine", v, { attack: 0.05, ...o });
-    g.t(f * 2.01, len * 0.7, "sine", v * 0.38, { attack: 0.05, ...o });
-    g.t(f * 2.99, len * 0.45, "sine", v * 0.2, { attack: 0.04, ...o });
-    g.t(f * 4.18, len * 0.25, "sine", v * 0.09, { attack: 0.03, ...o });
   },
   glass: (g, f, v, len, o) => {
     g.t(f, len, "sine", v, { attack: 0.003, ...o });
@@ -5030,71 +4947,6 @@ function yardCalm(e, c) {
       opt: true,
       pan: P(c, 17, 0.8),
     });
-}
-
-const WORKS_PISTON = "X..x..X.x..X..x.";
-/* Ember Works, 66 BPM, D minor (Dm Bb C Am, the chords breathe over two bars): a sleeping foundry. A motif of struck
-   pipes, a warm dark pad, the sub; a machine bass chugs in eighths as it swells; in the dark a far anvil, a chain, a
-   breath of steam, crackling embers (the furnace is the atmosphere) */
-function worksCalm(e, c) {
-  const { b, bar, L, chord } = c,
-    k = kit(e, c);
-  calmMotif(k, c, "pipes");
-  calmPad(k, c, "works");
-  // the heartbeat of the works is a piston: a chuff and a low thump
-  calmFloor(k, c, { f0: 90, f1: 38, dur: 0.3 });
-  // 3.46.0: the machine never quite stops: a saw bass chugs in eighths on the root (the octave answers
-  // at the head of the second bar), under the same pump the kicks duck - the foundry breathes with it
-  if (L > 0.4 && b % 2 === 0) {
-    const midi = chord[0] - 24 + (b === 8 && (bar & 1) === 1 ? 12 : 0);
-    k.p.t(midiToFreq(midi), 0.13, "sawtooth", L > 0.6 ? 0.042 : 0.03, { lp: 620, q: 1.5, attack: 0.004 });
-  }
-  if (L > 0.5 && b === 0) k.m.n(0.2, 0.014, { f: 300, to: 80, q: 1.2, color: "brown" });
-  if (b === 4 && (bar & 3) === 1) clang(k.m, midiToFreq(chord[0] + 24), 0.04, { rev: 0.8, pan: -0.4 });
-  // 3.14.0: the works keep time as it swells: a piston in a machine groove (3-3-2, accents on the strong hits), a
-  // conveyor that rattles only between them (the off sixteenths), and a hammer answers on 4
-  const piston = pat(WORKS_PISTON)[b];
-  if (L > 0.35 && piston)
-    k.m.n(0.12, 0.016 * piston, { f: 420, to: 120, q: 1, color: "brown", attack: 0.004, pan: -0.15 });
-  if (L > 0.55 && b % 2 === 1) k.m.n(0.02, 0.005, { type: "bandpass", f: 1250, q: 4, attack: 0.001, pan: 0.45 });
-  if (L > 0.6 && b === 12) clang(k.m, midiToFreq(chord[2] + 24), 0.018, { rev: 0.6, pan: 0.3 });
-  if (L > 0.45 && c.sec >= 2 && b === 12 && (bar & 1) === 0)
-    clang(k.m, midiToFreq(chord[2] + 24), 0.028, { rev: 0.8, pan: 0.5 });
-  if (L > 0.3 && b === 6 && R(c, 1) < 0.18)
-    for (let i = 0; i < 5; i++)
-      k.m.n(0.012, 0.035, {
-        type: "bandpass",
-        f: 4200,
-        q: 3,
-        color: "pink",
-        at: [0, 0.03, 0.063, 0.101, 0.146][i],
-        opt: true,
-        pan: -0.5,
-      });
-  // 3.7.0: the steam is a soft breath (no hiss); embers crackle now and then
-  if ((bar & 3) === 2 && b === 14)
-    k.m.n(0.9, 0.04, {
-      type: "bandpass",
-      f: 1800,
-      to: 900,
-      q: 0.8,
-      color: "pink",
-      attack: 0.08,
-      opt: true,
-      pan: 0.5,
-      rev: 0.3,
-    });
-  if (R(c, 20) < 0.06 + 0.06 * L)
-    for (let i = 0; i < 2; i++)
-      k.m.n(0.006, 0.05, {
-        type: "bandpass",
-        f: 2000 + R(c, 21 + i) * 1500,
-        q: 3,
-        color: "pink",
-        at: i * 0.03 + R(c, 23) * 0.05,
-        opt: true,
-        pan: P(c, 24, 0.9),
-      });
 }
 
 /* Cryo Vault, 72 BPM, E minor (Em C G D, the chords breathe over two bars): an ice cavern. No beat at all until the
@@ -5438,62 +5290,6 @@ function yardBoss(e, c) {
   }
 }
 
-/* Ember Works boss (The Crucible), 104 BPM, D minor (Dm Bb C Am): the forge. Drop: a taiko ensemble (deep drums on 1,
-   the "and" of 2 and 3, middle drums answering, a run of small drums into every second bar), hammer blows on an anvil
-   on 2 and 4, a low string ostinato, a brass swell every second bar, the struck pipes of the calm theme; variation: the
-   brass walks the chord, small drums on the off-beats, the choir; breakdown: the choir, the anvil alone on every beat,
-   a deep drum, a low brass pedal; build: the drums roll, the strings climb, the brass rises, riser */
-const FORGE_DEEP = "x.....x...x.....",
-  FORGE_MID = "...x....x....x..",
-  FORGE_OSTINATO = [0, 0, 7, 0, 0, 7, 0, 12, 0, 0, 7, 0, 3, 5, 7, 10];
-function worksBoss(e, c) {
-  const { b, bar, sec, root, chord } = c,
-    k = kit(e, c);
-  if (sec <= 2) calmMotif(k, c, "pipes", 1.7, sec !== 2);
-  sectionHit(k, c);
-  if (sec <= 1) {
-    // 3.46.0: three hammer blows walk the track into every section change
-    if ((bar === 7 || bar === 15) && b >= 13) anvil(k, midiToFreq(chord[0] + 24), 0.045, (b - 14) * 0.45);
-    if (pat(FORGE_DEEP)[b]) taiko(k, 0.5, { f: 72, deep: b === 0, pan: b === 6 ? -0.3 : b === 10 ? 0.3 : 0 });
-    if (pat(FORGE_MID)[b]) taiko(k, 0.3, { f: 115, dur: 0.3, pan: 0.35 });
-    if (b >= 12 && (bar & 1) === 1) tom(k, 0.1 + 0.04 * (b - 12), 160 + (b - 12) * 20, { pan: -0.4 + (b - 12) * 0.25 });
-    if (b === 4 || b === 12) anvil(k, midiToFreq(chord[0] + 24), 0.07, b === 4 ? -0.3 : 0.3);
-    if (b === 0) {
-      kick(k, 0.4, { f0: 120, f1: 40, dur: 0.2, pump: 0.45 });
-      sub(k, root, c.barSec * 0.9, 0.16);
-    }
-    if (b % 2 === 0) strings(k, root - 12 + FORGE_OSTINATO[b], 0.03, { lp: 1100, dur: 0.16 });
-    // (not on the head of a section: its hit brings a brass swell of its own)
-    if (b === 0 && (bar & 1) === 0 && bar % 8 !== 0)
-      brass(k, root - 12, c.barSec * 1.5, 0.04, { lp: 200, lpTo: 2000, attack: 0.08 });
-    if (b % 4 === 2) shaker(k, 0.03, 0.4);
-    if (sec === 1) {
-      if (b % 4 === 0)
-        brass(k, chord[[0, 2, 1, 3][b >> 2]] + ((bar & 1) === 1 ? 12 : 0), 0.32, 0.026, {
-          lp: 600,
-          lpTo: 2800,
-          hold: 0.1,
-        });
-      if (b % 2 === 1 && bar >= 12) tom(k, 0.08, 130, { pan: b % 4 === 1 ? -0.5 : 0.5 });
-      if (bar >= 12 && b === 0) choir(k, [chord[0], chord[2]], c.barSec, 0.034);
-    }
-  } else if (sec === 2) {
-    if (b === 0) {
-      taiko(k, 0.55, { f: 66, deep: true, dur: 0.8 });
-      choir(k, [chord[0], chord[1], chord[2]], c.barSec + 0.4, 0.034);
-      brass(k, root - 24, c.barSec, 0.03, { lp: 180, lpTo: 900, attack: 0.2 });
-    }
-    if (b % 4 === 0) anvil(k, midiToFreq(chord[0] + 24), 0.06, (b - 6) / 8);
-    if (b === 8) bigSnare(k, 0.2, { f: 1100, bf: 150, dur: 0.3, rev: 0.8 });
-  } else {
-    buildRoll(k, c, 90);
-    if (b % 2 === 0) strings(k, root - 12 + Math.floor(((bar - 20) * 16 + b) / 4), 0.032, { lp: 1400 });
-    if (bar === 20 && b === 0)
-      brass(k, root - 12, c.barSec * 2, 0.04, { lp: 200, lpTo: 4000, attack: c.barSec * 1.6, hold: c.barSec * 0.3 });
-    buildRiser(k, c);
-  }
-}
-
 /* Cryo Vault boss (Frost Prism), 138 BPM, E minor (Em C G D): ice trance. Drop: a soft four on the floor that pumps
    everything, the bass on the off-beats, a glassy arpeggio in the echo, the ice bell melody, a clap on 2 and 4, shakers,
    a pumping pad; variation: the choir sings the chords, a lead doubles the bell melody, strings in eighths; breakdown:
@@ -5826,13 +5622,12 @@ function bossHeatLayer(e, c) {
    below and a short choir (the crash of the metal tracks was a burst of hiss). The last hit when the boss is dead: a
    deep taiko, the brass on the root with a major third (the victory), a choir and the instrument of the biome once
    more. A phase change or the enrage jumps to the head of the drop, whose own hit (sectionHit) marks it. */
-const BIOME_VOICE = { yard: "piano", works: "pipes", vault: "ice", marsh: "kalimba", void: "glass", club: "cinder" };
+const BIOME_VOICE = { yard: "piano", vault: "ice", marsh: "kalimba", void: "glass", club: "cinder" };
 /* 3.48.0: the ambience preview of the Settings slider — one far sound that says "this is the place":
-   the City sparks a broken lamp, the Works lets off a steam valve, icicles fall in the Vault, the
-   Marsh answers with frogs, the Core shimmers and the Caldera grumbles far away (3.49.0). */
+   the City sparks a broken lamp, icicles fall in the Vault, the Marsh answers with frogs, the
+   Core shimmers and the Caldera grumbles far away (3.49.0). */
 const AMB_PREVIEW = {
   yard: "sparks",
-  works: "steam",
   vault: "icicles",
   marsh: "frogs",
   void: "shimmer",
@@ -5870,10 +5665,6 @@ const MUSIC_TRACKS = {
   yard: {
     fight: { bpm: 78, bars: 16, swing: 0.26, gain: 1, play: yardCalm },
     boss: { bpm: 128, bars: 22, swing: 0, gain: 1.1, play: yardBoss },
-  },
-  works: {
-    fight: { bpm: 66, bars: 16, swing: 0, chordBars: 2, gain: 1, play: worksCalm },
-    boss: { bpm: 104, bars: 22, swing: 0, gain: 1, play: worksBoss },
   },
   vault: {
     fight: { bpm: 72, bars: 16, swing: 0, chordBars: 2, gain: 1, play: vaultCalm },
@@ -6078,7 +5869,7 @@ function rlSoundCatalog() {
   add("land:grate", { id: "land", arg: { ground: "grate" } });
   // 3.15.0: the boss cards
   ids(["bcCage", "bcLock", "bcHammer", "bcReady", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
-  for (const id of ["elite", "rain", "blackout", "meltdown", "whiteout", "bloom", "riftstorm"]) ids(["event"], id);
+  for (const id of ["elite", "rain", "blackout", "whiteout", "bloom", "riftstorm"]) ids(["event"], id);
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
   // 3.43.0: the room tones render too (a short take of each, the real attack is slower than the test fade)
   for (const biome of Object.keys(ROOM_TONE_LEVEL)) add("tone:" + biome, { tone: biome, stopAt: 1.0, fade: 0.25 });

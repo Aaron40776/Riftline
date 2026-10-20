@@ -1228,7 +1228,7 @@ function updateBoss(game, boss, dt) {
 }
 // 3.33.0: every place has its beam: the security laser, the flame jet of the Ember Works, a lance of ice, a jet of bile, the
 // rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Cryo Vault and the Toxin Marsh)
-const SENTINEL_SKIN = { yard: "laser", works: "flame", vault: "cryo", marsh: "acid", void: "rift", club: "flame" };
+const SENTINEL_SKIN = { yard: "laser", vault: "cryo", marsh: "acid", void: "rift", club: "flame" };
 /* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
    telegraphed portals around the player: 2 at the first boss, up to 5 later */
 function bossReinforce(game, boss) {

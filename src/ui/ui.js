@@ -1925,7 +1925,6 @@ function closePauseSettings(ui) {
 // the hazard of each biome in a few words (the RL_BIOME_INFO tag is the fallback for new biomes)
 const RL_BIOME_CARD = {
   yard: "Live manholes arc — lure enemies onto them",
-  works: "Lava vents erupt — lure enemies onto them",
   vault: "Slick floor and ice sheets — mind your drift",
   marsh: "Acid pools eat your hull — and weaken enemies",
   void: "Portal pairs fold the arena — shots pass through",

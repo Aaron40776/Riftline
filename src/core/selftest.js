@@ -718,8 +718,8 @@ function selfTestExpansion23(result) {
           );
       }
     }
-    // six calm themes and six boss tracks, six different tempos each
-    if (tempos.size !== 12) bad("music-tempos", [...tempos].join(","));
+    // five calm themes and five boss tracks, five different tempos each (3.49.0: the roster is five)
+    if (tempos.size !== 10) bad("music-tempos", [...tempos].join(","));
   });
   // 2d. stragglers: a hunting enemy of every type closes in on a stationary player
   section("hunt", () => {
@@ -1037,17 +1037,17 @@ function selfTestExpansion21(result) {
 function selfTestV240(result) {
   const fail = [];
   if (weaponOrder.length !== 7 || Object.keys(weaponDefs).length !== 7) fail.push("weapon-count:" + weaponOrder.length);
-  // 3.47.0: six biomes
-  if (biomeList.length !== 6) fail.push("biome-count:" + biomeList.length);
+  // 3.49.0: five biomes (the Ember Works retired)
+  if (biomeList.length !== 5) fail.push("biome-count:" + biomeList.length);
   for (const upgrade of upgradeList)
     if (upgrade.weapon && !weaponDefs[upgrade.weapon]) fail.push("evo-weapon:" + upgrade.id);
-  // route: Blackout City first, then one biome per boss cycle, all six by wave 26
+  // route: Blackout City first, then one biome per boss cycle, all five by wave 21
   for (const seed of [11, 222, 3333, 44444]) {
     const world = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
       seen = new Set();
     for (let wave = 1; wave <= 30; wave++) {
       const biome = world.biomeFor(wave).id;
-      if (wave <= 26) {
+      if (wave <= 21) {
         seen.add(biome);
       }
       if (wave <= 5 && biome !== "yard") {
@@ -1056,12 +1056,12 @@ function selfTestV240(result) {
       if (wave > 1 && (biome === world.biomeFor(wave - 1).id) !== ((wave - 1) % 5 !== 0))
         fail.push(`route-cycle:${seed}:${wave}`);
     }
-    if (seen.size !== 6) {
+    if (seen.size !== 5) {
       fail.push(`route-coverage:${seed}:${seen.size}`);
     }
   }
   // every hazard biome has its hazard in a normal wave, and only that one
-  const want = { works: "vents", vault: "ice", marsh: "acid", void: "portals", club: "vents" };
+  const want = { vault: "ice", marsh: "acid", void: "portals", club: "vents" };
   for (const [id, kind] of Object.entries(want)) {
     const world = new World({ seed: 0x240 + id.length, weapon: "pulse", threat: 0, ws: {} }),
       wave = 2 + 5 * world.route.indexOf(id);
@@ -1332,7 +1332,7 @@ function selfTestV250A(result) {
 function selfTestV250C(result) {
   const fail = [],
     bad = (msg) => fail.length < 40 && fail.push(msg),
-    theme = { works: "vents", vault: "ice", marsh: "acid" },
+    theme = { vault: "ice", marsh: "acid" },
     // fairness of one arena: hazards off obstacles and walls, the spawn ring clear, portals valid
     fair = (arena, tag) => {
       for (const kind of ["vents", "ice", "acid"])
@@ -1436,22 +1436,6 @@ function selfTestV250C(result) {
   const run = (world, sec) => {
     for (let time = 0; time < sec; time += 1 / 30) world.step(1 / 30, { mx: 0, my: 0 });
   };
-  const melt = eventWorld("works");
-  if (!melt || melt.event !== "meltdown") bad("meltdown-missing");
-  else {
-    const vents = melt.arena.vents;
-    if (vents.length < 6) {
-      bad("meltdown-vents:" + vents.length);
-    }
-    if (vents.some((vent) => vent.period !== vents[0].period || vent.phase !== vents[0].phase)) {
-      bad("meltdown-sync");
-    }
-    fair(melt.arena, "meltdown");
-    run(melt, 2.5);
-    if (!vents.every((vent) => melt.arena.ventState(vent, melt.waveT) === "erupt")) {
-      bad("meltdown-erupt-together");
-    }
-  }
   const white = eventWorld("vault");
   if (!white || white.event !== "whiteout") bad("whiteout-missing");
   else {
@@ -1903,7 +1887,7 @@ function selfTestV270Sound(result) {
         const eng = new SoundEngine();
         eng.attach(new OfflineAudioContext(1, 44100, 44100), { room: false });
         eng.playKind = "fight";
-        eng.playBiome = "works";
+        eng.playBiome = "vault";
         eng.intensity = 0.9;
         eng.musicLog = [];
         const ids = [
@@ -1943,7 +1927,7 @@ function selfTestV270Sound(result) {
       for (const voice of engine.voices) {
         if (!(voice.end < 10) || voice.loop) fail.push("voice-never-ends");
       }
-      for (const bed of ["hum", "blackout", "meltdown", "whiteout", "bloom", "riftstorm"]) {
+      for (const bed of ["hum", "blackout", "whiteout", "bloom", "riftstorm", "raid"]) {
         engine.startBed(bed);
         if (!engine.voices.some((voice) => voice.loop)) fail.push("bed-not-registered:" + bed);
         engine.stopBed(bed);
@@ -2387,8 +2371,10 @@ function selfTestV300(result) {
     world.startWave(23);
     if (JSON.stringify(world.traps.map((trap) => [trap.skin, trap.x.toFixed(3), trap.y.toFixed(3)])) !== first)
       fail.push("traps-not-deterministic");
-    // behaviour: every family warns first, then hurts the player and the enemies near it
-    const arm = (spec) => {
+    // behaviour: every family warns first, then hurts the player and the enemies near it. The trap
+    // sits at an OFFSET of the freshly reset player (3.49.0: wave 8 can be the slick Vault now, and
+    // a pre-captured position drifted while the wave restart put the player back)
+    const arm = (spec, ox = 0, oy = 0) => {
       world.startWave(8);
       world.state = "fight";
       world.god = false;
@@ -2401,13 +2387,18 @@ function selfTestV300(result) {
       world.groupT = 99;
       world.bossPending = null;
       world.arena.obs = [];
+      // the map hazards of the wave's biome stay out of the trap measurements (3.49.0: wave 8 can
+      // be the Caldera, and a fumarole or an acid pool would poison the damage and the arming)
+      for (const kind of ["vents", "ice", "acid", "portals"]) world.arena[kind] = [];
       world.player.hp = world.stats.maxHp;
       world.player.iT = 0;
       world.player.slowT = 0;
-      world.traps = [{ id: 1, t: 0, wait: 0, hunt: false, a: 0, dir: 1, ...spec }];
+      world.traps = [
+        { id: 1, t: 0, wait: 0, hunt: false, a: 0, dir: 1, ...spec, x: world.player.x + ox, y: world.player.y + oy },
+      ];
       // beside the trap, inside its radius but out of touching distance of the player (even a touch with no
       // damage would start the player's protection time)
-      const foe = world.spawnEnemy("brute", spec.x + 2.0, spec.y);
+      const foe = world.spawnEnemy("brute", world.traps[0].x + 2.0, world.traps[0].y);
       foe.spawnT = 0;
       foe.maxHp = foe.hp = 1000;
       // the dummy must not hurt the player itself, or the trap's damage cannot be told apart
@@ -2422,10 +2413,8 @@ function selfTestV300(result) {
       }
       return { events, foe, trap: world.traps[0], hp: world.player.hp };
     };
-    const at = (dx = 0, dy = 0) => ({ x: world.player.x + dx, y: world.player.y + dy });
     world.startWave(8);
-    const base = at();
-    let r = arm({ fam: "floor", skin: "crusher", st: "idle", r: 2.6, ...base });
+    let r = arm({ fam: "floor", skin: "crusher", st: "idle", r: 2.6 });
     if (!(r.hp < world.stats.maxHp))
       fail.push(
         `floor-trap-no-damage:${r.hp}:${[...new Set(r.events)].filter((k) => !/dmg|spark|pop|shot/.test(k)).join()}`,
@@ -2433,20 +2422,20 @@ function selfTestV300(result) {
     if (!(r.foe.hp < 1000 * (1 - 0.14) + 1)) fail.push("floor-trap-spares-enemies:" + r.foe.hp);
     if (r.events.indexOf("trapWarn") < 0 || r.events.indexOf("trapFire") < r.events.indexOf("trapWarn"))
       fail.push("floor-trap-no-warning");
-    r = arm({ fam: "floor", skin: "icespike", st: "idle", r: 2.2, ...base });
+    r = arm({ fam: "floor", skin: "icespike", st: "idle", r: 2.2 });
     if (!(r.hp < world.stats.maxHp) || !(world.player.slowT > 0 || r.events.includes("chill")))
       fail.push("icespike-no-chill");
     const acidBefore = world.arena.acid.length;
-    r = arm({ fam: "floor", skin: "geyser", st: "idle", r: 2.0, ...base });
+    r = arm({ fam: "floor", skin: "geyser", st: "idle", r: 2.0 });
     if (world.arena.acid.length <= 0 || world.arena.acid.length < acidBefore) fail.push("geyser-no-acid");
     // the beam turns 0.5 rad/s from the moment it warns: it starts 0.55 rad behind the player and sweeps over
     // him when it goes live
-    r = arm({ fam: "beam", skin: "laser", st: "idle", r: 0.8, ...at(-6, 0), a: -0.55 });
+    r = arm({ fam: "beam", skin: "laser", st: "idle", r: 0.8, a: -0.55 }, -6, 0);
     if (!(r.hp < world.stats.maxHp) || r.events.indexOf("trapWarn") < 0)
       fail.push(
         `beam-trap-no-damage:${r.hp}:${[...new Set(r.events)].filter((k) => !/dmg|spark|pop|shot/.test(k)).join()}`,
       );
-    r = arm({ fam: "mine", skin: "mine", st: "unarmed", r: 2.6, ...at(0.6, 0) });
+    r = arm({ fam: "mine", skin: "mine", st: "unarmed", r: 2.6 }, 0.6, 0);
     if (!(r.hp < world.stats.maxHp) || r.trap.st === "armed" || !r.events.includes("trapArm"))
       fail.push("mine-did-not-go-off");
     if (!(r.foe.hp < 1000 * (1 - 0.18) + 1)) fail.push("mine-spares-enemies:" + r.foe.hp);
@@ -2713,7 +2702,6 @@ function selfTestV380(result) {
       const view = renderer.hazardView,
         // the parts each biome's hazards must draw; erupt: the parts of an erupting vent
         want = {
-          works: { idle: ["s:lava", "crater"], erupt: ["s:fire"] },
           yard: { idle: ["collar", "cover"], erupt: ["bolt"] },
           vault: { idle: ["s:ice", "shard"] },
           marsh: { idle: ["s:acid", "bank", "bubble"] },
@@ -2741,7 +2729,7 @@ function selfTestV380(result) {
         const arena = world.arena;
         if (biome === "marsh" && !arena.acid.length) arena.acid.push({ x: 6, y: 6, r: 2, life: null });
         if (biome === "vault" && !arena.ice.length) arena.ice.push({ x: 6, y: 6, r: 3 });
-        if ((biome === "works" || biome === "yard" || biome === "club") && !arena.vents.length)
+        if ((biome === "yard" || biome === "club") && !arena.vents.length)
           arena.vents.push({ x: 6, y: 6, r: 2, phase: 0, period: 4, st: "idle" });
         if (biome === "void" && !arena.portals.length) arena.portals.push({ ax: 6, ay: 6, bx: -6, by: -6 });
         draw(world);
@@ -2782,7 +2770,7 @@ function selfTestV390(result) {
     // every far sound of a biome exists, and every sound is in the catalog of the offline test
     for (const [biome, list] of Object.entries(BIOME_PLACE))
       for (const id of list) if (!PLACE_IDS.includes(id)) fail.push(`far-unknown:${biome}:${id}`);
-    for (const biome of ["yard", "works", "vault", "marsh", "void", "club"])
+    for (const biome of ["yard", "vault", "marsh", "void", "club"])
       if (!BIOME_PLACE[biome] || BIOME_PLACE[biome].length < 4) fail.push("far-missing:" + biome);
     const catalog = rlSoundCatalog();
     for (const id of PLACE_IDS)
@@ -2791,7 +2779,6 @@ function selfTestV390(result) {
     if (typeof OfflineAudioContext !== "undefined") {
       // each biome with its hazards: 30 s of a fight near them make the sounds of that place, on the ambience bus
       const want = {
-        works: ["lavaBlub", "lavaWarn"],
         yard: ["hum", "charge"],
         vault: ["iceCrack|iceCreak", "iceTink"],
         marsh: ["acidBubble", "acidSizzle"],
@@ -2807,7 +2794,7 @@ function selfTestV390(result) {
         world.state = "fight";
         const arena = world.arena,
           player = world.player;
-        if ((biome === "works" || biome === "yard" || biome === "club") && !arena.vents.length)
+        if ((biome === "yard" || biome === "club") && !arena.vents.length)
           arena.vents.push({ x: 4, y: 4, r: 2, phase: 0, period: 4, st: "idle" });
         if (biome === "vault" && !arena.ice.length) arena.ice.push({ x: 4, y: 4, r: 3 });
         if (biome === "marsh" && !arena.acid.length) arena.acid.push({ x: 4, y: 4, r: 2, life: null });
@@ -3394,10 +3381,18 @@ function selfTestV3160(result) {
     for (const type of Object.keys(WANT)) {
       const world = new World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });
       let wave = 5;
-      while (world.bossFor(wave) !== type && wave < 200) wave += 5;
-      if (world.bossFor(wave) !== type) {
-        fail.push("no-wave:" + type);
-        continue;
+      if (type === "forge") {
+        // 3.49.0: the Crucible sits out of the route (the Ember Works retired) - its fight runs on a
+        // pinned boss wave until it takes its new post
+        const real = world.bossFor.bind(world);
+        world.bossFor = (w) => (w === 10 ? "forge" : real(w));
+        wave = 10;
+      } else {
+        while (world.bossFor(wave) !== type && wave < 200) wave += 5;
+        if (world.bossFor(wave) !== type) {
+          fail.push("no-wave:" + type);
+          continue;
+        }
       }
       world.startWave(wave);
       world.state = "fight";
@@ -3480,7 +3475,6 @@ function selfTestV3160(result) {
       };
       const PROPS = {
         yard: ["lampBuzz", (arena) => ({ x: 0, y: -arena.H + 0.5 })],
-        works: ["gears", (arena) => arena.obs.find((ob) => ob.t !== "c")],
         void: ["gravityHum", (arena) => arena.obs.find((ob) => ob.t === "c")],
       };
       for (const [biome, [id, near]] of Object.entries(PROPS)) {
@@ -3526,7 +3520,6 @@ function selfTestV3160(result) {
     // the sentinel's beam is the beam of its place (3.33.0: in every biome; the laser in Blackout City since 3.16.0)
     for (const [biome, want] of Object.entries({
       yard: "laser",
-      works: "flame",
       vault: "cryo",
       marsh: "acid",
       void: "rift",

@@ -402,23 +402,6 @@ const OBSTACLE_GAP = 2.7,
         },
       ],
     ],
-    works: [
-      [
-        4,
-        (rng) =>
-          rng.chance(0.5)
-            ? { t: "b", w: rng.range(2.4, 4.2), h: rng.range(0.6, 0.85) }
-            : { t: "b", w: rng.range(0.6, 0.85), h: rng.range(2.4, 4.2) },
-      ],
-      [3, (rng) => ({ t: "c", r: rng.range(1.1, 1.6) })],
-      [
-        2,
-        (rng) => {
-          let size = rng.range(0.8, 1.2);
-          return { t: "b", w: size, h: size };
-        },
-      ],
-    ],
     vault: [
       [4, (rng) => ({ t: "c", r: rng.range(0.7, 1.1) })],
       [
@@ -463,7 +446,6 @@ const OBSTACLE_GAP = 2.7,
   },
   mapTemplates = {
     yard: ["scatter", "ring", "rot4", "mirror2"],
-    works: ["scatter", "lanes", "mirror2", "rot2"],
     vault: ["scatter", "rot2", "ring", "rot4"],
     void: ["scatter", "ring", "rot2", "mirror4"],
     marsh: ["scatter", "mirror2", "ring", "rot2"],
@@ -549,25 +531,13 @@ function mapLayout(biome, seed, wave, boss) {
 function buildLayout(biome, seed, wave, boss) {
   // 2.1: the wave director adds wave obstacles and hazards to the map
   const layout = rlAddWaveObstacles(mapLayout(biome, seed, wave, boss), biome, seed, wave, boss);
-  // 2.4.6: the Crucible's arena in Ember Works keeps three lava vents (boss arenas are open and had
-  // no hazard at all). Its Eruption and Stoke attacks make nearby vents burst; the vents themselves
-  // keep their normal cycle. Other biomes' boss arenas stay as they are.
-  if (!boss || biome.id !== "works") return layout;
-  const rng = makeRng(hashString(seed + ":crucible-vents:" + wave)),
-    features = { vents: [], ice: [], portals: [], acid: [] };
-  for (let k = 0; k < 12 && features.vents.length < 3; k++) {
-    const spot = rlFeaturePoint(rng, layout.obstacles, layout.W, layout.H, features, 1.2, RL_HAZARD_SIZE.vents);
-    if (spot) {
-      features.vents.push({ ...spot, phase: rng.next() * 6, period: 3.2 + rng.next() * 1.2, st: "idle" });
-    }
-  }
-  return { ...layout, key: `${layout.key}:crucible:${seed}:${wave}`, features };
+  return layout;
 }
-// 2.4.6: `size` sets the radius range; hazards are bigger than portals (see RL_HAZARD_SIZE)
+// 2.4.6: `size` sets the radius range; hazards are bigger than portals
 // 2.4.6: bigger hazards so they shape the fight (they were 0.7–1.0 wide per extra wave hazard):
 // radius ranges of the hazards a wave adds; the fixed layout hazards grew by the same share.
-// Since 2.5.0 the waves use RL_HAZARD_SIZE_250; only the Crucible's vents still use these.
-const RL_HAZARD_SIZE = { vents: [1.3, 1.7], ice: [2.1, 2.9], acid: [1.7, 2.3] };
+// Since 2.5.0 the waves use RL_HAZARD_SIZE_250 (the one fixed table retired with the Crucible's
+// arena vents, which the Ember Works kept; 3.49.0).
 function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75, size = [0.72, 1]) {
   const taken = [];
   for (const kind of ["vents", "ice", "acid"])
@@ -1022,18 +992,8 @@ function placeFeatures(rng, biomeId, obs, W, H) {
       }
       return best;
     };
-  if (biomeId === "works") {
-    let count = rng.int(3, 5),
-      period = rng.range(6.5, 8);
-    for (let k = 0; k < count; k++) {
-      let rad = rng.range(1.5, 2), // 2.4.6: was 1.1–1.5
-        spot = findSpot(rad, 0.6, features.vents, 3, { minRadius: 6.5, maxRadius: 9.2, preferRadius: 7.8 });
-      if (spot) {
-        features.vents.push({ x: spot.x, y: spot.y, r: rad, period, phase: (k / count) * period + rng.range(0, 0.8) });
-      }
-    }
-  } else if (biomeId === "club") {
-    // 3.49.0: the fumaroles: nozzles out on the crater floor, a little tighter than the Works' jets
+  if (biomeId === "club") {
+    // 3.49.0: the fumaroles: nozzles out on the crater floor (the Works' jets were a touch wider)
     let count = rng.int(3, 5),
       period = rng.range(6.5, 8);
     for (let k = 0; k < count; k++) {

@@ -94,14 +94,8 @@ const milestones = [
     reward: 200,
     test: (save) => (save.stats.bosses.prism || 0) > 0,
   },
-  // 2.4.6: the Crucible, boss of Ember Works
-  {
-    id: "forge",
-    name: "Quenched",
-    desc: "Defeat the Crucible",
-    reward: 175,
-    test: (save) => (save.stats.bosses.forge || 0) > 0,
-  },
+  // 3.49.0: the Crucible sits out (the Ember Works retired; it takes a new post with a coming
+  // biome), so its milestone leaves the list for now - a save that earned it keeps it (3.39.0 rule)
   // 3.49.0: the Ash Tyrant, boss of the Ashfall Caldera
   {
     id: "kingpin",
@@ -297,8 +291,8 @@ milestones.push(
   {
     id: "allbiomes",
     name: "World Walker",
-    // 2.4.0: the biome changes after every boss; 3.47.0: six biomes, so wave 26 is the first wave of the sixth
-    desc: "Reach wave 26 \u2014 every biome of the rift in one run",
+    // 2.4.0: the biome changes after every boss; 3.49.0: five biomes, so wave 21 is the first wave of the fifth
+    desc: "Reach wave 21 \u2014 every biome of the rift in one run",
     reward: 1100,
     test: (save) => save.stats.bestWave >= 5 * (biomeList.length - 1) + 1,
   },

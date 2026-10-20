@@ -152,15 +152,16 @@ void main() {
 /* ---- 2.4.0: every biome gets its own look, not just its own colours. Before, all 19 biomes
  shared one neon grid floor, the same boxes and pillars and the same wall; only the palette
  changed. Now each of the five has its own
-   floor    Blackout City (3.4.0): wet asphalt and road markings · Ember Works: basalt plates split by glowing lava seams ·
-            Cryo Vault: frozen sheet with cracks, frost and glints · Toxin Marsh: mud, murky
-            water with ripples and moss · Void Core: hex tiles floating over a starfield
-   props    (same collision shapes) pylons and crates · chimneys and machines · crystal
+   floor    Blackout City (3.4.0): wet asphalt and road markings · Ashfall Caldera (3.49.0): a charcoal
+            crust with dark grooves, ash and two molten fissures · Cryo Vault: frozen sheet with cracks,
+            frost and glints · Toxin Marsh: mud, murky water with ripples and moss · Void Core: hex
+            tiles floating over a starfield
+   props    (same collision shapes) pylons and crates · obsidian spires and lava dykes · crystal
             clusters and ice blocks · mushrooms, dead trees and logs · floating obelisks and
             hovering monoliths
-   border   jersey barriers (3.4.0, was a fence) · steel wall with hazard stripes · ice wall with crystals · reeds and rocks
+   border   jersey barriers (3.4.0, was a fence) · a basalt rampart with ember pockets · ice wall with crystals · reeds and rocks
             on a mud bank · energy barrier over the abyss
-   air      rain and splashes (3.4.0, was neon dust) · rising embers and chimney sparks · snowfall · spores and marsh haze ·
+   air      rain and splashes (3.4.0, was neon dust) · falling ash and climbing embers · snowfall · spores and marsh haze ·
             rising void motes
    light    sun colour, sky and fog density (the marsh is foggy, the void dark)
  ---- */
@@ -179,16 +180,6 @@ const RL_BIOME_LOOK = {
     // 3.44.0: the fog bites - the far edge of every place dissolves softly instead of running
     // to a hard horizon (the old windows sat far outside the arena, so the fog never showed)
     fog: [1.15, 2.7],
-  },
-  works: {
-    style: 1,
-    hemi: 1.0,
-    sun: 0xffb27a,
-    sunI: 2.3,
-    fill: [0x3a8cff, 0.7],
-    vivid: 1.1,
-    gain: 1.02,
-    fog: [1.05, 2.5],
   },
   vault: {
     style: 2,
@@ -239,7 +230,6 @@ const RL_BIOME_LOOK = {
 // confetti against the muted floors. The pieces keep a hint of their own colour for telling things apart.
 const RL_BIOME_TINT = {
   yard: new Color(0x8a93a6),
-  works: new Color(0x9a8f86),
   vault: new Color(0xcfdde8),
   marsh: new Color(0x8fa88a),
   void: new Color(0x9a92b8),
@@ -317,17 +307,7 @@ void main() {
   vec3 col;
   float lit = 0.35 + minor * 0.5 + major * 0.9; // how strongly muzzle flashes / blasts light it
   float outside = 0.3; // brightness of the floor beyond the border
-  if (st == 1) {
-    // Ember Works: basalt plates, lava in the seams, each plate breathing heat at its own pace
-    vec3 v = voro(p * 0.42);
-    float heat = 0.55 + 0.45 * sin(uTime * 1.3 + v.z * 6.283);
-    float seam = smoothstep(0.06, 0.0, v.y);
-    col = uBase * (0.55 + 1.0 * fbm(p * 1.3)) * (0.8 + 0.5 * pl);
-    col += uGrid * seam * (0.14 + 0.26 * heat) * inside;
-    col += uAccent * smoothstep(0.02, 0.0, v.y) * heat * 0.2 * inside;
-    col += uGrid * 0.04 * smoothstep(0.6, 0.95, v.z) * (1.0 - v.x) * heat * inside;
-    lit = 0.45 + seam;
-  } else if (st == 2) {
+  if (st == 2) {
     // Cryo Vault: a lighter frozen sheet, cracks, frost drifts and glints
     float fr = fbm(p * 0.35 + 3.0);
     col = mix(uBase * 1.15, uGrid * 0.16, fr * 0.8) * (0.8 + 0.6 * pl) + uAccent * 0.035;
@@ -665,186 +645,6 @@ const RL_BIOME_BUILD = {
     }
     bakeObs.flush(props);
     bakeBorder.flush(group);
-  },
-  // Ember Works: steel wall with hazard stripes, furnaces in the corners, chimneys and machines
-  works(view, biome, W, H, obs, rng) {
-    const group = view.group,
-      props = view.obsGroup,
-      steel = new MeshLambertMaterial({ color: 0x2b2420, flatShading: true }),
-      dark = new MeshLambertMaterial({ color: biome.wall, flatShading: true }),
-      pipe = new MeshLambertMaterial({ color: 0x3d3129, flatShading: true }),
-      glow = rlGlow(biome.grid),
-      hot = rlGlow(biome.accent),
-      wallW = 0.6,
-      wallH = 1.25;
-    for (const [bx, bz, sx, sz] of [
-      [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
-      [0, H + wallW / 2, W * 2 + wallW * 2, wallW],
-      [-W - wallW / 2, 0, wallW, H * 2],
-      [W + wallW / 2, 0, wallW, H * 2],
-    ]) {
-      rlMesh(group, new BoxGeometry(sx, wallH, sz), steel, bx, wallH / 2, bz);
-      // a pipe along the inner face of every wall
-      const along = sx > sz,
-        pipeMesh = rlMesh(
-          group,
-          new CylinderGeometry(0.12, 0.12, along ? sx : sz, 8),
-          pipe,
-          bx + (along ? 0 : -Math.sign(bx) * 0.38),
-          0.45,
-          bz + (along ? -Math.sign(bz) * 0.38 : 0),
-        );
-      if (along) {
-        pipeMesh.rotation.z = Math.PI / 2;
-      } else {
-        pipeMesh.rotation.x = Math.PI / 2;
-      }
-    }
-    // hazard stripes on top of the wall: one instanced mesh, orange and black
-    const stripes = [];
-    let stripe = 0;
-    rlAlongBorder(W, H, wallW / 2, 0.55, (px, pz, nx) =>
-      stripes.push({
-        x: px,
-        y: wallH + 0.05,
-        z: pz,
-        ry: nx ? Math.PI / 2 : 0,
-        sx: 0.5,
-        sy: 0.1,
-        sz: wallW + 0.02,
-        c: stripe++ % 2 ? 0x141210 : biome.grid,
-      }),
-    );
-    rlInst(group, new BoxGeometry(1, 1, 1), new MeshBasicMaterial({ toneMapped: false }), stripes);
-    for (const sx of [-1, 1])
-      for (const sz of [-1, 1]) {
-        const cx = sx * (W + 0.55),
-          cz = sz * (H + 0.55);
-        rlMesh(group, new BoxGeometry(1.6, 1.9, 1.6), dark, cx, 0.95, cz);
-        rlMesh(group, new BoxGeometry(1.64, 0.14, 0.5), hot, cx, 1.2, cz);
-        view.rlEmit.push({ x: cx, z: cz, y: 2.0, k: "spark" });
-      }
-    for (const obstacle of obs)
-      if (obstacle.t === "c") {
-        // chimney: steel stack, glowing band, fire in the mouth, sparks rising
-        const height = 2.4;
-        rlMesh(
-          props,
-          new CylinderGeometry(obstacle.r * 0.78, obstacle.r, height, 14),
-          steel,
-          obstacle.x,
-          height / 2,
-          obstacle.y,
-        );
-        rlMesh(
-          props,
-          new CylinderGeometry(obstacle.r * 0.84, obstacle.r * 0.86, 0.18, 14),
-          glow,
-          obstacle.x,
-          height * 0.68,
-          obstacle.y,
-        );
-        const rim = rlMesh(
-          props,
-          new TorusGeometry(obstacle.r * 0.72, 0.09, 6, 20),
-          dark,
-          obstacle.x,
-          height,
-          obstacle.y,
-        );
-        rim.rotation.x = Math.PI / 2;
-        const mouth = rlMesh(
-          props,
-          new CircleGeometry(obstacle.r * 0.66, 18),
-          hot,
-          obstacle.x,
-          height - 0.02,
-          obstacle.y,
-        );
-        mouth.rotation.x = -Math.PI / 2;
-        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, glow);
-        view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: height + 0.1, k: "spark" });
-      } else {
-        // machine block: dark top plate, glowing seams, hot vents
-        const height = 1.1,
-          longX = obstacle.w >= obstacle.h;
-        rlMesh(
-          props,
-          new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2),
-          steel,
-          obstacle.x,
-          height / 2,
-          obstacle.y,
-        );
-        rlMesh(
-          props,
-          new BoxGeometry(Math.max(0.1, obstacle.w * 2 - 0.2), 0.08, Math.max(0.1, obstacle.h * 2 - 0.2)),
-          dark,
-          obstacle.x,
-          height + 0.04,
-          obstacle.y,
-        );
-        for (const side of [-1, 1]) {
-          if (longX) {
-            rlMesh(
-              props,
-              new BoxGeometry(obstacle.w * 2 + 0.02, 0.08, 0.04),
-              glow,
-              obstacle.x,
-              height * 0.55,
-              obstacle.y + side * obstacle.h,
-            );
-          } else {
-            rlMesh(
-              props,
-              new BoxGeometry(0.04, 0.08, obstacle.h * 2 + 0.02),
-              glow,
-              obstacle.x + side * obstacle.w,
-              height * 0.55,
-              obstacle.y,
-            );
-          }
-        }
-        const vents = Math.max(1, Math.min(4, Math.floor(Math.max(obstacle.w, obstacle.h) / 0.6)));
-        for (let j = 0; j < vents; j++) {
-          const pos = (j + 0.5) / vents - 0.5;
-          rlMesh(
-            props,
-            new BoxGeometry(0.28, 0.06, 0.28),
-            hot,
-            obstacle.x + (longX ? pos * obstacle.w * 1.6 : 0),
-            height + 0.1,
-            obstacle.y + (longX ? 0 : pos * obstacle.h * 1.6),
-          );
-        }
-        rlFootSlab(props, obstacle, glow, 0.25);
-        // 3.17.0: a gear turns on top of the machine (audio/place.js lets it be heard near the drone)
-        const gear = new Group(),
-          gr = Math.min(0.42, Math.min(obstacle.w, obstacle.h) * 0.55);
-        gear.add(new Mesh(new CylinderGeometry(gr, gr, 0.1, 12), pipe));
-        gear.add(new Mesh(new CylinderGeometry(gr * 0.3, gr * 0.3, 0.14, 8), hot));
-        for (let k = 0; k < 8; k++) {
-          const tooth = new Mesh(new BoxGeometry(gr * 0.32, 0.1, gr * 0.28), pipe),
-            ang = (k / 8) * TAU;
-          tooth.position.set(Math.cos(ang) * gr * 1.08, 0, Math.sin(ang) * gr * 1.08);
-          tooth.rotation.y = -ang;
-          gear.add(tooth);
-        }
-        gear.position.set(
-          obstacle.x + (longX ? obstacle.w * 0.55 : 0),
-          height + 0.16,
-          obstacle.y + (longX ? 0 : obstacle.h * 0.55),
-        );
-        props.add(gear);
-        view.rlAnim.push({
-          o: gear,
-          k: "spin",
-          s: 1.6 + (Math.abs(obstacle.x * 7 + obstacle.y) % 1),
-          b: height + 0.16,
-          ph: 0,
-          a: 0,
-        });
-      }
   },
   // Cryo Vault: ice wall crowned with crystals, crystal clusters and ice blocks with snow caps
   vault(view, biome, W, H, obs, rng) {
@@ -1446,24 +1246,6 @@ function rlAmbient(renderer, dt, world, opt) {
     grid = hexColor(biome.grid),
     acc = hexColor(biome.accent);
   switch (biome.id) {
-    case "works":
-      for (
-        let j = count(20);
-        j--; // 3.44.0: was 24, the calm pass
-      )
-        renderer.emit(
-          rx(),
-          0.1,
-          rz(),
-          (Math.random() - 0.5) * 0.8,
-          1 + Math.random() * 1.6,
-          (Math.random() - 0.5) * 0.8,
-          1.6 + Math.random(),
-          0.1 + Math.random() * 0.1,
-          Math.random() < 0.5 ? RL_C.ember : RL_C.ember2,
-          { drag: 0.3 },
-        );
-      break;
     case "vault":
       for (
         let j = count(34);
@@ -1694,7 +1476,6 @@ function rlAmbient(renderer, dt, world, opt) {
 /* ---- 2.4.1: enemies and bosses wear the biome. A skin is laid over every enemy model by the
  shader (same shapes, same type colours and glow, so types stay recognisable):
    Blackout City rain-wet with a cold sheen, drops running down, red and blue emergency light on the rims (3.4.0)
-   Ember Works  charred shell with pulsing lava veins, embers rising off them
    Cryo Vault   frost on the upper surfaces with glints, a cold tint, frost flakes
    Toxin Marsh  slime running down with glowing toxic spots, green drops
    Void Core    violet rim glow and star specks, motes rising
@@ -1726,15 +1507,7 @@ return mix(mix(mix(rlH3(i), rlH3(i + vec3(1.0, 0.0, 0.0)), f.x), mix(rlH3(i + ve
 const RL_SKIN_FRAG_BODY = `
 {
 int rlS = int(uSkin + 0.5);
-if (rlS == 1) {
-  // molten: charred shell, lava veins that pulse
-  vec3 q = vRlP * 4.5;
-  float n = rlN3(q) * 0.65 + rlN3(q * 2.1) * 0.35;
-  float vein = smoothstep(0.12, 0.0, abs(n - 0.5));
-  float pulse = 0.65 + 0.35 * sin(uSkinT * 3.5 + q.y * 2.0 + q.x);
-  float under = smoothstep(0.55, 0.0, vRlP.y);
-  outgoingLight = outgoingLight * vec3(0.5, 0.42, 0.38) + vec3(1.0, 0.42, 0.08) * (vein * 1.3 + under * 0.4) * pulse;
-} else if (rlS == 2) {
+if (rlS == 2) {
   // frost on everything facing up, glints, a cold tint
   float fr = smoothstep(-0.05, 0.6, vRlN.y + (rlN3(vRlP * 6.0) - 0.5) * 0.9);
   outgoingLight = outgoingLight * vec3(0.72, 0.9, 1.15);
@@ -1808,7 +1581,6 @@ function rlSkinMaterial(mat, flash) {
   mat.rlSkin = true;
 }
 const RL_SKIN_FX = {
-  1: { c: new Color(0xff8a30), vy: 1.4, grav: 0, life: 0.7, size: 0.15, spark: false },
   2: { c: new Color(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: true },
   3: { c: new Color(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: false },
   4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: false },

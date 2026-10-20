@@ -232,14 +232,6 @@ export { waveEvents, spawnWeights, EVENT_CHANCE, planWave, heavyEnemies, rollUpg
 // visit of a hazard biome one of them (wave 2–4 of the visit, never a boss wave); `biome` says
 // where it may happen. What they do is in world.js (and the renderer for the Whiteout fog).
 Object.assign(waveEvents, {
-  meltdown: {
-    id: "meltdown",
-    name: "MELTDOWN",
-    desc: "More vents, all erupting at once · shards +25%",
-    shardMul: 1.25,
-    biome: "works",
-    plan: {},
-  },
   whiteout: {
     id: "whiteout",
     name: "WHITEOUT",
@@ -287,7 +279,6 @@ Object.assign(waveEvents, {
 });
 const RL_BIOME_EVENT = {
   yard: "blackout",
-  works: "meltdown",
   vault: "whiteout",
   marsh: "bloom",
   void: "riftstorm",

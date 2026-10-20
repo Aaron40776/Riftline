@@ -17,7 +17,7 @@ await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, nu
 // 3.14.0: `node tools/qa.js scape-preview music` renders the ten music tracks instead: 30 s of each calm theme at the
 // intensity of a busy fight (where the rhythm of the place plays) and 30 s of each boss track, as music-<kind>-<biome>
 if (ONLY === "music") {
-  for (const biome of ["yard", "works", "vault", "marsh", "void", "club"])
+  for (const biome of ["yard", "vault", "marsh", "void", "club"])
     // 3.19.0: stereo, and the calm theme twice: quiet (intensity 0.15: the ambient bloom is most present) and busy
     for (const [name, kind, intensity, secs] of [
       ["calm-quiet", "fight", 0.15, 40],
@@ -72,7 +72,7 @@ if (ONLY === "music") {
   await browser.close();
   process.exit(0);
 }
-const biomes = ["yard", "works", "vault", "marsh", "void", "club"].filter((b) => !ONLY || b === ONLY);
+const biomes = ["yard", "vault", "marsh", "void", "club"].filter((b) => !ONLY || b === ONLY);
 for (const biome of biomes) {
   const wav = await page.evaluate(async (biome) => {
     const T = window.__riftTest,

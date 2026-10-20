@@ -159,13 +159,15 @@ function rlNearHazard(world) {
 
 // ---- 2.5.0 C: biome events. Every visit of a hazard biome brings its event in one of waves 2–4
 // of the visit (never a boss wave, never right next to an Elite Surge or Shard Rain):
-//   Ember Works  Meltdown     three extra vents, all vents erupt together every 3.4 s
+//   Blackout City  Blackout      three extra manholes; they arc in a chain, the lights die
+//   Ashfall Caldera  ASHFALL     three extra fumaroles, every jet fires in step, the lights die
 //   Cryo Vault   Whiteout     three extra ice sheets; the renderer thickens the fog (snow storm)
 //   Toxin Marsh  Spore Bloom  the pools grow by up to 40% over the wave, a new one sprouts every 7 s
 //   Void Core    Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
+// (3.49.0: the Ember Works' Meltdown retired with the foundry - the ASHFALL event kept its step.)
 // Extra and moved hazards follow the fairness rules of the wave hazards (arena.js) and keep off
 // the player. The signature enemies of a biome can spawn from its first wave (waves.js).
-const RL_MELTDOWN_PERIOD = 3.4,
+const RL_RAID_PERIOD = 3.4,
   RL_BLOOM_GROW = 1.4,
   RL_BLOOM_GROW_T = 35,
   RL_BLOOM_EVERY = 7,
@@ -3428,17 +3430,7 @@ const rlStep = 1 / 60,
           }
         };
       arena.rlEvent = id;
-      if (id === "meltdown") {
-        add("vents", 3);
-        // all vents in step: idle at the start, the first warning 0.7 s into the wave, then every 3.4 s
-        const period = RL_MELTDOWN_PERIOD,
-          phase = 0;
-        for (const vent of arena.vents) {
-          vent.period = period;
-          vent.phase = phase;
-          vent.st = "idle";
-        }
-      } else if (id === "blackout") {
+      if (id === "blackout") {
         // three more manholes; they arc in a chain (one after another, ordered around the centre), every 4.8 s
         add("vents", 3);
         const vents = arena.vents.slice().sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x)),
@@ -3451,9 +3443,9 @@ const rlStep = 1 / 60,
         });
       } else if (id === "raid") {
         // 3.49.0: ASHFALL: three more fumaroles, the lights die under the ash (the renderer dims), and
-        // every jet fires in step, Meltdown's timing - the caldera fights back all at once
+        // every jet fires in step - the caldera fights back all at once
         add("vents", 3);
-        const period = RL_MELTDOWN_PERIOD;
+        const period = RL_RAID_PERIOD;
         for (const vent of arena.vents) {
           vent.period = period;
           vent.phase = 0;
