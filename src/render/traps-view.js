@@ -30,17 +30,18 @@ const LOOK = {
   plate: { main: hex(0x8fd0ff), alt: hex(0xffb347), dust: hex(0x9fb4c8) },
   crusher: { main: hex(0xff6a1f), alt: hex(0xffb347), dust: hex(0x9a8f80) },
   icespike: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff) },
-  geyser: { main: hex(0xa8f03a), alt: hex(0xe6ff8a), dust: hex(0x4a7a1a) },
+  // 3.50.0: the Glowmarsh's bloom jet: mint over dark peat (was the Toxin Marsh's bile green)
+  geyser: { main: hex(0x46ffc0), alt: hex(0xd9fff0), dust: hex(0x1c4a3c) },
   riftburst: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
   laser: { main: hex(0xff3346), alt: hex(0xffd0a0), dust: hex(0x9fb4c8) },
   flame: { main: hex(0xff7a1f), alt: hex(0xffd27a), dust: hex(0x9a8f80) },
   rift: { main: hex(0x9a5bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
-  // 3.33.0: the beams of the Cryo Vault (the Frost Prism, the sentinel) and of the Toxin Marsh (the sentinel)
+  // 3.33.0: the beams of the Cryo Vault (the Frost Prism, the sentinel) and of the Glowmarsh (the sentinel)
   cryo: { main: hex(0x8fe0ff), alt: hex(0xe8fbff), dust: hex(0xdff6ff) },
-  acid: { main: hex(0x8fd62a), alt: hex(0xe0ff7a), dust: hex(0x4a7a1a) },
+  acid: { main: hex(0x46ffc0), alt: hex(0xd9fff0), dust: hex(0x1c4a3c) },
   mine: { main: hex(0xff8a3a), alt: hex(0xffe0a0), dust: hex(0x6a6a72), led: hex(0xff3b2f) },
   frost: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff), led: hex(0xc8f6ff) },
-  spore: { main: hex(0xa8f03a), alt: hex(0xe6ff8a), dust: hex(0x4a7a1a), led: hex(0xd7ff4a) },
+  spore: { main: hex(0x46ffc0), alt: hex(0xd9fff0), dust: hex(0x1c4a3c), led: hex(0x8fffd9) },
   riftmine: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650), led: hex(0xff4de0) },
   // 3.49.0: the Caldera's fumarole: molten
   pyro: { main: hex(0xffb45a), alt: hex(0xffe9b0), dust: hex(0x3a2418) },
@@ -208,17 +209,17 @@ const MODELS = {
       ],
     };
   },
-  // Toxin Marsh: a mud vent with a bubbling acid pool
+  // The Glowmarsh: a peat vent with a pool of glowing bloom water
   geyser: () => {
     seed = 5;
     return {
       body: [
-        cyl(0x2c3a1c, 0.95, 1, 0.05, 12),
-        cyl(0x34451f, 0.55, 0.9, 0.16, 12, { y: 0.03 }),
-        meshPart(new TorusGeometry(0.5, 0.1, 6, 14), 0x3b4a25, { y: 0.18, rx: Math.PI / 2 }),
-        cyl(0x07100a, 0.42, 0.42, 0.02, 12, { y: 0.19 }),
+        cyl(0x1a231a, 0.95, 1, 0.05, 12),
+        cyl(0x212c1e, 0.55, 0.9, 0.16, 12, { y: 0.03 }),
+        meshPart(new TorusGeometry(0.5, 0.1, 6, 14), 0x27331f, { y: 0.18, rx: Math.PI / 2 }),
+        cyl(0x04100c, 0.42, 0.42, 0.02, 12, { y: 0.19 }),
         ...ring(7, (a) =>
-          ball(0x33401f, 0.1 + rnd() * 0.07, 6, 4, {
+          ball(0x1e2a1a, 0.1 + rnd() * 0.07, 6, 4, {
             x: Math.cos(a + rnd() * 0.4) * (0.78 + rnd() * 0.15),
             y: 0.05,
             z: Math.sin(a + rnd() * 0.4) * (0.78 + rnd() * 0.15),
@@ -227,7 +228,7 @@ const MODELS = {
         ),
         ...ring(5, (a) =>
           spike(
-            0x56702a,
+            0x365a3c,
             0.04,
             4,
             [Math.cos(a) * 0.72, 0.1, Math.sin(a) * 0.72],
@@ -236,13 +237,13 @@ const MODELS = {
         ),
       ],
       glow: [
-        cyl(0xa8f03a, 0.38, 0.38, 0.02, 12, { y: 0.2 }),
-        ...ring(5, (a) => ball(0xe6ff8a, 0.045, 5, 3, { x: Math.cos(a) * 0.5, y: 0.2, z: Math.sin(a) * 0.5 })),
+        cyl(0x46ffc0, 0.38, 0.38, 0.02, 12, { y: 0.2 }),
+        ...ring(5, (a) => ball(0xd9fff0, 0.045, 5, 3, { x: Math.cos(a) * 0.5, y: 0.2, z: Math.sin(a) * 0.5 })),
         ...ring(5, (a) =>
-          ball(0xa8f03a, 0.04, 5, 3, { x: Math.cos(a + 0.3) * 0.85, y: 0.1, z: Math.sin(a + 0.3) * 0.85 }),
+          ball(0x46ffc0, 0.04, 5, 3, { x: Math.cos(a + 0.3) * 0.85, y: 0.1, z: Math.sin(a + 0.3) * 0.85 }),
         ),
       ],
-      mover: [meshPart(new SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), 0x6faa2a, { y: 0.2 })],
+      mover: [meshPart(new SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), 0x3a8a68, { y: 0.2 })],
     };
   },
   // 3.49.0: the Caldera: a basalt nozzle set into the crater floor, molten in the mouth, a cap
@@ -455,18 +456,18 @@ const MODELS = {
   },
   spore: () => ({
     body: [
-      meshPart(new SphereGeometry(0.4, 10, 7), 0x4b6a2a, { y: 0.3, sy: 0.8 }),
-      cyl(0x2d4018, 0.3, 0.45, 0.08, 8),
+      meshPart(new SphereGeometry(0.4, 10, 7), 0x245a44, { y: 0.3, sy: 0.8 }),
+      cyl(0x16301f, 0.3, 0.45, 0.08, 8),
       ...ring(4, (a) =>
         spike(
-          0x2d4018,
+          0x16301f,
           0.06,
           4,
           [Math.cos(a) * 0.4, 0.2, Math.sin(a) * 0.4],
           [Math.cos(a) * 0.68, 0.05, Math.sin(a) * 0.68],
         ),
       ),
-      spike(0x56702a, 0.07, 5, [0, 0.52, 0], [0.04, 0.72, 0.02]),
+      spike(0x2f6a4a, 0.07, 5, [0, 0.52, 0], [0.04, 0.72, 0.02]),
     ],
     glow: [
       ...ring(5, (a) =>
@@ -942,8 +943,8 @@ class TrapView {
         );
       }
     } else if (beam.skin === "acid") {
-      // 3.33.0: a jet of bile: a body that swells and narrows in slow pulses down its length, a pale core, drops that
-      // fall off it and splash on the floor
+      // 3.33.0 (re-voiced 3.50.0): a jet of glow: a body that swells and narrows in slow pulses down its length, a
+      // pale mint core, drops that fall off it and shine where they splash
       let px = beam.x,
         pz = beam.y;
       for (let i = 1; i <= 6; i++) {
@@ -1160,7 +1161,7 @@ class TrapView {
         r.ring(x, z, rad * 0.2, rad * 1.1, look.main, 0.45);
         r.burst(x, z, 0.4, 22, rad * 2.2, look.main, 1.1, 0.5, { drag: 2, grow: 1.2 });
         r.burst(x, z, 0.4, 14, rad * 2.5, look.alt, 0.9, 0.18, { spark: true, drag: 1.5, up: 2 });
-        r.debrisBurst(x, z, 0.3, 4, hex(0x4b6a2a), 0.14, 5);
+        r.debrisBurst(x, z, 0.3, 4, hex(0x245a44), 0.14, 5);
         r.flash(x, z, rad * 1.8, 1.1, look.main, 4);
         r.addShake(0.2 * shakeK);
         break;

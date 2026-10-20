@@ -14,7 +14,7 @@
 // The warning keeps the language of the game: the red ring at the edge of the danger (yellow with Clear warnings) and a
 // ring that fills it; the red tint of the old disc is part of every surface. What is left on the floor belongs to the
 // place: a blast leaves burnt wet asphalt in Blackout City, glowing cracks in Ember Works, a melted star of frost in the
-// Cryo Vault, a splash of mud in the Toxin Marsh and a violet scar in the Void Core; slag cools to a crust, frost melts
+// Cryo Vault, a splash of peat in the Glowmarsh and a violet scar in the Void Core; slag cools to a crust, frost melts
 // away. All of it is a few instance pools, made when first needed: one shader draws every zone; the marks are painted
 // once per biome into an atlas and drawn as texture lookups (they are many and stay for seconds).
 
@@ -46,8 +46,9 @@ const WHITE = new Color(0xffffff),
   LAVA = new Color(0xff6a1f),
   LAVA_HOT = new Color(0xffd27a),
   ICE = new Color(0xbff0ff),
-  ACID = new Color(0x9be03a),
-  ACID_LITE = new Color(0xd8ff7a),
+  // 3.50.0: the Glowmarsh's bloom (was the Toxin Marsh's bile green)
+  ACID = new Color(0x3ee8ac),
+  ACID_LITE = new Color(0xbaffdc),
   RIFT = new Color(0xb070ff),
   RIFT_PINK = new Color(0xff4dd8),
   FIRE = new Color(0xff8a2a),
@@ -64,10 +65,10 @@ const WHITE = new Color(0xffffff),
     drone: new Color(0xff4f9a),
     weaver: new Color(0xd04dff),
     carrier: new Color(0xff5a6a),
-    // 3.16.0: the bosses' own shots: the Warden's siren slugs flash red and blue, the Hive Queen's spores are toxic
-    // green, the Rift Core's rings violet
+    // 3.16.0: the bosses' own shots: the Warden's siren slugs flash red and blue, the Hive Queen's spores glow mint
+    // (3.50.0, was toxic green), the Rift Core's rings violet
     siren: new Color(0xff3346),
-    spore: new Color(0xb8f03a),
+    spore: new Color(0x52f0b8),
     riftorb: new Color(0xb070ff),
   },
   SIREN_BLUE = new Color(0x3d7bff),
@@ -81,7 +82,7 @@ const WHITE = new Color(0xffffff),
 const DUST = {
     yard: new Color(0x6a7280),
     vault: new Color(0xdff6ff),
-    marsh: new Color(0x4a4426),
+    marsh: new Color(0x2f3830),
     void: new Color(0x5a3a90),
     // 3.49.0: the Ashfall Caldera: warm ash dust
     club: new Color(0x7a6c5e),
@@ -269,11 +270,11 @@ ${LAYERS}void main() {
       float star = pow(abs(cos(a * 7.0 + seed)), 14.0) * smoothstep(0.35, 0.95, t);
       lay(vec3(0.85, 0.95, 1.0), (star + smoothstep(0.8, 1.0, t) * 0.5) * 0.8);
     } else if (b == 3) {
-      // Toxin Marsh: a splash of mud, specks of slime that glow
-      lay(vec3(0.03, 0.035, 0.012), ch * 0.85);
+      // The Glowmarsh: black peat splashes up, specks of the bloom that glow
+      lay(vec3(0.012, 0.02, 0.016), ch * 0.85);
       vec2 sc = floor(q * 4.0), sf = fract(q * 4.0) - 0.5;
       float speck = step(0.85, h21(sc)) * smoothstep(0.3, 0.1, length(sf));
-      lay(vec3(0.5, 0.85, 0.15), speck * smoothstep(0.9, 0.2, t) * (0.4 + 0.6 * f));
+      lay(vec3(0.28, 0.95, 0.66), speck * smoothstep(0.9, 0.2, t) * (0.4 + 0.6 * f));
     } else if (b == 5) {
       // 3.49.0: Ashfall Caldera: a blast chars the crust - the molten seams under it burn through
       lay(vec3(0.03, 0.022, 0.018), ch * 0.9);
@@ -1124,7 +1125,7 @@ class AttackView {
           continue;
         }
         case "spore": {
-          // the Hive Queen's spore: a thorny ball that wobbles and drips toxic motes
+          // the Hive Queen's spore: a thorny ball that wobbles and drips glowing motes
           const P = this.get("spore"),
             wob = 1 + Math.sin(time * 16 + shot.x * 2) * 0.12,
             s = shot.r * 1.1;

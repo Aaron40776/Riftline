@@ -1,12 +1,12 @@
 // 3.8.0: how the map hazards look: the lava vents of Ember Works, the live manholes of Blackout City, the ice sheets of
-// Cryo Vault, the acid pools of Toxin Marsh and the portals of Void Core. Until 3.7.1 they were discs and rings of the
+// Cryo Vault, the bloom pools of The Glowmarsh and the portals of Void Core. Until 3.7.1 they were discs and rings of the
 // effect pools (a lava eruption was a glowing tube); now each has a model of its place and a surface that moves:
 //   lava vent     a crater of basalt rocks around a pool of lava under a moving crust, cracks that glow with the heat; it
 //                 swells and melts while it warns and erupts as a pillar of fire
 //   live manhole  an iron cover with a raised grid in a concrete collar; it hums faintly, rattles and leaks a cold light
 //                 while it charges and jumps on its own arcs, which are jagged bolts
 //   ice sheet     a frozen sheet with frost, cracks, facets and glints, ice shards standing on its rim
-//   acid pool     murky liquid with ripples, rising bubbles and foam at the edge, a bank of mud lumps and dead reeds (the
+//   acid pool     glowing bloom water with slow ripples, rising bubbles and foam at the edge, a bank of peat lumps and dead reeds (the
 //                 short-lived pools of traps and bosses, and the player's own cyan Acid Coating, have no bank)
 //   portal        a swirl that turns into a dark core with a bright rim, rune stones floating around it
 // The simulation decides everything (arena.vents/ice/acid/portals, arena.ventState); this only shows it. Each part is
@@ -196,7 +196,8 @@ void main() {
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
-  // acid: murky liquid with slow ripples, bubbles that rise and pop, foam at the edge (cyan for the Acid Coating);
+  // acid (the Glowmarsh's bloom water, 3.50.0): near-black water lit from inside - a mint glow that drifts with the
+  // current, bubbles that rise and pop, foam at the edge (cyan stays the player's own Acid Coating);
   // instance r fades a pool that is drying up
   acid: `
 void main() {
@@ -204,12 +205,13 @@ void main() {
   float edge = 0.9 + 0.08 * vnoise(vec2(a * 2.4 + seed, seed + uTime * 0.05));
   if (r > edge) discard;
   vec2 q = vP * 2.4 + seed;
-  vec3 deep = mix(vec3(0.07, 0.15, 0.025), vec3(0.02, 0.14, 0.18), vI.b);
-  vec3 lite = mix(vec3(0.5, 0.78, 0.16), vec3(0.3, 0.88, 1.0), vI.b);
+  vec3 deep = mix(vec3(0.002, 0.038, 0.032), vec3(0.02, 0.14, 0.18), vI.b);
+  vec3 lite = mix(vec3(0.26, 0.96, 0.66), vec3(0.3, 0.88, 1.0), vI.b);
   float murk = fbm(q * 1.2 + vec2(uTime * 0.06, 0.0));
-  vec3 col = mix(deep, lite * 0.42, murk * 0.75);
+  // the glow IS the warning: the bloom water carries a mint light from inside, drifting with the current
+  vec3 col = mix(deep, lite * 0.55, murk * 0.6);
   float ripple = 0.5 + 0.5 * sin(r * 17.0 - uTime * 2.2 + fbm(q + uTime * 0.2) * 6.0);
-  col += lite * ripple * 0.06;
+  col += lite * ripple * 0.12;
   vec2 bc = floor(q * 1.7), bf = fract(q * 1.7) - 0.5 - (h22(bc) - 0.5) * 0.4;
   float bt = fract(uTime * 0.55 + h21(bc) * 5.0);
   float bub = step(0.55, h21(bc + 2.0)) * smoothstep(0.035, 0.0, abs(length(bf) - bt * 0.3)) * (1.0 - bt);
@@ -418,7 +420,7 @@ const MODELS = {
     geo.translate(0, 0.5, 0);
     return { body: [meshPart(geo, 0xcfeeff)] };
   },
-  // acid pool: a bank of mud lumps and a few dead reeds
+  // bloom pool: a bank of peat lumps and a few dead reeds
   bank: () => {
     const rng = makeRng(0xac1d),
       body = [];
@@ -427,7 +429,7 @@ const MODELS = {
         d = rng.range(0.95, 1.05),
         s = rng.range(0.07, 0.12);
       body.push(
-        meshPart(new SphereGeometry(s, 6, 4), [0x3a3820, 0x2f3418, 0x46402a][i % 3], {
+        meshPart(new SphereGeometry(s, 6, 4), [0x1c221c, 0x18201a, 0x232a20][i % 3], {
           x: Math.cos(a) * d,
           z: Math.sin(a) * d,
           y: 0.01,
@@ -442,7 +444,7 @@ const MODELS = {
         d = rng.range(0.98, 1.08),
         h = rng.range(0.35, 0.6);
       body.push(
-        meshPart(new ConeGeometry(0.022, h, 4), 0x1e2412, {
+        meshPart(new ConeGeometry(0.022, h, 4), 0x182218, {
           x: Math.cos(a) * d,
           z: Math.sin(a) * d,
           y: h / 2,

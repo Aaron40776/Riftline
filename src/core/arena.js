@@ -1067,7 +1067,7 @@ export { mapTemplates, hitsObstacle, obstacleShapes, Arena, buildLayout, isConne
 // Hazards keep a clear ring around the spawn (their edge stays 5.2 from it, before it could come
 // within ~3.3), stay 0.95 off every obstacle and leave a lane of 1.3 between each other.
 // The same helpers place the extra hazards of the biome events (see World in world.js).
-// 3.6.0: acid pools a little smaller (2.2–3.0 before): several of them covered most of the Toxin Marsh floor
+// 3.6.0: acid pools a little smaller (2.2–3.0 before): several of them covered most of the marsh floor
 const RL_HAZARD_SIZE_250 = { vents: [1.7, 2.2], ice: [2.7, 3.7], acid: [1.9, 2.6] },
   RL_HAZARD_COUNT_250 = 5,
   RL_HAZARD_CAP_250 = 9,
@@ -1158,7 +1158,7 @@ function rlPortalPair250(rng, obs, W, H, features, opt = {}) {
   return null;
 }
 // The largest radius a hazard at (hazard.x, hazard.y) can grow to: 0.8 off obstacles (the diagnostics
-// rule), off the walls and clear of the spawn ring. Used by Spore Bloom.
+// rule), off the walls and clear of the spawn ring. Used by Spore Tide.
 function rlHazardRoom250(arena, hazard, want) {
   let rad = Math.min(
     want,

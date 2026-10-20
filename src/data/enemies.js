@@ -154,7 +154,8 @@ const enemyDefs = {
     cost: 8,
     shards: 8,
     from: 9,
-    color: 13041469,
+    // 3.50.0: the glow of the marsh's bloom (was acid green)
+    color: 0x54ffc8,
   },
   bulwark: {
     id: "bulwark",
@@ -270,11 +271,13 @@ const biomeVariants = {
     desc: "Blinks a few steps towards you every couple of seconds.",
   },
   marsh: {
-    id: "toxic",
-    name: "Toxic",
+    // 3.50.0: the Glowmarsh's Bloomed (was the Toxin Marsh's Toxic) - the same acid burst,
+    // in the glow family
+    id: "bloomed",
+    name: "Bloomed",
     types: ["grunt", "splitter", "swarmer", "bomber"],
-    color: 11861821,
-    desc: "Bursts into an acid pool when it dies.",
+    color: 0x46ffc0,
+    desc: "Sick with the glow: bursts into a shining pool when it dies.",
   },
   // 3.49.0: the Caldera: they go out in a flare - the fumaroles jet where they fall (was the Club's Showy)
   club: {
@@ -315,7 +318,8 @@ const bossDefs = {
     speed: 2,
     dmg: 20,
     shards: 100,
-    color: 13041469,
+    // 3.50.0: the glow of the marsh's bloom (was acid green)
+    color: 0x54ffc8,
   },
   prism: {
     id: "prism",

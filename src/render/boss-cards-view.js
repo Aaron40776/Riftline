@@ -21,8 +21,9 @@ const hex = (value) => new Color(value),
   HOT = hex(0xffd27a),
   ICE = hex(0x9ae6ff),
   ICE_WHITE = hex(0xe8fbff),
-  ACID = hex(0xa8f03a),
-  ACID_PALE = hex(0xe6ff8a),
+  // 3.50.0: the Glowmarsh's bloom (was the Toxin Marsh's bile green)
+  ACID = hex(0x46ffc0),
+  ACID_PALE = hex(0xd9fff0),
   RIFT = hex(0xa56bff),
   RIFT_RIM = hex(0x7ae8ff),
   PYLONS = 6;
@@ -41,19 +42,19 @@ const MODELS = {
   // a larva of the Brood: three body segments, two pairs of wings, a pale sting
   larva: () => ({
     body: [
-      ball(0x3d5a1a, 0.17, 7, 5, { x: 0.12, sx: 1.2 }),
-      ball(0x4f7322, 0.13, 6, 4, { x: -0.1 }),
-      ball(0x2d4512, 0.1, 6, 4, { x: -0.28, sx: 1.3 }),
-      bar(0xd8f0a0, 0.03, [-0.36, 0, 0], [-0.5, -0.03, 0]),
+      ball(0x1f5a42, 0.17, 7, 5, { x: 0.12, sx: 1.2 }),
+      ball(0x2a7354, 0.13, 6, 4, { x: -0.1 }),
+      ball(0x17402e, 0.1, 6, 4, { x: -0.28, sx: 1.3 }),
+      bar(0xa0e8c8, 0.03, [-0.36, 0, 0], [-0.5, -0.03, 0]),
     ],
     glow: [
-      ball(0xd7ff4a, 0.04, 4, 3, { x: 0.27, y: 0.05, z: 0.07 }),
-      ball(0xd7ff4a, 0.04, 4, 3, { x: 0.27, y: 0.05, z: -0.07 }),
-      ball(0xa8f03a, 0.06, 5, 3, { x: -0.28, y: 0.04 }),
+      ball(0x8fffd9, 0.04, 4, 3, { x: 0.27, y: 0.05, z: 0.07 }),
+      ball(0x8fffd9, 0.04, 4, 3, { x: 0.27, y: 0.05, z: -0.07 }),
+      ball(0x46ffc0, 0.06, 5, 3, { x: -0.28, y: 0.04 }),
     ],
     mover: [
-      bar(0xbfe8a0, 0.14, [0.05, 0.08, 0.06], [-0.05, 0.12, 0.42], 0.01),
-      bar(0xbfe8a0, 0.14, [0.05, 0.08, -0.06], [-0.05, 0.12, -0.42], 0.01),
+      bar(0x8fdcc0, 0.14, [0.05, 0.08, 0.06], [-0.05, 0.12, 0.42], 0.01),
+      bar(0x8fdcc0, 0.14, [0.05, 0.08, -0.06], [-0.05, 0.12, -0.42], 0.01),
     ],
   }),
   // an ice splinter, long and thin along x

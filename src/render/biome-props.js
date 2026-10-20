@@ -360,17 +360,18 @@ function vaultDetail(biome, W, H, obs, rng) {
   return out;
 }
 
-/* ---- Toxin Marsh: dead trees, giant mushrooms, reeds, bone piles and egg pods outside; puddles, lily
-   pads, small mushrooms, grass, bones and spore pods on the ground. ---- */
+/* ---- The Glowmarsh (3.50.0): dead trees, glowcap mushrooms, reeds, bone piles and egg pods outside;
+   puddles, lily pads, small glowcaps, grass, bones and spore pods on the ground. The glow colours
+   follow the biome (lime = grid, yellow = accent), so the wisps and veins shift with the palette. ---- */
 function marshDetail(biome, W, H, obs, rng) {
   const out = list(),
     lime = biome.grid,
     yellow = biome.accent,
-    bark = [0x3a3222, 0x2e2a1c, 0x40361f],
-    moss = [0x2f5a22, 0x3a6a26, 0x274a1c],
+    bark = [0x2a2519, 0x221e15, 0x302a1b],
+    moss = [0x1e4a3a, 0x245844, 0x19402f],
     bone = 0xcfc8a8,
-    caps = [0x6a3a8a, 0x3a7a6a, 0x8a4a3a, 0x5a4a9a];
-  // dead trees with forked branches and hanging moss
+    caps = [0x2a8a68, 0x1e7a5c, 0x359a74, 0x2a6a80];
+  // dead trees with forked branches and hanging glow-moss
   for (const p of outsideSpots(rng, W, H, 10, 2, 12, 3.6)) {
     const t = list(),
       h = rng.range(3, 7),
@@ -426,7 +427,7 @@ function marshDetail(biome, W, H, obs, rng) {
       );
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // giant mushrooms with glowing spots
+  // giant glowcaps with glowing spots
   for (const p of outsideSpots(rng, W, H, 6, 2, 8, 4.4)) {
     const t = list(),
       h = rng.range(1.4, 3.2),
@@ -504,7 +505,7 @@ function marshDetail(biome, W, H, obs, rng) {
       const x = rng.range(-0.5, 0.5),
         z = rng.range(-0.5, 0.5),
         r = rng.range(0.28, 0.55);
-      t.body.push(ball(rng.pick([0x5a7a4a, 0x6a8a52, 0x4a6a3a]), r, 8, 5, { x, y: r * 0.85, z, sy: 1.15 }));
+      t.body.push(ball(rng.pick([0x3a5a4c, 0x466a56, 0x2f4a3e]), r, 8, 5, { x, y: r * 0.85, z, sy: 1.15 }));
       for (let v = 0; v < 3; v++) {
         const a = rng.range(0, TAU);
         t.glow.push(
@@ -518,10 +519,10 @@ function marshDetail(biome, W, H, obs, rng) {
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // mud mounds and will-o'-the-wisp stakes
+  // mud mounds and will-o'-the-wisp stakes (the marsh's own lanterns)
   for (const p of outsideSpots(rng, W, H, 10, 0.8, 5, 2.4))
     out.body.push(
-      meshPart(new SphereGeometry(rng.range(0.9, 1.9), 7, 4), 0x2a2216, {
+      meshPart(new SphereGeometry(rng.range(0.9, 1.9), 7, 4), 0x1c1a12, {
         x: p.x,
         y: 0,
         z: p.z,
@@ -529,7 +530,7 @@ function marshDetail(biome, W, H, obs, rng) {
       }),
     );
   for (const p of outsideSpots(rng, W, H, 10, 0.8, 3, 3.6)) {
-    out.body.push(pipe(0x3a3222, 0.04, 0.03, 4, [p.x, 0, p.z], [p.x, 1.5, p.z]));
+    out.body.push(pipe(0x2a2519, 0.04, 0.03, 4, [p.x, 0, p.z], [p.x, 1.5, p.z]));
     out.glow.push(
       ball(dim(lime, 0.9), 0.14, 6, 4, { x: p.x, y: 1.62, z: p.z }),
       ball(dim(lime, 0.35), 0.26, 6, 4, { x: p.x, y: 1.62, z: p.z }),
@@ -547,7 +548,7 @@ function marshDetail(biome, W, H, obs, rng) {
     // 3.44.0: the moss clumps rest (was 14) - the fireflies now carry the marsh floor
     const t = list(),
       r = rng.range(0.22, 0.45);
-    t.body.push(disc(pick3(rng, [0x3a6a2a, 0x2f5a22, 0x4a7a30]), r, 0, 0.022, 0, 10));
+    t.body.push(disc(pick3(rng, [0x2a5a44, 0x1e4a3a, 0x336a50]), r, 0, 0.022, 0, 10));
     t.body.push(meshPart(new ConeGeometry(r * 0.32, 0.03, 3), 0x0b2a2c, { x: r * 0.7, y: 0.024, ry: 0.5, rx: PI / 2 }));
     if (rng.chance(0.3)) t.glow.push(cone(dim(yellow, 0.85), 0.07, 0.12, 5, 0, 0.02, 0));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));

@@ -405,14 +405,15 @@ const MAX_PARTICLES = 1400,
     ice: { color: hexColor(0xbff0ff), size: 0.12, life: 0.3, up: 1, grav: 5, spark: true, ring: true },
     mud: { color: hexColor(0x5a4a2a), size: 0.22, life: 0.45, up: 1.6, grav: 8 },
     glass: { color: hexColor(0xb070ff), size: 0.14, life: 0.3, up: 0.5, grav: 0, spark: true, ring: true },
-    acid: { color: hexColor(0xa8f03a), size: 0.16, life: 0.4, up: 1.8, grav: 7 },
+    acid: { color: hexColor(0x46ffc0), size: 0.16, life: 0.4, up: 1.8, grav: 7 },
   },
   // 3.16.0: the colours of the portals a boss calls open (render loop, world.markers with `boss`)
   BOSS_PORTAL = {
     warden: [hexColor(0xff3346), hexColor(0x3d7bff)],
     forge: [hexColor(0xff8a2a), hexColor(0xffd27a)],
     prism: [hexColor(0x9ae6ff), hexColor(0xffffff)],
-    queen: [hexColor(0xa8f03a), hexColor(0xe6ff8a)],
+    // 3.50.0: the Hive Queen's brood comes through bloom and glow (was acid green)
+    queen: [hexColor(0x46ffc0), hexColor(0xd9fff0)],
     core: [hexColor(0xa56bff), hexColor(0xff4de0)],
     // 3.49.0: the Ash Tyrant's burning dead come through ember and ash
     kingpin: [hexColor(0xff9c3a), hexColor(0xffe19a)],
@@ -425,7 +426,8 @@ const MAX_PARTICLES = 1400,
     scorch: hexColor(16738858),
     frost: hexColor(11462911),
     phase: hexColor(16732120),
-    toxic: hexColor(11861821),
+    // 3.50.0: the Glowmarsh's Bloomed (was the Toxin Marsh's Toxic)
+    bloomed: hexColor(0x46ffc0),
     shorted: hexColor(0x8fd0ff),
   },
   beamColor = new Color(16732064),
@@ -1111,6 +1113,24 @@ const MAX_PARTICLES = 1400,
             });
             this.ring(ev.x, ev.y, 0.2, 1.6 * scale, color, 0.35);
             this.emit(ev.x, 0.8, ev.y, 0, 0, 0, 0.12, 2.2 * scale, color, { drag: 0 });
+            // 3.50.0: the Hive Queen goes out in a burst of spores: slow glowing motes that hang
+            // over the pools a moment, and a pale ring of the bloom (the standard bursts stay)
+            if (ev.type === "queen") {
+              for (let j = 0; j < 14; j++)
+                this.emit(
+                  ev.x + (Math.random() - 0.5) * 3,
+                  0.6 + Math.random() * 1.6,
+                  ev.y + (Math.random() - 0.5) * 3,
+                  (Math.random() - 0.5) * 0.8,
+                  0.5 + Math.random() * 0.5,
+                  (Math.random() - 0.5) * 0.8,
+                  2.5 + Math.random() * 1.5,
+                  0.2,
+                  hexColor(0x46ffc0),
+                  { drag: 1.2 },
+                );
+              this.ring(ev.x, ev.y, 0.4, 4.5, hexColor(0xd9fff0), 0.5);
+            }
             let base = hexColor(ev.boss ? bossDefs[ev.type].color : enemyDefs[ev.type].color),
               dark = this._dk || (this._dk = new Color());
             dark.copy(base).multiplyScalar(0.55);
@@ -1380,8 +1400,8 @@ const MAX_PARTICLES = 1400,
             this.ring(ev.x, ev.y, 0.5, ev.big ? 3.5 : 1.8, hexColor(16756896), 0.3);
             break;
           case "hatch": {
-            // 3.17.0: an egg of the Hive Queen's brood opens: the acid-green burst, a ring, and pale bits of shell
-            const acid = hexColor(13041469);
+            // 3.17.0: an egg of the Hive Queen's brood opens: the bloom burst, a ring, and pale bits of shell
+            const acid = hexColor(0x46ffc0);
             this.burst(ev.x, ev.y, 1.2, ev.big ? 16 : 6, 4, acid, 0.4, 0.3);
             this.ring(ev.x, ev.y, 0.2, ev.big ? 2.2 : 1, acid, 0.3);
             this.debrisBurst(ev.x, ev.y, 0.6, ev.big ? 6 : 2, hexColor(0xe6e2c8), 0.12, 4); // 3.44.0: was 8 : 3

@@ -657,7 +657,7 @@ function selfTestExpansion23(result) {
     }
     for (const issue of rlBiomeDistinct()) bad("biome-lookalike", issue);
     for (const [biomeId, variant] of Object.entries(biomeVariants)) {
-      if (!["scorch", "frost", "phase", "toxic", "shorted", "showy"].includes(variant.id)) {
+      if (!["scorch", "frost", "phase", "bloomed", "shorted", "showy"].includes(variant.id)) {
         bad("variant-dead", `${biomeId} → ${variant.id}`);
       }
       // 3.34.0: the Codex and the first-time tip read what it does

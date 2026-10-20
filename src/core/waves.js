@@ -240,10 +240,13 @@ Object.assign(waveEvents, {
     biome: "vault",
     plan: {},
   },
+  // 3.50.0: the Glowmarsh: the bloom tide. The id stays "bloom" (the event is wired by id); the
+  // name tells what it is now - the pools swell like before, and once the tide is in it breathes:
+  // a slow pull-back and return, so the glowing water opens windows to cross
   bloom: {
     id: "bloom",
-    name: "SPORE BLOOM",
-    desc: "Acid pools grow and spread · shards +25%",
+    name: "SPORE TIDE",
+    desc: "The tide breathes: pools swell, pull back, new ones surface · shards +25%",
     shardMul: 1.25,
     biome: "marsh",
     plan: {},

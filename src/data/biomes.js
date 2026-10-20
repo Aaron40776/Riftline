@@ -102,17 +102,23 @@ const biomeList = [
     ],
   },
   {
+    // 3.50.0: The Glowmarsh replaces the Toxin Marsh (the id stays "marsh" for saves and records,
+    // like the Yard in 3.4.0): the swamp after dark - black water over dark peat, veins of glowing
+    // algae, glowcap mushrooms and drifting spores. The same acid, now it glows: the light IS the
+    // warning. The palette keeps the rule: the bioluminescent teal grid reads against every other
+    // grid (min CIE76 dE 54 to the Vault's pale ice), and a nocturnal biome keeps the floor,
+    // fog, ground and walls almost black so the glow carries the scene.
     id: "marsh",
-    name: "Toxin Marsh",
+    name: "The Glowmarsh",
     W: 18,
     H: 17,
-    floor: 529420,
-    grid: 8257370,
-    accent: 13958973,
-    fog: 265222,
-    sky: 3828266,
-    ground: 397320,
-    wall: 1320474,
+    floor: 0x071310,
+    grid: 0x35e8a8,
+    accent: 0xb2ffdc,
+    fog: 0x04090a,
+    sky: 0x11313a,
+    ground: 0x050b0c,
+    wall: 0x12211f,
     obstacles: [
       { t: "c", x: -8, y: -6, r: 1.4 },
       { t: "c", x: 8, y: 6, r: 1.4 },
@@ -123,7 +129,7 @@ const biomeList = [
 ];
 const biomesById = Object.fromEntries(biomeList.map((biome) => [biome.id, biome]));
 // 2.4.6: Void Core is always the fourth biome (waves 16–20), so the Rift Core stays the final
-// boss. Cryo Vault, Toxin Marsh and the Ashfall Caldera are shuffled: two of them in waves 6–15,
+// boss. Cryo Vault, The Glowmarsh and the Ashfall Caldera are shuffled: two of them in waves 6–15,
 // the third from wave 21 in Endless.
 function planBiomeRoute(rng) {
   let ids = biomeList
@@ -147,7 +153,8 @@ function planBiomeRoute(rng) {
                 foundry's heavy crews joined it); the burning dead in armour (gunner, brute, bomber, mortar …)
    Cryo Vault   the whole floor is slick (you drift), ice sheets are slicker; shielded and
                 ranged enemies (bulwark, sniper, turret, sentinel …)
-   Toxin Marsh  acid pools, thick fog; swarms (splitter, hive, swarmer, sapper …)
+   The Glowmarsh the mud clings (quick to stop, slow to sprint), acid pools, thick night fog;
+                swarms (splitter, hive, swarmer, sapper …)
    Void Core    portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
  The look of each biome (floor, props, border, particles, light) is in the renderer part of
  2.4.0 further down. */
@@ -158,8 +165,12 @@ const RL_BIOME_INFO = {
     grip: 6.5,
     mix: { bulwark: 2.2, sniper: 2, gunner: 1.8, turret: 2, sentinel: 1.8, swarmer: 0.6, splitter: 0.6 },
   },
+  // 3.50.0: the Glowmarsh: grip 24 - the mud clings (the Vault's slick floor is 6.5, plain ground
+  // is 16: here velocity dies fast, so you stop hard and sprint heavy) and mud drags a little speed
   marsh: {
-    tag: "Acid pools",
+    tag: "Bloom tide",
+    grip: 24,
+    mud: 0.92,
     mix: { swarmer: 1.6, splitter: 2.4, hive: 2.2, mender: 1.8, sapper: 1.8, carrier: 1.5, gunner: 0.6 },
   },
   void: {
@@ -189,6 +200,10 @@ for (const [id, info] of Object.entries(RL_BIOME_INFO)) {
     biomesById[id].tag = info.tag;
     if (info.grip) {
       biomesById[id].grip = info.grip;
+    }
+    // 3.50.0: the Glowmarsh's mud drags (a speed multiplier, see World.step)
+    if (info.mud) {
+      biomesById[id].mud = info.mud;
     }
   }
 }

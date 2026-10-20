@@ -154,14 +154,14 @@ void main() {
  changed. Now each of the five has its own
    floor    Blackout City (3.4.0): wet asphalt and road markings · Ashfall Caldera (3.49.0): a charcoal
             crust with dark grooves, ash and two molten fissures · Cryo Vault: frozen sheet with cracks,
-            frost and glints · Toxin Marsh: mud, murky water with ripples and moss · Void Core: hex
-            tiles floating over a starfield
+            frost and glints · The Glowmarsh (3.50.0): black water over dark peat, glowing algae veins and
+            reed tufts · Void Core: hex tiles floating over a starfield
    props    (same collision shapes) pylons and crates · obsidian spires and lava dykes · crystal
-            clusters and ice blocks · mushrooms, dead trees and logs · floating obelisks and
+            clusters and ice blocks · glowcap mushrooms, dead trees and logs · floating obelisks and
             hovering monoliths
    border   jersey barriers (3.4.0, was a fence) · a basalt rampart with ember pockets · ice wall with crystals · reeds and rocks
-            on a mud bank · energy barrier over the abyss
-   air      rain and splashes (3.4.0, was neon dust) · falling ash and climbing embers · snowfall · spores and marsh haze ·
+            on a peat bank · energy barrier over the abyss
+   air      rain and splashes (3.4.0, was neon dust) · falling ash and climbing embers · snowfall · glowing spores and marsh haze ·
             rising void motes
    light    sun colour, sky and fog density (the marsh is foggy, the void dark)
  ---- */
@@ -193,15 +193,17 @@ const RL_BIOME_LOOK = {
     gain: 0.9,
     fog: [1.0, 2.3],
   },
+  // 3.50.0: the Glowmarsh: a pale teal moon low over the water, the bioluminescence bounces
+  // from below (the fill), everything else stays dark so the glow carries the scene
   marsh: {
     style: 3,
-    hemi: 1.0,
-    sun: 0xe8ffa8,
-    sunI: 1.7,
-    fill: [0xa05cff, 0.75],
-    vivid: 1.1,
-    gain: 1.0,
-    fog: [0.85, 2.1],
+    hemi: 0.7,
+    sun: 0xb8e6e0,
+    sunI: 1.15,
+    fill: [0x2ef0b0, 0.5],
+    vivid: 1.0,
+    gain: 0.85,
+    fog: [0.95, 2.25],
   },
   void: {
     style: 4,
@@ -231,12 +233,12 @@ const RL_BIOME_LOOK = {
 const RL_BIOME_TINT = {
   yard: new Color(0x8a93a6),
   vault: new Color(0xcfdde8),
-  marsh: new Color(0x8fa88a),
+  marsh: new Color(0x7ea89a),
   void: new Color(0x9a92b8),
   // 3.49.0: the Caldera calms its debris into settled ash
   club: new Color(0x98897e),
 };
-// 3.44.0: the fireflies of the marsh are the one warm light in the cold fog
+// 3.44.0: the fireflies of the Glowmarsh are the one warm light in the cold night
 const RL_FLOOR_FRAG = `
 #include <common>
 #include <fog_pars_fragment>
@@ -322,18 +324,31 @@ void main() {
     col += uAccent * pl * 0.06;
     lit = 0.6 + 0.4 * frost;
   } else if (st == 3) {
-    // Toxin Marsh: mud with murky pools that ripple, moss clumps and glowing specks
-    float m = fbm(p * 0.28 + vec2(0.0, uTime * 0.01));
-    float water = smoothstep(0.5, 0.58, m);
-    vec3 mud = uBase * (0.7 + 1.0 * fbm(p * 1.7)) + vec3(0.012, 0.008, 0.0);
-    vec3 pool = uBase * 0.55 + vec3(0.0, 0.012, 0.018);
-    float sh = sin(dot(p, vec2(1.3, 0.7)) * 2.0 + fbm(p * 0.7 + uTime * 0.12) * 9.0 + uTime * 1.1);
-    pool += uGrid * 0.025 * max(sh, 0.0);
-    col = mix(mud, pool, water) * (0.8 + 0.5 * pl);
-    float moss = smoothstep(0.6, 0.74, fbm(p * 0.9 + 5.0)) * (1.0 - water);
-    col = mix(col, uBase * 1.5 + uGrid * 0.04, moss * 0.7);
+    // The Glowmarsh (3.50.0): black water over dark peat - meandering veins of glowing algae
+    // that breathe slowly, reed tufts on the banks, spore specks that pulse. The light is the
+    // warning: the brightest water is where the acid is.
+    float m = fbm(p * 0.28 + vec2(0.0, uTime * 0.008));
+    float water = smoothstep(0.53, 0.6, m);
+    vec3 peat = uBase * (0.4 + 0.6 * fbm(p * 1.7)) + vec3(0.003, 0.007, 0.005);
+    vec3 pool = uBase * 0.24 + vec3(0.002, 0.009, 0.008);
+    // the veins are long and sparse: low-frequency contours, a thin band, a calm breath - the
+    // floor stays a dark place and the lines carry it (a dense web turned it into a circuit board)
+    float contour = fbm(p * 0.5 + 4.0);
+    float breathe = 0.7 + 0.3 * sin(uTime * 0.9 + fbm(p * 0.35) * 7.0);
+    float band = abs(contour - 0.5);
+    float vein = smoothstep(0.05, 0.0, band) * breathe;    // the soft halo
+    float core = smoothstep(0.011, 0.0, band) * breathe;   // the hot middle of the vein
+    pool += uGrid * vein * 0.16;
+    float sh = sin(dot(p, vec2(1.3, 0.7)) * 2.0 + fbm(p * 0.7 + uTime * 0.1) * 9.0 + uTime * 0.9);
+    pool += uGrid * 0.035 * max(sh, 0.0);
+    col = mix(peat, pool, water) * (0.8 + 0.5 * pl);
+    col += uGrid * core * 0.55;                            // the vein itself, over water and bank
+    col += uGrid * vein * 0.035 * (1.0 - water);           // the halo over the bank, fainter
+    float tuft = smoothstep(0.6, 0.74, contour + 0.11) * (1.0 - water);
+    col = mix(col, uBase * 1.15 + uGrid * 0.015, tuft * 0.5);
     vec2 sc = floor(p * 1.5), sf = fract(p * 1.5) - 0.5;
-    col += uAccent * step(0.985, h21(sc)) * smoothstep(0.14, 0.0, length(sf)) * (1.0 - water) * 0.3 * inside;
+    col += uAccent * step(0.985, h21(sc)) * smoothstep(0.14, 0.0, length(sf)) * (1.0 - water) * 0.3 *
+      (0.6 + 0.4 * sin(uTime * 1.7 + h21(sc + 2.0) * 20.0)) * inside;
     lit = 0.4 + 0.6 * water;
   } else if (st == 4) {
     // Void Core: hex tiles with glowing rims floating over a starfield; beyond the border only the abyss
@@ -747,18 +762,18 @@ const RL_BIOME_BUILD = {
         rlFootSlab(props, obstacle, glow, 0.25);
       }
   },
-  // Toxin Marsh: a mud bank with reeds and rocks, mushrooms, dead trees and mossy logs
+  // The Glowmarsh: a peat bank with reeds and rocks, glowcap mushrooms, dead trees and mossy logs
   marsh(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      bark = new MeshLambertMaterial({ color: 0x2e2a1c, flatShading: true }),
-      moss = new MeshLambertMaterial({ color: 0x2f5a22, emissive: 0x0a1a06, flatShading: true }),
-      stem = new MeshLambertMaterial({ color: 0xcfc8a8, flatShading: true }),
-      cap = new MeshLambertMaterial({ color: 0x6a3a8a, emissive: 0x1a0826, flatShading: true }),
-      gill = new MeshLambertMaterial({ color: 0x1c1024 }),
+      bark = new MeshLambertMaterial({ color: 0x241f16, flatShading: true }),
+      moss = new MeshLambertMaterial({ color: 0x1e4a3a, emissive: 0x062a1e, flatShading: true }),
+      stem = new MeshLambertMaterial({ color: 0xcfd8c4, flatShading: true }),
+      cap = new MeshLambertMaterial({ color: 0x2a8a68, emissive: 0x0c3a2a, flatShading: true }),
+      gill = new MeshLambertMaterial({ color: 0x0e2420 }),
       spot = rlGlow(biome.accent),
       ring = rlGlow(biome.grid, 0.55),
-      wood = new MeshLambertMaterial({ color: 0x6a5a3a, flatShading: true }),
+      wood = new MeshLambertMaterial({ color: 0x5a5240, flatShading: true }),
       wallW = 1.2;
     for (const [bx, bz, sx, sz] of [
       [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
@@ -769,14 +784,14 @@ const RL_BIOME_BUILD = {
       rlMesh(
         group,
         new BoxGeometry(sx, 0.22, sz),
-        new MeshLambertMaterial({ color: 0x1a2414, flatShading: true }),
+        new MeshLambertMaterial({ color: 0x14211e, flatShading: true }),
         bx,
         0.11,
         bz,
       );
     const reeds = [],
       rocks = [],
-      green = [0x5a7a2a, 0x4a6a24, 0x6f8a34, 0x3e5a20];
+      green = [0x3e6a4a, 0x335a3e, 0x4a7a52, 0x2a4a34];
     rlAlongBorder(W, H, 0.55, 0.4, (px, pz, nx, nz) => {
       for (let j = 0; j < 2; j++) {
         const len = rng.range(0.9, 2.3),
@@ -803,7 +818,7 @@ const RL_BIOME_BUILD = {
         sx: size,
         sy: size * 0.6,
         sz: size * rng.range(0.8, 1.2),
-        c: rng.pick([0x2a3328, 0x333a2c, 0x262e24]),
+        c: rng.pick([0x232c28, 0x2a332c, 0x1e2622]),
       });
     });
     // 3.44.0: the reeds lean with a slow wind - the InstancedMesh goes dynamic and every blade
@@ -850,7 +865,7 @@ const RL_BIOME_BUILD = {
     for (const obstacle of obs)
       if (obstacle.t === "c") {
         if (rng.chance(0.55)) {
-          // giant mushroom: pale stem, purple cap with glowing spots, spores drifting up
+          // glowcap mushroom: pale stem, a teal cap with glowing spots, spores drifting up
           rlMesh(
             props,
             new CylinderGeometry(obstacle.r * 0.22, obstacle.r * 0.32, 1.25, 8),
@@ -930,7 +945,7 @@ const RL_BIOME_BUILD = {
         }
         rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, ring);
       } else {
-        // fallen log along the long side, moss on top, two small glowing mushrooms
+        // fallen log along the long side, glow-moss on top, two small glowcaps
         const longX = obstacle.w >= obstacle.h,
           len = Math.max(obstacle.w, obstacle.h) * 2,
           rad = Math.max(0.3, Math.min(obstacle.w, obstacle.h) * 0.9),
@@ -1224,7 +1239,7 @@ const RL_C = {
   white: new Color(0xffffff),
   rain: new Color(0x9fb4cc),
   steam: new Color(0x5a6270),
-  fly: new Color(0xffd98a), // 3.44.0: the marsh fireflies
+  fly: new Color(0xffd98a), // 3.44.0: the Glowmarsh's fireflies, the one warm light in the night
   ash: new Color(0x8a7f74), // 3.49.0: the caldera's falling ash
 };
 function rlAmbient(renderer, dt, world, opt) {
@@ -1291,7 +1306,7 @@ function rlAmbient(renderer, dt, world, opt) {
           (Math.random() - 0.5) * 0.3,
           5,
           2.6,
-          hexColor(0x0a1a08),
+          hexColor(0x081412),
           {
             drag: 0,
             grow: 0.6,
@@ -1477,7 +1492,7 @@ function rlAmbient(renderer, dt, world, opt) {
  shader (same shapes, same type colours and glow, so types stay recognisable):
    Blackout City rain-wet with a cold sheen, drops running down, red and blue emergency light on the rims (3.4.0)
    Cryo Vault   frost on the upper surfaces with glints, a cold tint, frost flakes
-   Toxin Marsh  slime running down with glowing toxic spots, green drops
+   The Glowmarsh a wet dark hide, veins of cold light that breathe, a shine of drips (3.50.0)
    Void Core    violet rim glow and star specks, motes rising
   Ashfall Caldera a charred cinder shell, white-hot fissures that breathe, an ember rim (3.49.0)
  The skin is only visual; how an enemy fights does not change. ---- */
@@ -1517,12 +1532,14 @@ if (rlS == 2) {
   float gl = step(0.86, rlN3(vRlP * 16.0)) * (0.5 + 0.5 * sin(uSkinT * 5.0 + vRlP.x * 30.0));
   outgoingLight += vec3(0.9, 0.97, 1.0) * gl * (0.25 + fr) * 0.7;
 } else if (rlS == 3) {
-  // slime running down, glowing toxic spots
-  float s = smoothstep(0.56, 0.66, rlN3(vec3(vRlP.x * 5.0, vRlP.y * 1.8 + uSkinT * 0.35, vRlP.z * 5.0)));
-  s = max(s, smoothstep(0.42, 0.0, vRlP.y) * 0.8);
-  outgoingLight = mix(outgoingLight * vec3(0.75, 1.0, 0.6), vec3(0.1, 0.24, 0.04) + vec3(0.2, 0.34, 0.07) * max(vRlN.y, 0.0), s * 0.75);
-  float spot = smoothstep(0.82, 0.9, rlN3(vRlP * 9.0 + 3.0));
-  outgoingLight += vec3(0.5, 1.0, 0.15) * spot * (0.55 + 0.3 * sin(uSkinT * 2.5 + vRlP.y * 9.0));
+  // the Glowmarsh (3.50.0): a wet dark hide, veins of cold light that breathe, a shine of drips
+  float vein = smoothstep(0.1, 0.0, abs(rlN3(vec3(vRlP.x * 4.0, vRlP.y * 1.6 + uSkinT * 0.22, vRlP.z * 4.0)) - 0.5));
+  outgoingLight = outgoingLight * vec3(0.62, 0.8, 0.74);
+  outgoingLight += vec3(0.2, 0.95, 0.66) * vein * (0.4 + 0.3 * sin(uSkinT * 1.8 + vRlP.y * 6.0));
+  float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
+  outgoingLight += vec3(0.32, 0.9, 0.7) * rim * 0.3;
+  float drip = smoothstep(0.8, 0.95, rlN3(vec3(vRlP.x * 9.0, vRlP.y * 2.2 + uSkinT * 1.2, vRlP.z * 9.0)));
+  outgoingLight += vec3(0.75, 1.0, 0.9) * drip * 0.28;
 } else if (rlS == 5) {
   // 3.4.0: Blackout City: rain-wet, a cold sheen on the upper faces, drops running down, and the red and blue of
   // emergency lights sweeping over the rims
