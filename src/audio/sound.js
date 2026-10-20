@@ -3900,13 +3900,14 @@ const musicChords = {
           }
           case "flats": {
             // 3.53.0: the Glass Flats: the noon hiss - hot air over the glass, a low sand drone and
-            // the far tick of the sheets settling
-            const hiss = amp(filter("bandpass", 3400, 1.4, loop(1.3, "pink")), 0.02);
-            drift(hiss.gain, 0.14, 0.006);
-            const drone = amp(filter("lowpass", 130, 0.8, osc("sine", 48)), 0.03);
-            drift(drone.gain, 0.08, 0.008);
-            const tick = amp(filter("highpass", 5200, 1, loop(1.7, "pink")), 0.0035);
-            drift(tick.gain, 0.06, 0.002);
+            // the far tick of the sheets settling (the amps stay well over the tone gate: the first
+            // CI round measured 0.0008 - the club's silent-tone lesson)
+            const hiss = amp(filter("bandpass", 3400, 1.4, loop(1.3, "pink")), 0.05);
+            drift(hiss.gain, 0.14, 0.012);
+            const drone = amp(filter("lowpass", 130, 0.8, osc("sine", 48)), 0.075);
+            drift(drone.gain, 0.08, 0.02);
+            const tick = amp(filter("highpass", 5200, 1, loop(1.7, "pink")), 0.009);
+            drift(tick.gain, 0.06, 0.004);
             break;
           }
           case "club": {
