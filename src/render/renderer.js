@@ -1489,17 +1489,11 @@ const MAX_PARTICLES = 1400,
               this.burst(ev.x, ev.y, 0.3, 12, 4, hexColor(0xfff0b8), 0.5, 0.35, { up: 10, spark: true });
               this.ring(ev.x, ev.y, ev.r * 0.4, ev.r * 1.4, magma, 0.4);
               // the caldera's floor is charcoal - the flash lights it hard, so this one burns tighter
-              // and dies faster than the Works' (the jet itself carries the show)
+              // than the Works' vents did (the jet itself carries the show)
               this.flash(ev.x, ev.y, ev.r * 2.2, 0.9, magma, 4.5);
               this.addShake(0.12 * shakeK);
               break;
             }
-            let color = hexColor(16738858);
-            this.burst(ev.x, ev.y, 0.3, 26, 5, color, 0.8, 0.6, { up: 7, grav: 9, drag: 1.5 });
-            this.burst(ev.x, ev.y, 0.3, 10, 3, hexColor(16765562), 0.5, 0.4, { up: 9, spark: true });
-            this.ring(ev.x, ev.y, ev.r * 0.4, ev.r * 1.4, color, 0.4);
-            this.flash(ev.x, ev.y, ev.r * 3, 1.3, color, 3);
-            this.addShake(0.12 * shakeK);
             break;
           }
           case "warp": {

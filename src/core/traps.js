@@ -33,7 +33,6 @@ const TRAP_SKINS = {
 // which skin each biome uses for each family (a biome can lack a family)
 const BIOME_TRAPS = {
   yard: { floor: "plate", beam: "laser", mine: "mine" },
-  works: { floor: "crusher", beam: "flame" },
   vault: { floor: "icespike", mine: "frost" },
   marsh: { floor: "geyser", mine: "spore" },
   void: { floor: "riftburst", beam: "rift", mine: "riftmine" },

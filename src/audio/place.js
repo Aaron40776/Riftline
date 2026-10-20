@@ -1,16 +1,16 @@
 // 3.9.0: the sounds of the place. Until 3.8.0 the biomes sounded alike apart from their music: the sounds of a place were
 // soft notes of the calm themes, and the hazards were silent until a vent erupted. Now the hazards sound where they are
 // (panned left or right of the drone, softer with the distance) and every biome has rare sounds of its own far away:
-//   Ember Works   lava bubbles in the vents; a vent draws breath (a rising rumble and roar) before it erupts
+//   the Caldera's fumaroles: lava bubbles in the vents; a vent draws breath (a rising rumble and roar) before it erupts
 //   Blackout City the live manholes hum when you are close and crackle faster and faster while they charge
 //   Cryo Vault    the ice cracks and creaks under the drone while it moves on a sheet, sheets tinkle now and then
 //   Toxin Marsh   bubbles pop in the acid pools; the drone sizzles while it stands in acid
 //   Void Core     the portals hum (two tones that beat) and whisper
 //   far away      thunder, a car alarm, a passing car, police radio, sparks of a broken lamp (Blackout City); an anvil,
-//                 chains, a steam valve, a conveyor (Ember Works); an ice crack with a boom, falling icicles, a gust, the
+//                 the caldera's fumaroles and rock falls; an ice crack with a boom, falling icicles, a gust, the
 //                 groan of the glacier (Cryo Vault); frogs, a bird, an owl, mud (Toxin Marsh); a deep swell, a glass
 //                 shimmer, a breath, a glitch (Void Core)
-// 3.13.0: soundscapes. Every biome also has a soft steady layer (rain drops and gutters, the roar of the furnaces, wind,
+// 3.13.0: soundscapes. Every biome also has a soft steady layer (rain drops and gutters, wind,
 // crickets, the heartbeat of the core) and more far sounds in variants, each with its own rate (thunder every 25 to 50 s,
 // a siren every 60 to 120 s …): two big ones never at once, none twice in a row, fewer in a boss fight. Thunder and
 // sirens come with their light (renderer.scapeLight through engine.onScape).
@@ -136,23 +136,7 @@ const PLACE = {
       N(e, a, 0.012, 0.08, { type: "bandpass", f: rand(3000, 6500), q: 6, at: rand(0, 0.35) });
     T(e, a, 120, 0.3, "sawtooth", 0.015, { lp: 600, attack: 0.01 });
   },
-  // ---- Ember Works ----
-  anvil(e, a) {
-    for (const [f, v, d] of [
-      [340, 0.04, 0.9],
-      [912, 0.02, 0.6],
-      [1530, 0.012, 0.4],
-    ])
-      T(e, a, f, d, "sine", v, { rev: 0.7 });
-    N(e, a, 0.02, 0.05, { type: "bandpass", f: 2400, q: 2 });
-  },
-  chains(e, a) {
-    for (let i = 0; i < 7; i++)
-      T(e, a, rand(1800, 3200), 0.08, "triangle", 0.018, { at: i * rand(0.05, 0.09), rev: 0.4 });
-  },
-  steam(e, a) {
-    N(e, a, 1.1, 0.06, { type: "bandpass", f: 1500, to: 1100, q: 1.2, attack: 0.05, rev: 0.4 });
-  },
+  // ---- clunk: the three heavy falls when the lights die (the Ember Works group around it retired 3.49.0) ----
   clunk(e, a) {
     for (let i = 0; i < 2; i++) {
       T(e, a, 75, 0.22, "sine", 0.08, { to: 45, at: i * 0.42 });
@@ -263,12 +247,6 @@ const PLACE = {
     T(e, a, 200, 0.6, "square", 0.004, { lp: 1600, attack: 0.08 });
     if (Math.random() < 0.25) N(e, a, 0.03, 0.03, { type: "highpass", f: 4500, at: rand(0, 0.4) });
   },
-  // Ember Works: the gears on a machine block turn, tooth by tooth, over the whir of its motor
-  gears(e, a) {
-    for (let i = 0; i < 4; i++) N(e, a, 0.025, 0.035, { type: "bandpass", f: rand(1600, 2400), q: 4, at: i * 0.11 });
-    T(e, a, 320, 0.45, "triangle", 0.008, { to: 330, lp: 1200 });
-    T(e, a, 80, 0.45, "sine", 0.02);
-  },
   // Void Core: an obelisk bends the room: two low tones that beat against each other and swell
   gravityHum(e, a) {
     T(e, a, 55, 1.25, "sine", 0.045, { attack: 0.4 });
@@ -291,11 +269,6 @@ const PLACE = {
   rainMetal(e, a) {
     for (let i = 0; i < 5; i++)
       T(e, a, rand(2600, 5200), 0.04, "triangle", 0.01, { at: rand(0, 0.4), dp: rand(-0.4, 0.4), rev: 0.3 });
-  },
-  // Ember Works: the furnaces roar low (brown noise, nothing above 400 Hz) and the machines tick
-  furnace(e, a) {
-    N(e, a, 1.8, 0.012, { f: 160, to: 260, color: "brown", attack: 0.6, hold: 0.6, rev: 0.4 });
-    T(e, a, 48, 1.8, "sine", 0.005, { attack: 0.6, hold: 0.6 });
   },
   // Cryo Vault: wind that rises and falls through a narrow band (a whistle more than a hiss)
   wind(e, a) {
@@ -368,38 +341,6 @@ const PLACE = {
       T(e, a, rand(380, 480), 0.11, "sawtooth", 0.018, { to: 260, lp: 1300, at, attack: 0.005, rev: 0.6 });
       N(e, a, 0.08, 0.03, { type: "bandpass", f: 900, q: 2, at, rev: 0.6 });
     }
-  },
-  // Ember Works: a series of anvil strikes, a drop hammer, a conveyor, a steam whistle, a chain hoist, a molten pour
-  anvilSeries(e, a) {
-    const n = 3 + Math.floor(Math.random() * 2),
-      f = rand(300, 380);
-    for (let i = 0; i < n; i++) {
-      T(e, a, f, 0.7, "sine", 0.035, { at: i * 0.42, rev: 0.7 });
-      T(e, a, f * 2.68, 0.45, "sine", 0.016, { at: i * 0.42, rev: 0.7 });
-      N(e, a, 0.02, 0.04, { type: "bandpass", f: 2400, q: 2, at: i * 0.42 });
-    }
-  },
-  dropHammer(e, a) {
-    T(e, a, 58, 0.6, "sine", 0.1, { to: 34 });
-    N(e, a, 0.3, 0.07, { f: 500, to: 120, color: "brown", attack: 0.002 });
-    T(e, a, 640, 0.5, "sine", 0.018, { at: 0.01, rev: 0.7 });
-  },
-  conveyor(e, a) {
-    for (let i = 0; i < 14; i++) N(e, a, 0.03, 0.03, { type: "bandpass", f: rand(900, 1400), q: 4, at: i * 0.11 });
-    T(e, a, 72, 1.6, "sawtooth", 0.01, { lp: 260, attack: 0.3, hold: 0.9 });
-  },
-  whistle(e, a) {
-    T(e, a, 880, 1.2, "sine", 0.02, { to: 860, attack: 0.08, rev: 0.6 });
-    T(e, a, 1320, 1.2, "sine", 0.012, { to: 1290, attack: 0.08, rev: 0.6 });
-    N(e, a, 1.2, 0.03, { type: "bandpass", f: 1100, q: 4, attack: 0.08, rev: 0.6 });
-  },
-  hoist(e, a) {
-    for (let i = 0; i < 10; i++) T(e, a, rand(1500, 2600), 0.06, "triangle", 0.014, { at: i * 0.09, rev: 0.4 });
-    T(e, a, 140, 1.0, "sawtooth", 0.012, { to: 180, lp: 500, attack: 0.1 });
-  },
-  pour(e, a) {
-    N(e, a, 1.6, 0.06, { f: 260, to: 420, color: "brown", attack: 0.3, rev: 0.5 });
-    for (let i = 0; i < 4; i++) T(e, a, rand(80, 140), 0.2, "sine", 0.04, { to: 240, at: 0.3 + i * rand(0.2, 0.3) });
   },
   // Cryo Vault: a howling gust, a far avalanche, ringing crystals
   howl(e, a) {
@@ -477,7 +418,7 @@ const PLACE = {
         seconds); light: the renderer shows it ("lightning", "siren") */
 const SCAPE = {
   // 3.45.5: the steady beds got a level up (the g in each row): with the fight theme sitting lower in the mix
-  // (see MUSIC_SCALE in audio/sound.js) the rain, the furnaces, the wind and the crickets stay audible under
+  // (see MUSIC_SCALE in audio/sound.js) the rain, the wind and the crickets stay audible under
   // it. Each bed keeps its margin under the deep-test cap (under 60 % of a Pulse shot at full level).
   yard: {
     bed: [
@@ -495,20 +436,6 @@ const SCAPE = {
       { id: "carPass", every: [20, 45] },
       { id: "radio", every: [35, 80] },
       { id: "sparks", every: [25, 55] },
-    ],
-  },
-  works: {
-    bed: [["furnace", 1.4, 1.8, 0.9]],
-    far: [
-      { id: "anvilSeries", every: [20, 40] },
-      { id: "dropHammer", every: [15, 35], big: true },
-      { id: "conveyor", every: [25, 50] },
-      { id: "whistle", every: [50, 100], big: true },
-      { id: "hoist", every: [30, 60] },
-      { id: "pour", every: [40, 80], big: true },
-      { id: "steam", every: [20, 45] },
-      { id: "chains", every: [25, 50] },
-      { id: "anvil", every: [18, 40] },
     ],
   },
   vault: {
@@ -603,8 +530,6 @@ function nearestProp(arena, player) {
       if (alongX) take(s, fixed, "lampBuzz", 0.55, 0.62);
       else take(fixed, s, "lampBuzz", 0.55, 0.62);
     }
-  } else if (biome === "works") {
-    for (const ob of arena.obs) if (ob.t !== "c") take(ob.x, ob.y, "gears", 0.42, 0.5);
   } else if (biome === "void") {
     for (const ob of arena.obs) if (ob.t === "c") take(ob.x, ob.y, "gravityHum", 1.05, 1.2);
   }

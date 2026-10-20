@@ -31,9 +31,7 @@ const r = await page.evaluate(() => {
       // 2.4.6: Void Core is always waves 16–20; every boss wave has the boss of its biome
       if (wave >= 16 && wave <= 20 && b.id !== "void") add("route-void-last", `seed ${seed} wave ${wave} ${b.id}`);
       if (wave % 5 === 0) {
-        const want = { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core", club: "kingpin" }[
-          b.id
-        ];
+        const want = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin" }[b.id];
         if ((w.bossPending || (w.boss && w.boss.type)) !== want)
           add("boss-biome", `seed ${seed} wave ${wave} ${b.id}: ${w.bossPending}`);
       }
@@ -57,7 +55,7 @@ const r = await page.evaluate(() => {
         for (const q of A[k])
           if (hitsObstacle(A.obs, q.x, q.y, q.r * 0.5)) add("feature-in-wall", `${k} ${b.id} w${wave}`);
       // 3.4.0: Blackout City (yard) has live manholes, which are vents with an electric skin
-      const theme = { yard: "vents", works: "vents", vault: "ice", void: "portals", marsh: "acid" }[b.id];
+      const theme = { yard: "vents", vault: "ice", void: "portals", marsh: "acid" }[b.id];
       for (const k of ["vents", "ice", "acid", "portals"])
         if (A[k].length && k !== theme) add("hazard-off-theme", `${k} in ${b.id} w${wave}`);
       for (const p of A.portals)

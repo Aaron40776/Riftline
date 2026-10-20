@@ -77,7 +77,7 @@ const result = await page.evaluate(async (secs) => {
     ["music-fight-yard-09", { music: "fight", biome: "yard", intensity: 0.9 }],
     ["music-fight-yard-05", { music: "fight", biome: "yard", intensity: 0.5 }],
     ["music-fight-void-09", { music: "fight", biome: "void", intensity: 0.9 }],
-    ["music-fight-works-09", { music: "fight", biome: "works", intensity: 0.9 }],
+
     ["music-fight-vault-09", { music: "fight", biome: "vault", intensity: 0.9 }],
     ["music-fight-marsh-09", { music: "fight", biome: "marsh", intensity: 0.9 }],
     ["music-boss-yard", { music: "boss", biome: "yard", heat: 0.5 }],
@@ -115,7 +115,7 @@ const result = await page.evaluate(async (secs) => {
 
   // --- the five biome ambiences (a real mid-game wave drives engine.place; the room tone of the
   // biome is on, like in the game; three takes averaged - the far sounds and hazards are random) ---
-  for (const biome of ["yard", "works", "vault", "marsh", "void", "club"]) {
+  for (const biome of ["yard", "vault", "marsh", "void", "club"]) {
     const acc = { rms: 0, peak: 0, p95: 0 };
     let takes = 0;
     for (let take = 0; take < 3; take++) {

@@ -80,14 +80,15 @@ const WHITE = new Color(0xffffff),
 // the dust of each biome (stomps and cracks throw it), the index of its marks in the shader
 const DUST = {
     yard: new Color(0x6a7280),
-    works: new Color(0x4a3a30),
     vault: new Color(0xdff6ff),
     marsh: new Color(0x4a4426),
     void: new Color(0x5a3a90),
     // 3.49.0: the Ashfall Caldera: warm ash dust
     club: new Color(0x7a6c5e),
   },
-  BIOME_INDEX = { yard: 0, works: 1, vault: 2, marsh: 3, void: 4, club: 5 };
+  // 3.49.0: the atlas slot 1 was the Ember Works' glowing-cracks mark; the index stays for the
+  // atlas layout (the marks are painted by index, the empty slot costs nothing)
+  BIOME_INDEX = { yard: 0, vault: 2, marsh: 3, void: 4, club: 5 };
 
 /* the look of a zone (index into the zone shader) */
 const Z = { crack: 0, lavaCrack: 1, molten: 2, frost: 3, acid: 4, rift: 5, target: 6, burn: 7 };
@@ -121,7 +122,7 @@ function lookOf(kind, src, biome, chill) {
       if (src === "core") return Z.rift;
       // 3.49.0: the Ash Tyrant's molotovs burst into fire
       if (src === "kingpin") return Z.burn;
-      return biome === "works" ? Z.molten : biome === "marsh" ? Z.acid : biome === "void" ? Z.rift : Z.target;
+      return biome === "marsh" ? Z.acid : biome === "void" ? Z.rift : Z.target;
     default:
       return Z.target;
   }

@@ -255,13 +255,6 @@ const biomeVariants = {
     color: 0x8fd0ff,
     desc: "Crackles with stolen current. Where one dies, the ground arcs a moment later: step away, or lure others in.",
   },
-  works: {
-    id: "scorch",
-    name: "Scorched",
-    types: ["grunt", "brute", "splitter"],
-    color: 16738858,
-    desc: "Leaves burning ground behind it as it walks.",
-  },
   vault: {
     id: "frost",
     name: "Frost",
@@ -348,7 +341,9 @@ const bossDefs = {
   },
 };
 // 2.4.6: every biome has its own boss (the boss of a wave is the boss of its biome, see
-// World.bossFor). The Crucible is new; Prism became the Frost Prism of Cryo Vault.
+// World.bossFor). The Crucible is new; Prism became the Frost Prism of Cryo Vault. 3.49.0: the
+// Crucible sits out (the Ember Works retired) but stays defined and tested - it takes a new post
+// with a coming biome, and the Codex keeps listing every defined boss.
 bossDefs.forge = {
   id: "forge",
   name: "THE CRUCIBLE",
@@ -374,7 +369,7 @@ bossDefs.kingpin = {
   shards: 60,
   color: 0xff8c2e,
 };
-const bossByBiome = { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core", club: "kingpin" };
+const bossByBiome = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin" };
 // hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
 const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
 const bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" }; // before 2.4.6; kept for old tests

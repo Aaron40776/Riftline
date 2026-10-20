@@ -2719,7 +2719,7 @@ for (const profName of ["desktop", "phone"])
     await P.ev(() => window.__riftTest.game.startRun({}));
     await P.page.waitForTimeout(800);
     const route = await P.ev(() => window.__riftTest.game.world.route.slice(0, 4));
-    const want = { works: "meltdown", vault: "whiteout", marsh: "bloom", void: "riftstorm" };
+    const want = { vault: "whiteout", marsh: "bloom", void: "riftstorm" };
     let normalFog = null;
     for (const biome of route) {
       if (!want[biome]) continue;
@@ -2836,13 +2836,6 @@ for (const profName of ["desktop", "phone"])
           .catch(() => false);
         check(L, "rift storm: every portal shows where it jumps next", s.portals > 0 && all, JSON.stringify(s));
       }
-      if (biome === "works")
-        check(
-          L,
-          "meltdown: all vents in the same state",
-          s.vents.length >= 6 && s.vents.every((v) => v === s.vents[0]),
-          s.vents.join(","),
-        );
       await P.shot({
         path: new URL(`./shots/qa-event-${profName}-${want[biome]}.png`, import.meta.url).pathname,
       });
@@ -3081,7 +3074,7 @@ for (const profName of ["desktop", "phone"])
         wave: w.wave,
         name: b.name,
         boss: window.__riftTest.data.bossDefs[
-          { yard: "warden", works: "forge", vault: "prism", marsh: "queen", void: "core", club: "kingpin" }[b.id]
+          { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin" }[b.id]
         ].name,
       };
     });

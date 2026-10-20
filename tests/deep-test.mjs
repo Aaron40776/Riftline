@@ -375,7 +375,7 @@ const distinct = cached
       out.bosses.min < 0.35 &&
         out.fail.push(`boss intros too similar: ${out.bosses.pair} (${out.bosses.min.toFixed(2)})`);
       out.music = [];
-      for (const biome of ["yard", "works", "vault", "void", "marsh", "club"])
+      for (const biome of ["yard", "vault", "void", "marsh", "club"])
         for (const music of ["fight", "boss"]) {
           const calm = await engine.renderOffline({ music, biome }, 4),
             busy = await engine.renderOffline({ music, biome, flood: true }, 4);
@@ -409,7 +409,7 @@ const music = cached
       const E = window.__riftTest.game.sound.constructor,
         SR = 44100,
         N = 4096,
-        BIOMES = ["yard", "works", "vault", "marsh", "void", "club"],
+        BIOMES = ["yard", "vault", "marsh", "void", "club"],
         fail = [],
         out = { budget: [], tracks: {}, calmPairs: [], bossPairs: [], versus: [] };
       // ---- (1) the voice budget
@@ -688,12 +688,10 @@ const placeMusic =
       out = {},
       voices = async (biome, intensity) =>
         (await E.renderOffline({ music: "fight", biome, intensity, log: true, seed: 3, room: false }, 8)).musicLog,
-      // what each place adds: Blackout City a walking bass (short low notes on the pump bus), Ember Works pistons and a
-      // conveyor (noises), Toxin Marsh a log drum (short low notes on the pump bus), Void Core a choir and glitches
-      // (the choir bus, short high notes)
+      // what each place adds: Blackout City a walking bass (short low notes on the pump bus), Toxin Marsh a log drum
+      // (short low notes on the pump bus), Void Core a choir and glitches (the choir bus, short high notes)
       want = {
         yard: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 130 && v.dur < 0.6).length,
-        works: (log) => log.filter((v) => v.kind === "n").length,
         marsh: (log) => log.filter((v) => v.kind === "t" && v.bus === "p" && v.pitch < 200 && v.dur < 0.5).length,
         void: (log) => log.filter((v) => v.bus === "c" || (v.kind === "t" && v.pitch > 900 && v.dur < 0.05)).length,
         // 3.17.0 (in 3.16.0): Cryo Vault icicles on the off-beats (short high notes on the music bus) and the ice creaks
@@ -746,7 +744,7 @@ const ambience = await page.evaluate(async (under) => {
       for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
       return Math.sqrt(sum / x.length);
     };
-  for (const biome of ["yard", "works", "vault", "marsh", "void", "club"]) {
+  for (const biome of ["yard", "vault", "marsh", "void", "club"]) {
     const music = rms(
       (await E.renderOffline({ music: "fight", biome, intensity: 0.5, wav: true, room: false, seed: 5 }, 20)).samples,
     );
@@ -791,7 +789,6 @@ const switched =
     for (const [music, biome] of [
       ["fight", "yard"],
       ["fight", "void"],
-      ["boss", "works"],
       ["boss", "vault"],
     ]) {
       const spec = { music, biome, intensity: 0.9, heat: 0.5, wav: true, seed: 5, musicEnd: 6, noBed: true },
@@ -835,7 +832,7 @@ const bloomRes =
         }
         return Math.sqrt(side / (mid || 1));
       };
-    for (const biome of ["yard", "works", "vault", "marsh", "void", "club"]) {
+    for (const biome of ["yard", "vault", "marsh", "void", "club"]) {
       const info = E.trackInfo("fight", biome),
         seconds = (8 * 240) / info.bpm,
         spec = { music: "fight", biome, intensity: 0.2, wav: true, log: true, seed: 11, stereo: true, noBed: true },
@@ -864,10 +861,10 @@ const bloomRes =
       if (!(wW > wO)) fail.push(`${biome}: the bloom does not widen the sound (${wO.toFixed(2)} -> ${wW.toFixed(2)})`);
       if (withB.musicSkipped || withB.musicShed) fail.push(`${biome}: notes refused with the bloom`);
     }
-    // each biome has its own register
+    // each biome has its own register (the Vault's glass above the Marsh's kalimba, the biggest gap)
     const centre = (b) => Math.sqrt(out[b].lowHz * out[b].highHz);
-    if (!(centre("vault") > centre("works") * 1.8))
-      fail.push("the glass of the Cryo Vault is not clearly above the pipes of the Ember Works");
+    if (!(centre("vault") > centre("marsh") * 1.8))
+      fail.push("the glass of the Cryo Vault is not clearly above the kalimba of the Toxin Marsh");
     return { ...out, fail };
   }));
 res.bloom = bloomRes;

@@ -74,13 +74,18 @@ const STAGE = {
     ["mortar", "mortar", true],
     ["drill", "driller"],
   ],
-  // 3.49.0: the Ash Tyrant's molotovs and the fumaroles' magma jets
+  // 3.49.0: the Ash Tyrant's molotovs and the fumaroles' magma jets; the Crucible's forge attacks keep
+  // their shot coverage here (the boss sits out this season and its old stage retired with the Works)
   club: [
     ["rain", "kingpin", true],
     ["rain", "kingpin", true],
     ["fire", "gunner"],
     ["fire", "gunner"],
     ["stomp", "kingpin"],
+    ["stomp", "forge"],
+    ["slag", "forge"],
+    ["rain", "forge"],
+    ["mortar", "forge", true],
   ],
 };
 const ids = await ev(() => window.__riftTest.game.world.route.slice());
@@ -132,7 +137,7 @@ for (const id of ids) {
   await p.waitForTimeout(1500);
   await p.screenshot({ path: `${OUT}/${id}-1-warn.png` });
   // 3.29.2: the zones go off after 2.4 s of game time; under software GL late in a release check the game runs at about
-  // 1 fps (0.1 s of game time a frame), so 20 s of real time was not always enough (Ember Works timed out on 10.10.2026)
+  // 1 fps (0.1 s of game time a frame), so 20 s of real time was not always enough (a heavy stage timed out on 10.10.2026)
   await p.waitForFunction(() => window.__riftTest.game.world.hazards.every((h) => h.done), null, { timeout: 120000 });
   await p.waitForTimeout(120);
   await p.screenshot({ path: `${OUT}/${id}-2-blast.png` });
