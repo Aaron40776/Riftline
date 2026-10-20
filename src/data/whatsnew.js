@@ -2,6 +2,19 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.54.0",
+    title: "The caldera wakes, the shelf glows",
+    items: [
+      "The Ashfall Caldera is a volcano now: its cones stand past the far wall, crater rims burning, lava veins down the flanks, ash plumes leaning off the mouths.",
+      "The crater floor cracked open — a web of molten fissures breathes around two hot hearts, with lava ponds, charred rubble and basalt pipes over the whole field.",
+      "The fumaroles read as fumaroles: dark crust over dull seams while they idle, a blaze when they jet.",
+      "The Aurora Shelf found its night: the indigo sits deeper and the thin ice's cracks glow glacier blue, breathing with the storm.",
+      "The aurora itself: curtains with a bright waving foot and drifting rays stand past the far wall, and their green-pink sheen sweeps the ice all run long.",
+      "Great seracs and ice cliffs rise on the horizon with green rim light on their crests, and the snow catches the aurora's light.",
+      "Every change is visual only — saves, records and the run's rng are untouched.",
+    ],
+  },
+  {
     version: "3.53.0",
     title: "The sixth place: the Glass Flats",
     items: [

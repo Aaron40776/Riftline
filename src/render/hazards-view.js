@@ -151,6 +151,7 @@ void main() {
   #include <colorspace_fragment>
 }`,
   // 3.49.0: the fumarole's molten heart: the pool where the jet stands (the Caldera's nozzles)
+  // 3.54.0: the melt burns orange under a darker crust - the pool read as a pale cookie before
   molten: `
 void main() {
   float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 41.0, heat = vI.r;
@@ -160,14 +161,20 @@ void main() {
   vec2 flow = vec2(fbm(q * 0.7 + uTime * 0.12), fbm(q * 0.7 - uTime * 0.1 + 7.0));
   vec3 v = voro(q + flow * 1.3);
   float melt = clamp(heat * 0.55, 0.0, 0.85);
-  float crust = smoothstep(0.03 + melt * 0.12, 0.1 + melt * 0.3, v.y) * smoothstep(0.1, 0.55, r / edge + 0.1);
-  vec3 hot = mix(vec3(0.95, 0.45, 0.03), vec3(1.0, 0.85, 0.4), fbm(q * 1.6 + vec2(0.0, uTime * 0.6)));
-  hot *= 0.7 + heat * 0.45 + 0.08 * sin(uTime * 2.0 + seed);
-  vec3 rock = vec3(0.018, 0.012, 0.008) * (0.6 + 0.8 * fbm(q * 4.0));
-  rock += vec3(0.14, 0.09, 0.015) * smoothstep(0.12, 0.03, v.y) * (0.4 + heat * 0.4);
+  float heatK = clamp(heat * 0.7, 0.0, 1.0);
+  // the heat opens the seams AND the molten middle, and it gates the brightness: an idle pool sits
+  // dark-custed over dull seams with a small burning eye, an erupting one blazes across
+  float crust = smoothstep(0.03 + melt * 0.12, 0.1 + melt * 0.3, v.y) *
+    smoothstep(0.1, 0.55, r / edge + 0.55 - 0.45 * heatK);
+  vec3 hot = mix(vec3(0.75, 0.18, 0.01), vec3(1.0, 0.55, 0.14), fbm(q * 1.6 + vec2(0.0, uTime * 0.6)));
+  hot *= (0.15 + 0.85 * heatK) * (0.7 + heat * 0.35 + 0.08 * sin(uTime * 2.0 + seed));
+  vec3 rock = vec3(0.014, 0.009, 0.007) * (0.6 + 0.8 * fbm(q * 4.0));
+  rock += vec3(0.14, 0.035, 0.0) * smoothstep(0.12, 0.03, v.y) * (0.2 + 0.55 * heatK);
   vec3 col = mix(hot, rock, crust);
+  // the eye: a small always-molten centre, the vent's throat
+  col += vec3(1.0, 0.5, 0.1) * smoothstep(0.13, 0.0, r) * (0.3 + 0.45 * heat);
   float cool = smoothstep(edge - 0.2, edge, r);
-  col = mix(col, rock * 0.8 + hot * 0.05, cool * 0.8);
+  col = mix(col, rock * 0.85 + hot * 0.04, cool * 0.85);
   gl_FragColor = vec4(col, 1.0);
   #include <fog_fragment>
   #include <colorspace_fragment>
@@ -668,7 +675,7 @@ class HazardView {
         erupt = state === "erupt",
         heat = erupt ? 1.6 : 0.25 + 0.08 * Math.sin(time * 1.3 + seed * 9) + k * (0.9 + 0.15 * Math.sin(time * 30));
       crater.body.y(x, 0, z, rot, rr, 1, rr);
-      crater.glow.colC(crater.glow.y(x, 0, z, rot, rr, 1, rr), WHITE, 0.35 + heat * 0.5);
+      crater.glow.colC(crater.glow.y(x, 0, z, rot, rr, 1, rr), WHITE, 0.14 + heat * 0.42);
       this.put(lava, x, 0.045, z, rot, rr, heat, seed);
       if (state === "warn") {
         // the lava swells into a dome that trembles before it bursts
