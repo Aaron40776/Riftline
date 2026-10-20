@@ -1,6 +1,7 @@
 // Biome looks: floors, props, borders, ambient particles and the enemy skins (shaders).
 
 import {
+  AdditiveBlending,
   BoxGeometry,
   CircleGeometry,
   Color,
@@ -138,13 +139,15 @@ void main() {
       this.uniforms.uTime.value += dt;
       this.uniforms.uPlayer.value.set(px, pz);
       this.uniforms.uPulse.value = pulse;
-      // 2.4.0: animated props (spinning and bobbing)
+      // 2.4.0: animated props (spinning and bobbing); 3.51.0: "u" - a material whose uniforms ride
+      // the view's clock (the aurora curtains)
       const time = this.uniforms.uTime.value;
       for (const anim of this.rlAnim || []) {
         const obj = anim.o;
         if (anim.k === "spin" || anim.k === "spinbob") obj.rotation.y += dt * anim.s;
         if (anim.k === "bob" || anim.k === "spinbob")
           obj.position.y = anim.b + Math.sin(time * (anim.s || 1) + anim.ph) * (anim.a || 0.1);
+        if (anim.k === "u") obj.uniforms.uTime.value = time;
       }
     }
   };
@@ -153,12 +156,13 @@ void main() {
  shared one neon grid floor, the same boxes and pillars and the same wall; only the palette
  changed. Now each of the five has its own
    floor    Blackout City (3.4.0): wet asphalt and road markings · Ashfall Caldera (3.49.0): a charcoal
-            crust with dark grooves, ash and two molten fissures · Cryo Vault: frozen sheet with cracks,
-            frost and glints · The Glowmarsh (3.50.0): black water over dark peat, glowing algae veins and
-            reed tufts · Void Core: hex tiles floating over a starfield
-   props    (same collision shapes) pylons and crates · obsidian spires and lava dykes · crystal
-            clusters and ice blocks · glowcap mushrooms, dead trees and logs · floating obelisks and
-            hovering monoliths
+            crust with dark grooves, ash and two molten fissures · The Aurora Shelf (3.51.0): indigo ice
+            under snow drifts, wind scours, cracks and the aurora's sheen · The Glowmarsh (3.50.0): black
+            water over dark peat, glowing algae veins and reed tufts · Void Core: hex tiles floating over
+            a starfield
+   props    (same collision shapes) pylons and crates · obsidian spires and lava dykes · crystal clusters,
+            blue ice ridges and half-buried arks · glowcap mushrooms, dead trees and logs · floating
+            obelisks and hovering monoliths
    border   jersey barriers (3.4.0, was a fence) · a basalt rampart with ember pockets · ice wall with crystals · reeds and rocks
             on a peat bank · energy barrier over the abyss
    air      rain and splashes (3.4.0, was neon dust) · falling ash and climbing embers · snowfall · glowing spores and marsh haze ·
@@ -183,15 +187,16 @@ const RL_BIOME_LOOK = {
   },
   vault: {
     style: 2,
-    // 3.36.0: darker, so the white frost and the cyan threats stand out instead of a washed-out floor
-    // 3.44.0: the saturation rests a step (1.35) and the frost decors lose their wash (see vaultDetail)
-    hemi: 1.1,
-    sun: 0xe4f4ff,
-    sunI: 2.2,
-    fill: [0xff8ad0, 0.75],
-    vivid: 1.35,
-    gain: 0.9,
-    fog: [1.0, 2.3],
+    // 3.51.0: the Aurora Shelf: an indigo arctic night - a cold moon key, a moonlit-ice fill, and
+    // the aurora's own light lives in the curtains and the sheen it drapes on the ice; the fog is a
+    // shade denser so the storm's breath can read (3.36.0/3.44.0 notes were the Cryo Vault's)
+    hemi: 0.85,
+    sun: 0xcfe2ff,
+    sunI: 1.55,
+    fill: [0x9ec8ff, 0.55],
+    vivid: 1.1,
+    gain: 0.78,
+    fog: [1.05, 2.45],
   },
   // 3.50.0: the Glowmarsh: a pale teal moon low over the water, the bioluminescence bounces
   // from below (the fill), everything else stays dark so the glow carries the scene
@@ -310,19 +315,30 @@ void main() {
   float lit = 0.35 + minor * 0.5 + major * 0.9; // how strongly muzzle flashes / blasts light it
   float outside = 0.3; // brightness of the floor beyond the border
   if (st == 2) {
-    // Cryo Vault: a lighter frozen sheet, cracks, frost drifts and glints
-    float fr = fbm(p * 0.35 + 3.0);
-    col = mix(uBase * 1.15, uGrid * 0.16, fr * 0.8) * (0.8 + 0.6 * pl) + uAccent * 0.035;
+    // The Aurora Shelf (3.51.0): indigo ice under snow drifts - the wind scours the sheet into long
+    // streaks, the cracks show deep blue, and the aurora overhead drapes a slow green-pink sheen
+    // across the floor. The snow reads bright against the night, enemies keep their contrast.
+    vec3 iceb = uBase * (0.7 + 0.55 * fbm(p * 1.3));
+    float snow = smoothstep(0.5, 0.74, fbm(p * 0.22 + 7.0));
+    col = mix(iceb, uBase * 1.3 + vec3(0.04, 0.05, 0.07), snow) * (0.8 + 0.6 * pl);
+    float scour = fbm(vec2(p.x * 0.14, p.y * 0.75) + 2.0);
+    col *= 0.82 + 0.28 * scour;
     vec3 v = voro(p * 0.3 + 11.0);
-    col += uGrid * smoothstep(0.03, 0.0, v.y) * 0.2 * inside;
+    col += uGrid * smoothstep(0.03, 0.0, v.y) * 0.14 * inside;
+    float aur = fbm(vec2(p.x * 0.045 + uTime * 0.012, p.y * 0.22));
+    float band = smoothstep(0.46, 0.78, aur);
+    float ray = 0.55 + 0.45 * sin(p.x * 1.7 + aur * 9.0 + uTime * 0.1);
+    vec3 aurC = mix(vec3(0.12, 0.62, 0.4), vec3(0.4, 0.22, 0.5), 0.5 + 0.5 * sin(uTime * 0.035 + p.x * 0.03 + p.y * 0.05));
+    col += aurC * band * ray * 0.5 * (0.7 + 0.3 * fbm(p * 0.8));
     float frost = smoothstep(0.55, 0.8, fbm(p * 1.1));
-    // 3.44.0: the frost drifts rest lower and the glints blink slower, so enemies read against them
-    col = mix(col, uGrid * 0.28, frost * 0.2);
+    // 3.44.0 lesson kept: the frost drifts rest low and the glints blink slow, so enemies read
+    col = mix(col, uGrid * 0.2, frost * 0.18);
     vec2 gc = floor(p * 2.0), gf = fract(p * 2.0) - 0.5 - (h22(gc) - 0.5) * 0.6;
-    float glint = step(0.97, h21(gc)) * smoothstep(0.1, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 7.0) * 30.0));
+    float glint =
+      step(0.97, h21(gc)) * smoothstep(0.1, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 7.0) * 30.0));
     col += vec3(0.9) * glint * 0.25 * inside;
     col += uAccent * pl * 0.06;
-    lit = 0.6 + 0.4 * frost;
+    lit = 0.5 + 0.5 * snow;
   } else if (st == 3) {
     // The Glowmarsh (3.50.0): black water over dark peat - meandering veins of glowing algae
     // that breathe slowly, reed tufts on the banks, spore specks that pulse. The light is the
@@ -661,22 +677,78 @@ const RL_BIOME_BUILD = {
     bakeObs.flush(props);
     bakeBorder.flush(group);
   },
-  // Cryo Vault: ice wall crowned with crystals, crystal clusters and ice blocks with snow caps
+  // The Aurora Shelf (3.51.0): an indigo ice field under the aurora - the border is a low snow
+  // wall with blue ice ridges, crystal clusters and ice blocks stand on it, and the aurora's
+  // curtains hang past the border, folding slowly (additive, no light of their own on the floor -
+  // the sheen on the ice is the floor shader's)
   vault(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
       ice = new MeshLambertMaterial({
-        color: 0x9fd8f0,
-        emissive: 0x0c2a44,
+        color: 0x86b8e8,
+        emissive: 0x0a1e38,
         transparent: true,
-        opacity: 0.84,
+        opacity: 0.86,
         flatShading: true,
       }),
-      core = new MeshLambertMaterial({ color: 0x2a5a78, emissive: 0x061624, flatShading: true }),
-      snow = new MeshLambertMaterial({ color: 0xe8f4ff, emissive: 0x1a2a38, flatShading: true }),
+      core = new MeshLambertMaterial({ color: 0x22345c, emissive: 0x081226, flatShading: true }),
+      snow = new MeshLambertMaterial({ color: 0xe8f4ff, emissive: 0x16243c, flatShading: true }),
       glow = rlGlow(biome.grid, 0.8),
       wallW = 0.6,
       wallH = 0.45;
+    // the aurora: tall curtains past the border, a green base that pinks as it rises, bands that
+    // fold like cloth in the wind (each curtain on its own seed and height)
+    const auroraVert = `varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,
+      auroraFrag = `
+uniform float uTime;
+uniform float uSeed;
+uniform float uAlpha;
+varying vec2 vUv;
+void main() {
+  float x = vUv.x * (2.2 + uSeed * 0.7) + uSeed * 13.7;
+  float w = sin(x * 1.9 + uTime * 0.1 + uSeed * 3.1) * 0.45 +
+    sin(x * 3.3 - uTime * 0.061 + uSeed) * 0.25 +
+    sin(x * 0.8 + uTime * 0.043) * 0.5;
+  float band = smoothstep(0.32, 0.0, abs(vUv.x - 0.5 + w * 0.26));
+  float rays = 0.55 + 0.45 * sin(x * 11.0 + w * 5.0 + uTime * 0.32 + sin(x * 4.7 + uTime * 0.11) * 1.5);
+  // bright from the lower fifth up: the shelf's camera sees the curtains' foot, not their crest
+  float rise = smoothstep(0.0, 0.12, vUv.y) * smoothstep(1.0, 0.55, vUv.y);
+  float pulse = 0.6 + 0.2 * sin(uTime * 0.16 + uSeed * 2.0);
+  vec3 col = mix(vec3(0.1, 1.0, 0.55), vec3(0.55, 0.3, 0.85), smoothstep(0.3, 0.95, vUv.y + w * 0.1));
+  col = mix(col, vec3(0.9, 0.45, 0.75), smoothstep(0.75, 1.0, vUv.y) * 0.4);
+  float a = band * rays * rise * pulse;
+  // AdditiveBlending adds rgb * alpha: hand the full colour and put the intensity in the alpha
+  gl_FragColor = vec4(col * 1.15, a * uAlpha);
+}`;
+    const curtains = [
+      // the shelf's camera never sees the sky (the frame's top edge hits the ground past the far
+      // wall), so the aurora hangs IN the frame: soft billboarded sheets of light standing over the
+      // far field, the way an aurora looks through a storm - and the floor's sheen carries the rest
+      { x: 0, z: -9.5, y: 2.6, w: 46, h: 9, seed: 0.37, al: 0.5 },
+      { x: -7, z: -6, y: 2.2, w: 22, h: 7, seed: 0.73, al: 0.34 },
+      { x: 8, z: -7.5, y: 2.2, w: 20, h: 7, seed: 0.11, al: 0.3 },
+    ];
+    for (const c of curtains) {
+      const mat = new ShaderMaterial({
+        uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 }, uSeed: { value: c.seed } }]),
+        vertexShader: auroraVert,
+        fragmentShader: auroraFrag,
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        side: DoubleSide,
+      });
+      mat.uniforms.uAlpha = { value: c.al };
+      const curtain = new Mesh(new PlaneGeometry(c.w, c.h), mat);
+      curtain.position.set(c.x, c.y, c.z);
+      curtain.onBeforeRender = (r, s, cam) => curtain.quaternion.copy(cam.quaternion);
+      group.add(curtain);
+      view.rlAnim.push({ k: "u", o: mat });
+    }
     for (const [bx, bz, sx, sz] of [
       [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
       [0, H + wallW / 2, W * 2 + wallW * 2, wallW],
@@ -685,7 +757,7 @@ const RL_BIOME_BUILD = {
     ])
       rlMesh(group, new BoxGeometry(sx, wallH, sz), core, bx, wallH / 2, bz);
     const spikes = [],
-      tint = [0xbfe8ff, 0x9fd8f0, 0xdff4ff, 0x86c4e8];
+      tint = [0xbfe8ff, 0xa4d8f4, 0xdff4ff, 0x7ab0dc];
     for (const off of [0.25, 0.85])
       rlAlongBorder(W, H, off, 0.75, (px, pz, nx, nz) => {
         const len = rng.range(0.7, off < 0.5 ? 1.5 : 2.4),
@@ -706,7 +778,7 @@ const RL_BIOME_BUILD = {
     rlInst(
       group,
       new ConeGeometry(0.28, 1, 6),
-      new MeshLambertMaterial({ emissive: 0x0c2a44, transparent: true, opacity: 0.88, flatShading: true }),
+      new MeshLambertMaterial({ emissive: 0x0a1e38, transparent: true, opacity: 0.88, flatShading: true }),
       spikes,
     );
     for (const obstacle of obs)
@@ -1275,7 +1347,7 @@ function rlAmbient(renderer, dt, world, opt) {
           0.15,
           4,
           0.13,
-          RL_C.snow,
+          hexColor(0xdcffe9), // 3.51.0: the snow catches the aurora's green
           { drag: 0 },
         );
       break;
@@ -1491,7 +1563,7 @@ function rlAmbient(renderer, dt, world, opt) {
 /* ---- 2.4.1: enemies and bosses wear the biome. A skin is laid over every enemy model by the
  shader (same shapes, same type colours and glow, so types stay recognisable):
    Blackout City rain-wet with a cold sheen, drops running down, red and blue emergency light on the rims (3.4.0)
-   Cryo Vault   frost on the upper surfaces with glints, a cold tint, frost flakes
+   The Aurora Shelf frost on the upper surfaces with glints, a cold tint, a rim that drifts aurora green to pink (3.51.0)
    The Glowmarsh a wet dark hide, veins of cold light that breathe, a shine of drips (3.50.0)
    Void Core    violet rim glow and star specks, motes rising
   Ashfall Caldera a charred cinder shell, white-hot fissures that breathe, an ember rim (3.49.0)
@@ -1523,12 +1595,13 @@ const RL_SKIN_FRAG_BODY = `
 {
 int rlS = int(uSkin + 0.5);
 if (rlS == 2) {
-  // frost on everything facing up, glints, a cold tint
+  // frost on everything facing up, glints, a cold tint, and a rim that drifts aurora green to pink (3.51.0)
   float fr = smoothstep(-0.05, 0.6, vRlN.y + (rlN3(vRlP * 6.0) - 0.5) * 0.9);
   outgoingLight = outgoingLight * vec3(0.72, 0.9, 1.15);
   outgoingLight = mix(outgoingLight, vec3(0.72, 0.9, 1.0) * (0.6 + 0.35 * max(vRlN.y, 0.0)), fr * 0.35);
   float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.0);
-  outgoingLight += vec3(0.55, 0.85, 1.0) * rim * 0.35;
+  outgoingLight +=
+    mix(vec3(0.55, 0.85, 1.0), vec3(0.75, 0.5, 0.95), 0.5 + 0.5 * sin(uSkinT * 0.6 + vRlP.x * 1.7)) * rim * 0.32;
   float gl = step(0.86, rlN3(vRlP * 16.0)) * (0.5 + 0.5 * sin(uSkinT * 5.0 + vRlP.x * 30.0));
   outgoingLight += vec3(0.9, 0.97, 1.0) * gl * (0.25 + fr) * 0.7;
 } else if (rlS == 3) {

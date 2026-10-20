@@ -2,6 +2,18 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.51.0",
+    title: "The shelf sings under the aurora",
+    items: [
+      "The Cryo Vault is now THE AURORA SHELF — the arctic shelf at night: indigo snowfields under curtains of green and pink light, blue ice ridges, and expedition arks half-sunk in the ice.",
+      "The blizzard breathes: every ~20 s the storm thickens and thins, and the thin ice freezes and thaws with it — traction comes and goes, so time your sprints.",
+      "WHITEOUT is the storm's peak now: it locks the breath dense and closes in on top.",
+      "The Frost Prism carries two aurora gems in its orbit, and every enemy's rim drifts aurora green to pink.",
+      "The calm theme's ice bells became a music box, and the shelf's wind keeps singing under it.",
+      "Saves and records carry over untouched: it is still the same biome underneath.",
+    ],
+  },
+  {
     version: "3.50.0",
     title: "The marsh glows in the dark",
     items: [

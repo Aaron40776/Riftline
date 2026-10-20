@@ -1,5 +1,5 @@
 // 3.8.0: how the map hazards look: the lava vents of Ember Works, the live manholes of Blackout City, the ice sheets of
-// Cryo Vault, the bloom pools of The Glowmarsh and the portals of Void Core. Until 3.7.1 they were discs and rings of the
+// the Aurora Shelf, the bloom pools of The Glowmarsh and the portals of Void Core. Until 3.7.1 they were discs and rings of the
 // effect pools (a lava eruption was a glowing tube); now each has a model of its place and a surface that moves:
 //   lava vent     a crater of basalt rocks around a pool of lava under a moving crust, cracks that glow with the heat; it
 //                 swells and melts while it warns and erupts as a pillar of fire

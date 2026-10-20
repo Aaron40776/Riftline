@@ -161,7 +161,8 @@ function rlNearHazard(world) {
 // of the visit (never a boss wave, never right next to an Elite Surge or Shard Rain):
 //   Blackout City  Blackout      three extra manholes; they arc in a chain, the lights die
 //   Ashfall Caldera  ASHFALL     three extra fumaroles, every jet fires in step, the lights die
-//   Cryo Vault   Whiteout     three extra ice sheets; the renderer thickens the fog (snow storm)
+//   The Aurora Shelf Whiteout     three extra ice sheets; the renderer thickens the fog (the storm's peak);
+//                            the blizzard itself breathes: grip freezes in and thaws out (~20 s, 3.51.0)
 //   The Glowmarsh Spore Tide   the pools grow by up to 40% over the wave, a new one sprouts every 7 s;
 //                            once the tide is in it breathes - a slow pull-back and return (3.50.0)
 //   Void Core    Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
@@ -177,7 +178,14 @@ const RL_RAID_PERIOD = 3.4,
   // all breathe in step). The trough keeps the pool bigger than it started.
   RL_TIDE_PERIOD = 22,
   RL_STORM_EVERY = 6,
-  RL_STORM_WARN = 1.6;
+  RL_STORM_WARN = 1.6,
+  // 3.51.0: the Shelf's blizzard breath: the thin ice freezes and thaws on this period (s) and the
+  // slick floor's grip swings up by RL_THAW_K at freeze peak (a Whiteout - the storm's peak -
+  // swings deeper by RL_THAW_STORM). The phase is the run's own clock (world.time, no rng draw -
+  // the roll sequence is untouched) and the renderer's fog breathes on the same clock.
+  RL_THAW_PERIOD = 20,
+  RL_THAW_K = 0.4,
+  RL_THAW_STORM = 1.5;
 // 3.50.0: a stable phase for a tide pool from where it lies (no rng draw - the run's roll
 // sequence is untouched; the same seed places the same pool with the same phase)
 function rlTidePhase(x, y) {
@@ -643,7 +651,7 @@ const rlStep = 1 / 60,
       return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
     }
     // 2.4.6: the boss of a boss wave is the boss of its biome (Blackout City: Warden, Ember Works:
-    // Crucible, Cryo Vault: Frost Prism, the Glowmarsh: Hive Queen, Void Core: Rift Core). In waves 5–20
+    // Crucible, the Aurora Shelf: Frost Prism, the Glowmarsh: Hive Queen, Void Core: Rift Core). In waves 5–20
     // its hull follows the slot (wave 5, 10, 15, 20, see spawnBoss), because Queen, Prism and Crucible
     // can each come at wave 10 or 15; Endless keeps each boss's own hull as before.
     bossFor(wave) {
@@ -897,7 +905,7 @@ const rlStep = 1 / 60,
         // 2.5.0 A: Cryo Skates, Heat Sink and Slipstream
         const tuned = !!(stats.skates || stats.heatSink || stats.slip),
           fight = this.state === "fight" && player.alive,
-          // Cryo Skates: on ice or anywhere in Cryo Vault (onIce is from the last frame)
+          // Cryo Skates: on ice or anywhere on the Aurora Shelf (onIce is from the last frame)
           skating = stats.skates > 0 && fight && (player.onIce || this.arena.biome.id === "vault"),
           speed = stats.speed,
           rate = stats.rateMul,
@@ -1325,9 +1333,15 @@ const rlStep = 1 / 60,
         if (player.slowT > 0) {
           player.slowT -= dt;
         }
-        // 2.4.0: a biome can set its own floor grip (Cryo Vault: the whole floor is slick); 3.50.0:
-        // the Glowmarsh's mud clings (grip 24) and drags a little speed (biome.mud)
-        let grip = dampFactor(onIce ? 2.4 : this.arena.biome.grip || 16, dt),
+        // 2.4.0: a biome can set its own floor grip (the Aurora Shelf: the whole floor is slick); 3.50.0:
+        // the Glowmarsh's mud clings (grip 24) and drags a little speed (biome.mud); 3.51.0: the Shelf's
+        // blizzard breathes - the thin ice freezes and thaws on a ~20 s cycle and the grip swings with it
+        let baseGrip = onIce ? 2.4 : this.arena.biome.grip || 16;
+        if (!onIce && this.arena.biome.id === "vault") {
+          const storm = this.bioEv && this.bioEv.id === "whiteout" ? RL_THAW_STORM : 1;
+          baseGrip *= 1 + RL_THAW_K * storm * (0.5 - 0.5 * Math.cos((this.time / RL_THAW_PERIOD) * Math.PI * 2));
+        }
+        let grip = dampFactor(baseGrip, dt),
           speed = stats.speed * (onIce ? 1.12 : 1) * (this.arena.biome.mud || 1) * (player.slowT > 0 ? 0.65 : 1);
         player.vx += (mx * speed - player.vx) * grip;
         player.vy += (my * speed - player.vy) * grip;

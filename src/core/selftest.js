@@ -1074,7 +1074,7 @@ function selfTestV240(result) {
       }
     }
   }
-  // Cryo Vault: the drone drifts (lower grip than anywhere else)
+  // The Aurora Shelf: the drone drifts (lower grip than anywhere else)
   const drift = (id) => {
     const world = new World({ seed: 0x2401, weapon: "pulse", threat: 0, ws: {} });
     world.startWave(1 + 5 * world.route.indexOf(id));

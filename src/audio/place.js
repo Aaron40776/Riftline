@@ -3,12 +3,12 @@
 // (panned left or right of the drone, softer with the distance) and every biome has rare sounds of its own far away:
 //   the Caldera's fumaroles: lava bubbles in the vents; a vent draws breath (a rising rumble and roar) before it erupts
 //   Blackout City the live manholes hum when you are close and crackle faster and faster while they charge
-//   Cryo Vault    the ice cracks and creaks under the drone while it moves on a sheet, sheets tinkle now and then
+//   The Aurora Shelf the ice cracks and creaks under the drone while it moves on a sheet, sheets tinkle now and then
 //   The Glowmarsh  bubbles pop in the bloom pools; the drone sizzles while it stands in acid
 //   Void Core     the portals hum (two tones that beat) and whisper
 //   far away      thunder, a car alarm, a passing car, police radio, sparks of a broken lamp (Blackout City); an anvil,
 //                 the caldera's fumaroles and rock falls; an ice crack with a boom, falling icicles, a gust, the
-//                 groan of the glacier (Cryo Vault); frogs, a bird, an owl, mud (the Glowmarsh); a deep swell, a glass
+//                 groan of the glacier (the Aurora Shelf); frogs, a bird, an owl, mud (the Glowmarsh); a deep swell, a glass
 //                 shimmer, a breath, a glitch (Void Core)
 // 3.13.0: soundscapes. Every biome also has a soft steady layer (rain drops and gutters, wind,
 // crickets, the heartbeat of the core) and more far sounds in variants, each with its own rate (thunder every 25 to 50 s,
@@ -143,7 +143,7 @@ const PLACE = {
       N(e, a, 0.05, 0.04, { f: 700, color: "brown", at: i * 0.42 });
     }
   },
-  // ---- Cryo Vault ----
+  // ---- The Aurora Shelf (3.51.0; the wind, the ice and the shelf's sounds stay) ----
   bigCrack(e, a) {
     PLACE.iceCrack(e, a);
     N(e, a, 1.2, 0.08, { f: 180, to: 60, color: "brown", attack: 0.02, rev: 0.7, at: 0.03 });
@@ -277,7 +277,7 @@ const PLACE = {
     for (let i = 0; i < 5; i++)
       T(e, a, rand(2600, 5200), 0.04, "triangle", 0.01, { at: rand(0, 0.4), dp: rand(-0.4, 0.4), rev: 0.3 });
   },
-  // Cryo Vault: wind that rises and falls through a narrow band (a whistle more than a hiss)
+  // The Aurora Shelf: wind that rises and falls through a narrow band (a whistle more than a hiss)
   wind(e, a) {
     const f = rand(380, 620);
     N(e, a, 1.8, 0.035, {
@@ -349,7 +349,7 @@ const PLACE = {
       N(e, a, 0.08, 0.03, { type: "bandpass", f: 900, q: 2, at, rev: 0.6 });
     }
   },
-  // Cryo Vault: a howling gust, a far avalanche, ringing crystals
+  // The Aurora Shelf: a howling gust, a far avalanche, ringing crystals
   howl(e, a) {
     N(e, a, 1.8, 0.05, { type: "bandpass", f: 520, to: 980, q: 9, attack: 0.7, rev: 0.5 });
     T(e, a, 520, 1.8, "sine", 0.008, { to: 900, attack: 0.8, rev: 0.5 });

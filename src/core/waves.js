@@ -235,7 +235,7 @@ Object.assign(waveEvents, {
   whiteout: {
     id: "whiteout",
     name: "WHITEOUT",
-    desc: "Snow storm: low sight, more ice · shards +25%",
+    desc: "The storm's peak: low sight, more ice · shards +25%",
     shardMul: 1.25,
     biome: "vault",
     plan: {},

@@ -234,7 +234,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
     aAcid: 0.15,
     aRift: 0.35,
   },
-  /* how much room each biome gives the sounds: the Cryo Vault and the Void Core are vast, the Glowmarsh damp;
+  /* how much room each biome gives the sounds: the Aurora Shelf and the Void Core are vast, the Glowmarsh damp;
      3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
   SFX_ROOM_BIOME = { yard: 0.28, vault: 0.5, marsh: 0.2, void: 0.55, club: 0.32 },
   /* the open "ah" of the choir: band-passes on its formants (frequency, Q, level) and a little of the voice */
@@ -3659,7 +3659,7 @@ const musicChords = {
       delete this.beds[name];
     }
     /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (a
-       singing wind in the Cryo Vault, murk in the Glowmarsh, soft rain and city hum
+       singing wind on the Aurora Shelf, murk in the Glowmarsh, soft rain and city hum
        in Blackout City, beating drones in the Void Core; see MUSIC_BEDS). It goes through the music chain (volume,
        fade, glue) and is not a voice of the budget. */
     startMusicBed(kind, biome, fadeIn = 1.5) {
@@ -3806,7 +3806,7 @@ const musicChords = {
             break;
           }
           case "vault": {
-            // Cryo Vault: a thin high wind that wanders (the calm cousin of the whiteout storm) and the
+            // The Aurora Shelf: a thin high wind that wanders (the calm cousin of the whiteout storm) and the
             // faint glassy sheen of the ice
             let wind = filter("bandpass", 520, 0.7, loop(1, "pink"));
             amp(wind, 0.6);
@@ -4333,7 +4333,7 @@ const musicChords = {
  length and a play(engine, c) function that is called for every sixteenth step and schedules that step's notes (see
  SoundEngine.note for the fields of c). Under the notes a track has its atmosphere (MUSIC_BEDS: a soft bed of pink or
  brown noise and tones), which is a loop and no voice of the budget.
- The calm themes belong to their place (the Cryo Vault icy and windy, the Glowmarsh damp and alive, the Caldera a
+ The calm themes belong to their place (the Aurora Shelf icy and windy, the Glowmarsh damp and alive, the Caldera a
  sleeping mountain, Blackout City a noir night in the rain, the Void Core dark and breathing); 3.7.0: the boss tracks
  are cinematic synth (taikos, strings, brass, choir, arpeggios, a pumping sub; no guitars and no cymbals), one style
  per boss. Rules that keep the music cheap and the same everywhere:
@@ -4680,8 +4680,12 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       bus.t(f * 2.41, 0.6, "sine", v * 0.2, { attack: 0.002, ...o });
       bus.n(0.03, v * 1.5, { type: "bandpass", f: 900, q: 3, color: "pink", attack: 0.001, ...o });
     },
-    // Cryo Vault: ice bells
-    ice: (bus, f, v, o) => bell(bus, f, v, o.lite ? 0.7 : 1.4, { rev: 0.7, ...o }),
+    // The Aurora Shelf (3.51.0): a music box - the ice bell with a tine's metallic ping on top
+    ice: (bus, f, v, o) => {
+      bell(bus, f, v, o.lite ? 0.7 : 1.4, { rev: 0.7, ...o });
+      if (o.lite) return;
+      bus.t(f * 3.94, 0.3, "sine", v * 0.28, { attack: 0.001, ...o });
+    },
     // The Glowmarsh: a kalimba, a short triangle with a ping on top and a wooden tick
     kalimba: (bus, f, v, o) => {
       bus.t(f, o.lite ? 0.6 : 1.1, "triangle", v, { attack: 0.002, rev: 0.5, ...o });
@@ -4799,7 +4803,7 @@ function calmMotif(k, c, voice, v = 1, lite = false, heroic = false) {
 const BLOOM = {
   // Blackout City: a felt piano a little above the electric piano motif, the colour is the ninth and the sixth
   yard: { voice: "felt", extra: [14, 9], low: 12, span: 1, rate: 0.62, vol: 0.05, len: 3.4, width: 0.85, echo: 0.6 },
-  // Cryo Vault: glass, high, the colour is the sharp eleventh (the Lydian fourth) and the ninth
+  // The Aurora Shelf: glass, high, the colour is the sharp eleventh (the Lydian fourth) and the ninth
   vault: { voice: "glass", extra: [18, 14], low: 24, span: 1, rate: 0.7, vol: 0.036, len: 4.8, width: 0.95, echo: 0.8 },
   // The Glowmarsh: a kalimba, plucked and a little out of tune, the colour is the flat seventh and the fourth
   marsh: {
@@ -4954,7 +4958,7 @@ function yardCalm(e, c) {
     });
 }
 
-/* Cryo Vault, 72 BPM, E minor (Em C G D, the chords breathe over two bars): an ice cavern. No beat at all until the
+/* The Aurora Shelf, 72 BPM, E minor (Em C G D, the chords breathe over two bars): an ice cavern. No beat at all until the
    intensity is high (then a slow heartbeat), bells of ice in the echo and the room whose pattern changes per section,
    a glass pad, a deep sub on every chord, ticks of ice, cracks, wind chimes and a creak (a wind that sings on the chord
    is the atmosphere). The model of the other themes. Every eighth bar a run of glass slides down the chord and rings
@@ -5295,7 +5299,7 @@ function yardBoss(e, c) {
   }
 }
 
-/* Cryo Vault boss (Frost Prism), 138 BPM, E minor (Em C G D): ice trance. Drop: a soft four on the floor that pumps
+/* The Aurora Shelf boss (Frost Prism), 138 BPM, E minor (Em C G D): ice trance. Drop: a soft four on the floor that pumps
    everything, the bass on the off-beats, a glassy arpeggio in the echo, the ice bell melody, a clap on 2 and 4, shakers,
    a pumping pad; variation: the choir sings the chords, a lead doubles the bell melody, strings in eighths; breakdown:
    no beat, the choir, the bells and the arpeggio behind a closed filter, a gust of wind; build: the clap rolls, the

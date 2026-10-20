@@ -808,7 +808,7 @@ function updateBoss(game, boss, dt) {
       break;
     }
     case "prism": {
-      // 2.4.6: the Frost Prism of Cryo Vault. Frost Beam, Ice Lances and Ice Shards were the Laser
+      // 2.4.6: the Frost Prism of the Aurora Shelf. Frost Beam, Ice Lances and Ice Shards were the Laser
       // Sweep, Lances and Homing Shards of the old Prism; Frost Nova and Glacier are new.
       if (boss.st === "frostbeam") {
         boss.vx *= 0.8;
@@ -1227,7 +1227,7 @@ function updateBoss(game, boss, dt) {
   endBossAttack(boss, 1);
 }
 // 3.33.0: every place has its beam: the security laser, the flame jet of the Ember Works, a lance of ice, a jet of bile, the
-// rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Cryo Vault and the Glowmarsh)
+// rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Aurora Shelf and the Glowmarsh)
 const SENTINEL_SKIN = { yard: "laser", vault: "cryo", marsh: "acid", void: "rift", club: "flame" };
 /* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
    telegraphed portals around the player: 2 at the first boss, up to 5 later */

@@ -1167,7 +1167,7 @@ function handleWorldEvents(world) {
         if (!ev.boss && world.arena.ice.length) {
           showTipOnce(
             "ice",
-            "Cryo Vault: the whole floor is slick, the ice sheets even more \u2014 enemies slide on them too.",
+            "The Aurora Shelf: the whole floor is slick, the ice sheets even more \u2014 enemies slide on them too.",
           );
         }
         if (!ev.boss && world.arena.acid.length) {

@@ -36,19 +36,25 @@ const biomeList = [
     ],
   },
   {
+    // 3.51.0: The Aurora Shelf replaces the Cryo Vault (the id stays "vault" for saves and records,
+    // like the Yard in 3.4.0): the arctic shelf at night - indigo snowfields under the aurora, blue
+    // ice ridges, half-buried arks. The blizzard breathes (~20 s): the storm thickens and thins and
+    // the thin ice freezes and thaws with it, so traction comes and goes. The palette keeps the rule:
+    // the glacial ice grid reads against every other grid (min CIE76 dE 57 to the marsh's mint), and
+    // the night sits indigo, not black - the snow has to read bright against it.
     id: "vault",
-    name: "Cryo Vault",
+    name: "The Aurora Shelf",
     W: 18,
     H: 18,
     // 2.3.3: the palette that keeps every biome recognisable at a glance (grid ΔE ≥ 30 to any other biome, checked
     // by rlBiomeDistinct in the deep test); until 3.32.0 main.js patched it in at start-up
-    floor: 0x0e1718,
-    grid: 0xbfdfe3,
+    floor: 0x0d1530,
+    grid: 0xaee2ff,
     accent: 0x5cc8ff,
-    fog: 0x080e0f,
-    sky: 0x476c70,
-    ground: 0x0a1112,
-    wall: 0x1c2a2c,
+    fog: 0x070d1c,
+    sky: 0x1a2c52,
+    ground: 0x0a1220,
+    wall: 0x16233f,
     obstacles: [
       { t: "b", x: -9, y: 0, w: 0.8, h: 3 },
       { t: "b", x: 9, y: 0, w: 0.8, h: 3 },
@@ -129,8 +135,8 @@ const biomeList = [
 ];
 const biomesById = Object.fromEntries(biomeList.map((biome) => [biome.id, biome]));
 // 2.4.6: Void Core is always the fourth biome (waves 16–20), so the Rift Core stays the final
-// boss. Cryo Vault, The Glowmarsh and the Ashfall Caldera are shuffled: two of them in waves 6–15,
-// the third from wave 21 in Endless.
+// boss. The Aurora Shelf, the Glowmarsh and the Ashfall Caldera are shuffled: two of them in waves
+// 6–15, the third from wave 21 in Endless.
 function planBiomeRoute(rng) {
   let ids = biomeList
     .slice(1)
@@ -151,8 +157,9 @@ function planBiomeRoute(rng) {
    Blackout City live manholes that arc (3.4.0, was the Neon Yard: open ground); armed gangs (gunner)
    Ashfall Caldera  fumaroles that jet molten rock (3.49.0, takes the Ember Works' fire place; the
                 foundry's heavy crews joined it); the burning dead in armour (gunner, brute, bomber, mortar …)
-   Cryo Vault   the whole floor is slick (you drift), ice sheets are slicker; shielded and
-                ranged enemies (bulwark, sniper, turret, sentinel …)
+   The Aurora Shelf the whole floor is slick (you drift) and the blizzard breathes - traction
+                freezes in and thaws out (~20 s), ice sheets are slicker; shielded and ranged
+                enemies (bulwark, sniper, turret, sentinel …)
    The Glowmarsh the mud clings (quick to stop, slow to sprint), acid pools, thick night fog;
                 swarms (splitter, hive, swarmer, sapper …)
    Void Core    portal pairs; fast and teleporting enemies (striker, phantom, weaver …)
@@ -160,8 +167,10 @@ function planBiomeRoute(rng) {
  2.4.0 further down. */
 const RL_BIOME_INFO = {
   yard: { tag: "Live manholes", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
+  // 3.51.0: the Shelf: the blizzard breathes - the thin ice freezes and thaws on a ~20 s cycle, so
+  // the slick floor (grip 6.5) swings toward 9.1 at freeze peak and back (world.js step)
   vault: {
-    tag: "Slick floor",
+    tag: "Blizzard breath",
     grip: 6.5,
     mix: { bulwark: 2.2, sniper: 2, gunner: 1.8, turret: 2, sentinel: 1.8, swarmer: 0.6, splitter: 0.6 },
   },

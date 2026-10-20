@@ -1619,6 +1619,27 @@ function buildBossModel(type, color) {
       shard.scale.y = 1.7;
       shard.rotation.z = i % 2 ? 0.35 : -0.2;
     }
+    // 3.51.0: two aurora gems ride the orbit - the shelf's light refracting in the Prism's ice
+    const auroraA = new MeshBasicMaterial({ color: 0x46e890, toneMapped: false, transparent: true }),
+      auroraB = new MeshBasicMaterial({ color: 0xc86ee0, toneMapped: false, transparent: true });
+    auroraA.userData.opacity = auroraA.opacity;
+    auroraB.userData.opacity = auroraB.opacity;
+    addMesh(
+      new OctahedronGeometry(0.16, 0),
+      auroraA,
+      Math.cos(1.05) * 2.15,
+      0.95,
+      Math.sin(1.05) * 2.15,
+      orbit,
+    ).scale.y = 1.4;
+    addMesh(
+      new OctahedronGeometry(0.16, 0),
+      auroraB,
+      Math.cos(4.2) * 2.15,
+      -0.55,
+      Math.sin(4.2) * 2.15,
+      orbit,
+    ).scale.y = 1.4;
     group.add(orbit);
     spin.push({ m: orbit, ax: "y", v: -1.4 });
     // frozen ring on the ground
@@ -1696,7 +1717,7 @@ function buildBossModel(type, color) {
       addMerged(pale, paleIceMat);
       addMerged(glow, glowMat);
     }
-    group.userData.fadeMats = [iceMat, paleIceMat, hullMat, darkMat, glowMat];
+    group.userData.fadeMats = [iceMat, paleIceMat, hullMat, darkMat, glowMat, auroraA, auroraB];
   } else if (type === "forge") {
     // 2.4.6: THE CRUCIBLE, a furnace golem: an iron crucible on stubby legs with molten metal inside
     // a heavy rim, a head with a glowing visor and a furnace mouth at the front (+x), hammer fists,
