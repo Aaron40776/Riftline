@@ -345,7 +345,7 @@ const bossDefs = {
   },
 };
 // 2.4.6: every biome has its own boss (the boss of a wave is the boss of its biome, see
-// World.bossFor). The Crucible is new; Prism became the Frost Prism of Cryo Vault. 3.49.0: the
+// World.bossFor). The Crucible is new; Prism became the Frost Prism of the Aurora Shelf. 3.49.0: the
 // Crucible sits out (the Ember Works retired) but stays defined and tested - it takes a new post
 // with a coming biome, and the Codex keeps listing every defined boss.
 bossDefs.forge = {

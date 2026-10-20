@@ -36,7 +36,7 @@ const LOOK = {
   laser: { main: hex(0xff3346), alt: hex(0xffd0a0), dust: hex(0x9fb4c8) },
   flame: { main: hex(0xff7a1f), alt: hex(0xffd27a), dust: hex(0x9a8f80) },
   rift: { main: hex(0x9a5bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
-  // 3.33.0: the beams of the Cryo Vault (the Frost Prism, the sentinel) and of the Glowmarsh (the sentinel)
+  // 3.33.0: the beams of the Aurora Shelf (the Frost Prism, the sentinel) and of the Glowmarsh (the sentinel)
   cryo: { main: hex(0x8fe0ff), alt: hex(0xe8fbff), dust: hex(0xdff6ff) },
   acid: { main: hex(0x46ffc0), alt: hex(0xd9fff0), dust: hex(0x1c4a3c) },
   mine: { main: hex(0xff8a3a), alt: hex(0xffe0a0), dust: hex(0x6a6a72), led: hex(0xff3b2f) },
@@ -168,7 +168,7 @@ const MODELS = {
       ],
     };
   },
-  // Cryo Vault: a frozen patch with cracks; crystals erupt from its middle
+  // The Aurora Shelf: a frozen patch with cracks; crystals erupt from its middle
   icespike: () => {
     seed = 11;
     return {
@@ -595,7 +595,7 @@ class TrapView {
     // above the trap's own plate (y 0.2), or its body would hide the ring
     const r = this.r,
       ring = r.ringPool.y(x, 0.2, z, 0, radius);
-    // a soft dark pool under the ring: red light on a pale floor (Cryo Vault) would wash out to pink-white
+    // a soft dark pool under the ring: red light on a pale floor (the Aurora Shelf) would wash out to pink-white
     r.shadows.y(x, 0.03, z, 0, radius * 2.6);
     r.ringPool.colC(ring, WARN, 0.6 + Math.sin(r.time * (fast ? 50 : 25)) * 0.25 * k);
     const disc = r.discs.y(x, 0.19, z, 0, radius * k);

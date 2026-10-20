@@ -14,7 +14,7 @@
 // The warning keeps the language of the game: the red ring at the edge of the danger (yellow with Clear warnings) and a
 // ring that fills it; the red tint of the old disc is part of every surface. What is left on the floor belongs to the
 // place: a blast leaves burnt wet asphalt in Blackout City, glowing cracks in Ember Works, a melted star of frost in the
-// Cryo Vault, a splash of peat in the Glowmarsh and a violet scar in the Void Core; slag cools to a crust, frost melts
+// Aurora Shelf, a splash of peat in the Glowmarsh and a violet scar in the Void Core; slag cools to a crust, frost melts
 // away. All of it is a few instance pools, made when first needed: one shader draws every zone; the marks are painted
 // once per biome into an atlas and drawn as texture lookups (they are many and stay for seconds).
 
@@ -265,7 +265,7 @@ ${LAYERS}void main() {
       float seam = smoothstep(0.06, 0.0, v.y) * smoothstep(1.0, 0.2, t);
       lay(mix(vec3(0.6, 0.06, 0.0), vec3(1.0, 0.55, 0.12), f) * 1.4, seam * f * f);
     } else if (b == 2) {
-      // Cryo Vault: the blast melted the frost (a dark wet middle), a star of new frost on the rim
+      // The Aurora Shelf: the blast melted the frost (a dark wet middle), a star of new frost on the rim
       lay(vec3(0.05, 0.1, 0.16), ch * 0.7);
       float star = pow(abs(cos(a * 7.0 + seed)), 14.0) * smoothstep(0.35, 0.95, t);
       lay(vec3(0.85, 0.95, 1.0), (star + smoothstep(0.8, 1.0, t) * 0.5) * 0.8);
@@ -636,7 +636,7 @@ class AttackView {
         look = lookOf(hazard.kind, hazard.src, biome, hazard.chill);
       let seed = this.seeds.get(hazard);
       if (seed == null) this.seeds.set(hazard, (seed = Math.random()));
-      // a soft dark pool under it keeps the warning readable on a pale floor (Cryo Vault)
+      // a soft dark pool under it keeps the warning readable on a pale floor (the Aurora Shelf)
       r.shadows.y(x, 0.03, z, 0, rr * 2.4);
       const idx = pool.y(x, 0.045, z, 0, rr);
       if (idx >= 0) pool.col(idx, k, seed, look / 8);

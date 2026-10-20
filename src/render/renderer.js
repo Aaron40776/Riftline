@@ -717,6 +717,14 @@ const MAX_PARTICLES = 1400,
       }
       // 2.5.0 C: in a Whiteout the fog closes in and turns pale
       const whiteK = this.rlWhiteK || 0;
+      if (biome.id === "vault") {
+        // 3.51.0: the Shelf's blizzard breathes: the fog thickens and thins on the storm's ~20 s
+        // cycle (the run's clock - the grip's freeze/thaw follows it in world.step; RL_THAW_PERIOD
+        // there). A Whiteout is the storm's peak: it locks the breath dense and closes in on top.
+        const breath = whiteK + (1 - whiteK) * (0.5 - 0.5 * Math.cos(((this.worldT || 0) / 20) * Math.PI * 2));
+        fog.near *= 1 - 0.16 * breath;
+        fog.far *= 1 - 0.16 * breath;
+      }
       if (!(whiteK > 0) || biome.id !== "vault") return;
       const camDist = this.camDistance();
       fog.near += (camDist * RL_WHITEOUT_FOG[0] - fog.near) * whiteK;
@@ -1608,7 +1616,7 @@ const MAX_PARTICLES = 1400,
       }
     }
     frame(dt, world, opts = {}) {
-      // 2.5.0 C: Whiteout (Cryo Vault) blows wind-driven snow across the view; it fades in and out
+      // 2.5.0 C: Whiteout (the Aurora Shelf) blows wind-driven snow across the view; it fades in and out
       // over about a second and scales with the particle budget of the quality setting
       const want =
         !opts.menu &&
@@ -1684,6 +1692,9 @@ const MAX_PARTICLES = 1400,
       this.time += dt;
       this.resize();
       let menu = !world || opts.menu;
+      // 3.51.0: the Shelf's blizzard breathes on the run's own clock (the grip freeze/thaw follows
+      // the same cycle in world.step); the menu breathes on the renderer's clock
+      this.worldT = menu ? this.time : world.time;
       if (menu) {
         let biome = opts.biome || biomeList[0];
         this.setBiome(biome);

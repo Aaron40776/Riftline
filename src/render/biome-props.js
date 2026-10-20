@@ -249,14 +249,14 @@ function rlStreet(out, W, H, rng, pale, red) {
 
 const pick3 = (rng, items) => items[Math.floor(rng.next() * items.length)];
 
-/* ---- Cryo Vault: ice spires, drifts and frozen wrecks outside; frost, shards, cracks and snow on
-   the floor. ---- */
+/* ---- The Aurora Shelf (3.51.0): blue ice ridges, snow drifts and half-buried arks outside;
+   frost, shards, cracks and snow on the floor. ---- */
 function vaultDetail(biome, W, H, obs, rng) {
   const out = list(),
     cyan = biome.grid,
-    ice = [0x9fd8f0, 0xbfe8ff, 0x86c4e8, 0xdff4ff, 0x6ab0d8],
+    ice = [0x8fc4ec, 0xaadcf4, 0x6ea6d4, 0xc8e8ff, 0x5a92c4],
     snow = 0xe8f4ff;
-  // tall spires: a main prism, leaning satellites, a few glowing gems in the ice
+  // tall ridges: a main spire, leaning satellites, a few glowing gems in the ice
   for (const p of outsideSpots(rng, W, H, 15, 2.2, 14, 3.6)) {
     const t = list(),
       h = rng.range(3, 9),
@@ -280,33 +280,41 @@ function vaultDetail(biome, W, H, obs, rng) {
       );
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // snow drifts with dark rocks
+  // snow drifts with dark blue rocks
   for (const p of outsideSpots(rng, W, H, 16, 0.9, 6, 2.4)) {
     const t = list(),
       r = rng.range(0.8, 2);
     t.body.push(meshPart(new SphereGeometry(r, 8, 5), snow, { sy: rng.range(0.22, 0.42), sz: rng.range(0.7, 1.2) }));
     if (rng.chance(0.5)) {
       t.body.push(
-        rock(0x2a4a60, r * 0.35, r * 0.3, r * 0.22, 0, { rx: 1, ry: 2 }),
+        rock(0x22345c, r * 0.35, r * 0.3, r * 0.22, 0, { rx: 1, ry: 2 }),
         meshPart(new SphereGeometry(r * 0.3, 6, 3, 0, TAU, 0, PI / 2), snow, { x: r * 0.3, y: r * 0.28, sy: 0.5 }),
       );
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // frozen wrecks: tilted hull plates, icicles, a dead lamp
+  // the arks: expedition hulls half-sunk in the shelf, ribs along the keel, snow over the decks,
+  // icicles off the stern, one dead lamp still lit by the aurora
   for (const p of outsideSpots(rng, W, H, 6, 1.6, 6, 5)) {
-    const t = list();
-    t.body.push(
-      box(0x2a3a4a, 2.2, 0.8, 1.2, { y: 0.4, rz: 0.12, ry: 0.2 }),
-      box(0x22303e, 1.2, 0.6, 1, { x: 0.9, y: 0.95, rz: -0.2 }),
-      bar(0x33475a, 0.12, [-0.6, 0.6, 0.4], [-1.4, 1.8, 0.8]),
-    );
-    t.body.push(meshPart(new SphereGeometry(0.7, 7, 4), snow, { x: -0.2, y: 0.85, sy: 0.25, sx: 1.5 }));
+    const t = list(),
+      L = rng.range(2.6, 4),
+      hullC = rng.pick([0x22345c, 0x1d2c4c, 0x28406a]);
+    t.body.push(meshPart(new SphereGeometry(1, 9, 6), hullC, { x: 0, y: 0.1, sx: L * 0.5, sy: 0.85, sz: 0.62 }));
+    t.body.push(box(hullC, L * 0.8, 0.5, 0.16, { y: 0.72, rz: 0.05 }));
+    for (let i = 0; i < 4; i++)
+      t.body.push(box(0x33475a, 0.1, rng.range(0.5, 0.8), 0.9, { x: -L * 0.3 + i * L * 0.2, y: 0.85 }));
+    t.body.push(meshPart(new SphereGeometry(1.1, 8, 4), snow, { x: 0.2, y: 0.78, sy: 0.3, sx: L * 0.42, sz: 0.5 }));
     for (let i = 0; i < 5; i++)
       t.body.push(
-        spike(rng.pick(ice), 0.06, 4, [-0.9 + i * 0.45, 0.78, 0.62], [-0.9 + i * 0.45, rng.range(0.35, 0.6), 0.62]),
+        spike(
+          rng.pick(ice),
+          0.07,
+          4,
+          [L * 0.36, 0.55, -0.4 + i * 0.2],
+          [L * 0.36, rng.range(0.1, 0.35), -0.4 + i * 0.2],
+        ),
       );
-    t.glow.push(box(dim(cyan, 0.5), 0.3, 0.06, 0.05, { x: 1.2, y: 0.95, z: 0.52 }));
+    t.glow.push(box(dim(cyan, 0.5), 0.3, 0.06, 0.05, { x: L * 0.3, y: 0.95, z: 0.34 }));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // ice shelves: stacked tilted slabs near the wall
