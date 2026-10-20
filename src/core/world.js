@@ -165,7 +165,7 @@ function rlNearHazard(world) {
 //                            the blizzard itself breathes: grip freezes in and thaws out (~20 s, 3.51.0)
 //   The Glowmarsh Spore Tide   the pools grow by up to 40% over the wave, a new one sprouts every 7 s;
 //                            once the tide is in it breathes - a slow pull-back and return (3.50.0)
-//   Void Core    Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
+//   The Shattered Core Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
 // (3.49.0: the Ember Works' Meltdown retired with the foundry - the ASHFALL event kept its step.)
 // Extra and moved hazards follow the fairness rules of the wave hazards (arena.js) and keep off
 // the player. The signature enemies of a biome can spawn from its first wave (waves.js).
@@ -651,7 +651,7 @@ const rlStep = 1 / 60,
       return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
     }
     // 2.4.6: the boss of a boss wave is the boss of its biome (Blackout City: Warden, Ember Works:
-    // Crucible, the Aurora Shelf: Frost Prism, the Glowmarsh: Hive Queen, Void Core: Rift Core). In waves 5–20
+    // Crucible, the Aurora Shelf: Frost Prism, the Glowmarsh: Hive Queen, the Shattered Core: Rift Core). In waves 5–20
     // its hull follows the slot (wave 5, 10, 15, 20, see spawnBoss), because Queen, Prism and Crucible
     // can each come at wave 10 or 15; Endless keeps each boss's own hull as before.
     bossFor(wave) {

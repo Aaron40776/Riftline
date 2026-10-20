@@ -14,7 +14,7 @@
 // The warning keeps the language of the game: the red ring at the edge of the danger (yellow with Clear warnings) and a
 // ring that fills it; the red tint of the old disc is part of every surface. What is left on the floor belongs to the
 // place: a blast leaves burnt wet asphalt in Blackout City, glowing cracks in Ember Works, a melted star of frost in the
-// Aurora Shelf, a splash of peat in the Glowmarsh and a violet scar in the Void Core; slag cools to a crust, frost melts
+// Aurora Shelf, a splash of peat in the Glowmarsh and a violet scar in the Shattered Core; slag cools to a crust, frost melts
 // away. All of it is a few instance pools, made when first needed: one shader draws every zone; the marks are painted
 // once per biome into an atlas and drawn as texture lookups (they are many and stay for seconds).
 
@@ -281,7 +281,7 @@ ${LAYERS}void main() {
       float crack = smoothstep(0.5, 0.42, abs(h21(floor(q * 1.7) + 3.0) - 0.5));
       lay(vec3(1.0, 0.62, 0.18), crack * smoothstep(0.9, 0.2, t) * f * 0.7);
     } else {
-      // Void Core: a violet scar, veins of light and specks like stars
+      // The Shattered Core: a violet scar, veins of light and specks like stars
       lay(vec3(0.02, 0.0, 0.04), ch * 0.85);
       vec3 v = voro(q * 1.4);
       lay(vec3(0.6, 0.3, 1.0) * 1.3, smoothstep(0.05, 0.0, v.y) * smoothstep(1.0, 0.3, t) * f);

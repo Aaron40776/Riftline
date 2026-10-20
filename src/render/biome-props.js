@@ -616,7 +616,7 @@ function marshDetail(biome, W, H, obs, rng) {
   return out;
 }
 
-/* ---- Void Core: floating islands with crystals, spires, broken pillars, pylons and far rings outside
+/* ---- The Shattered Core: floating islands with crystals, spires, broken pillars, pylons and far rings outside
    the barrier; rune circles, cracks, crystal tufts and drifting shards on the tiles. ---- */
 function voidDetail(biome, W, H, obs, rng) {
   const out = list(),

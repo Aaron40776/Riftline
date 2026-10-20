@@ -284,7 +284,7 @@ const MODELS = {
       mover: [meshPart(new SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), 0x8a6a30, { y: 0.2 })],
     };
   },
-  // Void Core: an obsidian disc with a rotating sigil and a hovering shard
+  // The Shattered Core: an obsidian disc with a rotating sigil and a hovering shard
   riftburst: () => {
     seed = 3;
     return {
@@ -387,7 +387,7 @@ const MODELS = {
       box(0xff7a1f, 0.1, 0.03, 0.4, { x: 0.3, y: 0.17 }),
     ],
   }),
-  // Void Core: two prongs around a hovering violet core
+  // The Shattered Core: two prongs around a hovering violet core
   rift: () => {
     seed = 9;
     return {

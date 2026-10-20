@@ -234,7 +234,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
     aAcid: 0.15,
     aRift: 0.35,
   },
-  /* how much room each biome gives the sounds: the Aurora Shelf and the Void Core are vast, the Glowmarsh damp;
+  /* how much room each biome gives the sounds: the Aurora Shelf and the Shattered Core are vast, the Glowmarsh damp;
      3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
   SFX_ROOM_BIOME = { yard: 0.28, vault: 0.5, marsh: 0.2, void: 0.55, club: 0.32 },
   /* the open "ah" of the choir: band-passes on its formants (frequency, Q, level) and a little of the voice */
@@ -1541,7 +1541,7 @@ const musicChords = {
               t(300, 0.04, "sine", 0.015, { at: 0.05, to: 600 });
               break;
             case "glass":
-              // the Void Core: a glassy tick over a low hum
+              // the Shattered Core: a glassy tick over a low hum
               t(1700, 0.035, "sine", 0.024, { to: 1100, rev: 0.3 });
               t(2600, 0.02, "sine", 0.012, { at: 0.004 });
               n(0.015, 0.02, { type: "highpass", f: 6e3 });
@@ -3660,7 +3660,7 @@ const musicChords = {
     }
     /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (a
        singing wind on the Aurora Shelf, murk in the Glowmarsh, soft rain and city hum
-       in Blackout City, beating drones in the Void Core; see MUSIC_BEDS). It goes through the music chain (volume,
+       in Blackout City, beating drones in the Shattered Core; see MUSIC_BEDS). It goes through the music chain (volume,
        fade, glue) and is not a voice of the budget. */
     startMusicBed(kind, biome, fadeIn = 1.5) {
       let ctx = this.ctx,
@@ -3837,7 +3837,7 @@ const musicChords = {
             break;
           }
           case "void": {
-            // Void Core: a slow sub throb and a shimmering sheen far above it
+            // The Shattered Core: a slow sub throb and a shimmering sheen far above it
             let throb = amp(osc("sine", 44), 0.5),
               fifth = amp(osc("sine", 66), 0.18);
             drift(throb.gain, 0.1, 0.2);
@@ -4334,7 +4334,7 @@ const musicChords = {
  SoundEngine.note for the fields of c). Under the notes a track has its atmosphere (MUSIC_BEDS: a soft bed of pink or
  brown noise and tones), which is a loop and no voice of the budget.
  The calm themes belong to their place (the Aurora Shelf icy and windy, the Glowmarsh damp and alive, the Caldera a
- sleeping mountain, Blackout City a noir night in the rain, the Void Core dark and breathing); 3.7.0: the boss tracks
+ sleeping mountain, Blackout City a noir night in the rain, the Shattered Core dark and breathing); 3.7.0: the boss tracks
  are cinematic synth (taikos, strings, brass, choir, arpeggios, a pumping sub; no guitars and no cymbals), one style
  per boss. Rules that keep the music cheap and the same everywhere:
  - everything a step schedules is chosen by the step, the chord and the intensity, or by the deterministic hash
@@ -4693,7 +4693,7 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       bus.t(f * 3.01, 0.18, "sine", v * 0.4, { attack: 0.001, ...o });
       bus.n(0.015, v * 1.2, { type: "bandpass", f: 1800, q: 4, color: "pink", attack: 0.001, ...o });
     },
-    // Void Core: glass, two sines that beat slowly and a high inharmonic partial, a lot of room
+    // The Shattered Core: glass, two sines that beat slowly and a high inharmonic partial, a lot of room
     glass: (bus, f, v, o) => {
       bus.t(f, o.lite ? 1.2 : 2.6, "sine", v, { attack: 0.004, rev: 0.9, ...o });
       if (o.lite) return;
@@ -4817,7 +4817,7 @@ const BLOOM = {
     width: 0.9,
     echo: 0.55,
   },
-  // Void Core: sine bells that sing in a fifth and fall away, the colour is the tritone and the major seventh
+  // The Shattered Core: sine bells that sing in a fifth and fall away, the colour is the tritone and the major seventh
   void: { voice: "ether", extra: [6, 11], low: 12, span: 2, rate: 0.45, vol: 0.04, len: 6, width: 1, echo: 0.9 },
   // Ashfall Caldera: a hot shard pings and cools, the colour is the fifth and the octave
   club: { voice: "ember", extra: [7, 12], low: 12, span: 1, rate: 0.55, vol: 0.04, len: 2.6, width: 0.9, echo: 0.7 },
@@ -5056,7 +5056,7 @@ function marshCalm(e, c) {
   }
 }
 
-/* Void Core, 60 BPM, F# minor (F#m D A E, the chords breathe over two bars): dark and breathing. A glass motif, low
+/* The Shattered Core, 60 BPM, F# minor (F#m D A E, the chords breathe over two bars): dark and breathing. A glass motif, low
    detuned drones as the pad, the sub; a whisper chant on the head of every second bar; a reversed swell before every
    fourth bar, long pings far away (the beating drones, the space wind and the eerie tone are the atmosphere) */
 const VOID_FORMANTS = [
@@ -5458,7 +5458,7 @@ function marshBoss(e, c) {
   }
 }
 
-/* Void Core boss (Rift Core), 172 BPM, F# minor (F#m D A E): the finale, drum and bass with a choir. Drop: a breakbeat
+/* The Shattered Core boss (Rift Core), 172 BPM, F# minor (F#m D A E): the finale, drum and bass with a choir. Drop: a breakbeat
    (kick on 1 and the "and" of 3, snare on 2 and 4, ghost snares), a reese bass (two saws a little apart under a
    low-pass) that pumps, the choir sings the chords, the glass motif; variation: the motifs of the other biomes come
    back, one bar each (electric piano, struck pipes, ice bells, kalimba), over the break with brass stabs; breakdown:
@@ -5685,7 +5685,7 @@ const MUSIC_TRACKS = {
   },
   void: {
     fight: { bpm: 60, bars: 16, swing: 0, chordBars: 2, gain: 1, play: voidCalm },
-    // 3.45.5: the mix note above trimmed the boss make-up; the Void Core boss keeps a step of its own
+    // 3.45.5: the mix note above trimmed the boss make-up; the Shattered Core's boss keeps a step of its own
     // (the deep-test wants every boss track clearly louder than its calm theme; the glue compressor
     // eats part of a track-gain raise, so this one goes to 1.25)
     boss: { bpm: 172, bars: 22, swing: 0, gain: 1.25, play: voidBoss },

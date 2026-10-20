@@ -5,11 +5,11 @@
 //   Blackout City the live manholes hum when you are close and crackle faster and faster while they charge
 //   The Aurora Shelf the ice cracks and creaks under the drone while it moves on a sheet, sheets tinkle now and then
 //   The Glowmarsh  bubbles pop in the bloom pools; the drone sizzles while it stands in acid
-//   Void Core     the portals hum (two tones that beat) and whisper
+//   The Shattered Core the portals hum (two tones that beat) and whisper
 //   far away      thunder, a car alarm, a passing car, police radio, sparks of a broken lamp (Blackout City); an anvil,
 //                 the caldera's fumaroles and rock falls; an ice crack with a boom, falling icicles, a gust, the
 //                 groan of the glacier (the Aurora Shelf); frogs, a bird, an owl, mud (the Glowmarsh); a deep swell, a glass
-//                 shimmer, a breath, a glitch (Void Core)
+//                 shimmer, a breath, a glitch (the Shattered Core)
 // 3.13.0: soundscapes. Every biome also has a soft steady layer (rain drops and gutters, wind,
 // crickets, the heartbeat of the core) and more far sounds in variants, each with its own rate (thunder every 25 to 50 s,
 // a siren every 60 to 120 s …): two big ones never at once, none twice in a row, fewer in a boss fight. Thunder and
@@ -184,7 +184,7 @@ const PLACE = {
     T(e, a, f * rand(1.1, 1.5), 0.06, "sine", 0.014, { to: f * 0.5, at: 0.13, rev: 0.5 });
     N(e, a, 0.04, 0.018, { type: "bandpass", f: f * 1.6, q: 4, at: 0.01 });
   },
-  // ---- Void Core ----
+  // ---- The Shattered Core ----
   swell(e, a) {
     T(e, a, 38, 1.8, "sine", 0.09, { to: 55, attack: 1.2 });
     T(e, a, 76, 1.8, "triangle", 0.02, { to: 110, attack: 1.2, lp: 500 });
@@ -254,7 +254,7 @@ const PLACE = {
     T(e, a, 200, 0.6, "square", 0.004, { lp: 1600, attack: 0.08 });
     if (Math.random() < 0.25) N(e, a, 0.03, 0.03, { type: "highpass", f: 4500, at: rand(0, 0.4) });
   },
-  // Void Core: an obelisk bends the room: two low tones that beat against each other and swell
+  // The Shattered Core: an obelisk bends the room: two low tones that beat against each other and swell
   gravityHum(e, a) {
     T(e, a, 55, 1.25, "sine", 0.045, { attack: 0.4 });
     T(e, a, 58.5, 1.25, "sine", 0.04, { attack: 0.4 });
@@ -297,7 +297,7 @@ const PLACE = {
       dp = rand(-0.7, 0.7);
     for (let i = 0; i < n; i++) T(e, a, f, 0.03, "sine", 0.012, { at: i * 0.06, dp });
   },
-  // Void Core: the heartbeat of the core, two low beats
+  // The Shattered Core: the heartbeat of the core, two low beats
   heartbeat(e, a) {
     T(e, a, 52, 0.18, "sine", 0.03, { to: 40 });
     T(e, a, 48, 0.22, "sine", 0.022, { to: 36, at: 0.28 });
@@ -396,7 +396,7 @@ const PLACE = {
   heron(e, a) {
     T(e, a, 320, 0.35, "sawtooth", 0.02, { to: 230, lp: 1200, q: 4, attack: 0.01, rev: 0.6 });
   },
-  // Void Core: a reversed swell, a metallic resonance, chirps
+  // The Shattered Core: a reversed swell, a metallic resonance, chirps
   reversed(e, a) {
     N(e, a, 1.2, 0.07, { type: "bandpass", f: 400, to: 1800, q: 3, attack: 1.15, rev: 0.2 });
     T(e, a, 220, 1.2, "triangle", 0.025, { to: 330, attack: 1.15, lp: 1200 });
@@ -509,7 +509,7 @@ const PLACE_IDS = Object.keys(PLACE);
 
 /* 3.17.0: the sounding prop nearest to the drone (null: none within PROP_HEAR). The street lamps stand every ~7 m
    1.6 m outside the edges (render/biome-props.js rlStreet), the machine blocks are the box obstacles of the Ember
-   Works, the obelisks the round obstacles of the Void Core (render/biome-visuals.js). */
+   Works, the obelisks the round obstacles of the Shattered Core (render/biome-visuals.js). */
 const PROP_HEAR = 7;
 function nearestProp(arena, player) {
   const biome = arena.biome.id;
@@ -604,7 +604,7 @@ function placeTick(e, world, dt) {
     play("portalWhisper", at(portal.ax, portal.ay));
   }
   // 3.17.0: the props near the drone: the street lamps along the edges of Blackout City, the machine blocks of the Ember
-  // Works, the obelisks of the Void Core (all where the renderer draws them), the nearest one within PROP_HEAR
+  // Works, the obelisks of the Shattered Core (all where the renderer draws them), the nearest one within PROP_HEAR
   const prop = nearestProp(arena, player);
   if (prop && due("prop:" + prop.id, prop.lo, prop.hi)) {
     const d = Math.hypot(prop.x - player.x, prop.y - player.y);
