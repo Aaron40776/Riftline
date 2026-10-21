@@ -191,14 +191,14 @@ void main() {
   float crack = smoothstep(0.03, 0.0, v.y) * (0.45 + 0.55 * vnoise(q * 2.0));
   crack = max(crack, smoothstep(0.02, 0.0, voro(q * 2.3 + 5.0).y) * 0.5 * vnoise(q + 9.0));
   float frost = smoothstep(0.45, 0.9, fbm(vec2(q.x * 1.6 + q.y * 0.4, q.y * 0.5)));
-  vec3 deep = vec3(0.06, 0.24, 0.42), clear = vec3(0.32, 0.62, 0.82);
+  // 3.55.0: the Shelf's rinks read as night ice, not white discs - the deep blue keeps more of
+  // the sheet, the frost wash and the rim lose a step (the 3.44.0 rest stays: enemies read)
+  vec3 deep = vec3(0.05, 0.2, 0.4), clear = vec3(0.24, 0.52, 0.78);
   vec3 col = mix(deep, clear, smoothstep(0.0, edge, r) * 0.7 + 0.25 * v.z);
-  // 3.44.0: the sheet rests - the frost wash, cracks and rim lose a step of glare so the
-  // enemies and the acid pools read against the ice; the glints blink slower and dimmer
-  col = mix(col, vec3(0.8, 0.92, 1.0), frost * 0.6);
-  col += vec3(0.75, 0.9, 1.0) * crack * 0.55;
+  col = mix(col, vec3(0.62, 0.8, 0.94), frost * 0.45);
+  col += vec3(0.7, 0.88, 1.0) * crack * 0.55;
   float rim = smoothstep(edge - 0.06, edge - 0.005, r);
-  col = mix(col, vec3(0.85, 0.96, 1.0), rim * 0.5);
+  col = mix(col, vec3(0.78, 0.92, 1.0), rim * 0.4);
   vec2 gc = floor(vP * 9.0 + seed), gf = fract(vP * 9.0 + seed) - 0.5;
   float glint = step(0.93, h21(gc)) * smoothstep(0.12, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 3.0) * 30.0));
   col += vec3(glint * 0.42);
@@ -273,7 +273,8 @@ void main() {
   vec2 q = vec2(cos(a + spin * (0.4 + r)), sin(a + spin * (0.4 + r))) * (r * 3.4 + 0.4) + seed;
   float arms = smoothstep(0.25, 0.75, vnoise(q) * 0.7 + vnoise(q * 2.3 + 7.0) * 0.45);
   float skirt = smoothstep(edge, edge * 0.35, r) * (0.35 + 0.65 * arms) * level;
-  vec3 col = mix(vec3(0.34, 0.27, 0.16), vec3(0.62, 0.5, 0.32), arms * smoothstep(0.7, 0.15, r));
+  // 3.55.0: the skirt lifts to sunlit dust (the old dark brown read as oil stains on the glass)
+  vec3 col = mix(vec3(0.55, 0.45, 0.28), vec3(0.8, 0.7, 0.48), arms * smoothstep(0.7, 0.15, r));
   col *= 0.8 + 0.2 * sin(uTime * 2.1 + seed);
   gl_FragColor = vec4(col, skirt);
   #include <fog_fragment>
@@ -451,8 +452,10 @@ const MODELS = {
   },
   // dust devil (the Glass Flats): two open cones of dust - a wide skirt and the funnel above it -
   // both turning fast (the update spins them); built for radius 1 and scaled with the devil
-  // built for radius 1: a helix of flat dust shards winding up around a hot core, so the devil's
+  // built for radius 1: a helix of flat dust sheets winding up around a hot core, so the devil's
   // spin is real (a smooth cone reads as a dune - the look pass's lesson). The update spins the set.
+  // 3.55.0: the sheets read as DUST - pale sand tones, thinner and deeper (the old dark-brown
+  // boxes read as debris scattered over the field, not as a whirling column)
   funnel: () => {
     const body = [],
       turns = 2.1,
@@ -461,9 +464,9 @@ const MODELS = {
       const f = i / (steps - 1),
         a = f * turns * TAU,
         rad = 1.02 - f * 0.72,
-        w = 0.34 - f * 0.16;
+        w = 0.3 - f * 0.14;
       body.push(
-        meshPart(new BoxGeometry(w, 0.16 + f * 0.1, 0.42), i % 2 ? 0x6a5230 : 0x54401f, {
+        meshPart(new BoxGeometry(w, 0.14 + f * 0.1, 0.5), [0xd8c8a8, 0xc4b088, 0xbfa878][i % 3], {
           x: Math.cos(a) * rad,
           y: 0.2 + f * 2.5,
           z: Math.sin(a) * rad,
@@ -472,7 +475,7 @@ const MODELS = {
         }),
       );
     }
-    body.push(meshPart(new ConeGeometry(0.34, 0.9, 6, 1, true), 0x54401f, { y: 0.35 }));
+    body.push(meshPart(new ConeGeometry(0.34, 0.9, 6, 1, true), 0xbfa878, { y: 0.35 }));
     return {
       body,
       glow: [meshPart(new ConeGeometry(0.3, 2.7, 6, 1, true), 0xe8dcb8, { y: 1.4 })],

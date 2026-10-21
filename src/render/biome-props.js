@@ -673,27 +673,29 @@ function marshDetail(biome, W, H, obs, rng) {
 
 /* ---- The Shattered Core: floating islands with crystals, spires, broken pillars, pylons and far rings outside
    the barrier; rune circles, cracks, crystal tufts and drifting shards on the tiles. ---- */
-/* ---- The Glass Flats (3.53.0): dunes, glass ridges and dry shrubs outside; glare patches, shard
-   tufts and cracked plates on the ground. ---- */
+/* ---- The Glass Flats (3.55.0): pale sand dunes, glass ridges and dry shrubs outside; glass
+   blisters, glare patches and shard tufts on the ground. ---- */
 function flatsDetail(biome, W, H, obs, rng) {
   const out = list(),
     gold = biome.grid,
     hot = biome.accent,
-    sand = [0x6a5632, 0x76623a, 0x5c4a2c],
-    glass = [0xd8ccb0, 0xe2d8c0, 0xc0b088],
+    // 3.55.0: the dunes and the berm read as pale sand (they used to be dark brown boxes against
+    // the near-white floor - clutter, not detail), the glass reads brighter than the floor
+    sand = [0x8a7048, 0x96805a, 0x7a6238],
+    glass = [0xe8dfc4, 0xf2ecd4, 0xdcd0a4],
     dry = 0x2e2416;
-  // dunes: pale mounds with a wind-blown crest
-  for (const p of outsideSpots(rng, W, H, 12, 1.2, 10, 3.2)) {
+  // dunes: pale mounds with a wind-blown crest (fewer, bigger, smoother than the first take)
+  for (const p of outsideSpots(rng, W, H, 9, 1.2, 10, 3.6)) {
     const t = list(),
-      r = rng.range(1.1, 2.6);
+      r = rng.range(1.4, 2.8);
     t.body.push(
-      meshPart(new SphereGeometry(r, 8, 5), pick3(rng, sand), { sy: rng.range(0.24, 0.4), sz: rng.range(0.8, 1.3) }),
+      meshPart(new SphereGeometry(r, 10, 6), pick3(rng, sand), { sy: rng.range(0.24, 0.4), sz: rng.range(0.8, 1.3) }),
     );
     if (rng.chance(0.5))
-      t.body.push(meshPart(new SphereGeometry(r * 0.4, 6, 4), pick3(rng, glass), { x: r * 0.4, y: r * 0.16, sy: 0.5 }));
+      t.body.push(meshPart(new SphereGeometry(r * 0.4, 8, 5), pick3(rng, glass), { x: r * 0.4, y: r * 0.16, sy: 0.5 }));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // glass ridges: tilted sheets that catch the noon light, a few with a hot edge
+  // glass ridges: tilted sheets that catch the noon light, most with a hot edge
   for (const p of outsideSpots(rng, W, H, 9, 1.6, 8, 4)) {
     const t = list(),
       w = rng.range(1.2, 2.6),
@@ -705,7 +707,15 @@ function flatsDetail(biome, W, H, obs, rng) {
         ry: rng.range(0, TAU),
       }),
     );
-    if (rng.chance(0.6)) t.glow.push(box(dim(hot, 0.85), w * 0.7, 0.05, 0.03, { y: h * 0.55, z: 0.06 }));
+    if (rng.chance(0.75)) t.glow.push(box(dim(hot, 0.9), w * 0.7, 0.05, 0.03, { y: h * 0.55, z: 0.06 }));
+    put(out, t, p.x, 0, p.z, rng.range(0, TAU));
+  }
+  // fused glass blisters: the melt bubbled and froze mid-rise - low bright domes with a hot glint
+  for (const p of scatter(rng, W, H, obs, 6, { gap: 2.8, pad: 0.9 })) {
+    const t = list(),
+      r = rng.range(0.5, 1.1);
+    t.body.push(meshPart(new SphereGeometry(r, 10, 6), pick3(rng, glass), { sy: rng.range(0.3, 0.45) }));
+    t.glow.push(gem(dim(hot, 0.8), r * 0.16, 0, r * 0.34, 0));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // dry shrubs: dark twig bundles the heat could not take
@@ -717,7 +727,7 @@ function flatsDetail(biome, W, H, obs, rng) {
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // ground: glare patches, shard tufts, cracked plates, sand ripples
+  // ground: glare patches and shard tufts
   for (const p of scatter(rng, W, H, obs, 10, { gap: 2.6 }))
     out.body.push(
       meshPart(new CircleGeometry(rng.range(0.3, 0.8), 8), pick3(rng, glass), {

@@ -199,7 +199,8 @@ const RL_BIOME_LOOK = {
   },
   // 3.53.0: the Glass Flats: the one daylight place - a hard white sun over pale glass, a
   // sand-bounce fill, pale hot haze at the horizon (the fog hex stays dark for the luma rule;
-  // the light comes from the sun and the rendering)
+  // the light comes from the sun and the rendering); 3.55.0: the fog gives the field a step
+  // more air so the noon backdrop reads instead of sinking into the dark clear colour
   flats: {
     style: 7,
     hemi: 1.15,
@@ -208,7 +209,7 @@ const RL_BIOME_LOOK = {
     fill: [0xffd8a0, 0.65],
     vivid: 1.3,
     gain: 1.05,
-    fog: [1.15, 2.6],
+    fog: [1.2, 3.05],
   },
   // 3.50.0: the Glowmarsh: a pale teal moon low over the water, the bioluminescence bounces
   // from below (the fill), everything else stays dark so the glow carries the scene
@@ -342,24 +343,28 @@ void main() {
     // the thin ice: cracks glow glacier blue, breathing on the storm's ~20 s clock
     vec3 v = voro(p * 0.3 + 11.0);
     float breath = 0.7 + 0.3 * sin(uTime * 0.314);
-    col += uGrid * smoothstep(0.05, 0.0, v.y) * 0.3 * breath;
-    // the aurora's sheen: bands that cross the ice and shift with the curtains
+    col += uGrid * smoothstep(0.05, 0.0, v.y) * 0.38 * breath;
+    // the aurora's sheen: bands that cross the ice and shift with the curtains - 3.55.0 the
+    // bands carry a ray structure of their own (vertical streaks, the curtains mirrored), the
+    // green leans brighter and the whole sheen loses a step of shyness: from the normal view
+    // the reflection IS the aurora (the curtains themselves hang past the wall, off-frustum)
     float aur = fbm(vec2(p.x * 0.045 + uTime * 0.014, p.y * 0.2));
-    float band = smoothstep(0.44, 0.75, aur);
-    float ray = 0.55 + 0.45 * sin(p.x * 1.7 + aur * 9.0 + uTime * 0.12);
-    vec3 aurC = mix(vec3(0.1, 0.66, 0.38), vec3(0.42, 0.22, 0.5), 0.5 + 0.5 * sin(uTime * 0.035 + p.x * 0.03 + p.y * 0.05));
-    col += aurC * band * ray * 0.5 * (0.7 + 0.3 * fbm(p * 0.8));
+    float band = smoothstep(0.42, 0.72, aur);
+    float ray = 0.4 + 0.6 * sin(p.x * 2.6 + aur * 11.0 + uTime * 0.12) * sin(p.x * 0.9 - uTime * 0.05 + p.y * 0.06);
+    ray = pow(max(ray, 0.0), 1.4);
+    vec3 aurC = mix(vec3(0.1, 0.72, 0.4), vec3(0.46, 0.24, 0.54), 0.5 + 0.5 * sin(uTime * 0.035 + p.x * 0.03 + p.y * 0.05));
+    col += aurC * band * ray * 0.72 * (0.7 + 0.3 * fbm(p * 0.8));
     // the curtains' reflection: a vertical smear that strengthens toward the far field
-    float smear = smoothstep(0.55, 0.85, fbm(vec2(p.x * 0.3 + uTime * 0.02, p.y * 0.05))) *
-      (1.0 - smoothstep(-9.0, 2.0, p.y));
-    col += vec3(0.09, 0.5, 0.32) * smear * 0.3;
+    float smear = smoothstep(0.5, 0.82, fbm(vec2(p.x * 0.3 + uTime * 0.02, p.y * 0.05))) *
+      (1.0 - smoothstep(-6.0, 4.0, p.y));
+    col += vec3(0.1, 0.56, 0.36) * smear * 0.5;
     float frost = smoothstep(0.55, 0.8, fbm(p * 1.1));
     // 3.44.0 lesson kept: the frost drifts rest low and the glints blink slow, so enemies read
     col = mix(col, uGrid * 0.2, frost * 0.18);
     vec2 gc = floor(p * 2.0), gf = fract(p * 2.0) - 0.5 - (h22(gc) - 0.5) * 0.6;
     float glint =
-      step(0.97, h21(gc)) * smoothstep(0.1, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 7.0) * 30.0));
-    col += vec3(0.9) * glint * 0.25 * inside;
+      step(0.965, h21(gc)) * smoothstep(0.11, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 7.0) * 30.0));
+    col += vec3(0.95) * glint * 0.3 * inside;
     col += uAccent * pl * 0.06;
     lit = 0.5 + 0.5 * snow;
   } else if (st == 3) {
@@ -414,26 +419,36 @@ void main() {
     lit = (0.3 + rim) * (1.0 - gap);
     outside = 1.0;
   } else if (st == 7) {
-    // The Glass Flats (3.53.0): sheet glass fused into the sand under a platinum noon - broad pale
-    // plates (they dominate; the sand shows in the seams and where the sheet gave up), a thin-film
-    // sheen that shifts across them, hot glare glints, and the heat rising off it (the ambient
-    // carries the motes). The plates stay bright: the noon is the floor's own light (the Shelf's
-    // lesson - the camera never sees the sky, the ground carries the time of day)
+    // The Glass Flats (3.55.0): sheet glass fused into the sand under a platinum noon. The plates
+    // carry their own value now - a per-sheet tint jitter (every fused sheet took the melt a little
+    // differently), a stronger thin-film iridescence, a broad sun-glare band that slides across the
+    // field, and denser hot glints; the loose sand between the sheets keeps the wind's ripples. The
+    // plates stay bright: the noon is the floor's own light (the Shelf's lesson - the camera never
+    // sees the sky, the ground carries the time of day)
     float plate = fbm(p * 0.13 + 9.0);
     float sheet = smoothstep(0.36, 0.44, plate);
     vec3 sand = uBase * 2.3 + vec3(0.105, 0.088, 0.056) * (0.8 + 0.4 * fbm(p * 3.1));
+    // the wind's ripples in the loose sand (gone where the glass took over)
+    float rip = sin(dot(p, vec2(0.75, 0.62)) * 3.1 + fbm(p * 0.45) * 5.0);
+    sand *= 1.0 + rip * 0.06;
     vec3 glass = uBase * 3.2 + vec3(0.5, 0.465, 0.385);
-    float film = fbm(p * 0.55 + 3.0);
-    vec3 irid = vec3(0.5 + 0.5 * sin(film * 9.0), 0.5 + 0.5 * sin(film * 9.0 + 2.1), 0.5 + 0.5 * sin(film * 9.0 + 4.2));
-    glass += irid * 0.045;
+    float film = fbm(p * 0.42 + 3.0);
+    vec3 irid = vec3(0.5 + 0.5 * sin(film * 8.0), 0.5 + 0.5 * sin(film * 8.0 + 2.1), 0.5 + 0.5 * sin(film * 8.0 + 4.2));
+    glass += irid * 0.075;
+    vec3 v = voro(p * 0.16 + 4.0);
+    // each fused sheet took the melt a little differently: a per-cell tint and value jitter
+    glass *= 0.96 + 0.08 * h21(v.zz + 3.0);
+    glass += (h21(v.zz + 8.0) - 0.5) * vec3(0.05, 0.04, 0.02);
     col = mix(sand, glass, sheet);
     // the seams between the sheets: sand ground down into the grooves
-    vec3 v = voro(p * 0.16 + 4.0);
     col = mix(col, sand * 0.72, smoothstep(0.09, 0.015, v.y) * 0.85);
+    // the sun's glare slides across the glass - a broad diagonal band of extra noon
+    float glare = smoothstep(6.5, 0.0, abs(mod(dot(p, normalize(vec2(0.68, 0.73))) - uTime * 0.55, 26.0) - 13.0));
+    col += vec3(0.09, 0.07, 0.045) * glare * sheet;
     col *= 0.9 + 0.5 * pl;
     vec2 gc = floor(p * 1.4), gf = fract(p * 1.4) - 0.5;
-    float glint = step(0.965, h21(gc)) * smoothstep(0.16, 0.0, length(gf)) * (0.4 + 0.6 * sin(uTime * 0.9 + h21(gc + 7.0) * 30.0));
-    col += vec3(1.0, 0.95, 0.85) * glint * 0.22 * sheet * inside;
+    float glint = step(0.945, h21(gc)) * smoothstep(0.17, 0.0, length(gf)) * (0.4 + 0.6 * sin(uTime * 0.9 + h21(gc + 7.0) * 30.0));
+    col += vec3(1.0, 0.95, 0.85) * glint * 0.3 * sheet * inside;
     col += uAccent * pl * 0.05;
     lit = 0.62 + 0.38 * sheet;
   } else if (st == 5) {
@@ -804,15 +819,17 @@ void main() {
 }`;
     const curtains = [
       // the shelf's camera never sees the sky (the frame's top edge hits the ground inside the
-      // arena), so the aurora lives just past the far wall: the horizon curtains fill the backdrop
-      // band when the fight travels there, one low curtain peeks over the wall from anywhere, and
-      // the sheen on the ice carries the aurora through the rest of the run (the high near curtains
-      // of the first take washed the whole frame - additive sheets close to the camera are fog)
-      { x: 0, z: -H - 6, y: 5.2, w: 54, h: 12, seed: 0.55, al: 0.85, foot: 0.44 },
-      { x: -13.5, z: -H - 3.5, y: 4.2, w: 26, h: 9, seed: 0.73, al: 0.55, foot: 0.42 },
-      { x: 13.5, z: -H - 4.5, y: 4.4, w: 24, h: 9, seed: 0.11, al: 0.5, foot: 0.42 },
-      { x: -4, z: -H - 12, y: 6.2, w: 72, h: 15, seed: 0.91, al: 0.45, foot: 0.36 },
-      { x: 6, z: -H - 1.2, y: 3.4, w: 20, h: 7, seed: 0.37, al: 0.34, foot: 0.46 },
+      // arena), so the aurora lives in three layers: the horizon curtains fill the backdrop band
+      // when the fight travels to the far wall, one narrow curtain hangs INSIDE the frustum at the
+      // frame's top edge from anywhere (3.55.0 - a thin sheet, its bright foot the only dense part,
+      // so it reads as the aurora's edge overhead without the additive wash that killed the first
+      // take's high near sheets), and the sheen on the ice carries the rest of the run
+      { x: 0, z: -H - 6, y: 5.2, w: 54, h: 12, seed: 0.55, al: 0.9, foot: 0.44 },
+      { x: -13.5, z: -H - 3.5, y: 4.2, w: 26, h: 9, seed: 0.73, al: 0.62, foot: 0.42 },
+      { x: 13.5, z: -H - 4.5, y: 4.4, w: 24, h: 9, seed: 0.11, al: 0.56, foot: 0.42 },
+      { x: -4, z: -H - 12, y: 6.2, w: 72, h: 15, seed: 0.91, al: 0.5, foot: 0.36 },
+      { x: -3.5, z: -10.5, y: 4.6, w: 17, h: 7.5, seed: 0.21, al: 0.3, foot: 0.16 },
+      { x: 7, z: -H - 1.2, y: 3.4, w: 20, h: 7, seed: 0.37, al: 0.38, foot: 0.46 },
     ];
     for (const c of curtains) {
       const mat = new ShaderMaterial({
@@ -1474,16 +1491,18 @@ void main() {
   flats(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      sand = new MeshLambertMaterial({ color: 0x4a3c24, flatShading: true }),
-      sandstone = new MeshLambertMaterial({ color: 0x4a3a22, flatShading: true }),
+      // 3.55.0: the berm and the sandstone read as pale sunlit sand (the dark browns turned the
+      // border into a caterpillar of boxes against the near-white floor), the glass runs brighter
+      sand = new MeshLambertMaterial({ color: 0x8a7048, flatShading: true }),
+      sandstone = new MeshLambertMaterial({ color: 0x745c38, flatShading: true }),
       glass = new MeshLambertMaterial({
-        color: 0xd0c298,
-        emissive: 0x4a4028,
+        color: 0xe2d8b4,
+        emissive: 0x6a5c34,
         transparent: true,
         opacity: 0.84,
         flatShading: true,
       }),
-      hotGlass = new MeshLambertMaterial({ color: 0xe8dcb8, emissive: 0x6a5428, flatShading: true }),
+      hotGlass = new MeshLambertMaterial({ color: 0xf2e6c0, emissive: 0x8a6a30, flatShading: true }),
       glow = rlGlow(biome.grid, 0.7),
       hot = rlGlow(biome.accent, 0.8),
       bake = rlMerger();
@@ -1515,6 +1534,16 @@ void main() {
             obstacle.y + dz,
           );
           sheet.rotation.set(lean * Math.sin(a), a, lean * Math.cos(a));
+          // 3.55.0: both sheets carry the hot fused edge (one read as a bare sheet from above)
+          const edge = rlMesh(
+            props,
+            new BoxGeometry(obstacle.r * 1.3, 0.05, 0.05),
+            hotGlass,
+            obstacle.x + dx,
+            obstacle.r * 0.96,
+            obstacle.y + dz,
+          );
+          edge.rotation.set(lean * Math.sin(a), a, lean * Math.cos(a));
         }
         rlMesh(
           props,
@@ -1602,7 +1631,9 @@ function rlAmbient(renderer, dt, world, opt) {
           0.15,
           4,
           0.13,
-          hexColor(0xdcffe9), // 3.51.0: the snow catches the aurora's green
+          // 3.55.0: the flakes catch the aurora's two colours (Math.random is the ambient's own
+          // stream, the run's rng never sees it)
+          Math.random() < 0.78 ? hexColor(0xdcffe9) : hexColor(0xf2d8ff),
           { drag: 0 },
         );
       break;
