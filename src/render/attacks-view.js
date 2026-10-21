@@ -13,8 +13,9 @@
 //   burn       the ground smoulders and flickers (burning and volatile enemies)
 // The warning keeps the language of the game: the red ring at the edge of the danger (yellow with Clear warnings) and a
 // ring that fills it; the red tint of the old disc is part of every surface. What is left on the floor belongs to the
-// place: a blast leaves burnt wet asphalt in Blackout City, glowing cracks in Ember Works, a melted star of frost in the
-// Aurora Shelf, a splash of peat in the Glowmarsh and a violet scar in the Shattered Core; slag cools to a crust, frost melts
+// place: a blast leaves burnt wet asphalt in Blackout City, a melted star of frost in the
+// Aurora Shelf, a splash of peat in the Glowmarsh, charred crust over burning seams in the Ashfall Caldera, a glassy star
+// fused into the sand in the Glass Flats and a violet scar in the Shattered Core; slag cools to a crust, frost melts
 // away. All of it is a few instance pools, made when first needed: one shader draws every zone; the marks are painted
 // once per biome into an atlas and drawn as texture lookups (they are many and stay for seconds).
 

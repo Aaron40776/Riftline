@@ -108,7 +108,7 @@ const MODELS = {
       ...ring(4, (a) => box(0xffb347, 0.05, 0.016, 0.05, { x: Math.cos(a) * 0.78, y: 0.12, z: Math.sin(a) * 0.78 })),
     ],
   }),
-  // Ember Works: stamping press with hazard stripes and slag in the cracks
+  // the Ember Works' stamping press (the Works retired in 3.49.0; the skin stays defined)
   crusher: () => {
     const stripes = [];
     for (let e = 0; e < 4; e++)
@@ -399,7 +399,7 @@ const MODELS = {
       box(0xff3346, 0.12, 0.05, 0.05, { x: 0.3, y: 0, z: -0.2 }),
     ],
   }),
-  // Ember Works: flame thrower on a striped base
+  // Ashfall Caldera: flame thrower on a striped base
   flame: () => ({
     body: [
       box(0x2a2522, 0.95, 0.2, 0.95, { y: 0.1 }),

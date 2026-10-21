@@ -863,10 +863,10 @@ const bloomRes =
       if (!(wW > wO)) fail.push(`${biome}: the bloom does not widen the sound (${wO.toFixed(2)} -> ${wW.toFixed(2)})`);
       if (withB.musicSkipped || withB.musicShed) fail.push(`${biome}: notes refused with the bloom`);
     }
-    // each biome has its own register (the Vault's glass above the Marsh's kalimba, the biggest gap)
+    // each biome has its own register (the Shelf's glass above the Marsh's kalimba, the biggest gap)
     const centre = (b) => Math.sqrt(out[b].lowHz * out[b].highHz);
     if (!(centre("vault") > centre("marsh") * 1.8))
-      fail.push("the glass of the Cryo Vault is not clearly above the kalimba of the Glowmarsh");
+      fail.push("the glass of the Aurora Shelf is not clearly above the kalimba of the Glowmarsh");
     return { ...out, fail };
   }));
 res.bloom = bloomRes;

@@ -654,8 +654,8 @@ const rlStep = 1 / 60,
       const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
       return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
     }
-    // 2.4.6: the boss of a boss wave is the boss of its biome (Blackout City: Warden, Ember Works:
-    // Crucible, the Aurora Shelf: Frost Prism, the Glowmarsh: Hive Queen, the Shattered Core: Rift Core). In waves 5–20
+    // 2.4.6: the boss of a boss wave is the boss of its biome (Blackout City: Warden, the Glass
+    // Flats: Crucible, the Aurora Shelf: Frost Prism, the Glowmarsh: Hive Queen, the Shattered Core: Rift Core). In waves 5–20
     // its hull follows the slot (wave 5, 10, 15, 20, see spawnBoss), because Queen, Prism and Crucible
     // can each come at wave 10 or 15; Endless keeps each boss's own hull as before.
     bossFor(wave) {
