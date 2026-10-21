@@ -217,8 +217,10 @@ const MODELS = {
     seed = 17;
     return {
       body: [
-        cyl(0x564628, 0.95, 1, 0.05, 12),
-        cyl(0x6a5834, 0.6, 0.7, 0.06, 10, { y: 0.02 }),
+        // 3.55.0: the sandy disc reads as sunlit sand (the old dark browns read as chocolate
+        // cookies dropped on the near-white glass)
+        cyl(0x8a744a, 0.95, 1, 0.05, 12),
+        cyl(0x9a8558, 0.6, 0.7, 0.06, 10, { y: 0.02 }),
         ...ring(8, (a, i) =>
           spike(
             i % 2 ? 0xd8ccb0 : 0xc8b890,

@@ -2,6 +2,19 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.55.0",
+    title: "Every place gets its detail pass",
+    items: [
+      "The Aurora Shelf sells its name: a curtain of green rays now hangs at the top of the sky, and the aurora's reflection sweeps the night ice in bright bands.",
+      "The Shelf's frozen rinks read as night glass — deep blue with bright cracks — instead of white discs.",
+      "The snow catches the aurora's green and pink as it falls.",
+      "The Glass Flats reads as fused glass: every sheet took the melt differently, a sun-glare band slides across the plain, and the loose sand keeps the wind's ripples.",
+      "The Flats' props went pale: sunlit dunes, brighter glass ridges with hot fused edges, and glass blisters where the melt bubbled.",
+      "Dust devils and sunspikes now throw dust and sand, not dark boxes — the brown clutter is gone.",
+      "Every change is visual only — saves, records and the run's rng are untouched.",
+    ],
+  },
+  {
     version: "3.54.0",
     title: "The caldera wakes, the shelf glows",
     items: [
