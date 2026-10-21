@@ -3463,7 +3463,7 @@ function selfTestV3160(result) {
       const inside = ground && Math.hypot(target.x - ground.x, target.y - ground.y) < ground.r;
       if (ground && inside && !(target.burnT > 0)) fail.push("searing-not-burning");
     }
-    // the props near the drone sound (the street lamps of Blackout City, the machines of the Ember Works, the obelisks of
+    // the props near the drone sound (the street lamps of Blackout City, the obelisks of
     // the Shattered Core), and only near them
     if (typeof OfflineAudioContext !== "undefined") {
       const heard = (biome, where) => {

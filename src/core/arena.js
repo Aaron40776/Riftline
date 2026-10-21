@@ -1078,7 +1078,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
 export { mapTemplates, hitsObstacle, obstacleShapes, Arena, buildLayout, isConnected, SpatialHash };
 
 // ---- 2.5.0 C: stronger biomes. A hazard wave now has about five hazards (was ~3.3), each about
-// 25–30% bigger than the 2.4.6 sizes, and Void Core has two portal pairs in most waves (was 40%).
+// 25–30% bigger than the 2.4.6 sizes, and the Shattered Core has two portal pairs in most waves (was 40%).
 // Hazards keep a clear ring around the spawn (their edge stays 5.2 from it, before it could come
 // within ~3.3), stay 0.95 off every obstacle and leave a lane of 1.3 between each other.
 // The same helpers place the extra hazards of the biome events (see World in world.js).

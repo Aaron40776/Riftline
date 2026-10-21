@@ -526,7 +526,8 @@ const bossPatterns = {
   prism: ["frostbeam", "teleport", "frostnova", "icelances", "glacier", "teleport", "iceshards"],
   core: ["spiral", "summon", "ring", "cross", "burst", "rain"],
 };
-// 2.4.6: THE CRUCIBLE of Ember Works (its attacks are in updateCrucible at the end of this file)
+// 2.4.6: THE CRUCIBLE (the Ember Works' boss until 3.49.0, the Glass Flats' boss since 3.53.0; its
+// attacks are in updateCrucible at the end of this file)
 bossPatterns.forge = ["hammer", "slag", "eruption", "furnace", "hammer", "slag", "stoke"];
 // 3.49.0: THE ASH TYRANT of the Ashfall Caldera: the cinder fan (a sweeping spray of molten
 // slugs), the shoulder charge, the burning dead in the cracks, the quake slam, and the molotovs (a lob where you are heading)
@@ -1998,7 +1999,7 @@ function updateEnemy(game, enemy, dt) {
   return updateEnemyCore(game, enemy, dt);
 }
 
-/* ---- 2.4.6: THE CRUCIBLE, the boss of Ember Works ----
+/* ---- 2.4.6: THE CRUCIBLE (the Ember Works' boss then; the Glass Flats' boss since 3.53.0) ----
  A slow furnace golem that walks at the player like the Warden. Every hit is telegraphed on the
  ground (hazard rings) or comes as slow slag orbs. Enraged (below half hull) its attacks get more
  shots, more blasts and shorter pauses.

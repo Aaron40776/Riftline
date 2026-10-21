@@ -2,6 +2,16 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.55.1",
+    title: "Everything called by its right name",
+    items: [
+      "A naming sweep: the build notes and the field guide now use the six places' current names everywhere.",
+      "The event list reads complete: Spore Tide, Whiteout, Dust Devils, Ashfall, Rift Storm and Blackout.",
+      "The Crucible is named the Glass Flats' boss wherever it is introduced.",
+      "No gameplay, save or record changes — words only.",
+    ],
+  },
+  {
     version: "3.55.0",
     title: "Every place gets its detail pass",
     items: [

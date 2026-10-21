@@ -1,6 +1,6 @@
 {
   "name": "riftline",
-  "version": "3.55.0",
+  "version": "3.55.1",
   "private": true,
   "type": "module",
   "description": "Riftline – a 3D arena roguelite shooter for the browser (three.js, WebAudio), playable on desktop and on phones and tablets in landscape.",
