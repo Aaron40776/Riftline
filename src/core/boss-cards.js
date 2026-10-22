@@ -47,7 +47,15 @@ const LOCK_EVERY = 8,
   COLLAPSE_PULL = 1.4,
   COLLAPSE_DMG = 1.4,
   // 3.49.0: the Tyrant's Tithe: kills count towards the caldera's payout
-  TRIBUTE_EVERY = 20;
+  TRIBUTE_EVERY = 20,
+  // 3.56.0: the Glasswyrm Fang: kills count towards the wyrm's hunger - the last kill bursts into a
+  // fan of hot glass lances that pierce through
+  FANG_EVERY = 14,
+  FANG_N = 6,
+  FANG_DMG = 26,
+  FANG_SPEED = 15,
+  FANG_LIFE = 0.9,
+  FANG_MAX = 42;
 
 // the boss card of a boss choice (null: none this time). Its own random stream (seed, wave) keeps every other roll of
 // the run where it was.
@@ -69,6 +77,8 @@ function resetBossCards(world) {
   world.slag = [];
   world.splinters = [];
   world.implode = null;
+  world.lances = [];
+  world.fangN = 0;
 }
 
 // the densest group of enemies near the drone (bosses count, ghosts and spawning enemies do not)
@@ -249,6 +259,70 @@ function updateSplinters(world, dt) {
   world.splinters.length = w;
 }
 
+// 3.56.0: the Glasswyrm Fang: the kill bursts into a fan of hot glass lances, aimed at the nearest
+// enemy of the killed one (a ring when the field is empty) - each lance pierces through one body
+function fangBurst(world, enemy) {
+  if (world.lances.length > FANG_MAX - FANG_N) return;
+  let aim = null,
+    best = 1e9;
+  world.hash.query(enemy.x, enemy.y, 9, (other) => {
+    if (other.dead || other.ghost || other.id === enemy.id) return;
+    const d = Math.hypot(other.x - enemy.x, other.y - enemy.y);
+    if (d < best) {
+      best = d;
+      aim = Math.atan2(other.y - enemy.y, other.x - enemy.x);
+    }
+  });
+  const base = aim != null ? aim : world.rng.next() * TAU,
+    dmg = FANG_DMG * world.stats.dmgMul;
+  for (let i = 0; i < FANG_N; i++) {
+    const a = base + (i - (FANG_N - 1) / 2) * 0.22;
+    world.lances.push({
+      id: world.nextId++,
+      x: enemy.x,
+      y: enemy.y,
+      vx: Math.cos(a) * FANG_SPEED,
+      vy: Math.sin(a) * FANG_SPEED,
+      a,
+      life: FANG_LIFE,
+      dmg,
+      from: enemy.id,
+      hits: 0,
+    });
+  }
+  world.emit("shatter", { x: enemy.x, y: enemy.y, r: enemy.r });
+}
+
+function updateLances(world, dt) {
+  if (!world.lances || !world.lances.length) return;
+  for (const s of world.lances) {
+    s.life -= dt;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    if (world.arena.blocked && world.arena.blocked(s.x, s.y, 0.1)) {
+      s.life = 0;
+      continue;
+    }
+    world.hash.query(s.x, s.y, 1, (enemy) => {
+      if (s.life <= 0 || enemy.dead || enemy.ghost || enemy.id === s.from) return;
+      if (Math.hypot(enemy.x - s.x, enemy.y - s.y) > enemy.r + 0.15) return;
+      if (s.struck && s.struck.has(enemy.id)) return;
+      world.hurtEnemy(enemy, s.dmg, s.vx, s.vy, 0.6, false, "shard");
+      if (!enemy.dead) {
+        s.struck = s.struck || new Set([s.from]);
+        s.struck.add(enemy.id);
+        s.hits++;
+        // a lance pierces one body, then shatters
+        if (s.hits > 1) s.life = 0;
+      } else s.life = 0;
+      world.emit("splinterHit", { x: s.x, y: s.y });
+    });
+  }
+  let w = 0;
+  for (let i = 0; i < world.lances.length; i++) if (world.lances[i].life > 0) world.lances[w++] = world.lances[i];
+  world.lances.length = w;
+}
+
 function hatch(world, enemy) {
   const brood = world.player.brood;
   if (brood.length >= BROOD_MAX) return;
@@ -404,6 +478,14 @@ function bossCardKill(world, enemy) {
       world.emit("tribute", { x: enemy.x, y: enemy.y });
     }
   }
+  // 3.56.0: the wyrm's hunger: the kill bursts into a fan of hot glass lances
+  if (stats.fang) {
+    world.fangN = (world.fangN || 0) + 1;
+    if (world.fangN >= FANG_EVERY) {
+      world.fangN = 0;
+      fangBurst(world, enemy);
+    }
+  }
 }
 
 function updateBossCards(world, dt) {
@@ -416,6 +498,7 @@ function updateBossCards(world, dt) {
   updateSplinters(world, dt);
   updateBrood(world, dt);
   updateImplode(world, dt);
+  updateLances(world, dt);
 }
 
 export {
@@ -430,6 +513,8 @@ export {
   BROOD_MAX,
   COLLAPSE_TIME,
   TRIBUTE_EVERY,
+  FANG_EVERY,
+  FANG_N,
   bossCardOffer,
   bossCardKill,
   bossCardNova,

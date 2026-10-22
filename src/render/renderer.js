@@ -2438,10 +2438,14 @@ const MAX_PARTICLES = 1400,
       let scale = easeOutBack(grow);
       group.position.set(
         boss.x,
-        boss.type === "prism" || boss.type === "queen" ? Math.sin(time * 1.6) * 0.2 : 0,
+        boss.type === "prism" || boss.type === "queen" || boss.type === "wyrm" ? Math.sin(time * 1.6) * 0.2 : 0,
         boss.y,
       );
       group.scale.setScalar(Math.max(0.01, scale));
+      // 3.56.0: the Glasswyrm's body undulates as it swims (the segments rock in local z)
+      if (group.userData.tail)
+        for (const seg of group.userData.tail)
+          seg.m.position.z = seg.z + Math.sin(time * 5.5 + seg.i * 1.15) * (0.08 + seg.i * 0.05);
       group.rotation.y = -boss.face;
       for (let part of view.spin) part.m.rotation[part.ax] += part.v * dt * (boss.enraged ? 1.8 : 1);
       let flash = boss.flash;
@@ -2452,10 +2456,14 @@ const MAX_PARTICLES = 1400,
         view.glowMat.color.setHex(16777215);
       }
       let alpha = boss.ghost ? 0.12 : 1;
+      // 3.56.0: the Glasswyrm dives under the glass (boss.diveT counts its seconds below): it sinks,
+      // flattens and fades - the bulge telegraphs show where it swims
+      const dive = boss.type === "wyrm" && boss.diveT > 0 ? 1 : 0;
+      if (dive) group.scale.y *= 0.55;
       // 2.4.6: a fade material can be translucent on its own (userData.opacity, Frost Prism ice)
       if (group.userData.fadeMats)
-        for (let mat of group.userData.fadeMats) mat.opacity = alpha * (mat.userData.opacity ?? 1);
-      view.glowMat.opacity = boss.ghost ? 0.15 : 1;
+        for (let mat of group.userData.fadeMats) mat.opacity = alpha * (1 - dive * 0.74) * (mat.userData.opacity ?? 1);
+      view.glowMat.opacity = boss.ghost ? 0.15 : 1 - dive * 0.74;
       this.shadows.y(boss.x, 0.02, boss.y, 0, boss.r * 3.4 * scale);
       let glow = this.sprites.bb(boss.x, 1.2, boss.y, boss.r * 5, this.B);
       this.sprites.colHex(glow, boss.enraged ? 16732120 : bossDefs[boss.type].color, 0.25);
@@ -2476,6 +2484,21 @@ const MAX_PARTICLES = 1400,
           0.3,
           hexColor(12578815),
           { drag: 0.5 },
+        );
+      }
+      // 3.56.0: sand sheds off the Glasswyrm while it swims under the glass
+      if (boss.type === "wyrm" && dive && Math.random() < dt * 34) {
+        this.emit(
+          boss.x + (Math.random() - 0.5) * 3.2,
+          0.3 + Math.random() * 0.7,
+          boss.y + (Math.random() - 0.5) * 3.2,
+          (Math.random() - 0.5) * 2.4,
+          1.2 + Math.random() * 1.8,
+          (Math.random() - 0.5) * 2.4,
+          0.7,
+          0.3,
+          hexColor(0xd8c8a8),
+          { drag: 1.2, grav: -3 },
         );
       }
       if (boss.type === "warden" && boss.st === "charge" && boss.sub === 0) {

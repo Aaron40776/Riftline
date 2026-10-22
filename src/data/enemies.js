@@ -356,11 +356,14 @@ const bossDefs = {
 // World.bossFor). The Crucible is new; Prism became the Frost Prism of the Aurora Shelf. 3.49.0: the
 // Crucible sits out (the Ember Works retired) but stays defined and tested - it takes a new post
 // with a coming biome, and the Codex keeps listing every defined boss.
-// 3.53.0: the Crucible serves the Glass Flats now (the foundry is gone; the card's title follows)
+// 3.53.0: the Crucible served the Glass Flats for a season (the card's title followed).
+// 3.56.0: the stopgap ends - a foundry golem never belonged in a glass desert. The Crucible goes back
+// to the bench (the def, its patterns, sounds and the hammer card stay defined and tested; the Codex
+// keeps it listed; a save that owns the card keeps it), and the Flats' own boss takes the post.
 bossDefs.forge = {
   id: "forge",
   name: "THE CRUCIBLE",
-  title: "Hammer of the Flats",
+  title: "Heart of the Works",
   hp: 3700,
   r: 2.1,
   speed: 1.8,
@@ -382,12 +385,28 @@ bossDefs.kingpin = {
   shards: 60,
   color: 0xff8c2e,
 };
-// 3.53.0: the Crucible comes out of retirement - the Glass Flats is its new post
-const bossByBiome = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin", flats: "forge" };
+// 3.56.0: THE GLASSWYRM, the Glass Flats' own boss. A wyrm of living fused glass that swims the sand
+// beneath the sheets: where it surfaces the glass re-fuses and bursts, it bends the noon through its
+// body into a burning lance, and the heat throws mirages of it. The hull takes the Crucible's slot
+// (the sixth place's boss), so the balance bench's numbers carry over.
+bossDefs.wyrm = {
+  id: "wyrm",
+  name: "THE GLASSWYRM",
+  title: "The Glass Below",
+  hp: 3700,
+  r: 2.1,
+  speed: 2.6,
+  dmg: 24,
+  shards: 125,
+  // the hot fused edge of the Flats' glass
+  color: 0xffc24d,
+};
+// 3.53.0: the flats carried the Crucible for a season; 3.56.0: the Glasswyrm takes its own place
+const bossByBiome = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin", flats: "wyrm" };
 // hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
 const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
 const bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" }; // before 2.4.6; kept for old tests
-const bossOrder = ["warden", "queen", "prism", "forge", "kingpin", "core"];
+const bossOrder = ["warden", "queen", "prism", "forge", "kingpin", "core", "wyrm"];
 /* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
 Object.assign(enemyDefs, {
   charger: {

@@ -110,15 +110,22 @@ const RL_BOSS_ATK = {
   // molotovs are covered by their own events)
   barrage: null,
   lastcall: "bSummon",
+  // 3.56.0: the Glasswyrm's attacks (the rise's and mirage's blinkWarn/blink and thud sound
+  // themselves, the lance's beamWarn does; the shard fans get the lance voice)
+  rise: null,
+  shards: "bLance",
+  sunlance: null,
+  mirage: null,
   // 3.3.0: the Overdrive attacks (they also sound the Overdrive alarm, bOverdrive)
   lockdown: "bLance",
   whiteout: "bNova",
   plague: "bSummon",
   collapse: "bRain",
+  noon: "bRain",
 };
 // 3.33.0: the warning voice of a beam by its skin (the rest keep "beam" / "beamSmall")
-const BEAM_VOICE = { cryo: "bwCryo", acid: "bwAcid", flame: "bwFlame" };
-const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse", "lastcall"]);
+const BEAM_VOICE = { cryo: "bwCryo", acid: "bwAcid", flame: "bwFlame", sun: "bwFlare" };
+const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse", "lastcall", "noon"]);
 /* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
    choice as the look in render/attacks-view.js); null: the generic explosion ("boom"). 3.32.0: a blast that chills (a
    Frost mortar's shell) cracks like ice whatever its kind */
@@ -155,7 +162,7 @@ function attackVoice(kind, src, biome, chill) {
       return null;
   }
 }
-const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingpin: 43 },
+const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingpin: 43, wyrm: 47 },
   /* 2.9.0: every boss has a timbre (wave, filter) and a short motif (semitones above the root, two octaves up)
    that its telegraphs, roar and death share, so that the ear knows who is attacking: the Warden stern and
    square (a fifth), the Crucible a saw with an anvil ring, the Prism falling glass, the Queen a wet chromatic
@@ -169,6 +176,9 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
     // 3.47.0: the Kingpin: a smooth saw with a slow growl, the motif walks root - fifth - flat
     // seventh - octave (a man who owns the room)
     kingpin: { wave: "sawtooth", lp: 1100, det: 12, motif: [0, 7, 10, 12], gap: 0.09, chord: [0, 7, 10, 15] },
+    // 3.56.0: the Glasswyrm: a glassy triangle with a wide detune (light through a flawed pane), the
+    // motif rises root - fifth - octave - tenth (it comes up from below)
+    wyrm: { wave: "triangle", lp: 5200, det: 22, motif: [0, 7, 12, 16], gap: 0.085, chord: [0, 4, 9, 14] },
   },
   /* 2.9.0: how far the music dips for the big hits (gain factor 1 - x, about 100 ms; the music goes on) */
   MUSIC_DUCK = {
@@ -341,12 +351,20 @@ const RL_SOUND_EVENTS = {
     { kind: "mortar", src: "mortar", r: 2, chill: true },
     { kind: "shorted", src: "grunt", r: 1.6 },
   ],
-  boss: [{ id: "warden" }, { id: "forge" }, { id: "prism" }, { id: "queen" }, { id: "core" }, { id: "kingpin" }],
+  boss: [
+    { id: "warden" },
+    { id: "forge" },
+    { id: "prism" },
+    { id: "queen" },
+    { id: "core" },
+    { id: "kingpin" },
+    { id: "wyrm" },
+  ],
   bossAtk: [
     { id: "warden", atk: "ring" },
     { id: "kingpin", atk: "summon" },
   ],
-  bossDown: [{ id: "warden" }],
+  bossDown: [{ id: "warden" }, { id: "wyrm" }],
   bounce: [{}],
   bountyPulse: [{}],
   chain: [{}],
@@ -367,7 +385,7 @@ const RL_SOUND_EVENTS = {
   dmg: [{}],
   edash: [{ type: "charger" }],
   die: [{}],
-  enrage: [{ id: "warden" }],
+  enrage: [{ id: "warden" }, { id: "wyrm" }],
   erupt: [{}],
   // 3.53.0: a dust devil of the Flats bears down on the player
   devilNear: [{}],
@@ -2067,6 +2085,16 @@ const musicChords = {
             this.noise(0.6, 0.085 * size, { type: "lowpass", f: 600, to: 1800, attack: 0.15 });
           }
           break;
+        case "bwFlare":
+          // 3.56.0: the Glasswyrm's sun lance: the noon bends - a bright shimmer that leans up, a
+          // hot band of air, and a low swell under it (light, not fire)
+          if (this.gate(id, 0.2)) {
+            this.tone(2100, 0.5, "sine", 0.028 * size, { to: 4400, attack: 0.1 });
+            this.tone(3150, 0.45, "sine", 0.016 * size, { to: 5200, attack: 0.16 });
+            this.noise(0.6, 0.055 * size, { type: "bandpass", f: 3600, to: 6200, q: 1.6, attack: 0.14 });
+            this.tone(120, 0.6, "sine", 0.06 * size, { to: 180, attack: 0.22 });
+          }
+          break;
         case "eshotFrost":
           // the glassy chime on a Frost enemy's shot
           if (this.gate(id, 0.08)) {
@@ -2989,6 +3017,20 @@ const musicChords = {
           this.tone(midiToFreq(31), 0.9, "sawtooth", 0.09, { lp: 420, at: d + 0.66, attack: 0.1 });
           this.tone(midiToFreq(38), 0.55, "sawtooth", 0.06, { lp: 480, at: d + 0.92, attack: 0.06 });
           this.noise(0.6, 0.04, { type: "bandpass", f: 2400, q: 1.2, attack: 0.25, at: d + 0.7 });
+          break;
+        case "wyrm":
+          // the glass below: a rising shimmer of pure tones that picks up speed (the inverse of the
+          // Prism's falling glass), then it breaks the surface - a bright shatter over one short
+          // thud (no sub drone: the first CI round measured the intro at 0.32 from the Kingpin's,
+          // both were low sub swell + bandpass - the glass is the identity, the thud is the arrival)
+          [52, 56, 59, 62, 64, 67, 69, 71].forEach((m, i) => {
+            const at = d + i * (0.1 - i * 0.007);
+            this.tone(midiToFreq(m), 0.4, "sine", 0.05, { at });
+            this.tone(midiToFreq(m) * 1.006, 0.4, "sine", 0.04, { at });
+          });
+          this.noise(0.45, 0.1, { type: "bandpass", f: 5400, to: 2400, q: 1.1, at: d + 0.62 });
+          this.tone(64, 0.32, "sine", 0.17, { to: 40, at: d + 0.64 });
+          this.tone(midiToFreq(47), 0.45, "triangle", 0.06, { lp: 1400, at: d + 0.66, attack: 0.02 });
           break;
         default:
           this._play("boss");
@@ -5040,10 +5082,75 @@ function glassCalm(e, c) {
     k.d.t(midiToFreq(chord[1] - 12), c.barSec * 1.3, "sawtooth", 0.006, { lp: 420, attack: 0.5, pan: -0.4 });
 }
 
-/* The Glass Flats boss (the Crucible, 126 BPM, D major): the hammer comes out of retirement. Drop: a
-   heavy four on the floor with the forge's anvil answering, the glassine motif over it, a hot brass
-   line; variation: the glass runs in sixteenths and the choir sings the chord; breakdown: the shimmer
-   alone, then the hammer builds it back */
+/* The Glass Flats' own boss (the Glasswyrm, 134 BPM): it comes up from below. Drop: a hot four on the
+   floor, glass shard plucks answering the snare, the glassine motif over it, a brass line; variation:
+   the shimmer bands bend against the chord and the glass runs in sixteenths under the choir;
+   breakdown: the shimmer alone, then the roll builds the surface burst */
+function glassBoss(e, c) {
+  const { b, bar, sec, root, chord } = c,
+    k = kit(e, c);
+  if (sec <= 2) calmMotif(k, c, "glassine", sec === 2 ? 1.4 : 1.7, sec !== 2, sec !== 2);
+  sectionHit(k, c);
+  bossFill(k, c);
+  bossCycle(k, c);
+  if (sec <= 1) {
+    // the surface run: a hot four, the sand drum on the "and" of two and four
+    if (b === 0 || b === 10) kick(k, 0.5, { f0: 130, f1: 42, dur: 0.16, pump: 0.5 });
+    if (b === 8) kick(k, 0.3, { f0: 120, f1: 40, dur: 0.14, pump: 0.4 });
+    if (b % 4 === 0) taiko(k, 0.24, { f: 98, pan: b === 0 ? -0.12 : 0.12 });
+    if (b === 4 || b === 12) {
+      bigSnare(k, 0.2, { f: 1500, bf: 185 });
+      shardPluck(k, c, 0.036, { pan: b === 4 ? -0.32 : 0.32 });
+    }
+    if (b === 6 || b === 14) taiko(k, 0.28, { f: 88, pan: b === 6 ? -0.3 : 0.3 });
+    if (pat(CHUG_BASS)[b]) {
+      k.p.t(midiToFreq(root - 24 + CHUG_OCT[b]), 0.12, "sawtooth", 0.05, { lp: 950, lpTo: 420, q: 2.2 });
+      if (b % 8 === 0) sub(k, root, 0.2, 0.12);
+    }
+    // the brass stabs up the chord while the surface walks
+    if (b === 2 && (bar & 1) === 0) brass(k, chord[0], 0.18, 0.028, { lp: 500, lpTo: 2500, hold: 0.08 });
+    if (sec === 1) {
+      if (b === 0 || b === 8) brass(k, chord[[0, 2][(bar >> 1) & 1]], 0.38, 0.03, { lp: 460, lpTo: 2700, hold: 0.13 });
+      if (b % 2 === 0 && bar >= 12) strings(k, chord[[0, 2, 1, 2][(b >> 1) & 3]] + 12, 0.019, { lp: 2000 });
+      if (bar >= 12 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec, 0.028);
+    }
+  } else if (sec === 2) {
+    if (b === 0) {
+      taiko(k, 0.52, { f: 64, deep: true, dur: 0.75 });
+      sub(k, root, 1.05, 0.2);
+      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.35, 0.028);
+    }
+    if (b === 8) bigSnare(k, 0.22, { f: 1300, bf: 175, dur: 0.26, rev: 0.8 });
+    if (b % 4 === 2) shardPluck(k, c, 0.024, { pan: P(c, 20, 0.8) });
+    // the glass runs: a fast shimmer line up the chord late in the variation
+    if (bar >= 14 && b % 2 === 0)
+      k.d.t(midiToFreq(chord[[0, 1, 2, 3][(b >> 1) & 3]] + 24), 0.3, "sine", 0.008, { lp: 7000, pan: P(c, 30, 0.8) });
+  } else {
+    buildRoll(k, c, 84);
+    if (b % 4 === 0) kick(k, 0.3 + 0.1 * (bar - 20), { f0: 130, f1: 44, dur: 0.15 });
+    k.p.t(midiToFreq(root - 24 + Math.floor(((bar - 20) * 16 + b) / 2)), 0.09, "sawtooth", 0.048, { lp: 1000, q: 2 });
+    // the surface burst climbs over the last two bars: a shimmer line rising with the roll
+    buildRiser(k, c);
+    if (bar >= 20 && b % 2 === 0)
+      k.d.t(midiToFreq(chord[0] + 24 + ((bar - 20) * 8 + b) / 2), 0.22, "sine", 0.007, {
+        lp: 7200,
+        pan: P(c, 24, 0.8),
+      });
+  }
+}
+// the shard pluck (the flats' boss percussion: a glassy ping and a short grain of sand - the anvil
+// slot of the hammer track, revoiced for the open noon)
+function shardPluck(k, c, vol, o = {}) {
+  k.d.n(0.025, vol * 1.3, { type: "bandpass", f: 3400, q: 4.5, color: "pink", attack: 0.001, ...o });
+  k.d.t(1976, 0.12, "sine", vol, { at: 0.003, ...o, lp: 7400 });
+  k.d.t(2637, 0.09, "sine", vol * 0.6, { at: 0.005, ...o, lp: 8000 });
+}
+
+/* The Crucible's hammer track (126 BPM, D major): built when the foundry golem carried the Flats for
+   a season (3.53.0); the golem is benched again (3.56.0) and the track stays defined and tested with
+   it. Drop: a heavy four on the floor with the forge's anvil answering, the glassine motif over it, a
+   hot brass line; variation: the glass runs in sixteenths and the choir sings the chord; breakdown:
+   the shimmer alone, then the hammer builds it back */
 function forgeBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c);
@@ -5899,12 +6006,13 @@ const MUSIC_TRACKS = {
     fight: { bpm: 84, bars: 16, swing: 0, gain: 1, play: calderaCalm },
     boss: { bpm: 132, bars: 22, swing: 0, gain: 1.2, play: calderaBoss },
   },
-  // 3.53.0: the Glass Flats: the calm theme keeps noon's even walk (92, straight), the boss track
-  // is the Crucible's hammer (126). The boss gain keeps the versus rule clear (the glue compressor
-  // eats part of a raise - the same note as the Core's and the Caldera's).
+  // 3.53.0: the Glass Flats: the calm theme keeps noon's even walk (92, straight). 3.56.0: the boss
+  // track is the wyrm's own (134 - it comes up from below, the glass shard plucks answer the snare);
+  // the Crucible's hammer went back to the bench with it. The boss gain keeps the versus rule clear
+  // (the glue compressor eats part of a raise - the same note as the Core's and the Caldera's).
   flats: {
     fight: { bpm: 92, bars: 16, swing: 0, gain: 1, play: glassCalm },
-    boss: { bpm: 126, bars: 22, swing: 0, gain: 1.2, play: forgeBoss },
+    boss: { bpm: 134, bars: 22, swing: 0, gain: 1.2, play: glassBoss },
   },
 };
 function musicTrack(kind, biome) {
@@ -5986,6 +6094,7 @@ function rlSoundCatalog() {
     "bwCryo",
     "bwAcid",
     "bwFlame",
+    "bwFlare",
     "warn",
     "fuse",
     "spawn",

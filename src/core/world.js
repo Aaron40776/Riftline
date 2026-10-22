@@ -194,8 +194,16 @@ function rlTidePhase(x, y) {
 }
 
 // 3.16.0: the shots of each boss (the Warden's siren slugs, the Hive Queen's spores, the Rift Core's rift rings; the
-// Frost Prism and the Crucible name theirs, shard and slag, in their attacks)
-const BOSS_SHOT = { warden: "siren", queen: "spore", core: "riftorb", prism: "shard", forge: "slag", kingpin: "siren" };
+// Frost Prism and the Crucible name theirs, shard and slag, in their attacks). 3.56.0: the Glasswyrm's hot glass slivers.
+const BOSS_SHOT = {
+  warden: "siren",
+  queen: "spore",
+  core: "riftorb",
+  prism: "shard",
+  forge: "slag",
+  kingpin: "siren",
+  wyrm: "glass",
+};
 const comboRewards = [
   [10, 3],
   [25, 8],

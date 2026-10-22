@@ -94,14 +94,15 @@ const milestones = [
     reward: 200,
     test: (save) => (save.stats.bosses.prism || 0) > 0,
   },
-  // 3.53.0: the Crucible is back - the Glass Flats is its new post - so the Quenched milestone
-  // returns to the list (the 3.49.0 retirement kept it in earned saves; the test is unchanged)
+  // 3.53.0: the Crucible was the Glass Flats' boss for a season, so the Quenched milestone returned
+  // to the list. 3.56.0: the stopgap ends - the Crucible sits out again per the 3.39.0 rule (a save
+  // that earned it keeps it; the test is unchanged) and the Flats' own boss takes the milestone.
   {
-    id: "forge",
-    name: "Quenched",
-    desc: "Defeat the Crucible",
+    id: "wyrm",
+    name: "Vitrified",
+    desc: "Defeat the Glasswyrm",
     reward: 150,
-    test: (save) => (save.stats.bosses.forge || 0) > 0,
+    test: (save) => (save.stats.bosses.wyrm || 0) > 0,
   },
   // 3.49.0: the Ash Tyrant, boss of the Ashfall Caldera
   {

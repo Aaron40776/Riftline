@@ -2,6 +2,19 @@
 // (the first entry has to match the game version; the QA checks it). Keep every line to one short sentence.
 export const WHATS_NEW = [
   {
+    version: "3.56.0",
+    title: "The Glasswyrm takes the desert",
+    items: [
+      "THE GLASSWYRM is the Glass Flats' own boss: a serpent of living fused glass that swims the sand beneath the sheets — a foundry golem never belonged there, and the Crucible goes back to the bench.",
+      "RISE: the glass bulges in a racing chain, then the wyrm bursts up where it ends — the bulges show exactly where NOT to stand.",
+      "SUNLANCE: it bends the noon through its body into a sweeping hot lance — and the MIRAGE surfaces where you are not.",
+      "Enraged, the sun stands still: NOON — a dial of five lances turns while the glass bursts in rings.",
+      "Its card, the Glasswyrm Fang: every 14 kills the last kill bursts into piercing glass lances.",
+      "The wyrm sings its own boss track at 134, and the Vitrified milestone replaces Quenched (earned saves keep it).",
+      "The Crucible, its hammer card and its music stay in the game for the saves that own them — just not in the desert.",
+    ],
+  },
+  {
     version: "3.55.1",
     title: "Everything called by its right name",
     items: [

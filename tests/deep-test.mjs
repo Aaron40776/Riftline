@@ -328,7 +328,7 @@ const distinct = cached
         ),
       );
       out.bosses = await group(
-        byName(["warden", "forge", "prism", "queen", "core", "kingpin"].map((n) => "bossIntro:" + n)),
+        byName(["warden", "forge", "prism", "queen", "core", "kingpin", "wyrm"].map((n) => "bossIntro:" + n)),
       );
       // 3.0.0: every trap strike, the gadget blast (3.12.0: the Singularity's collapse) and the two big old blasts; the trap warnings of the floor and
       // beam families (the mines' fuse beeps are compared on their own)
