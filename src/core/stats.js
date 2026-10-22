@@ -126,6 +126,8 @@ function computeStats(weaponId, run, workshop) {
   stats.brood = has("brood");
   stats.collapse = has("collapse");
   stats.tribute = has("tribute");
+  // 3.56.0: the Glasswyrm's fang
+  stats.fang = has("fang");
   stats.speed *= 1 + 0.04 * stats.skates;
   stats.acidCoat = level("acidcoat");
   stats.heatSink = level("heatsink");

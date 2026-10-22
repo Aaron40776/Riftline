@@ -1880,6 +1880,90 @@ function buildBossModel(type, color) {
       coin.rotation.x = Math.PI / 2;
     }
     group.userData.mats = [hullMat, plateTrim];
+  } else if (type === "wyrm") {
+    // 3.56.0: THE GLASSWYRM: a serpent of living fused glass. A diamond head with a hot core, a
+    // glowing visor and an open maw, an S-curved body of glass segments that undulates as it swims
+    // (userData.tail - the renderer wiggles it), shards orbiting the head, a hot ring and a sand
+    // skirt under it. Everything fades while it dives (userData.fadeMats; boss.diveT drives it).
+    // the glass carries its own light (emissive): the Flats' noon blows any diffuse base out to cream
+    // (hemi 1.15 + sun 2.2 + fill 0.65 over a pale floor), so the amber self-lights - and stays out of
+    // the renderer's flash loop (the underside flashes on hits instead)
+    const glass = (color, emissive, opacity) => {
+      const mat = new MeshLambertMaterial({
+        color,
+        emissive,
+        flatShading: true,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+      });
+      mat.userData.opacity = opacity;
+      return mat;
+    };
+    const vitre = glass(0x402c0a, 0x9a6a1a, 0.9), // the hot amber glass of the body (self-lit)
+      vitreDark = glass(0x1a1206, 0x000000, 0.94); // the sand-flecked glass of the underside (diffuse dark)
+    // the head: a tall diamond with a hot core seen through the glass, a visor slit and an open maw (+x)
+    const head = addMesh(new OctahedronGeometry(1.1, 0), vitre, 1.9, 2.0, 0);
+    head.scale.set(1.2, 1.55, 1.05);
+    head.rotation.z = -0.12;
+    addMesh(new OctahedronGeometry(0.52, 0), glowMat, 1.75, 2.0, 0).scale.set(1.0, 1.35, 0.95);
+    addMesh(new BoxGeometry(0.1, 0.14, 0.6), glowMat, 2.9, 2.3, 0);
+    for (const side of [1, -1]) {
+      const jaw = addMesh(new ConeGeometry(0.26, 1.15, 5), vitreDark, 2.45, 1.4, side * 0.42);
+      jaw.rotation.set(side * -0.35, 0, -Math.PI / 2 + 0.25);
+      const horn = addMesh(new ConeGeometry(0.15, 0.95, 5), vitreDark, 1.25, 3.05, side * 0.5);
+      horn.rotation.set(side * 0.45, 0, 0.95);
+      addMesh(new SphereGeometry(0.09, 6, 4), glowMat, 2.55, 2.55, side * 0.55);
+    }
+    // the body: six tall glass shards in an S-curve behind the head, each with a hot bead inside
+    // (tall, so the top-down camera reads their shaded sides, not flat diamonds)
+    const tail = [];
+    for (let i = 0; i < 6; i++) {
+      const x = 0.55 - i * 0.98,
+        y = 2.0 + Math.sin(i * 1.05) * 0.4,
+        z = Math.sin(i * 0.85) * 0.6,
+        r = 0.84 - i * 0.1,
+        seg = addMesh(new OctahedronGeometry(r, 0), i % 2 ? vitre : vitreDark, x, y, z);
+      seg.scale.set(1.1, 1.5, 0.85);
+      seg.rotation.y = Math.sin(i * 0.85) * 0.4;
+      addMesh(new SphereGeometry(0.15 + (i < 3 ? 0.05 : 0), 6, 4), glowMat, x + r * 0.2, y, z);
+      tail.push({ m: seg, z, i });
+    }
+    const tailSpike = addMesh(
+      new ConeGeometry(0.2, 1.35, 5),
+      vitreDark,
+      0.55 - 6 * 0.98,
+      2.0 + Math.sin(6 * 1.05) * 0.4,
+      Math.sin(6 * 0.85) * 0.6,
+    );
+    tailSpike.rotation.z = Math.PI / 2;
+    group.userData.tail = tail;
+    // shards of the sheets it broke orbit the head
+    const orbit = new Group();
+    orbit.position.set(1.9, 2.0, 0);
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2,
+        shard = addMesh(
+          new OctahedronGeometry(i % 2 ? 0.2 : 0.26, 0),
+          i % 2 ? vitre : glowMat,
+          Math.cos(angle) * 2.2,
+          i % 2 ? 0.5 : -0.25,
+          Math.sin(angle) * 2.2,
+          orbit,
+        );
+      shard.scale.y = 1.6;
+      shard.rotation.z = i % 2 ? 0.3 : -0.25;
+    }
+    group.add(orbit);
+    spin.push({ m: orbit, ax: "y", v: -1.2 });
+    // a hot ring inside a sand skirt on the ground
+    const skirt = addMesh(new TorusGeometry(1.95, 0.16, 4, 40), vitreDark, 1.4, 0.12, 0);
+    skirt.rotation.x = Math.PI / 2;
+    const hotRing = addMesh(new TorusGeometry(1.2, 0.1, 4, 36), glowMat, 1.4, 0.16, 0);
+    hotRing.rotation.x = Math.PI / 2;
+    group.userData.fadeMats = [vitre, vitreDark, glowMat];
+    // (vitre stays out of mats: the flash loop would zero its emissive - the dark underside flashes)
+    group.userData.mats = [vitreDark];
   } else {
     addMesh(new SphereGeometry(1.15, 18, 12), glowMat, 0, 2.4, 0);
     for (let i = 0; i < 3; i++) {

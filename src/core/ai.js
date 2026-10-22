@@ -526,14 +526,21 @@ const bossPatterns = {
   prism: ["frostbeam", "teleport", "frostnova", "icelances", "glacier", "teleport", "iceshards"],
   core: ["spiral", "summon", "ring", "cross", "burst", "rain"],
 };
-// 2.4.6: THE CRUCIBLE (the Ember Works' boss until 3.49.0, the Glass Flats' boss since 3.53.0; its
-// attacks are in updateCrucible at the end of this file)
+// 2.4.6: THE CRUCIBLE (the Ember Works' boss until 3.49.0, the Glass Flats' for a season; benched
+// again in 3.56.0 - its attacks stay in updateCrucible at the end of this file)
 bossPatterns.forge = ["hammer", "slag", "eruption", "furnace", "hammer", "slag", "stoke"];
 // 3.49.0: THE ASH TYRANT of the Ashfall Caldera: the cinder fan (a sweeping spray of molten
 // slugs), the shoulder charge, the burning dead in the cracks, the quake slam, and the molotovs (a lob where you are heading)
 bossPatterns.kingpin = ["barrage", "charge", "summon", "ring", "barrage", "rain"];
+// 3.56.0: THE GLASSWYRM of the Glass Flats: RISE (it swims under the glass and bursts up along a
+// chain of bulges), SHARDS (fans of hot glass), SUNLANCE (the noon bent through its body into a
+// sweeping beam) and MIRAGE (it dives and surfaces where you are not); its attacks are in
+// updateGlasswyrm at the end of this file. It hunts alone - the desert is empty around it.
+bossPatterns.wyrm = ["rise", "shards", "sunlance", "mirage"];
 // 2.4.6: colour of the Frost Prism's live beams (the warning lines keep the warning colour)
 const PRISM_ICE = 12578815;
+// 3.56.0: the Glasswyrm's lance (the noon bent through glass) wears the sun skin
+const WYRM_SUN = 0xffd98a;
 /* 3.3.0: the Overdrive of every boss. Once it is enraged a boss adds one signature attack to its pattern (right after
    the enrage, then once per pattern cycle). Each is built from telegraphed attacks of the game: the Warden's laser
    lockdown grid, the Crucible's expanding lava rings, the Prism's three-beam whiteout, the Queen's acid plague, the
@@ -545,6 +552,8 @@ const OVERDRIVE = {
     queen: "plague",
     core: "collapse",
     kingpin: "lastcall",
+    // the Glasswyrm's NOON: the sun stands still - a dial of lances turns around it while the glass bursts in rings
+    wyrm: "noon",
   },
   /* the bosses that call reinforcements of their biome when enraged (the Queen and the Core summon anyway) */
   REINFORCE = { warden: true, forge: true, prism: true, kingpin: true };
@@ -1107,6 +1116,10 @@ function updateBoss(game, boss, dt) {
     case "forge":
       if (updateCrucible(game, boss, dt, aim, dist, shotDmg, rage)) return;
       break;
+    // 3.56.0: THE GLASSWYRM of the Glass Flats
+    case "wyrm":
+      if (updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage)) return;
+      break;
     // 3.49.0: THE ASH TYRANT of the Ashfall Caldera
     case "kingpin": {
       if (boss.st === "barrage") {
@@ -1419,6 +1432,53 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
         game.emit("beamWarn", { x: boss.x, y: boss.y });
       }
       if (boss.t > 4.4) endBossAttack(boss, 1.4);
+      return;
+    }
+    case "noon": {
+      // 3.56.0: the Glasswyrm's NOON: the sun stands still - a dial of five lances turns around it,
+      // the glass bursts in two gapped rings, and hot shards sprinkle where the drone stands
+      boss.vx *= 0.8;
+      boss.vy *= 0.8;
+      if (boss.n === 0) {
+        boss.n = 1;
+        const dir = game.rng.chance(0.5) ? 1 : -1;
+        for (let k = 0; k < 5; k++)
+          game.beam({
+            x: boss.x,
+            y: boss.y,
+            a: aim + 0.7 + (k / 5) * TAU,
+            rot: dir * 0.42,
+            warn: 1.3,
+            dur: 3.0,
+            w: 0.8,
+            dmg: boss.dmg,
+            follow: boss,
+            len: 30,
+            color: WYRM_SUN,
+            skin: "sun",
+          });
+        game.emit("beamWarn", { x: boss.x, y: boss.y, skin: "sun" });
+        for (let ring = 0; ring < 2; ring++) {
+          const radius = 4 + ring * 4.4,
+            count = Math.ceil((TAU * radius) / 2.6),
+            gap = game.rng.next() * TAU;
+          for (let k = 0; k < count; k++) {
+            const angle = (k / count) * TAU,
+              off = Math.abs(((angle - gap + Math.PI * 3) % TAU) - Math.PI);
+            if (off < 0.6) continue;
+            const x = boss.x + Math.cos(angle) * radius,
+              y = boss.y + Math.sin(angle) * radius;
+            if (arena.outside(x, y, 0.5)) continue;
+            game.hazard({ x, y, r: 1.4, delay: 1 + ring * 0.5, dmg: boss.dmg * 0.75, kind: "stomp", src: "wyrm" });
+          }
+        }
+      }
+      if (boss.t >= 1.5 + (boss.n - 1) * 0.4 && boss.n <= 5) {
+        game.shoot(boss.x, boss.y, aim + (boss.n - 3) * 0.4, 8, shotDmg);
+        bossVolley(game, boss, 0.25);
+        boss.n++;
+      }
+      if (boss.t > 4.6) endBossAttack(boss, 1.5);
       return;
     }
     case "lastcall": {
@@ -1999,7 +2059,8 @@ function updateEnemy(game, enemy, dt) {
   return updateEnemyCore(game, enemy, dt);
 }
 
-/* ---- 2.4.6: THE CRUCIBLE (the Ember Works' boss then; the Glass Flats' boss since 3.53.0) ----
+/* ---- 2.4.6: THE CRUCIBLE (the Ember Works' boss until 3.49.0, the Glass Flats' for a season;
+ benched again in 3.56.0 - the def, these attacks and the hammer card stay defined and tested) ----
  A slow furnace golem that walks at the player like the Warden. Every hit is telegraphed on the
  ground (hazard rings) or comes as slow slag orbs. Enraged (below half hull) its attacks get more
  shots, more blasts and shorter pauses.
@@ -2214,3 +2275,174 @@ function updateCrucible(game, boss, dt, aim, dist, shotDmg, rage) {
 }
 
 export { RL_KITERS, updateEnemy, updateBoss, findOpenSpot, initBoss, OVERDRIVE };
+
+/* ---- 3.56.0: THE GLASSWYRM, the boss of the Glass Flats ----
+ A wyrm of living fused glass that swims the sand beneath the sheets. Everything it does is
+ telegraphed on the ground first (the game's language): the glass swells where it will burst. It
+ hunts alone - no crew, no summons; the desert around it stays empty.
+   rise      RISE      it dives (diveT sinks and fades it in the renderer), a chain of bulges races
+                       towards you, and it bursts up where the chain ends: a stomp, a shard ring
+   shards    SHARDS    it swims and throws fans of hot glass slivers, a full ring between the fans
+   sunlance  SUNLANCE  it stands and bends the noon through its body: a broad hot lance that sweeps
+                       with the drone (it turns slowly, so running around it works, like the mouth)
+   mirage    MIRAGE    it dives, bulges chase your flank, and it surfaces BEHIND you - the bulges
+                       lie; enraged it does it twice
+   noon      NOON      the Overdrive: the sun stands still - a dial of five lances turns around it
+                       while the glass bursts in two gapped rings and hot shards sprinkle
+ Enraged (below half hull): the rise forks into three chains, the fans widen, the lance sweeps from
+ both sides, the mirage surfaces twice. */
+function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
+  const player = game.player,
+    arena = game.arena,
+    inside = (x, y) => !arena.outside(x, y, 0.8);
+  if (boss.diveT > 0) boss.diveT = Math.max(0, boss.diveT - dt);
+  const end = (walk) => {
+    boss.fx = null;
+    boss.diveT = 0;
+    boss.charging = false;
+    endBossAttack(boss, walk);
+  };
+  // a bulge chain: the glass swells and bursts along a line - the wyrm swims beneath it
+  const chain = (angle, wind) => {
+    const spots = [];
+    for (let k = 0; k < 6; k++) {
+      const reach = 2.6 + k * 2.3,
+        x = boss.x + Math.cos(angle) * reach,
+        y = boss.y + Math.sin(angle) * reach;
+      if (!inside(x, y)) break;
+      spots.push([x, y]);
+      game.hazard({ x, y, r: 1.5, delay: wind + 0.1 + k * 0.13, dmg: boss.dmg * 0.75, kind: "stomp", src: "wyrm" });
+    }
+    return spots;
+  };
+  const surface = (ringSpin) => {
+    game.explode(boss.x, boss.y, 2.4, 0, { kind: "stomp", src: "wyrm" });
+    shootRing(game, boss, 13 + rage * 3, 6.8, shotDmg, ringSpin);
+    game.emit("blink", { x: boss.x, y: boss.y });
+    game.emit("thud", { x: boss.x, y: boss.y, big: true });
+  };
+  switch (boss.st) {
+    case "rise": {
+      const wind = rage ? 0.75 : 0.95;
+      boss.vx *= 0.75;
+      boss.vy *= 0.75;
+      if (boss.n === 0) {
+        boss.n = 1;
+        boss.diveT = wind + 0.4;
+        boss.charging = true;
+        boss.ta = aim;
+        boss.fx = [];
+        for (const off of rage ? [-0.5, 0, 0.5] : [0]) {
+          const spots = chain(aim + off, wind);
+          if (spots.length) boss.fx.push(spots[spots.length - 1]);
+        }
+        game.emit("blinkWarn", { x: boss.x, y: boss.y });
+      }
+      boss.face = turnToward(boss.face, boss.ta, 4 * dt);
+      if (boss.n === 1 && boss.t >= wind) {
+        boss.n = 2;
+        boss.charging = false;
+        const [sx, sy] = boss.fx[0] || [boss.x, boss.y];
+        boss.x = sx;
+        boss.y = sy;
+        boss.diveT = 0;
+        surface(boss.spin);
+      }
+      if (boss.t > wind + 1.0) end(2 - rage * 0.5);
+      return true;
+    }
+    case "shards": {
+      moveBoss(game, boss, dt, aim, dist, 0.35);
+      const salvos = 3 + rage;
+      if (boss.t >= 0.4 + boss.n * 0.62 && boss.n < salvos) {
+        boss.n++;
+        if (boss.n % 2) {
+          // a fan of hot glass at the drone
+          const wide = 5 + rage * 2;
+          for (let k = 0; k < wide; k++) game.shoot(boss.x, boss.y, aim + (k - (wide - 1) / 2) * 0.15, 9, shotDmg);
+        } else {
+          // a full ring between the fans
+          shootRing(game, boss, 10 + rage * 4, 6.2, shotDmg, boss.spin);
+        }
+        bossVolley(game, boss, 0.28);
+      }
+      if (boss.t > 0.4 + salvos * 0.62 + 0.9) end(1.7 - rage * 0.3);
+      return true;
+    }
+    case "sunlance": {
+      boss.vx *= 0.8;
+      boss.vy *= 0.8;
+      if (boss.n === 0) {
+        boss.n = 1;
+        boss.charging = true;
+        const dir = game.rng.chance(0.5) ? 1 : -1;
+        game.beam({
+          x: boss.x,
+          y: boss.y,
+          a: aim,
+          rot: dir * 0.5,
+          warn: 1.1,
+          dur: 2.6,
+          w: 0.8,
+          dmg: boss.dmg,
+          follow: boss,
+          len: 30,
+          color: WYRM_SUN,
+          skin: "sun",
+        });
+        if (rage)
+          game.beam({
+            x: boss.x,
+            y: boss.y,
+            a: aim + Math.PI,
+            rot: -dir * 0.5,
+            warn: 1.1,
+            dur: 2.6,
+            w: 0.8,
+            dmg: boss.dmg,
+            follow: boss,
+            len: 30,
+            color: WYRM_SUN,
+            skin: "sun",
+          });
+        game.emit("beamWarn", { x: boss.x, y: boss.y, skin: "sun" });
+      }
+      // it stands and lets the noon burn (the lance turns slowly, so running around it works)
+      if (boss.t > 3.9) end(1.8 - rage * 0.4);
+      return true;
+    }
+    case "mirage": {
+      moveBoss(game, boss, dt, aim, dist, 0.2);
+      if (boss.n === 0) {
+        boss.n = 1;
+        boss.diveT = 1.6;
+        boss.charging = true;
+        // the bulges chase one flank; the wyrm surfaces from the other side (the bulges lie)
+        boss.ta = aim + Math.PI + (game.rng.chance(0.5) ? 0.8 : -0.8);
+        chain(boss.ta, 0.5);
+        game.emit("blinkWarn", { x: boss.x, y: boss.y });
+      }
+      if (boss.n === 1 && boss.t >= 1.5) {
+        boss.n = 2;
+        boss.x = clamp(player.x + Math.cos(boss.ta) * 6.5, -arena.W + 1.5, arena.W - 1.5);
+        boss.y = clamp(player.y + Math.sin(boss.ta) * 6.5, -arena.H + 1.5, arena.H - 1.5);
+        boss.diveT = rage ? 0.9 : 0;
+        surface(boss.spin);
+        if (rage) {
+          boss.ta = boss.ta > aim + Math.PI ? aim + Math.PI - 0.8 : aim + Math.PI + 0.8;
+          chain(boss.ta, 0.9);
+        }
+      }
+      if (boss.n === 2 && rage && boss.t >= 2.9) {
+        boss.n = 3;
+        boss.diveT = 0;
+        boss.x = clamp(player.x + Math.cos(boss.ta) * 6, -arena.W + 1.5, arena.W - 1.5);
+        boss.y = clamp(player.y + Math.sin(boss.ta) * 6, -arena.H + 1.5, arena.H - 1.5);
+        surface(boss.spin + 0.3);
+      }
+      if (boss.t > (rage ? 4.2 : 2.6)) end(1.6 - rage * 0.3);
+      return true;
+    }
+  }
+  return false;
+}

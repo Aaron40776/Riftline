@@ -2093,6 +2093,10 @@ const RL_OVERDRIVE_INFO = {
     name: "Firestorm",
     desc: "The burning dead pour in through ember portals, molotovs close a ring around you (one gap), and the Ash Tyrant sweeps the floor.",
   },
+  wyrm: {
+    name: "Noon",
+    desc: "The sun stands still: a dial of five hot lances turns around the Glasswyrm while the glass bursts in two gapped rings.",
+  },
 };
 // ---- 2.5.0 D: title card helpers
 function titleCardLayer() {

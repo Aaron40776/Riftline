@@ -71,6 +71,8 @@ const WHITE = new Color(0xffffff),
     siren: new Color(0xff3346),
     spore: new Color(0x52f0b8),
     riftorb: new Color(0xb070ff),
+    // 3.56.0: the Glasswyrm's hot glass slivers
+    glass: new Color(0xffd98a),
   },
   SIREN_BLUE = new Color(0x3d7bff),
   // 3.34.0: the current of a Shorted enemy (the cold blue-white of Blackout City's live manholes)
@@ -1158,6 +1160,18 @@ class AttackView {
             0.7 + color.b * 0.3,
           );
           r.sprites.colC(r.sprites.bb(shot.x, 0.8, shot.y, shot.r * 4, basis), RIFT_RIM_SHOT, 0.5);
+          break;
+        }
+        case "glass": {
+          // 3.56.0: the Glasswyrm's sliver: a hot glass shard that flies point-first and sheds a grain of light
+          const P = this.get("dart"),
+            s = shot.r * 1.5,
+            idx = P.glow.y(shot.x, 0.75, shot.y, angle, s);
+          P.glow.col(idx, 1.15, 0.98, 0.6);
+          if (Math.random() < 0.4)
+            r.emit(shot.x - shot.vx * 0.02, 0.75, shot.y - shot.vy * 0.02, 0, 0, 0, 0.2, shot.r * 2, color, {
+              drag: 0,
+            });
           break;
         }
         default: {

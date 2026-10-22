@@ -47,6 +47,10 @@ const LOOK = {
   pyro: { main: hex(0xffb45a), alt: hex(0xffe9b0), dust: hex(0x3a2418) },
   // 3.53.0: the Glass Flats' sunspike: fused glass erupts, hot white-gold, sand in the dust
   sunspike: { main: hex(0xffe9c4), alt: hex(0xfff3d6), dust: hex(0xd8c8a8) },
+  // 3.56.0: the Glasswyrm's sun lance: the noon bent through glass - hot orange over white-hot (the
+  // additive body washes out pale on the flats' near-white sheets; the hot orange reads, like the
+  // sunspike's fused edge)
+  sun: { main: hex(0xff9a2e), alt: hex(0xffd27a), dust: hex(0xffe0b0) },
 };
 // 3.12.0: the Singularity: a dark violet core, the cyan of the player on its rim, violet arms (never the red of a
 // warning: it is the player's own)
@@ -1013,6 +1017,43 @@ class TrapView {
           0.16,
           Math.random() < 0.3 ? look.alt : look.main,
           { grav: 9, drag: 0.5 },
+        );
+      }
+    } else if (beam.skin === "sun") {
+      // 3.56.0: the Glasswyrm's sun lance: the noon bent through glass - a broad hot body that bends
+      // in slow refraction waves along its length, a white-hot core, heat shimmer that rises (the
+      // body runs hot and wide: the additive washes out on the noon's near-white sheets)
+      let px = beam.x,
+        pz = beam.y;
+      for (let i = 1; i <= 7; i++) {
+        const along = (len * i) / 7,
+          off = Math.sin(time * 5 + i * 1.1) * beam.w * 0.3 * (i < 7 ? 1 : 0),
+          qx = beam.x + ca * along - sa * off,
+          qz = beam.y + sa * along + ca * off;
+        b.colC(
+          b.seg(px, pz, qx, qz, 1, beam.w * (1.3 + 0.14 * Math.sin(time * 8 - i)) * flick, beam.w * 0.7),
+          look.main,
+          0.85,
+        );
+        px = qx;
+        pz = qz;
+      }
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.34, beam.w * 0.34), look.alt, 0.95);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.14, beam.w * 0.14), WHITE, 1);
+      if (Math.random() < 0.75) {
+        const d = Math.random() * len,
+          o = (Math.random() - 0.5) * beam.w * 2.2;
+        r.emit(
+          beam.x + ca * d - sa * o,
+          1 + Math.random() * 0.3,
+          beam.y + sa * d + ca * o,
+          (Math.random() - 0.5) * 0.8,
+          1.6 + Math.random() * 1.4,
+          (Math.random() - 0.5) * 0.8,
+          0.8,
+          0.2,
+          Math.random() < 0.5 ? look.alt : look.main,
+          { drag: 1.5 },
         );
       }
     } else {

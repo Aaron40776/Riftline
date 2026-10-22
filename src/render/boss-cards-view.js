@@ -61,6 +61,10 @@ const MODELS = {
   splinter: () => ({
     body: [meshPart(new OctahedronGeometry(0.12, 0), 0xcff4ff, { sx: 3.2, sy: 0.6, sz: 0.6 })],
   }),
+  // 3.56.0: a hot glass lance of the Glasswyrm Fang, long and thin along x
+  lance: () => ({
+    body: [meshPart(new OctahedronGeometry(0.14, 0), 0xffd98a, { sx: 3.6, sy: 0.55, sz: 0.55 })],
+  }),
 };
 
 class BossCardView {
@@ -107,6 +111,7 @@ class BossCardView {
     if (world.cages && world.cages.length) this.cages(dt, world, quality);
     if (world.slag && world.slag.length) this.slag(dt, world, quality);
     if (world.splinters && world.splinters.length) this.splinters(world);
+    if (world.lances && world.lances.length) this.lances(world);
     if (world.player.brood && world.player.brood.length) this.brood(dt, world, quality);
     if (world.implode) this.implode(dt, world, quality);
     if (world.stats.hammer && world.player.alive) this.hammerGlow(dt, world, quality);
@@ -221,6 +226,15 @@ class BossCardView {
     for (const s of world.splinters) {
       P.body.y(s.x, 0.7, s.y, s.a, 1);
       r.sprites.colC(r.sprites.bb(s.x, 0.7, s.y, 0.55, r.B), ICE, 0.55);
+    }
+  }
+  // 3.56.0: the hot glass lances of the Glasswyrm Fang
+  lances(world) {
+    const r = this.r,
+      P = this.get("lance", 64);
+    for (const s of world.lances) {
+      P.body.y(s.x, 0.7, s.y, s.a, 1);
+      r.sprites.colC(r.sprites.bb(s.x, 0.7, s.y, 0.6, r.B), GOLD, 0.7);
     }
   }
   brood(dt, world, quality) {

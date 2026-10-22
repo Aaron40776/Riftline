@@ -1405,7 +1405,8 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
       Object.keys(weaponDefs).length === weaponOrder.length &&
         // 3.53.0: six biomes again (the Glass Flats)
         biomeList.length === 6 &&
-        Object.keys(bossDefs).length === 6 &&
+        // 3.56.0: seven defined bosses (the benched Crucible keeps its def beside the six that serve)
+        Object.keys(bossDefs).length === 7 &&
         Object.keys(enemyDefs).length >= 25,
       `${Object.keys(weaponDefs).length} weapons (${weaponOrder.length} selectable) · ${Object.keys(enemyDefs).length} enemies · ${biomeList.length} biomes · ${Object.keys(bossDefs).length} bosses · ${upgradeList.length} upgrades · ${workshopModules.length} modules`,
     );

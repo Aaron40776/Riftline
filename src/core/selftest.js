@@ -39,6 +39,8 @@ import {
   BROOD_MAX,
   COLLAPSE_TIME,
   TRIBUTE_EVERY,
+  FANG_EVERY,
+  FANG_N,
 } from "./boss-cards.js";
 import {
   RL_RETIRE_NOTE,
@@ -1162,8 +1164,8 @@ function selfTestV246(result) {
 function selfTestV250A(result) {
   const fail = [],
     NEW = ["skates", "acidcoat", "heatsink", "slipstream", "surge", "reactive"];
-  // 3.15.0: 55 and the boss cards (3.47.0: six of them)
-  if (upgradeList.length !== 61) fail.push("count:" + upgradeList.length);
+  // 3.15.0: 55 and the boss cards (3.47.0: six of them; 3.56.0: seven - the Glasswyrm's fang)
+  if (upgradeList.length !== 62) fail.push("count:" + upgradeList.length);
   for (const [id, retired] of Object.entries(RL_RETIRED_UPGRADES)) {
     if (upgradesById[id]) fail.push("still-offered:" + id);
     const target = upgradesById[retired.to];
@@ -3131,14 +3133,14 @@ function selfTestV3140(result) {
 }
 
 /* ---- 3.15.0: the boss rewards: the offer (chance, growth after a miss, once per run, the first place through a reroll,
-   saved with the run) and the mechanics of the five boss cards ---- */
+   saved with the run) and the mechanics of the boss cards (3.56.0: seven, the Glasswyrm's fang among them) ---- */
 function selfTestV3150(result) {
   const fail = [];
   const isBoss = (id) => !!upgradesById[id].boss;
   try {
     // one card per boss, all rarity 6, none in a normal offer
     const bosses = Object.keys(BOSS_CARD).sort().join(",");
-    if (bosses !== "core,forge,kingpin,prism,queen,warden") fail.push("cards:" + bosses);
+    if (bosses !== "core,forge,kingpin,prism,queen,warden,wyrm") fail.push("cards:" + bosses);
     if (Object.values(BOSS_CARD).some((id) => upgradesById[id].rarity !== 6 || upgradesById[id].max !== 1))
       fail.push("card-rarity");
     const normal = new World({ seed: 0x315, weapon: "pulse", threat: 0, ws: {} });
@@ -3379,6 +3381,27 @@ function selfTestV3150(result) {
   } catch (err) {
     fail.push("collapse-exception:" + (err && err.message));
   }
+  try {
+    // Glasswyrm Fang: every 14th kill bursts into hot glass lances aimed at the nearest body; a lance
+    // hits it and the burst credits as shard damage
+    const { world, spawn, run } = arena({ fang: 1 });
+    for (let i = 0; i < FANG_EVERY - 1; i++) {
+      const enemy = spawn(-7, 4, 5, "grunt");
+      world.hurtEnemy(enemy, 1000, 0, 0, 0, false, "weapon");
+    }
+    if (world.lances.length) fail.push("fang-early:" + world.lances.length);
+    const victim = spawn(5, 0, 10, "grunt"),
+      next = spawn(6.4, 0, 1e6);
+    for (const enemy of [victim, next]) enemy.speed = 0;
+    run(0.1); // the spatial hash learns the two, so the fan can aim
+    world.hurtEnemy(victim, 1000, 0, 0, 0, false, "weapon");
+    if (world.lances.length !== FANG_N) fail.push("fang-count:" + world.lances.length);
+    run(1.0);
+    if (!(world.dmgSrc.shard > 0)) fail.push("fang-no-hit");
+    if (world.lances.length) fail.push("fang-not-gone");
+  } catch (err) {
+    fail.push("fang-exception:" + (err && err.message));
+  }
   return { ...result, ok: result.ok && fail.length === 0, v3150: { ok: fail.length === 0, fail } };
 }
 
@@ -3386,7 +3409,15 @@ function selfTestV3150(result) {
    orb any more), every boss beam has a skin or a colour, and a boss volley names its boss for its sound ---- */
 function selfTestV3160(result) {
   const fail = [];
-  const WANT = { warden: "siren", queen: "spore", core: "riftorb", prism: "shard", forge: "slag", kingpin: "siren" };
+  const WANT = {
+    warden: "siren",
+    queen: "spore",
+    core: "riftorb",
+    prism: "shard",
+    forge: "slag",
+    kingpin: "siren",
+    wyrm: "glass",
+  };
   try {
     for (const type of Object.keys(WANT)) {
       const world = new World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });

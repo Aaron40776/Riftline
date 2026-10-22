@@ -522,6 +522,16 @@ upgradeList.push(
     icon: "tribute",
     desc: () => "Every 20 kills the caldera pays out: a burst of shards and a bandage",
   },
+  // 3.56.0: the Glasswyrm's card: the wyrm's hunger works for you
+  {
+    id: "fang",
+    name: "Glasswyrm Fang",
+    rarity: 6,
+    max: 1,
+    boss: "wyrm",
+    icon: "shard",
+    desc: () => "Every 14 kills the last kill bursts into a fan of hot glass lances that pierce",
+  },
 );
 upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 
