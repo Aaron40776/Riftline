@@ -3019,15 +3019,18 @@ const musicChords = {
           this.noise(0.6, 0.04, { type: "bandpass", f: 2400, q: 1.2, attack: 0.25, at: d + 0.7 });
           break;
         case "wyrm":
-          // the glass below: the sand hums, then it comes up - a rising shimmer of pure tones (the
-          // inverse of the Prism's falling glass) over a sub that swells from under the floor
-          this.tone(48, 1.1, "sine", 0.2, { to: 64, at: d, attack: 0.7 });
-          this.noise(0.9, 0.05, { type: "bandpass", f: 900, to: 2800, q: 1.4, attack: 0.6, at: d + 0.1 });
-          [52, 59, 64, 68, 71].forEach((m, i) => {
-            this.tone(midiToFreq(m), 0.5, "sine", 0.045, { at: d + 0.55 + i * 0.1 });
-            this.tone(midiToFreq(m) * 1.005, 0.5, "sine", 0.035, { at: d + 0.55 + i * 0.1 });
+          // the glass below: a rising shimmer of pure tones that picks up speed (the inverse of the
+          // Prism's falling glass), then it breaks the surface - a bright shatter over one short
+          // thud (no sub drone: the first CI round measured the intro at 0.32 from the Kingpin's,
+          // both were low sub swell + bandpass - the glass is the identity, the thud is the arrival)
+          [52, 56, 59, 62, 64, 67, 69, 71].forEach((m, i) => {
+            const at = d + i * (0.1 - i * 0.007);
+            this.tone(midiToFreq(m), 0.4, "sine", 0.05, { at });
+            this.tone(midiToFreq(m) * 1.006, 0.4, "sine", 0.04, { at });
           });
-          this.tone(midiToFreq(35), 0.7, "triangle", 0.1, { lp: 900, at: d + 1.05, attack: 0.05 });
+          this.noise(0.45, 0.1, { type: "bandpass", f: 5400, to: 2400, q: 1.1, at: d + 0.62 });
+          this.tone(64, 0.32, "sine", 0.17, { to: 40, at: d + 0.64 });
+          this.tone(midiToFreq(47), 0.45, "triangle", 0.06, { lp: 1400, at: d + 0.66, attack: 0.02 });
           break;
         default:
           this._play("boss");
