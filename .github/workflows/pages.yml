@@ -36,7 +36,7 @@ jobs:
       # 3.37.0: the deep test's sound cache (see test.yml): npm ci wipes node_modules, so the result of the
       # offline sound render is restored here and saved again at the end of the job.
       - name: Restore the deep test's sound cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: node_modules/.cache/riftline
           key: riftline-sound-${{ hashFiles('src/audio/**/*.js', 'src/data/*.js', 'tests/deep-test.mjs', 'package-lock.json') }}
