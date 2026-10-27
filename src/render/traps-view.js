@@ -649,10 +649,6 @@ class TrapView {
     r.discs.colC(disc, WARN, 0.18 + k * 0.14);
     const edge = r.ringPool.y(x, 0.195, z, 0, radius * k);
     r.ringPool.colC(edge, WARN, 0.35);
-    if (r.contrast) {
-      const inner = r.ringPool.y(x, 0.2, z, 0, radius * 0.55);
-      r.ringPool.colC(inner, WARN, 0.7);
-    }
   }
   floor(trap, s, look, dt, quality) {
     const r = this.r,

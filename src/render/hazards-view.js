@@ -651,12 +651,12 @@ class HazardView {
       cycle = (world.waveT + vent.phase) % vent.period;
     return { state, k: state === "warn" ? clamp((cycle - (vent.period - 2.7)) / 1.2, 0, 1) : 0 };
   }
-  // the warning ring at the edge of a vent: it lights up while the vent warns and stays bright while it erupts (in the
-  // warning colour with Clear warnings); an idle vent shows its edge with its model
+  // the warning ring at the edge of a vent: it lights up while the vent warns and stays bright while it erupts;
+  // an idle vent shows its edge with its model
   ring(x, z, radius, col, alpha) {
     const r = this.r,
       idx = r.ringPool.y(x, 0.08, z, 0, radius);
-    r.ringPool.colC(idx, r.contrast ? r.warnColor : col, alpha);
+    r.ringPool.colC(idx, col, alpha);
   }
   vents(dt, world, quality) {
     const r = this.r,
