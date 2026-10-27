@@ -1,0 +1,5 @@
+# build.js reads the file list in sw.js as JSON; keep its exact layout
+src/sw.js
+dist/
+node_modules/
+tests/fixtures/

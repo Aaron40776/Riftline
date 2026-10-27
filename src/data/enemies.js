@@ -1,0 +1,566 @@
+// Enemy and boss tables, spawn weights, enemy tips and champion data.
+
+// 3.31.1: the spawn weights and the heavy types live here (core/waves.js imported them back from this file in a circle,
+// so loading waves.js first failed); the content packs below add their types in the same order as before
+const spawnWeights = {
+    swarmer: 5,
+    grunt: 4,
+    gunner: 3,
+    bomber: 2.4,
+    splitter: 2,
+    brute: 1.3,
+    sniper: 1.5,
+    hive: 0.6,
+    bulwark: 1.3,
+    striker: 1.6,
+    mortar: 1.1,
+    mender: 1,
+    leaper: 1.5,
+    turret: 0.9,
+  },
+  heavyEnemies = { brute: 1, hive: 1, sniper: 1, bulwark: 1, mortar: 1, mender: 1, turret: 1 };
+
+/* ---- enemy intros: one short hint the first time each enemy type appears ---- */
+const RL_ENEMY_TIPS = {
+  swarmer: "Swarmers rush in packs. Keep moving and let splash damage thin them out.",
+  grunt: "Grunts are slow but tough. Kite them in wide circles.",
+  gunner: "Gunners stop and glow before a burst — that glow is your cue to dodge.",
+  bomber: "Bombers explode next to you. Shoot them early or dash away when they flash.",
+  splitter: "Splitters burst into three mites when destroyed.",
+  brute: "Brutes aim, then charge in a straight line. Sidestep — walls stun them.",
+  sniper: "Snipers show a red aim line before they fire. Break line of sight or dash.",
+  hive: "Hives keep hatching swarmers until you destroy them.",
+  bulwark: "Bulwarks block shots from the front. Flank them or break the shield.",
+  striker: "Strikers blink next to you — watch the ring where they will land.",
+  mortar: "Mortars lob shells where you are heading. Keep changing direction.",
+  mender: "Menders heal other enemies. Kill them first.",
+  leaper: "Leapers freeze, then pounce. Move sideways the moment they crouch.",
+  turret: "Rift Turrets lock on with an aim line, then fire a heavy shot.",
+  charger: "Chargers telegraph, then ram at high speed. Step aside at the last moment.",
+  minebot: "Minebots drop mines and back away. Don't chase them through the minefield.",
+  sapper: "Sappers plant charges that blow after a moment. Stay mobile.",
+  phantom: "Phantoms phase out and can't be hit — then lunge. Shoot when they reappear.",
+  sentinel: "Sentinels charge a sweeping beam. Leave the line before it fires.",
+  carrier: "Carriers hang back and launch homing shots. Close the gap.",
+  drone: "Needler Drones strafe and fire homing needles. Keep moving.",
+  driller: "Drillers ram forward and leave a blast where they stop.",
+  beacon: "Repair Beacons heal every enemy around them. Destroy them first.",
+  weaver: "Rift Weavers warp across the arena and fire spreads after each jump.",
+};
+const enemyDefs = {
+  swarmer: {
+    id: "swarmer",
+    name: "Swarmer",
+    hp: 8,
+    speed: 5.6,
+    r: 0.42,
+    dmg: 8,
+    cost: 1,
+    shards: 1,
+    from: 1,
+    color: 16727423,
+  },
+  grunt: {
+    id: "grunt",
+    name: "Grunt",
+    hp: 24,
+    speed: 3.3,
+    r: 0.62,
+    dmg: 12,
+    cost: 2,
+    shards: 2,
+    from: 1,
+    color: 16734794,
+  },
+  gunner: {
+    id: "gunner",
+    name: "Gunner",
+    hp: 20,
+    speed: 2.9,
+    r: 0.55,
+    dmg: 10,
+    cost: 3,
+    shards: 3,
+    from: 2,
+    color: 16752957,
+  },
+  bomber: {
+    id: "bomber",
+    name: "Bomber",
+    hp: 14,
+    speed: 4.5,
+    r: 0.5,
+    dmg: 26,
+    cost: 2,
+    shards: 2,
+    from: 3,
+    color: 16769354,
+  },
+  splitter: {
+    id: "splitter",
+    name: "Splitter",
+    hp: 44,
+    speed: 2.6,
+    r: 0.8,
+    dmg: 12,
+    cost: 4,
+    shards: 3,
+    from: 4,
+    color: 4063156,
+  },
+  mite: {
+    id: "mite",
+    name: "Mite",
+    hp: 7,
+    speed: 5.8,
+    r: 0.32,
+    dmg: 6,
+    cost: 0,
+    shards: 0,
+    from: 99,
+    color: 4063156,
+  },
+  brute: {
+    id: "brute",
+    name: "Brute",
+    hp: 100,
+    speed: 2.1,
+    r: 1.05,
+    dmg: 18,
+    cost: 6,
+    shards: 6,
+    from: 6,
+    color: 16723797,
+  },
+  sniper: {
+    id: "sniper",
+    name: "Sniper",
+    hp: 26,
+    speed: 2.3,
+    r: 0.55,
+    dmg: 15,
+    cost: 4,
+    shards: 4,
+    from: 7,
+    color: 16730080,
+  },
+  hive: {
+    id: "hive",
+    name: "Hive",
+    hp: 140,
+    speed: 0.7,
+    r: 1.2,
+    dmg: 14,
+    cost: 8,
+    shards: 8,
+    from: 9,
+    // 3.50.0: the glow of the marsh's bloom (was acid green)
+    color: 0x54ffc8,
+  },
+  bulwark: {
+    id: "bulwark",
+    name: "Bulwark",
+    hp: 80,
+    speed: 2,
+    r: 0.85,
+    dmg: 16,
+    cost: 5,
+    shards: 5,
+    from: 8,
+    color: 5941503,
+  },
+  striker: {
+    id: "striker",
+    name: "Striker",
+    hp: 30,
+    speed: 3.4,
+    r: 0.5,
+    dmg: 16,
+    cost: 3,
+    shards: 3,
+    from: 11,
+    color: 9207295,
+  },
+  mortar: {
+    id: "mortar",
+    name: "Mortar",
+    hp: 46,
+    speed: 1.6,
+    r: 0.75,
+    dmg: 20,
+    cost: 4,
+    shards: 4,
+    from: 12,
+    color: 14256701,
+  },
+  mender: {
+    id: "mender",
+    name: "Mender",
+    hp: 40,
+    speed: 2.4,
+    r: 0.6,
+    dmg: 8,
+    cost: 4,
+    shards: 5,
+    from: 13,
+    color: 7208904,
+  },
+  leaper: {
+    id: "leaper",
+    name: "Leaper",
+    hp: 42,
+    speed: 4.1,
+    r: 0.6,
+    dmg: 18,
+    cost: 4,
+    shards: 4,
+    from: 10,
+    color: 12562687,
+  },
+  turret: {
+    id: "turret",
+    name: "Rift Turret",
+    hp: 52,
+    speed: 1.1,
+    r: 0.68,
+    dmg: 14,
+    cost: 5,
+    shards: 6,
+    from: 13,
+    color: 3535103,
+  },
+};
+const enemyOrder = [
+  "swarmer",
+  "grunt",
+  "gunner",
+  "bomber",
+  "splitter",
+  "brute",
+  "sniper",
+  "hive",
+  "bulwark",
+  "striker",
+  "mortar",
+  "mender",
+  "leaper",
+  "turret",
+];
+// 3.34.0: every biome has its variant (Blackout City had none, so its Endless visits were the softest), and every
+// variant and elite affix says what it does (the Codex and the first-time tips read desc)
+const biomeVariants = {
+  yard: {
+    id: "shorted",
+    name: "Shorted",
+    types: ["grunt", "gunner", "bomber"],
+    color: 0x8fd0ff,
+    desc: "Crackles with stolen current. Where one dies, the ground arcs a moment later: step away, or lure others in.",
+  },
+  vault: {
+    id: "frost",
+    name: "Frost",
+    types: ["gunner", "sniper", "mortar"],
+    color: 11462911,
+    desc: "Its icy shots and shells slow you for a moment.",
+  },
+  void: {
+    id: "phase",
+    name: "Phase",
+    types: ["swarmer", "grunt", "gunner"],
+    color: 16732120,
+    desc: "Blinks a few steps towards you every couple of seconds.",
+  },
+  marsh: {
+    // 3.50.0: the Glowmarsh's Bloomed (was the Toxin Marsh's Toxic) - the same acid burst,
+    // in the glow family
+    id: "bloomed",
+    name: "Bloomed",
+    types: ["grunt", "splitter", "swarmer", "bomber"],
+    color: 0x46ffc0,
+    desc: "Sick with the glow: bursts into a shining pool when it dies.",
+  },
+  // 3.53.0: the Glass Flats: it gleams, then sprints - a short solar burst toward its aim
+  flats: {
+    id: "sunstruck",
+    name: "Sunstruck",
+    types: ["grunt", "gunner", "charger", "driller"],
+    color: 0xffd27a,
+    desc: "It gleams and sprints - a short solar burst every few seconds.",
+  },
+  // 3.49.0: the Caldera: they go out in a flare - the fumaroles jet where they fall (was the Club's Showy)
+  club: {
+    id: "showy",
+    name: "Flareheart",
+    types: ["gunner", "brute", "bomber"],
+    color: 0xffb520,
+    desc: "It goes out in a flare: the magma vents jet where it falls.",
+  },
+};
+const eliteAffixes = {
+  shielded: { name: "Shielded", color: 7325951, desc: "A barrier soaks the first hits. Elites from wave 10." },
+  hasted: { name: "Hasted", color: 16773754, desc: "Moves a third faster. Elites from wave 10." },
+  volatile: {
+    name: "Volatile",
+    color: 16734778,
+    desc: "Explodes when it dies: keep your distance. Elites from wave 10.",
+  },
+};
+const bossDefs = {
+  warden: {
+    id: "warden",
+    name: "THE WARDEN",
+    title: "Enforcer of the Blackout",
+    hp: 1500,
+    r: 2,
+    speed: 2.4,
+    dmg: 22,
+    shards: 60,
+    color: 16727386,
+  },
+  queen: {
+    id: "queen",
+    name: "HIVE QUEEN",
+    title: "Mother of the Swarm",
+    hp: 3e3,
+    r: 1.9,
+    speed: 2,
+    dmg: 20,
+    shards: 100,
+    // 3.50.0: the glow of the marsh's bloom (was acid green)
+    color: 0x54ffc8,
+  },
+  prism: {
+    id: "prism",
+    name: "FROST PRISM",
+    title: "The Shattering Ice",
+    hp: 4400,
+    r: 1.6,
+    speed: 3,
+    dmg: 24,
+    shards: 150,
+    color: 9431295,
+  },
+  core: {
+    id: "core",
+    name: "RIFT CORE",
+    title: "Heart of the Breach",
+    hp: 7600,
+    r: 2.4,
+    speed: 1.2,
+    dmg: 26,
+    shards: 250,
+    color: 11758591,
+  },
+};
+// 2.4.6: every biome has its own boss (the boss of a wave is the boss of its biome, see
+// World.bossFor). The Crucible is new; Prism became the Frost Prism of the Aurora Shelf. 3.49.0: the
+// Crucible sits out (the Ember Works retired) but stays defined and tested - it takes a new post
+// with a coming biome, and the Codex keeps listing every defined boss.
+// 3.53.0: the Crucible served the Glass Flats for a season (the card's title followed).
+// 3.56.0: the stopgap ends - a foundry golem never belonged in a glass desert. The Crucible goes back
+// to the bench (the def, its patterns, sounds and the hammer card stay defined and tested; the Codex
+// keeps it listed; a save that owns the card keeps it), and the Flats' own boss takes the post.
+bossDefs.forge = {
+  id: "forge",
+  name: "THE CRUCIBLE",
+  title: "Heart of the Works",
+  hp: 3700,
+  r: 2.1,
+  speed: 1.8,
+  dmg: 24,
+  shards: 125,
+  color: 16741924,
+};
+// 3.49.0: the Ashfall Caldera's master (was the Onyx Club's owner). The mountain walks: it sprays the
+// floor with a fan of molten slugs, charges like a thing that has never stopped, calls the burning dead
+// up from the cracks, and when it is hurt it calls FIRESTORM - the whole caldera pours in.
+bossDefs.kingpin = {
+  id: "kingpin",
+  name: "THE ASH TYRANT",
+  title: "Master of the Ashfall Caldera",
+  hp: 1500,
+  r: 2,
+  speed: 2.2,
+  dmg: 22,
+  shards: 60,
+  color: 0xff8c2e,
+};
+// 3.56.0: THE GLASSWYRM, the Glass Flats' own boss. A wyrm of living fused glass that swims the sand
+// beneath the sheets: where it surfaces the glass re-fuses and bursts, it bends the noon through its
+// body into a burning lance, and the heat throws mirages of it. The hull takes the Crucible's slot
+// (the sixth place's boss), so the balance bench's numbers carry over.
+bossDefs.wyrm = {
+  id: "wyrm",
+  name: "THE GLASSWYRM",
+  title: "The Glass Below",
+  hp: 3700,
+  r: 2.1,
+  speed: 2.6,
+  dmg: 24,
+  shards: 125,
+  // the hot fused edge of the Flats' glass
+  color: 0xffc24d,
+};
+// 3.53.0: the flats carried the Crucible for a season; 3.56.0: the Glasswyrm takes its own place
+const bossByBiome = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin", flats: "wyrm" };
+// hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
+const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
+const bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" }; // before 2.4.6; kept for old tests
+const bossOrder = ["warden", "queen", "prism", "forge", "kingpin", "core", "wyrm"];
+/* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
+Object.assign(enemyDefs, {
+  charger: {
+    id: "charger",
+    name: "Charger",
+    hp: 50,
+    speed: 4.5,
+    r: 0.62,
+    dmg: 22,
+    cost: 4,
+    shards: 5,
+    from: 14,
+    color: 16698368,
+  },
+  minebot: {
+    id: "minebot",
+    name: "Minebot",
+    hp: 62,
+    speed: 2.05,
+    r: 0.7,
+    dmg: 17,
+    cost: 5,
+    shards: 7,
+    from: 16,
+    color: 11646976,
+  },
+});
+enemyOrder.push("charger", "minebot");
+Object.assign(spawnWeights, { charger: 1.45, minebot: 0.8 });
+Object.assign(heavyEnemies, { charger: 2, minebot: 3 });
+
+/* RIFTLINE 2.1 dynamic expansion: new content uses the existing data contracts. */
+Object.assign(enemyDefs, {
+  sapper: {
+    id: "sapper",
+    name: "Sapper",
+    hp: 54,
+    speed: 2.8,
+    r: 0.62,
+    dmg: 18,
+    cost: 5,
+    shards: 6,
+    from: 18,
+    color: 16734720,
+  },
+  phantom: {
+    id: "phantom",
+    name: "Phantom",
+    hp: 38,
+    speed: 4,
+    r: 0.56,
+    dmg: 19,
+    cost: 5,
+    shards: 6,
+    from: 20,
+    color: 10973306,
+  },
+  sentinel: {
+    id: "sentinel",
+    name: "Sentinel",
+    hp: 68,
+    speed: 1.2,
+    r: 0.78,
+    dmg: 18,
+    cost: 6,
+    shards: 8,
+    from: 21,
+    // 2.3.2: distinct silhouettes need distinct colours (the Sentinel shared the Bomber's yellow)
+    color: 0xe8e8ff,
+  },
+  carrier: {
+    id: "carrier",
+    name: "Carrier",
+    hp: 72,
+    speed: 2.2,
+    r: 0.82,
+    dmg: 16,
+    cost: 6,
+    shards: 9,
+    from: 22,
+    color: 37119,
+  },
+});
+enemyOrder.push("sapper", "phantom", "sentinel", "carrier");
+Object.assign(spawnWeights, { sapper: 1.05, phantom: 0.9, sentinel: 0.72, carrier: 0.66 });
+Object.assign(heavyEnemies, { sapper: 1, phantom: 1, sentinel: 1, carrier: 1 });
+
+/* RIFTLINE 2.2 content pack: more build diversity, enemy roles, biomes and set-piece waves. */
+Object.assign(enemyDefs, {
+  drone: {
+    id: "drone",
+    name: "Needler Drone",
+    hp: 34,
+    speed: 3.0,
+    r: 0.48,
+    dmg: 12,
+    cost: 3,
+    shards: 3,
+    from: 18,
+    color: 6809343,
+  },
+  driller: {
+    id: "driller",
+    name: "Driller",
+    hp: 90,
+    speed: 2.3,
+    r: 0.78,
+    dmg: 26,
+    cost: 6,
+    shards: 8,
+    from: 24,
+    color: 16728644,
+  },
+  beacon: {
+    id: "beacon",
+    name: "Repair Beacon",
+    hp: 75,
+    speed: 1.5,
+    r: 0.72,
+    dmg: 8,
+    cost: 7,
+    shards: 10,
+    from: 26,
+    // 2.3.2: the Repair Beacon shared the Mender's green
+    color: 0x00ffa2,
+  },
+  weaver: {
+    id: "weaver",
+    name: "Rift Weaver",
+    hp: 48,
+    speed: 3.7,
+    r: 0.58,
+    dmg: 17,
+    cost: 5,
+    shards: 7,
+    from: 28,
+    color: 12617185,
+  },
+});
+enemyOrder.push("drone", "driller", "beacon", "weaver");
+Object.assign(spawnWeights, { drone: 0.95, driller: 0.62, beacon: 0.5, weaver: 0.72 });
+Object.assign(heavyEnemies, { drone: 1, driller: 2, beacon: 3, weaver: 1 });
+
+export {
+  enemyDefs,
+  bossOrder,
+  RL_ENEMY_TIPS,
+  eliteAffixes,
+  biomeVariants,
+  bossDefs,
+  enemyOrder,
+  bossByWave,
+  bossByBiome,
+  BOSS_SLOT_HP,
+  spawnWeights,
+  heavyEnemies,
+};

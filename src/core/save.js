@@ -1,0 +1,777 @@
+// Save store (localStorage key riftline.save.v1): defaults, loading and sanitizing, migrations,
+// settings, run history and backups. It loads without the DOM and main.js (tests/save-node.mjs runs it in Node).
+
+import { hookLog as logError } from "./run-hooks.js";
+import { own, GAME_VERSION } from "./util.js";
+import { bossOrder } from "../data/enemies.js";
+import { weaponDefs } from "../data/weapons.js";
+import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rlRetired } from "../data/progression.js";
+import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
+import { BOSS_CARD_CHANCE } from "./boss-cards.js";
+import { DAILY_KEY } from "./daily.js";
+import { cleanPacts } from "../data/pacts.js";
+import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
+
+/* Save loading must never brick the game (2.2.2 crashed on every start once a
+ save existed). Retry without the unfinished run; null when nothing could be used (3.32.0: the caller backs the
+ raw save up and decides what to do: start a fresh profile, or keep this tab's progress). */
+function rlLoadSave(raw) {
+  try {
+    return cleanSave(raw);
+  } catch (err) {
+    logError("load", err);
+  }
+  try {
+    const data = cleanSave({ ...raw, run: null });
+    logError("load", "unfinished run discarded: it could not be restored");
+    return data;
+  } catch (err) {
+    logError("load", err);
+  }
+  return null;
+}
+/* 2.3.2: a save that cannot be used at all (broken JSON, oversized, not an
+ object) is copied to a backup key before the fresh profile's first autosave
+ overwrites it — progress can then still be recovered by hand. */
+function rlBackupSave(text) {
+  try {
+    // 2.8.1: keep only the three newest backups, so they cannot fill the storage quota
+    const prefix = "riftline.save.v1.backup-",
+      old = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) old.push(key);
+    }
+    old.sort((a, b) => Number(a.slice(prefix.length)) - Number(b.slice(prefix.length)));
+    for (const key of old.slice(0, Math.max(0, old.length - 2))) localStorage.removeItem(key);
+    localStorage.setItem(prefix + Date.now(), String(text));
+    return true;
+  } catch (err) {
+    logError("backup", err);
+    return false;
+  }
+}
+/* 2.3.2: numeric settings get the range of their control (volume 0–1, zoom
+ snaps to Near/Normal/Far) instead of a blanket 0–2 clamp. */
+const RL_ZOOM_STEPS = [0.85, 1, 1.18],
+  // the opacity of the buttons and the stick size have the range of their sliders (data/hud.js)
+  RL_SETTING_RANGE = {
+    sfx: [0, 1],
+    music: [0, 1],
+    ambience: [0, 1],
+    hudAlpha: HUD_LIMITS.alpha,
+    stickSize: HUD_LIMITS.stick,
+  };
+function rlSettingNum(key, value, def) {
+  const [lo, hi] = RL_SETTING_RANGE[key] || [0, 2],
+    num = cleanNumber(value, def, lo, hi);
+  return key === "zoom"
+    ? RL_ZOOM_STEPS.reduce((best, step) => (Math.abs(step - num) < Math.abs(best - num) ? step : best))
+    : num;
+}
+
+/* ---- run history: the last 12 runs, shown under Records ---- */
+function rlSanitizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+  // 2.5.0 A: a retired upgrade in a build is shown as the upgrade that took it over.
+  history = history.map((entry) =>
+    entry && typeof entry === "object" && Array.isArray(entry.build) && entry.build.some((id) => rlRetiredUpgrade(id))
+      ? { ...entry, build: [...new Set(entry.build.map((id) => rlRetiredUpgrade(id)?.to || id))] }
+      : entry,
+  );
+  const out = [],
+    ni2 = (value, lo, hi, def = 0) =>
+      typeof value === "number" && Number.isFinite(value) ? Math.min(hi, Math.max(lo, value)) : def;
+  for (const entry of history.slice(0, 12)) {
+    // 2.4.0: runs with a retired weapon stay in the list (shown with the weapon's old name)
+    if (!entry || typeof entry !== "object" || !(own(weaponDefs, entry.weapon) || rlRetired(entry.weapon))) continue;
+    out.push({
+      t: ni2(entry.t, 0, 9e15),
+      weapon: entry.weapon,
+      threat: Math.floor(ni2(entry.threat, 0, 5)),
+      wave: Math.floor(ni2(entry.wave, 1, 999, 1)),
+      outcome: ["win", "dead", "quit"].includes(entry.outcome) ? entry.outcome : "dead",
+      endless: !!entry.endless,
+      time: Math.round(ni2(entry.time, 0, 1e7)),
+      kills: Math.floor(ni2(entry.kills, 0, 1e9)),
+      shards: Math.floor(ni2(entry.shards, 0, 1e9)),
+      killer: typeof entry.killer === "string" && /^[a-z]{1,18}$/.test(entry.killer) ? entry.killer : "",
+      build: Array.isArray(entry.build) ? entry.build.filter((id) => own(upgradesById, id)).slice(0, 6) : [],
+    });
+  }
+  return out;
+}
+function rlRecordRun(store, world, pre, win, abandoned) {
+  const data = store.data,
+    up = Object.entries(world.up || {})
+      .filter(([id]) => own(upgradesById, id) && !upgradesById[id].repeat)
+      .sort((a, b) => upgradesById[b[0]].rarity - upgradesById[a[0]].rarity || b[1] - a[1]);
+  const entry = {
+    t: Date.now(),
+    weapon: world.weapon,
+    threat: world.threat,
+    wave: win && !world.endless ? 20 : world.wave,
+    outcome: win ? "win" : abandoned ? "quit" : "dead",
+    endless: !!world.endless,
+    time: Math.round(world.time),
+    kills: world.kills,
+    shards: Math.max(0, data.shards - pre.bank),
+    killer: (!win && !abandoned && world.lastHit) || "",
+    build: up.slice(0, 6).map(([id]) => id),
+  };
+  data.history = rlSanitizeHistory([entry, ...(data.history || [])]);
+  store.save("history");
+}
+// What the last load converted (shown once as a toast after start-up).
+let RL_RETIRE_NOTE = null;
+// assigned from other modules (an imported binding cannot be assigned)
+function set_RL_RETIRE_NOTE(note) {
+  return (RL_RETIRE_NOTE = note);
+}
+/* Runs on the raw save before it is sanitised (cleanSave), so it covers loading and importing. Returns
+ the input untouched when there is nothing to convert; never mutates it (rlLoadSave may still
+ back up the raw object). Running it again on its own output changes nothing. */
+function rlMigrateRetired(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const obj = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : null),
+    own = obj(raw.weapons),
+    run = obj(raw.run),
+    owned = own ? Object.keys(RL_RETIRED_WEAPONS).filter((id) => own[id] === true) : [],
+    sel = rlRetired(raw.weapon),
+    runW = run && rlRetired(run.weapon);
+  if (!owned.length && !sel && !runW) return raw;
+  const out = { ...raw },
+    weapons = { ...(own || {}) };
+  let refund = 0;
+  for (const id of owned) {
+    const retired = RL_RETIRED_WEAPONS[id];
+    delete weapons[id];
+    if (weapons[retired.to] === true) refund += retired.cost;
+    else {
+      weapons[retired.to] = true;
+      refund += Math.max(0, retired.cost - weaponDefs[retired.to].cost);
+    }
+  }
+  out.weapons = weapons;
+  if (sel) out.weapon = sel.to;
+  if (runW) out.run = { ...run, weapon: runW.to };
+  if (refund > 0) out.shards = (Number.isFinite(raw.shards) ? Math.max(0, raw.shards) : 0) + refund;
+  RL_RETIRE_NOTE = { refund, names: owned.map((id) => RL_RETIRED_WEAPONS[id].name) };
+  return out;
+}
+const SAVE_KEY = "riftline.save.v1",
+  defaultSettings = {
+    sfx: 0.8,
+    music: 0.45,
+    // 3.9.0: the sounds of the place (atmospheres, hazards, far sounds of the biome)
+    ambience: 0.8,
+    autoFire: true,
+    assist: true,
+    // 3.23.0: the rumble of a controller and the vibration of a phone on hits, dashes and the end of a run
+    vibration: true,
+    shake: true,
+    numbers: true,
+    quality: "auto",
+    zoom: 1,
+    contrast: false,
+    // 3.8.0: the left-handed (swap) and reduce-flashes (calm) settings are gone; a save that has them drops them on load
+    // 2.4.2: optional HUD readouts
+    timer: false,
+    fps: false,
+    // the button layout (ui/hud-layout.js): opacity of the buttons, stick size, a fixed move stick, and the places
+    // and sizes of the buttons per orientation (null: the default layout)
+    hudAlpha: 1,
+    stickSize: 1,
+    stickFixed: false,
+    hudLayout: null,
+  };
+/* a button layout from a save: { portrait, landscape }, each null or every control (HUD_CONTROL_IDS) with x and y
+   (0..1 of the safe area) and s (its size, HUD_LIMITS.size), and the fixed move stick (x, y); a layout that misses a
+   control falls back to the default layout */
+function cleanHudLayout(raw) {
+  raw = asObject(raw);
+  const point = (value) => {
+      value = asObject(value);
+      return Number.isFinite(value.x) && Number.isFinite(value.y)
+        ? { x: Math.min(1, Math.max(0, value.x)), y: Math.min(1, Math.max(0, value.y)) }
+        : null;
+    },
+    side = (value) => {
+      value = asObject(value);
+      const out = {};
+      for (const id of HUD_CONTROL_IDS) {
+        const at = point(value[id]);
+        if (!at) return null;
+        out[id] = { ...at, s: cleanNumber(asObject(value[id]).s, 1, ...HUD_LIMITS.size) };
+      }
+      const stick = point(value.stick);
+      if (stick) out.stick = stick;
+      return out;
+    },
+    out = { portrait: side(raw.portrait), landscape: side(raw.landscape) };
+  return out.portrait || out.landscape ? out : null;
+}
+function newSave() {
+  return {
+    v: 1,
+    game: "riftline",
+    // 3.32.0: the build that wrote the save (see keptOf)
+    ver: GAME_VERSION,
+    created: Date.now(),
+    savedAt: 0,
+    shards: 0,
+    weapon: "pulse",
+    weapons: { pulse: true },
+    threat: 0,
+    threatMax: 0,
+    workshop: {},
+    milestones: {},
+    stats: {
+      runs: 0,
+      kills: 0,
+      bestWave: 0,
+      clears: 0,
+      deaths: 0,
+      bosses: {},
+      // 3.24.0: the best medal per boss: { medal: 1-3, secs: its time, damage: what it cost }
+      medals: {},
+      // 3.26.0: the Daily Rift: the last day played, its best wave and kills, the streak of days, the days played, the best wave ever
+      daily: { key: "", wave: 0, kills: 0, streak: 0, days: 0, bestWave: 0 },
+      clearsBy: {},
+      bestBy: {},
+      legendaries: 0,
+      flawless: 0,
+      bestClearThreat: -1,
+      shardsEarned: 0,
+      playTime: 0,
+      bestTime: 0,
+      evolved: 0,
+      bestCombo: 0,
+    },
+    // 3.27.0: the pacts signed for the next run (ids, at most two)
+    pacts: [],
+    settings: { ...defaultSettings },
+    run: null,
+    history: [],
+    seen: {},
+  };
+}
+const cleanNumber = (value, fallback, min = -1 / 0, max = 1 / 0) =>
+    typeof value == "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback,
+  cleanBool = (value, fallback) => (typeof value == "boolean" ? value : fallback),
+  asObject = (value) => (value && typeof value == "object" && !Array.isArray(value) ? value : {});
+function cleanRun(raw) {
+  raw = rlMigrateUpgrades(raw); // 2.5.0 A: retired upgrades of a saved run
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    raw.v !== 1 ||
+    !own(weaponDefs, raw.weapon) ||
+    !Number.isFinite(raw.wave) ||
+    raw.wave < 1 ||
+    raw.wave > 999 ||
+    !Number.isFinite(raw.hp) ||
+    raw.hp <= 0
+  )
+    return null;
+  const run = {
+    v: 1,
+    seed: Number.isFinite(raw.seed) ? raw.seed >>> 0 : 0,
+    weapon: raw.weapon,
+    threat: Math.floor(cleanNumber(raw.threat, 0, 0, 5)),
+    wave: Math.floor(cleanNumber(raw.wave, 1, 1, 999)),
+    endless: !!raw.endless,
+    up: {},
+    hp: Math.max(1, Math.round(cleanNumber(raw.hp, 1, 1, 1e6))),
+    shards: Math.floor(cleanNumber(raw.shards, 0, 0, 1e9)),
+    // 3.34.0: the part of a shard owed by the kills so far
+    shardFrac: cleanNumber(raw.shardFrac, 0, 0, 0.999999),
+    kills: Math.floor(cleanNumber(raw.kills, 0, 0, 1e9)),
+    time: cleanNumber(raw.time, 0, 0, 1e8),
+    rerolls: Math.floor(cleanNumber(raw.rerolls, 0, 0, 99)),
+    // 3.25.0: Banish Protocol: the upgrades banished in this run and the banishes left
+    banished: [],
+    banishes: Math.floor(cleanNumber(raw.banishes, 0, 0, 9)),
+    // 3.26.0: the day of a Daily Rift run (empty for a normal run)
+    daily: typeof raw.daily === "string" && DAILY_KEY.test(raw.daily) ? raw.daily : "",
+    // 3.27.0: the pacts of the run
+    pacts: cleanPacts(raw.pacts),
+    revived: !!raw.revived,
+    nova: Math.floor(cleanNumber(raw.nova, 0, 0, 100)),
+    bossKills: [],
+    flawless: Math.floor(cleanNumber(raw.flawless, 0, 0, 1e6)),
+    legendaries: Math.floor(cleanNumber(raw.legendaries, 0, 0, 1e6)),
+    dmgDealt: Math.floor(cleanNumber(raw.dmgDealt, 0, 0, 1e12)),
+    bestCombo: Math.floor(cleanNumber(raw.bestCombo, 0, 0, 1e6)),
+    evolved: Math.floor(cleanNumber(raw.evolved, 0, 0, 1e6)),
+    // 3.15.0: the chance of the next boss card
+    bossLuck: cleanNumber(raw.bossLuck, BOSS_CARD_CHANCE, 0, 1),
+    runStats: { dmgTaken: 0, dashes: 0, critHits: 0 },
+    dmgSrc: {},
+    // 3.46.0: the death recap survives a resume (the last twelve hits and the totals by source)
+    hitLog: [],
+    takenBy: {},
+  };
+  for (const id of Array.isArray(raw.banished) ? raw.banished : [])
+    if (own(upgradesById, id) && !run.banished.includes(id) && run.banished.length < 6) run.banished.push(id);
+  const rawUp = asObject(raw.up);
+  for (const upgrade of upgradeList) {
+    const level = Math.floor(cleanNumber(rawUp[upgrade.id], 0, 0, upgrade.max));
+    if (level) run.up[upgrade.id] = level;
+  }
+  const rawBoss = Array.isArray(raw.bossKills) ? raw.bossKills : [];
+  run.bossKills = [...new Set(rawBoss.filter((id) => typeof id === "string" && bossOrder.includes(id)))];
+  const rawStats = asObject(raw.runStats);
+  run.runStats.dmgTaken = Math.floor(cleanNumber(rawStats.dmgTaken, 0, 0, 1e12));
+  run.runStats.dashes = Math.floor(cleanNumber(rawStats.dashes, 0, 0, 1e7));
+  run.runStats.critHits = Math.floor(cleanNumber(rawStats.critHits, 0, 0, 1e9));
+  const src = asObject(raw.dmgSrc);
+  for (const key in src)
+    if (/^[A-Za-z0-9_-]{1,18}$/.test(key)) run.dmgSrc[key] = Math.floor(cleanNumber(src[key], 0, 0, 1e12));
+  // 3.46.0: the recap ("?" is the source of a hit that came with none)
+  const taken = asObject(raw.takenBy);
+  for (const key in taken)
+    if (/^[A-Za-z0-9_?-]{1,18}$/.test(key)) run.takenBy[key] = cleanNumber(taken[key], 0, 0, 1e12);
+  if (Array.isArray(raw.hitLog))
+    for (const h of raw.hitLog) {
+      if (run.hitLog.length >= 12) break;
+      if (!h || typeof h !== "object" || typeof h.src !== "string" || !/^[A-Za-z0-9_?]{1,18}$/.test(h.src)) continue;
+      run.hitLog.push({
+        t: cleanNumber(h.t, 0, 0, 1e8),
+        wave: Math.floor(cleanNumber(h.wave, 1, 1, 1e4)),
+        src: h.src,
+        dmg: cleanNumber(h.dmg, 0, 0, 1e9),
+        chip: !!h.chip,
+        n: Math.max(1, Math.floor(cleanNumber(h.n, 1, 1, 1e6))),
+      });
+    }
+  if (Array.isArray(raw.offer)) {
+    // 3.15.0: a boss card belongs only in a boss offer
+    const offer = [
+      ...new Set(raw.offer.filter((id) => own(upgradesById, id) && (!upgradesById[id].boss || raw.offerBoss))),
+    ].slice(0, 4);
+    if (offer.length) {
+      run.offer = offer;
+      run.offerBoss = !!raw.offerBoss;
+    }
+  }
+  return run;
+}
+function cleanSave(input) {
+  // 2.5.0 B: refund merged workshop modules, then 2.4.0: convert retired weapons (both on the raw save)
+  input = rlMigrateRetired(rlMigrateModules(input));
+  let fresh = newSave(),
+    raw = asObject(input),
+    save = fresh;
+  save.created = cleanNumber(raw.created, fresh.created);
+  save.savedAt = cleanNumber(raw.savedAt, 0);
+  save.shards = Math.floor(cleanNumber(raw.shards, 0, 0, 1e9));
+  for (let id in weaponDefs) {
+    if (asObject(raw.weapons)[id] === true) {
+      save.weapons[id] = true;
+    }
+  }
+  save.weapons.pulse = true;
+  save.weapon = own(weaponDefs, raw.weapon) && save.weapons[raw.weapon] ? raw.weapon : "pulse";
+  save.threatMax = Math.floor(cleanNumber(raw.threatMax, 0, 0, 5));
+  save.threat = Math.floor(cleanNumber(raw.threat, 0, 0, save.threatMax));
+  for (let mod of workshopModules) {
+    let level = Math.floor(cleanNumber(asObject(raw.workshop)[mod.id], 0, 0, mod.costs.length));
+    if (level) {
+      save.workshop[mod.id] = level;
+    }
+  }
+  for (let milestone of milestones) {
+    if (asObject(raw.milestones)[milestone.id] === true) {
+      save.milestones[milestone.id] = true;
+    }
+  }
+  let rawStats = asObject(raw.stats),
+    stats = fresh.stats;
+  for (let key of [
+    "runs",
+    "kills",
+    "bestWave",
+    "clears",
+    "deaths",
+    "legendaries",
+    "flawless",
+    "shardsEarned",
+    "playTime",
+    "bestTime",
+    "evolved",
+    "bestCombo",
+  ])
+    stats[key] = cleanNumber(rawStats[key], 0, 0, 1e12);
+  stats.bestClearThreat = Math.floor(cleanNumber(rawStats.bestClearThreat, -1, -1, 5));
+  for (let key of ["bosses", "clearsBy", "bestBy"]) {
+    let rawMap = asObject(rawStats[key]);
+    for (let id in rawMap) {
+      if (/^[a-z]{2,12}$/.test(id)) {
+        stats[key][id] = cleanNumber(rawMap[id], 0, 0, 1e9);
+      }
+    }
+  }
+  // 3.24.0: the best medal of every boss
+  {
+    const rawMedals = asObject(rawStats.medals);
+    for (const id in rawMedals) {
+      if (!/^[a-z]{2,12}$/.test(id)) continue;
+      const m = asObject(rawMedals[id]),
+        medal = Math.floor(cleanNumber(m.medal, 0, 0, 3));
+      if (medal >= 1)
+        stats.medals[id] = { medal, secs: cleanNumber(m.secs, 0, 0, 1e5), damage: cleanNumber(m.damage, 0, 0, 1e9) };
+    }
+  }
+  // 3.26.0: the Daily Rift record
+  {
+    const d = asObject(rawStats.daily);
+    stats.daily = {
+      key: typeof d.key === "string" && DAILY_KEY.test(d.key) ? d.key : "",
+      wave: Math.floor(cleanNumber(d.wave, 0, 0, 999)),
+      kills: Math.floor(cleanNumber(d.kills, 0, 0, 1e9)),
+      streak: Math.floor(cleanNumber(d.streak, 0, 0, 9999)),
+      days: Math.floor(cleanNumber(d.days, 0, 0, 9999)),
+      bestWave: Math.floor(cleanNumber(d.bestWave, 0, 0, 999)),
+    };
+    if (!stats.daily.key) Object.assign(stats.daily, { wave: 0, kills: 0, streak: 0 });
+  }
+  // 2.8.1: per-weapon records of retired weapons count for the weapon that took them over (clears are
+  // added, the best wave is the higher one), so "clear with every weapon" sees an old Ion Repeater clear
+  for (const id in RL_RETIRED_WEAPONS) {
+    const to = RL_RETIRED_WEAPONS[id].to;
+    if (id in stats.clearsBy) {
+      stats.clearsBy[to] = (stats.clearsBy[to] || 0) + stats.clearsBy[id];
+      delete stats.clearsBy[id];
+    }
+    if (id in stats.bestBy) {
+      stats.bestBy[to] = Math.max(stats.bestBy[to] || 0, stats.bestBy[id]);
+      delete stats.bestBy[id];
+    }
+  }
+  let rawSettings = asObject(raw.settings);
+  for (let key in defaultSettings) {
+    let def = defaultSettings[key];
+    if (key === "hudLayout") {
+      save.settings.hudLayout = cleanHudLayout(rawSettings.hudLayout);
+    } else if (typeof def == "boolean") {
+      save.settings[key] = cleanBool(rawSettings[key], def);
+    } else {
+      if (typeof def == "number") {
+        save.settings[key] = rlSettingNum(key, rawSettings[key], def);
+      } else {
+        // 3.28.2: the Ultra setting is gone (it was hot and slow and looked no better); a save that has it plays on High
+        save.settings[key] = ["auto", "high", "battery"].includes(rawSettings[key])
+          ? rawSettings[key]
+          : rawSettings[key] === "ultra"
+            ? "high"
+            : def;
+      }
+    }
+  }
+  save.pacts = cleanPacts(raw.pacts);
+  save.run = cleanRun(raw.run);
+  save.history = rlSanitizeHistory(raw.history);
+  let rawSeen = asObject(raw.seen);
+  for (let id in rawSeen) {
+    if (rawSeen[id] === true) {
+      save.seen[id] = true;
+    }
+  }
+  return save;
+}
+/* 3.32.0: a save written by a newer build (an installed app on one version, a tab already on the next) keeps what this
+   build does not know. cleanSave drops every unknown weapon, module, milestone, stat, setting and field, and the next
+   autosave used to write that loss back, so the newer build lost them for good. keptOf collects them from the raw save
+   (only when its `ver` is newer than this build: what an older build left behind is still cleaned away) and withKept
+   puts them back into every save this build writes. A run this build cannot play is kept as it is until this build
+   starts a run of its own. */
+const KEPT_PARTS = ["weapons", "workshop", "milestones", "stats", "settings"],
+  KEPT_KEY = /^[A-Za-z0-9_-]{1,40}$/;
+function newerVersion(ver) {
+  if (typeof ver !== "string") return false;
+  const a = ver.split(".").map(Number),
+    b = String(GAME_VERSION).split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (!Number.isFinite(a[i]) || !Number.isFinite(b[i])) return false;
+    if (a[i] !== b[i]) return a[i] > b[i];
+  }
+  return false;
+}
+function keptOf(raw) {
+  raw = asObject(raw);
+  if (!newerVersion(raw.ver)) return null;
+  const known = newSave(),
+    kept = { ver: raw.ver },
+    extra = (from, isKnown) => {
+      const out = {};
+      for (const key of Object.keys(asObject(from))) if (KEPT_KEY.test(key) && !isKnown(key)) out[key] = from[key];
+      return Object.keys(out).length ? out : null;
+    },
+    knownIn = {
+      weapons: (id) => own(weaponDefs, id) || own(RL_RETIRED_WEAPONS, id),
+      workshop: (id) => workshopModules.some((mod) => mod.id === id) || own(RL_RETIRED_MODULES, id),
+      milestones: (id) => milestones.some((m) => m.id === id),
+      stats: (key) => own(known.stats, key),
+      settings: (key) => own(defaultSettings, key),
+    };
+  kept.top = extra(raw, (key) => own(known, key));
+  for (const part of KEPT_PARTS) kept[part] = extra(raw[part], knownIn[part]);
+  let playable = null;
+  try {
+    playable = cleanRun(raw.run);
+  } catch {}
+  if (raw.run && typeof raw.run === "object" && !playable) kept.run = raw.run;
+  return kept;
+}
+function withKept(data, kept) {
+  if (!kept) return data;
+  const out = { ...kept.top, ...data, ver: kept.ver };
+  for (const part of KEPT_PARTS) if (kept[part]) out[part] = { ...kept[part], ...data[part] };
+  if (kept.run && data.run === null) out.run = kept.run;
+  return out;
+}
+const safeStorage = {
+    ok: null,
+    get(key) {
+      try {
+        return globalThis.localStorage ? localStorage.getItem(key) : null;
+      } catch {
+        this.ok = false;
+        return null;
+      }
+    },
+    set(key, value) {
+      try {
+        localStorage.setItem(key, value);
+        this.ok = true;
+        return true;
+      } catch (err) {
+        if (this.ok !== false) {
+          logError("storage", err);
+        }
+        this.ok = false;
+        return false;
+      }
+    },
+    del(key) {
+      try {
+        localStorage.removeItem(key);
+      } catch {}
+    },
+  },
+  SaveStore = class {
+    constructor() {
+      this.listeners = new Set();
+      let data = null,
+        text = safeStorage.get(SAVE_KEY);
+      if (text && text.length <= 262144)
+        try {
+          data = JSON.parse(text);
+        } catch (err) {
+          logError("load", err);
+        }
+      // 3.32.0: a save that cannot be used is backed up; when even the backup fails (full storage), `held` stops this
+      // tab from writing over it (the menu warns) until the player makes room and reloads
+      let loaded = data && typeof data == "object" ? rlLoadSave(data) : null;
+      if (text && !loaded) this.held = !rlBackupSave(text);
+      this.data = loaded || newSave();
+      this.kept = loaded ? keptOf(data) : null;
+      this.persistent = safeStorage.get(SAVE_KEY) !== null || safeStorage.set("riftline.probe", "1");
+      safeStorage.del("riftline.probe");
+      // 3.35.0: the sound notes are gone; their list is not left behind in the browser
+      safeStorage.del("riftline.soundNotes");
+    }
+    get storageOk() {
+      return safeStorage.ok !== false && !this.held;
+    }
+    /* the save as it is written (with what a newer build stored, see keptOf); `indent` for the export */
+    text(indent) {
+      return JSON.stringify(withKept(this.data, this.kept), null, indent);
+    }
+    onChange(listener) {
+      this.listeners.add(listener);
+    }
+    // 2.8.1: another tab or window wrote the save. `foreign` is set while this tab is in a run; the next
+    // save first takes over the other tab's progress and keeps only this tab's run, settings and seen flags,
+    // so neither tab rolls back the other.
+    syncForeign(keepMine = true) {
+      if (!this.foreign) return false;
+      this.foreign = false;
+      let data = null;
+      try {
+        data = JSON.parse(safeStorage.get(SAVE_KEY) || "null");
+      } catch {}
+      if (!data || typeof data != "object") return false;
+      // 3.32.0: a save of another tab that cannot be used no longer replaces this tab's progress with a fresh profile
+      const mine = this.data,
+        fresh = rlLoadSave(data);
+      if (!fresh || typeof fresh != "object") return false;
+      this.kept = keptOf(data);
+      if (keepMine) {
+        fresh.run = mine.run;
+        fresh.settings = mine.settings;
+        fresh.seen = { ...fresh.seen, ...mine.seen };
+      }
+      this.data = fresh;
+      return true;
+    }
+    save(reason) {
+      // 3.31.1: an import or a reset replaces the whole save on purpose; another tab's save that came in meanwhile
+      // (a storage event while the dialog was open) used to take its place here
+      if (reason === "import" || reason === "reset") this.foreign = false;
+      else this.syncForeign();
+      if (reason === "reset") this.kept = null;
+      // a run of this build replaces the run of a newer build for good
+      if (this.kept && this.data.run !== null) this.kept.run = null;
+      this.data.savedAt = Date.now();
+      let text = this.text();
+      if (!this.held) safeStorage.set(SAVE_KEY, text);
+      for (let listener of this.listeners)
+        try {
+          listener(text, reason);
+        } catch (err) {
+          logError("save-listener", err);
+        }
+    }
+    parse(text) {
+      let data,
+        str = String(text ?? "").trim();
+      if (!str || str.length > 262144) return { ok: false };
+      try {
+        data = JSON.parse(str);
+      } catch {
+        return { ok: false };
+      }
+      return !data || data.game !== "riftline" || data.v !== 1
+        ? { ok: false }
+        : { ok: true, data: cleanSave(data), kept: keptOf(data) };
+    }
+    reset() {
+      let settings = this.data.settings;
+      this.data = newSave();
+      this.data.settings = settings;
+      this.save("reset");
+    }
+    /* 3.48.0: the stock settings come back (audio, video, controls and the HUD layout); the progress,
+       the run and the seen flags are not touched. The next load sanitizes the object as usual. */
+    resetSettings() {
+      this.data.settings = { ...defaultSettings };
+      this.save("settings");
+    }
+  };
+
+// 2.5.0 A: a run saved with retired upgrades (RL_RETIRED_UPGRADES in data/upgrades.js) keeps their
+// value: the levels become levels of the upgrade that took them over (rounded up, capped at its
+// max), and a retired id in a pending offer becomes that upgrade, or another one of its rarity
+// when it is already offered or maxed. Returns the input untouched when there is nothing to
+// convert; never mutates it.
+function rlMigrateUpgrades(run) {
+  if (!run || typeof run !== "object" || Array.isArray(run)) return run;
+  const up = run.up && typeof run.up === "object" && !Array.isArray(run.up) ? run.up : {},
+    offer = Array.isArray(run.offer) ? run.offer : [],
+    oldUp = Object.keys(up).filter((id) => rlRetiredUpgrade(id)),
+    oldOffer = offer.filter((id) => typeof id === "string" && rlRetiredUpgrade(id));
+  if (!oldUp.length && !oldOffer.length) return run;
+  const out = { ...run },
+    next = { ...up },
+    add = {};
+  for (const id of oldUp) {
+    const retired = rlRetiredUpgrade(id),
+      lv = Number.isFinite(up[id]) ? Math.max(0, Math.floor(up[id])) : 0;
+    delete next[id];
+    if (lv) add[retired.to] = (add[retired.to] || 0) + lv * retired.k;
+  }
+  for (const [id, level] of Object.entries(add)) {
+    const cur = Number.isFinite(next[id]) ? Math.max(0, Math.floor(next[id])) : 0;
+    next[id] = Math.min(upgradesById[id].max, cur + Math.ceil(level - 1e-9));
+  }
+  if (oldUp.length) out.up = next;
+  if (oldOffer.length) {
+    const kept = offer.filter((id) => own(upgradesById, id)),
+      picked = [],
+      free = (upgrade) =>
+        upgrade &&
+        !upgrade.evo &&
+        !upgrade.repeat &&
+        (next[upgrade.id] || 0) < upgrade.max &&
+        !kept.includes(upgrade.id) &&
+        !picked.includes(upgrade.id);
+    for (const id of offer) {
+      if (!rlRetiredUpgrade(id)) {
+        if (own(upgradesById, id)) {
+          picked.push(id);
+        }
+        continue;
+      }
+      const to = upgradesById[rlRetiredUpgrade(id).to],
+        rarity = run.offerBoss ? Math.max(2, to.rarity) : to.rarity,
+        upgrade =
+          to.rarity === rarity && free(to) ? to : upgradeList.find((other) => other.rarity === rarity && free(other));
+      if (upgrade) {
+        picked.push(upgrade.id);
+      }
+    }
+    out.offer = picked;
+  }
+  return out;
+}
+export {
+  rlMigrateUpgrades,
+  defaultSettings,
+  RL_RETIRE_NOTE,
+  SaveStore,
+  SAVE_KEY,
+  rlMigrateRetired,
+  rlRecordRun,
+  rlSanitizeHistory,
+  set_RL_RETIRE_NOTE,
+  cleanRun,
+  cleanSave,
+  newSave,
+};
+
+/* ==========================================================================
+   2.5.0 B: merged workshop modules are refunded
+   ========================================================================== */
+/* Rift Battery, Reactor Core (→ Nova Cell) and Route Scanner (→ Field Supply) are gone. Every level
+ a save bought of them is paid back at its full price; the levels of the kept modules stay as they
+ are. Like rlMigrateRetired it runs on the raw save before cleanSave, never mutates its input,
+ returns it untouched when there is nothing to convert and changes nothing when run twice. A saved
+ run needs no change: it does not store workshop levels (World reads them from the save). */
+let RL_MODULE_NOTE = null;
+function set_RL_MODULE_NOTE(note) {
+  return (RL_MODULE_NOTE = note);
+}
+function rlMigrateModules(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const ws = raw.workshop && typeof raw.workshop === "object" && !Array.isArray(raw.workshop) ? raw.workshop : null;
+  if (!ws) return raw;
+  const found = Object.keys(RL_RETIRED_MODULES).filter((id) => Object.prototype.hasOwnProperty.call(ws, id));
+  if (!found.length) return raw;
+  const workshop = { ...ws },
+    names = [],
+    into = [];
+  let refund = 0;
+  for (const id of found) {
+    const retired = RL_RETIRED_MODULES[id],
+      lv = Math.floor(cleanNumber(ws[id], 0, 0, retired.costs.length)),
+      to = workshopModules.find((mod) => mod.id === retired.to)?.name || retired.to;
+    delete workshop[id];
+    if (lv > 0) {
+      names.push(retired.name);
+      if (!into.includes(to)) {
+        into.push(to);
+      }
+      refund += retired.costs.slice(0, lv).reduce((sum, cost) => sum + cost, 0);
+    }
+  }
+  const out = { ...raw, workshop };
+  if (refund > 0) {
+    out.shards = (Number.isFinite(raw.shards) ? Math.max(0, raw.shards) : 0) + refund;
+    RL_MODULE_NOTE = { refund, names, into };
+  }
+  return out;
+}
+
+export { RL_MODULE_NOTE, rlMigrateModules, set_RL_MODULE_NOTE };

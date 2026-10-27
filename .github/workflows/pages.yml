@@ -1,0 +1,60 @@
+# Tests and builds Riftline and publishes it on GitHub Pages: https://aaron40776.github.io/Riftline/
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 3.32.0: each job gets only what it needs: the build (which runs npm ci and the tests) reads the code; only the deploy
+# job may write to Pages and ask for the OIDC token
+permissions:
+  contents: read
+
+# 3.32.0: a deploy that has started finishes and the next one waits; with cancel-in-progress a second merge cancelled
+# a deploy that was already under way (GitHub's own Pages example keeps it false)
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      # The tests drive the real game in headless Chromium, so the browser is installed here.
+      - name: Install
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      # 3.37.0: the deep test's sound cache (see test.yml): npm ci wipes node_modules, so the result of the
+      # offline sound render is restored here and saved again at the end of the job.
+      - name: Restore the deep test's sound cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules/.cache/riftline
+          key: riftline-sound-${{ hashFiles('src/audio/**/*.js', 'src/data/*.js', 'tests/deep-test.mjs', 'package-lock.json') }}
+      - name: Build and test
+        run: npm test
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

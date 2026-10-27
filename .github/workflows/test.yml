@@ -1,0 +1,58 @@
+# Runs the tests on pull requests, so a change is checked before it is merged. main itself is tested by
+# pages.yml right before it deploys; the long checks run every night (nightly.yml).
+# 3.32.0: no longer also on push: a push to a branch with a pull request ran the same tests twice (the two runs had
+# different concurrency groups). A branch without a pull request can still be tested by hand (workflow_dispatch).
+name: Test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      # The tests drive the real game in headless Chromium, so the browser is installed here.
+      - name: Install
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      # 3.37.0: the deep test renders every sound offline when its inputs changed (about 200-400 s); the result
+      # is kept in node_modules/.cache/riftline and reused while no sound input changed. npm ci wipes the
+      # folder, so CI restores it here (keyed by the sound engine, the data it reads, the deep test itself and
+      # the lockfile; a stale entry is harmless — the deep test re-renders when its own hash does not match).
+      - name: Restore the deep test's sound cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules/.cache/riftline
+          key: riftline-sound-${{ hashFiles('src/audio/**/*.js', 'src/data/*.js', 'tests/deep-test.mjs', 'package-lock.json') }}
+      - name: Formatting
+        run: npm run format:check
+      # 3.45.3: the static undefined-name net. The buff-row crash shipped as a bare identifier that is
+      # legal at parse time and only threw on a real player's phone. eslint runs one rule on purpose:
+      # no-undef - a bare name that is not an import, a local or a declared build token fails the PR.
+      - name: Lint
+        run: npm run lint
+      - name: Build and test
+        run: npm test
+      # 3.32.0: npm test only boots the menu; this plays a wave on a PC (about 40 s), so a crash while a wave is drawn
+      # shows up before the merge
+      - name: Play a wave
+        run: node tools/qa.js full-qa run-desktop
+      # 3.45.1: every in-repo harness runs with navigator.webdriver = true (a test session), so the 3.43.1 monitor
+      # gate broke only real players - three frames into every run. This plays a wave with webdriver patched off,
+      # like a player's browser, where a dead frame loop flatlines the frame counter.
+      - name: Play a wave as a player
+        run: node tools/qa.js player-mode
