@@ -35,7 +35,7 @@ npm install          # node 22 or newer
 npm run build        # bundle src/ into dist/ (esbuild), substitute version + build id
 npm run dev          # rebuild on every change
 npm run serve        # serve dist/ for a quick look
-npm test             # full suite: sim, save, build, deep sound test, full-qa, data-audit, determinism
+npm test             # full suite: sim, save, build, a11y, deep sound test, full-qa, data-audit, determinism
 npm run lint         # eslint, one rule on purpose: no-undef (see "Why a linter" below)
 npm run format       # prettier
 ```
