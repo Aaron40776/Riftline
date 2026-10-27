@@ -397,9 +397,7 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("setVibTest"), () => {
         this.toast(rumble("slam", true) ? "Buzz sent" : "Nothing here to buzz with");
       });
-      bindToggle("setShake", "shake");
       bindToggle("setNumbers", "numbers");
-      bindToggle("setContrast", "contrast");
       for (let [id, key] of [
         ["setSfx", "sfx"],
         ["setMusic", "music"],
@@ -417,16 +415,12 @@ const getById = (id) => document.getElementById(id),
           this.g.settingsChanged();
         });
       }
-      for (let [id, key, numeric] of [
-        ["setQuality", "quality", false],
-        ["setZoom", "zoom", true],
-      ])
-        for (let btn of getById(id).querySelectorAll("button"))
-          this.click(btn, () => {
-            settings()[key] = numeric ? +btn.dataset.v : btn.dataset.v;
-            this.renderSettings();
-            this.g.settingsChanged();
-          });
+      for (let btn of getById("setQuality").querySelectorAll("button"))
+        this.click(btn, () => {
+          settings().quality = btn.dataset.v;
+          this.renderSettings();
+          this.g.settingsChanged();
+        });
       this.click(getById("resetBtn"), async () => {
         if (
           (await this.confirm(
@@ -854,25 +848,18 @@ const getById = (id) => document.getElementById(id),
           : hapticMode() === "tick"
             ? "iPhone: short ticks, on the iOS versions that still allow them."
             : "No vibration on this device. A connected controller still rumbles.";
-      getById("setShake").checked = settings.shake;
       getById("setNumbers").checked = settings.numbers;
-      getById("setContrast").checked = settings.contrast;
       getById("setSfx").value = settings.sfx;
       getById("setMusic").value = settings.music;
       getById("setAmb").value = settings.ambience;
       for (let btn of getById("setQuality").querySelectorAll("button"))
         btn.classList.toggle("on", btn.dataset.v === settings.quality);
-      for (let btn of getById("setZoom").querySelectorAll("button"))
-        btn.classList.toggle("on", Math.abs(+btn.dataset.v - settings.zoom) < 0.01);
       getById("qualityNote").textContent = this.g.qualityNote();
       getById("storageWarn").hidden = this.g.store.storageOk;
       getById("storageWarnText").textContent = this.g.store.held
         ? "the old save is kept unread (storage full): progress is not saved"
         : "storage is blocked in this browser";
       getById("verText").textContent = `v${GAME_VERSION}`;
-      // 2.4.2: run timer and FPS counter
-      getById("setTimer").checked = !!settings.timer;
-      getById("setFps").checked = !!settings.fps;
       const ownLayout =
         !!settings.hudLayout || settings.stickFixed || settings.stickSize !== 1 || settings.hudAlpha !== 1;
       getById("hudLayoutNote").textContent = ownLayout
@@ -1198,35 +1185,6 @@ const getById = (id) => document.getElementById(id),
         btn.querySelector(".ring").hidden = pct >= 100;
         btn.style.setProperty("--q", pct + "%");
       });
-      // 2.4.2: run timer and FPS counter
-      const settings = store.data.settings,
-        now = performance.now(),
-        meter = hudFpsMeter;
-      // a gap (pause, upgrade choice, hidden tab) starts a new measurement
-      if (now - meter.last > 1e3) {
-        meter.since = now;
-        meter.frames = 0;
-      }
-      meter.last = now;
-      meter.frames++;
-      if (now - meter.since >= 500) {
-        meter.fps = meter.since ? Math.round((meter.frames * 1e3) / (now - meter.since)) : 0;
-        meter.frames = 0;
-        meter.since = now;
-      }
-      const parts = [];
-      if (settings.timer) {
-        parts.push(formatTime(world.time));
-      }
-      if (settings.fps && meter.fps) {
-        parts.push(meter.fps + " FPS");
-      }
-      const txt = parts.join(" \xB7 ");
-      if (txt !== meter.shown) {
-        meter.shown = txt;
-        getById("hudInfo").textContent = txt;
-        getById("hudInfo").hidden = !txt;
-      }
     }
     buffs(world) {
       let player = world.player,
@@ -1897,8 +1855,6 @@ const getById = (id) => document.getElementById(id),
         part("Rift events", codex.events, "Not seen yet");
     }
   };
-// 2.4.2: state of the FPS counter in the HUD
-const hudFpsMeter = { frames: 0, since: 0, last: 0, fps: 0, shown: "" };
 // 2.5.0 A: HUD chips of the timed upgrades, managed next to the chips of GameUI.buffs
 const timedBuffChips = ["heat", "slip", "skate"];
 // 2.4.2: closes settings that were opened from the pause menu

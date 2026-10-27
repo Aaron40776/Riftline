@@ -27,7 +27,6 @@ const CONTROL_INFO = {
     ["#hud .wave-block", 26],
     ["#shardChip", 0],
     ["#bossBar", 0],
-    ["#hudInfo", 0],
   ],
   /* where a fixed move stick sits until it is moved */
   DEFAULT_STICK = { portrait: { x: 0.2, y: 0.74 }, landscape: { x: 0.16, y: 0.66 } };

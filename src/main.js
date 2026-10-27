@@ -878,14 +878,12 @@ function applySettings() {
   input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   placeHud();
   qualityPreset = qualityPresets[settings.quality] || qualityPresets.auto;
-  overlay.contrast = settings.contrast;
   // Saver draws the 2D overlay (health bars, numbers, sticks) at one pixel per CSS pixel
   overlay.dprCap = settings.quality === "battery" ? 1 : 2;
   if (renderer) {
-    renderer.setAccess(settings.contrast);
-    renderer.zoom = settings.zoom || 1;
-    // 3.45.5: the two feel toggles actually reach the renderer now (they had no reader before)
-    renderer.shakes = settings.shake !== false;
+    // 3.57.0: the camera distance, the warning contrast and the screen-shake toggle were settings nobody
+    // needed: the camera now sits at its tuned distance, warnings draw in their own colours, and the shake
+    // is a fixed, gentler amount (endless mode used to stack it into something unpleasant).
     renderer.numbers = settings.numbers !== false;
     let dpr = settings.quality === "auto" ? autoDpr : qualityPreset.dpr;
     renderer.setQuality(dpr, qualityPreset.particles);
@@ -1769,7 +1767,6 @@ function rlRetireToast() {
  - Esc goes back in Workshop, Records and Settings
  - Settings can be opened from the pause menu (without backup and reset)
  - the build in the pause menu explains each upgrade on tap or click
- - optional run timer and FPS counter in the HUD
  ========================================================================== */
 (() => {
   // ---- settle a lost or won run before the page goes away
@@ -1814,16 +1811,6 @@ function rlRetireToast() {
     for (const el of getById("pauseBuild").querySelectorAll("[data-up]")) el.classList.toggle("sel", el === button);
     info.innerHTML = upInfo(button.dataset.up, world.up[button.dataset.up] || 0);
   });
-
-  // ---- run timer and FPS counter
-  for (const [id, key] of [
-    ["setTimer", "timer"],
-    ["setFps", "fps"],
-  ])
-    getById(id).addEventListener("change", () => {
-      store.data.settings[key] = getById(id).checked;
-      game.settingsChanged();
-    });
 })();
 applySettings();
 ui.show("home");

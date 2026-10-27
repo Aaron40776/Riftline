@@ -470,9 +470,10 @@ const MAX_PARTICLES = 1400,
       this.arena = new ArenaView(this.scene);
       this.time = 0;
       this.shake = 0;
-      // 3.45.5: the Settings toggles reach the renderer here (they used to be saved and drawn, but nothing read
-      // them - the shake wobbled and the numbers floated whatever the switch said)
-      this.shakes = true;
+      // 3.57.0: the shake is no longer the player's switch (it is always on, see addShake). Endless mode fires
+      // so many events that the accumulator sat at its cap for whole waves, and a capped shake is a shake that
+      // never rests. A lower cap, a flatter amplitude curve and a faster decay keep the punch of a single hit
+      // without the permanent wobble.
       this.numbers = true;
       this.camX = 0;
       this.camZ = 2;
@@ -808,9 +809,11 @@ const MAX_PARTICLES = 1400,
       }
     }
     addShake(amount) {
-      // 3.45.5: Settings > Screen shake off means a calm camera (the biome bump included)
-      if (this.shakes === false) return;
-      this.shake = Math.min(1, this.shake + amount);
+      // 3.57.0: the cap is 0.75, not 1. In endless mode the per-event shakes of many enemies arrived faster
+      // than the decay retired them, so the accumulator sat at the cap and the camera never settled. The
+      // amplitude curve is flatter (see the camera block) and the decay faster, so a single hit still reads
+      // as an impact while a busy wave no longer turns into a permanent wobble.
+      this.shake = Math.min(0.75, this.shake + amount);
     }
     flash(x, z, radius, intensity, color, decay = 6) {
       if (this.flashes.length > 24) {
@@ -1578,13 +1581,17 @@ const MAX_PARTICLES = 1400,
         }
         this.camX += (tx - this.camX) * damp;
         this.camZ += (tz - this.camZ) * damp;
-        let amp = this.shake * this.shake * 0.55,
+        // 3.57.0: 0.55 * shake^2 peaked at 0.55 world units of camera travel and was uncomfortable in endless.
+        // 0.30 with the lower 0.75 cap peaks at 0.17 - about a third of before - while a single small hit
+        // (shake 0.12) still moves about 0.004.
+        let amp = this.shake * this.shake * 0.3,
           shakeX = (Math.random() - 0.5) * amp - Math.cos(this.kickA) * this.kick * 0.35,
           shakeZ = (Math.random() - 0.5) * amp - Math.sin(this.kickA) * this.kick * 0.35;
         cam.position.set(this.camX + shakeX, Math.sin(tilt) * dist, this.camZ + Math.cos(tilt) * dist + shakeZ);
         cam.lookAt(this.camX + shakeX, 0, this.camZ + shakeZ - 1);
       }
-      this.shake = Math.max(0, this.shake - dt * 2.2);
+      // 3.57.0: decays faster than the old 2.2, so a burst of events cannot keep the camera shaken forever
+      this.shake = Math.max(0, this.shake - dt * 3.2);
       this.kick = Math.max(0, this.kick - dt * (4 + this.kick * 10));
       cam.updateMatrixWorld();
       let elements = cam.matrixWorld.elements,

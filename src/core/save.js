@@ -51,23 +51,19 @@ function rlBackupSave(text) {
     return false;
   }
 }
-/* 2.3.2: numeric settings get the range of their control (volume 0–1, zoom
- snaps to Near/Normal/Far) instead of a blanket 0–2 clamp. */
-const RL_ZOOM_STEPS = [0.85, 1, 1.18],
-  // the opacity of the buttons and the stick size have the range of their sliders (data/hud.js)
-  RL_SETTING_RANGE = {
-    sfx: [0, 1],
-    music: [0, 1],
-    ambience: [0, 1],
-    hudAlpha: HUD_LIMITS.alpha,
-    stickSize: HUD_LIMITS.stick,
-  };
+/* 2.3.2: numeric settings get the range of their control (volume 0–1) instead of a blanket 0–2 clamp. */
+// the opacity of the buttons and the stick size have the range of their sliders (data/hud.js)
+const RL_SETTING_RANGE = {
+  sfx: [0, 1],
+  music: [0, 1],
+  ambience: [0, 1],
+  hudAlpha: HUD_LIMITS.alpha,
+  stickSize: HUD_LIMITS.stick,
+};
 function rlSettingNum(key, value, def) {
   const [lo, hi] = RL_SETTING_RANGE[key] || [0, 2],
     num = cleanNumber(value, def, lo, hi);
-  return key === "zoom"
-    ? RL_ZOOM_STEPS.reduce((best, step) => (Math.abs(step - num) < Math.abs(best - num) ? step : best))
-    : num;
+  return num;
 }
 
 /* ---- run history: the last 12 runs, shown under Records ---- */
@@ -169,15 +165,11 @@ const SAVE_KEY = "riftline.save.v1",
     assist: true,
     // 3.23.0: the rumble of a controller and the vibration of a phone on hits, dashes and the end of a run
     vibration: true,
-    shake: true,
     numbers: true,
     quality: "auto",
-    zoom: 1,
-    contrast: false,
     // 3.8.0: the left-handed (swap) and reduce-flashes (calm) settings are gone; a save that has them drops them on load
-    // 2.4.2: optional HUD readouts
-    timer: false,
-    fps: false,
+    // 3.57.0: the zoom, warning-contrast, screen-shake toggle and the timer/FPS readouts are gone too - a save
+    // that carries them drops them on load like the old ones above
     // the button layout (ui/hud-layout.js): opacity of the buttons, stick size, a fixed move stick, and the places
     // and sizes of the buttons per orientation (null: the default layout)
     hudAlpha: 1,

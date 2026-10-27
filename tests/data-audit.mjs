@@ -1,5 +1,9 @@
 import { chromium } from "playwright";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { launchArgs } from "./lib/renderer.mjs";
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const browser = await chromium.launch({ args: launchArgs() });
 const page = await browser.newPage();
 await page.goto(process.argv[2] || "http://localhost:8124/index.html");
@@ -131,6 +135,23 @@ const out = await page.evaluate(() => {
     D.iconPaths[el.dataset.icon] || bad("icon", `html icon ${el.dataset.icon}`);
   return R;
 });
+// 3.57.0: the release notes have to describe the build that ships them, and stay at NEWS_KEEP entries. The
+// README claimed a check like this existed long before one did, and the list had drifted to 22 releases
+// (14.9 KB of player-facing text) while the intent recorded in 3.39.0 was five.
+const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+const { WHATS_NEW, NEWS_KEEP } = await import(pathToFileURL(path.join(ROOT, "src", "data", "whatsnew.js")).href);
+if (!Array.isArray(WHATS_NEW) || !WHATS_NEW.length) out.push("[news] WHATS_NEW is empty");
+else {
+  if (WHATS_NEW[0].version !== pkg.version)
+    out.push(`[news] newest entry is ${WHATS_NEW[0].version}, the build is ${pkg.version}`);
+  if (WHATS_NEW.length > NEWS_KEEP) out.push(`[news] ${WHATS_NEW.length} entries, NEWS_KEEP is ${NEWS_KEEP}`);
+  WHATS_NEW.forEach((e, i) => {
+    if (!e.version || !e.title || !Array.isArray(e.items) || !e.items.length)
+      out.push(`[news] entry ${i} (${e.version || "?"}) is incomplete`);
+    else if (i && WHATS_NEW[i - 1].version.localeCompare(e.version, undefined, { numeric: true }) <= 0)
+      out.push(`[news] ${e.version} is not older than ${WHATS_NEW[i - 1].version}`);
+  });
+}
 console.log(out.length ? out.join("\n") : "no data issues");
 await browser.close();
 process.exitCode = out.length ? 1 : 0;
