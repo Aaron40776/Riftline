@@ -36,6 +36,8 @@ const steps = [
   ["sim (node)", [NODE, "tests/sim-node.mjs"]],
   ["save (node)", [NODE, "tests/save-node.mjs"]],
   ["build", [NODE, "build.js"]],
+  // 3.57.0: the OS motion preference must still the camera (one small browser, both states)
+  ["a11y", qa("a11y")],
   ["deep test", qa("deep-test", ...(full ? ["--full"] : []))],
   // the full QA of a release contains the files section
   ...(release ? [] : [["full-qa files", qa("full-qa", "files")]]),

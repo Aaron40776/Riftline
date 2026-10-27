@@ -470,6 +470,11 @@ const MAX_PARTICLES = 1400,
       this.arena = new ArenaView(this.scene);
       this.time = 0;
       this.shake = 0;
+      // 3.57.0: a player who asks the OS for less motion gets a still camera. The screen shake and the weapon
+      // kick are motion, not feedback: the flashes, the damage numbers, the sounds and the telegraphs all stay,
+      // so nothing the player needs to read is lost. The flag is read live from the media query (see the
+      // motionOK getter), so it can be toggled between waves without a reload.
+      this.reduceMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
       // 3.57.0: the shake is no longer the player's switch (it is always on, see addShake). Endless mode fires
       // so many events that the accumulator sat at its cap for whole waves, and a capped shake is a shake that
       // never rests. A lower cap, a flatter amplitude curve and a faster decay keep the punch of a single hit
@@ -808,7 +813,12 @@ const MAX_PARTICLES = 1400,
         this.rings.push({ x, z, r0, r1, col: color, life, max: life, y });
       }
     }
+    // 3.57.0: the camera may move only when the player has not asked for less motion. Read live, not cached.
+    get motionOK() {
+      return !this.reduceMotion || !this.reduceMotion.matches;
+    }
     addShake(amount) {
+      if (!this.motionOK) return; // 3.57.0: prefers-reduced-motion on - the camera stays still
       // 3.57.0: the cap is 0.75, not 1. In endless mode the per-event shakes of many enemies arrived faster
       // than the decay retired them, so the accumulator sat at the cap and the camera never settled. The
       // amplitude curve is flatter (see the camera block) and the decay faster, so a single hit still reads
@@ -1024,7 +1034,7 @@ const MAX_PARTICLES = 1400,
               };
               this.flashes.push(muzzleFlash);
             }
-            if (def.shake > 0.04 && shakeK) {
+            if (def.shake > 0.04 && shakeK && this.motionOK) {
               this.kick = Math.min(0.6, this.kick + def.shake * 2.2);
               this.kickA = ev.a;
             }

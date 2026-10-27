@@ -13,6 +13,7 @@
 - **19 persistent workshop modules**, milestones through wave 200, threat levels, medals
 - **Endless** mode with mutators, and a **daily run** with a fixed seed
 - A dynamic wave director that mixes 12+ encounter modes instead of a fixed spawn table
+- **Accessibility** — the OS *reduce motion* preference stills the camera (the screen shake and the weapon recoil go; the flashes, damage numbers, sounds and telegraphs stay). No setting to find: it follows the OS, live
 
 ## Controls
 
@@ -75,6 +76,7 @@ first (the npm aliases already do).
 | `tests/determinism.mjs` | same seed → same fight, 15 cases identical |
 | `tests/deep-test.mjs` | renders **every** synthesized sound offline and diffs it; CI caches the result |
 | `tests/full-qa.mjs` | boots the real game headless: `files` (boot over network), `offline` (PWA), `run-desktop` (plays a wave) |
+| `tests/a11y.mjs` | the OS *reduce motion* preference stills the camera — both states, plus the live toggle |
 | `tests/player-mode.mjs` | plays a whole run with `navigator.webdriver` patched **off** — like a real player: boot, health suite, wave, reload-and-continue, every timed buff chip, a real dash through the DASH button, death, payout, and a deliberate crash to prove the crash report |
 
 `tools/qa.js` runs any suite by name, e.g. `node tools/qa.js player-mode`. CI (`.github/workflows/test.yml`) runs formatting, lint, the full suite and both wave-playing suites on every PR.

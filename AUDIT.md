@@ -178,7 +178,7 @@ Ordered by leverage given existing infrastructure:
 5. **Shader LOD tiers** (M) — octave/branch counts by quality tier for floor + zone shaders (pairs with perf items M4/M6).
 6. **Death-recap persistence** (S) — fixes LOW #20 and upgrades the end screen: "what killed you" survives resume.
 7. **Prop-merge utility as content enabler** (M) — H3's fix also makes richer, denser biomes essentially free.
-8. **Accessibility options** (S) — colorblind-safe accent palettes (accent-driven already), reduced-motion (disable shake/flash decay).
+8. ~~**Accessibility options** (S) — colorblind-safe accent palettes (accent-driven already), reduced-motion (disable shake/flash decay).~~ **reduced-motion done (3.57.0):** the OS preference is now read live in `renderer.js` (`motionOK`) and stills the camera (shake + recoil); the CSS animations already honoured it. Tested by `tests/a11y.mjs`, wired into `npm run check`. Colour-blind-safe palettes remain open.
 9. **Gamepad menu polish** (S) — reader exists; add focus rings, remembered last tab, repeat-delay tuning.
 10. **String extraction for i18n-readiness** (M) — UI strings are inline in ui.js; hoist to a data module if localization is ever planned.
 
