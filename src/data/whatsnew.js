@@ -9,6 +9,7 @@ export const WHATS_NEW = [
     items: [
       "The screen shake calmed: in Endless a burst of hits can no longer keep the camera ringing, and the worst single shove is about half of what it was.",
       "Five options nobody used are gone — camera distance, warning contrast, the screen-shake switch, the run timer and the FPS counter — so the settings screen is shorter.",
+      "Ask your device for less motion and the camera goes still: the screen shake and the weapon recoil stop, while the flashes, damage numbers, sounds and telegraphs all stay.",
       "Every biome keeps exactly one boss again: the Glass Flats no longer falls back to a boss that belongs to another place.",
     ],
   },
