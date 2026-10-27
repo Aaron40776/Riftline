@@ -4,12 +4,13 @@
 // Every check states its criterion; the run fails if any check fails.
 import { chromium } from "playwright";
 import fs from "fs";
+import { fileURLToPath } from "node:url";
 import { waitScreenGame } from "./lib/wait.mjs";
 import { launchArgs } from "./lib/renderer.mjs";
 const BASE = (process.argv[2] || "http://localhost:8124/").replace(/index\.html$/, "");
 const ONLY = process.argv[3] || "";
-const FIX = new URL("./fixtures/", import.meta.url).pathname;
-fs.mkdirSync(new URL("./shots/", import.meta.url).pathname, { recursive: true });
+const FIX = fileURLToPath(new URL("./fixtures/", import.meta.url));
+fs.mkdirSync(fileURLToPath(new URL("./shots/", import.meta.url)), { recursive: true });
 const KEY = "riftline.save.v1";
 const browser = await chromium.launch({
   args: launchArgs(),
@@ -861,7 +862,7 @@ await section("workshop-merge", async (L) => {
         ]),
       JSON.stringify(pips),
     );
-    await P.shot({ path: new URL(`./shots/workshop-merge-${profName}.png`, import.meta.url).pathname });
+    await P.shot({ path: fileURLToPath(new URL(`./shots/workshop-merge-${profName}.png`, import.meta.url)) });
     await P.back("workshop");
     check(L, `${profName}: unfinished run offered`, await P.vis("continueBtn"));
     await P.tap("#continueBtn");
@@ -1776,7 +1777,7 @@ await section("visual", async (L) => {
       `fill ${(r.minFill * 100).toFixed(0)} % · card ${r.w}×${r.h}`,
     );
     check(L, `cards ${tag}: reroll below the cards and on screen`, r.reroll);
-    await P.shot({ path: new URL(`./shots/qa-cards-${w}x${h}-${r.n}.png`, import.meta.url).pathname });
+    await P.shot({ path: fileURLToPath(new URL(`./shots/qa-cards-${w}x${h}-${r.n}.png`, import.meta.url)) });
     await P.close();
   }
 });
@@ -2646,7 +2647,7 @@ await section("upgrades250A", async (L) => {
           text: cards.map((x) => x.querySelector("p").textContent),
         };
       });
-      await P.shot({ path: new URL(`./shots/upgrades250A-${prof}-${i + 1}.png`, import.meta.url).pathname });
+      await P.shot({ path: fileURLToPath(new URL(`./shots/upgrades250A-${prof}-${i + 1}.png`, import.meta.url)) });
       check(
         L,
         `${prof}: new upgrade cards ${offer.join(", ")} fit`,
@@ -2762,7 +2763,7 @@ for (const profName of ["desktop", "phone"])
         )
         .catch(() => {});
       await P.shot({
-        path: new URL(`./shots/qa-event-${profName}-${want[biome]}-banner.png`, import.meta.url).pathname,
+        path: fileURLToPath(new URL(`./shots/qa-event-${profName}-${want[biome]}-banner.png`, import.meta.url)),
       });
       const r = await P.ev((n) => {
         const w = window.__riftTest.game.world,
@@ -2838,7 +2839,7 @@ for (const profName of ["desktop", "phone"])
         check(L, "rift storm: every portal shows where it jumps next", s.portals > 0 && all, JSON.stringify(s));
       }
       await P.shot({
-        path: new URL(`./shots/qa-event-${profName}-${want[biome]}.png`, import.meta.url).pathname,
+        path: fileURLToPath(new URL(`./shots/qa-event-${profName}-${want[biome]}.png`, import.meta.url)),
       });
     }
     check(L, "no page errors", !P.errors.length, P.errors.slice(0, 3).join(" | "));
@@ -3209,7 +3210,7 @@ await section("rotate", async (L) => {
       return !!el && !!el.closest("#rotate");
     }));
   check(L, "phone upright in the menu: the rotate screen covers everything", covered);
-  await P.shot({ path: new URL("./shots/qa-rotate-phone.png", import.meta.url).pathname });
+  await P.shot({ path: fileURLToPath(new URL("./shots/qa-rotate-phone.png", import.meta.url)) });
   await sideways();
   check(L, "turned back: the menu is there again", (await rotated(false)) && (await P.vis("home")));
   // upright during a run: the run pauses behind the rotate screen and stays paused until the player resumes it
@@ -3582,7 +3583,7 @@ for (const profName of ["desktop", "phone"]) {
       rec.rows.join(" | "),
     );
     check(L, "it lists where most damage came from", /Most damage taken from/.test(rec.text), rec.text.slice(-120));
-    await P.shot({ path: new URL(`./shots/qa-recap-${profName}.png`, import.meta.url).pathname });
+    await P.shot({ path: fileURLToPath(new URL(`./shots/qa-recap-${profName}.png`, import.meta.url)) });
     check(L, "it fits the screen", rec.fits);
     // a won run has no recap
     check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
@@ -3636,7 +3637,7 @@ for (const profName of ["desktop", "phone"]) {
       rows.out.Hull?.v,
     );
     check(L, "unchanged numbers show no change", rows.out["Armor"]?.d === "", JSON.stringify(rows.out["Armor"]));
-    await P.shot({ path: new URL(`./shots/qa-stats-${profName}.png`, import.meta.url).pathname });
+    await P.shot({ path: fileURLToPath(new URL(`./shots/qa-stats-${profName}.png`, import.meta.url)) });
     check(L, "it fits the screen", rows.inView);
     check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
     await P.close();
@@ -3691,7 +3692,7 @@ await section("nextwave", async (L) => {
     traps.includes("Traps on the floor"),
     traps.join(" | "),
   );
-  await P.shot({ path: new URL("./shots/qa-nextwave.png", import.meta.url).pathname });
+  await P.shot({ path: fileURLToPath(new URL("./shots/qa-nextwave.png", import.meta.url)) });
   check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
   await P.close();
 });
@@ -4027,7 +4028,7 @@ for (const profName of ["desktop", "phone"]) {
       await P.ev(() => document.getElementById("cards").classList.contains("banishing")),
     );
     await P.page.waitForTimeout(800);
-    await P.shot({ path: new URL(`./shots/qa-banish-${profName}.png`, import.meta.url).pathname });
+    await P.shot({ path: fileURLToPath(new URL(`./shots/qa-banish-${profName}.png`, import.meta.url)) });
     const target = before[0];
     await P.tap(`#cards [data-pick="${target}"]`);
     await P.page.waitForTimeout(500);
@@ -4119,7 +4120,7 @@ for (const profName of ["desktop", "phone"]) {
       card.screen === "daily" && card.day.startsWith(card.today) && !!card.weapon,
       JSON.stringify(card),
     );
-    await P.shot({ path: new URL(`./shots/qa-daily-${profName}.png`, import.meta.url).pathname });
+    await P.shot({ path: fileURLToPath(new URL(`./shots/qa-daily-${profName}.png`, import.meta.url)) });
     await P.page.keyboard.press("Escape");
     await P.page.waitForTimeout(200);
     check(L, "Esc goes back to the home screen", (await P.ev(() => window.__riftTest.ui.screen)) === "home");
@@ -4282,7 +4283,7 @@ for (const profName of ["desktop", "phone"]) {
         /\+40%/.test(state.sum),
       JSON.stringify(state),
     );
-    await P.shot({ path: new URL(`./shots/qa-pacts-${profName}.png`, import.meta.url).pathname });
+    await P.shot({ path: fileURLToPath(new URL(`./shots/qa-pacts-${profName}.png`, import.meta.url)) });
     await P.page.keyboard.press("Escape");
     await P.page.waitForTimeout(200);
     check(
@@ -4886,7 +4887,7 @@ await section("mark-bake", async (L) => {
 await section("offline", async (L) => {
   const { serve } = await import("../tools/serve.js");
   let mode = "ok";
-  const { server, url } = await serve(new URL("../dist/", import.meta.url).pathname, 0, {
+  const { server, url } = await serve(fileURLToPath(new URL("../dist/", import.meta.url)), 0, {
     intercept(req, res) {
       if (mode === "down") {
         req.socket.destroy();

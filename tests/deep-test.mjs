@@ -1,3 +1,15 @@
+// The audio authority: renders every synthesized sound offline and diffs it, plus the music budget and
+// the track descriptors. CI is where this runs for real (the result is cached, so it is not re-rendered
+// while the sound engine and the data it reads are unchanged).
+//
+// Known limitation, measured 3.57.0: the music section below renders all six biomes inside ONE
+// page.evaluate. On a machine with a modest Chrome heap that peaks past the browser's memory and the run
+// dies with "Target crashed" during the music part - the sound catalog has usually finished and printed
+// "N sounds rendered" by then. It is not the renderer: it reproduces with the original forced-SwiftShader
+// arguments. scripts/rl-music-probe.mjs already builds one browser per biome-chunk for exactly this reason
+// (its header: five biomes in one evaluate "peaked past the box's memory"). The fix is the same here:
+// split this evaluate per biome and merge the numeric descriptors before the pairwise comparisons run.
+// It is left as a separate, verifiable change rather than folded in unverified.
 import { chromium } from "playwright";
 import { soundCache } from "./lib/sound-cache.mjs";
 import { launchArgs } from "./lib/renderer.mjs";

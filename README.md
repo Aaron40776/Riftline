@@ -79,6 +79,8 @@ first (the npm aliases already do).
 
 `tools/qa.js` runs any suite by name, e.g. `node tools/qa.js player-mode`. CI (`.github/workflows/test.yml`) runs formatting, lint, the full suite and both wave-playing suites on every PR.
 
+One caveat on `deep-test`: the music section renders all six biomes inside a single `page.evaluate`, so on a machine with a modest browser heap it can exceed Chrome's memory and die with `Target crashed` during the music part (after the sound catalog has already reported its count). It reproduces with software rendering too, so it is not the renderer. `scripts/rl-music-probe.mjs` solves the same problem by building one browser per biome; doing that here is a separate change, left verifiable rather than folded in.
+
 ### Why a linter with one rule
 
 `no-undef` exists because of 3.45.0: the HUD's buff row read a local variable from a neighbouring function as a bare identifier — legal at parse time, invisible to esbuild and to every test (no test had a buff on screen), and it killed a real player's run the first time they dashed. A static undefined-name check fails that class before it ships. That's the whole config.
