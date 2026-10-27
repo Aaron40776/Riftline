@@ -10,6 +10,7 @@
 // SLOTS results, so going back and forth between two branches reuses both.
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -21,6 +22,25 @@ const SLOTS = 4;
 // keys whose string values are player-facing text, left out of a data file's view
 const TEXT_KEYS = /^(name|desc|text|lore|hint|tip|tips|flavor|label|title|short|long|note|blurb)$/;
 
+// The installed Playwright is part of the cache key because the browser that renders the sounds decides the
+// result. It cannot be addressed as node_modules/playwright-core/package.json: that assumes npm's hoisted,
+// flat layout. pnpm keeps a transitive dependency inside its own store entry, so only playwright itself is
+// resolvable from the project root and playwright-core sits beside it under node_modules/.pnpm/<id>/.
+// Resolve through playwright's own package first, then fall back to that sibling. Returns null when neither
+// resolves (an install without the browser), in which case the key simply omits it instead of crashing.
+const playwrightCorePkg = () => {
+  const req = createRequire(path.join(ROOT, "package.json"));
+  for (const id of ["playwright-core", "playwright"]) {
+    try {
+      const found = req.resolve(`${id}/package.json`);
+      const candidate =
+        id === "playwright-core" ? found : path.join(path.dirname(found), "..", "playwright-core", "package.json");
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {}
+  }
+  return null;
+};
+
 function soundInputs() {
   const seen = new Set();
   const walk = (file) => {
@@ -31,11 +51,7 @@ function soundInputs() {
       walk(path.resolve(path.dirname(file), m[1]));
   };
   walk(path.join(ROOT, "src", "audio", "sound.js"));
-  return [
-    ...seen,
-    path.join(ROOT, "tests", "deep-test.mjs"),
-    path.join(ROOT, "node_modules", "playwright-core", "package.json"),
-  ].sort();
+  return [...seen, path.join(ROOT, "tests", "deep-test.mjs"), playwrightCorePkg()].filter(Boolean).sort();
 }
 
 /* what a data file contributes to the key: its exports without player texts; functions count by their source */

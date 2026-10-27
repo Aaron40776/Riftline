@@ -31,6 +31,10 @@
     "screens": "node build.js && node tools/qa.js screens pc && node tools/qa.js screens land && node tools/qa.js biome-shots pc && node tools/qa.js biome-shots land && node tools/qa.js attack-shots pc",
     "shots:look": "node tools/qa.js look-shots",
     "scape": "node tools/qa.js scape-preview",
+    "probe:audio": "node build.js && node scripts/rl-audio-check.mjs",
+    "probe:mix": "node build.js && node scripts/rl-mix-probe.mjs",
+    "probe:music": "node build.js && node scripts/rl-music-probe.mjs",
+    "probe:place": "node build.js && node scripts/rl-place-peaks.mjs",
     "format": "prettier --write \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.js\" build.js",
     "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.js\" build.js",
     "lint": "eslint ."

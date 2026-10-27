@@ -8,6 +8,7 @@
 // starve each other into false failures. A failing step does not stop the chain; the summary lists every result and
 // the exit code is 1 if any step failed. `--full` is passed on to the deep test (renders every sound again).
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,13 +18,24 @@ const args = process.argv.slice(2),
   full = args.includes("--full"),
   sections = args.filter((a) => !a.startsWith("--"));
 
-const qa = (...rest) => ["node", "tools/qa.js", ...rest];
+// 3.57.0: every child used to be spawned as "node" / "npx" and relied on them being on PATH. On a normal
+// Windows install they are not (node is only in the installer's folder), so every step failed with ENOENT
+// before it ran a single check. Address the interpreter already running this script (process.execPath) and
+// the locally installed prettier, so `npm run check` works the same on CI and on a bare workstation.
+const NODE = process.execPath;
+const PRETTIER = path.join(ROOT, "node_modules", "prettier", "bin", "prettier.cjs");
+
+const qa = (...rest) => [NODE, "tools/qa.js", ...rest];
 const steps = [
-  ["format", ["npx", "prettier", "--check", "src/**/*.js", "tests/**/*.mjs", "tools/**/*.js", "build.js"]],
+  // prettier is skipped with a clear note when dependencies were never installed, instead of failing the
+  // chain on a path that is expected to exist only after `npm install`
+  ...(fs.existsSync(PRETTIER)
+    ? [["format", [NODE, PRETTIER, "--check", "src/**/*.js", "tests/**/*.mjs", "tools/**/*.js", "build.js"]]]
+    : []),
   // 3.30.0: the simulation in Node first (seconds, no browser)
-  ["sim (node)", ["node", "tests/sim-node.mjs"]],
-  ["save (node)", ["node", "tests/save-node.mjs"]],
-  ["build", ["node", "build.js"]],
+  ["sim (node)", [NODE, "tests/sim-node.mjs"]],
+  ["save (node)", [NODE, "tests/save-node.mjs"]],
+  ["build", [NODE, "build.js"]],
   ["deep test", qa("deep-test", ...(full ? ["--full"] : []))],
   // the full QA of a release contains the files section
   ...(release ? [] : [["full-qa files", qa("full-qa", "files")]]),

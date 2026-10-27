@@ -39,6 +39,32 @@ npm run lint         # eslint, one rule on purpose: no-undef (see "Why a linter"
 npm run format       # prettier
 ```
 
+### Which renderer the browser suites use
+
+Every browser-driven suite launches Chromium through `tests/lib/renderer.mjs`, so the backend is chosen
+in one place instead of in each file. Set `RIFT_RENDERER` to pick it:
+
+| `RIFT_RENDERER` | Effect |
+|---|---|
+| unset / `auto` | prefer the real GPU; Chromium falls back to software when there is none. The default, and correct on both a workstation and a GPU-less runner |
+| `gpu` | force the hardware path — fails loudly rather than silently measuring software rendering |
+| `swiftshader` | force software rasterisation, for byte-identical frame pacing or to reproduce a driver bug |
+
+This matters: software rendering managed 4 fps on a machine whose GPU ran the same build at 61 fps, so a
+frame-rate assertion tuned on one measures the host, not the game.
+
+### Probes (measure a change instead of guessing)
+
+The `scripts/` probes stand behind the sound work. They serve `dist/` themselves, so run `npm run build`
+first (the npm aliases already do).
+
+| Probe | Answers |
+|---|---|
+| `npm run probe:mix` | the mix balance at the default volumes, per bus, from numbers rather than taste |
+| `npm run probe:music` | the music rules of the deep test, without the multi-minute catalog |
+| `npm run probe:place` | how far each ambience bed and far sound sits under the deep-test peak caps |
+| `npm run probe:audio` | chaos checks of the audio engine's failure paths |
+
 ### The test suites
 
 | Suite | What it proves |
