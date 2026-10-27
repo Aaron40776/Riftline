@@ -13,6 +13,12 @@
 // Only update the golden file when a change is MEANT to alter game behaviour (balance, new
 // content, bug fixes in the simulation). A pure refactor must pass without --update.
 //
+// The golden is also tied to the browser build, because the records hold floating-point results: any
+// V8 change can move every digest at once, and the simulation is chaotic, so one differently-rounded
+// Math.sin early in a run reshuffles the upgrade picks downstream. That is what makes the file stable
+// in CI (the browser is pinned through package-lock.json) and fragile outside it. Regenerate it with
+// --update after a deliberate browser or gameplay change, and say which in the commit.
+//
 // What the simulation must not depend on: Math.random, Date, performance.now, rendering, the UI
 // or the save store. The world uses its own seeded RNG (qi/Yi) for everything that matters, with
 // one exception found when this test was written (2.4.4): the void portal warp of player shots
@@ -531,7 +537,7 @@ if (UPDATE) {
     const cases = filters.length ? { ...golden.cases } : {};
     for (const [k, v] of Object.entries(results)) cases[k] = { digest: v.digest, rec: v.rec };
     const out = {
-      note: "Golden records of tests/determinism.mjs. Regenerate with `node tools/qa.js determinism --update` only for intended behaviour changes.",
+      note: "Golden records of tests/determinism.mjs. Tied to the pinned Chromium (the records hold floats). Regenerate with `node tools/qa.js determinism --update` only for an intended behaviour change or a browser upgrade, and say why.",
       cases,
     };
     fs.mkdirSync(path.dirname(GOLDEN), { recursive: true });
