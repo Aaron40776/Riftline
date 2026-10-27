@@ -4,6 +4,15 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "3.57.0",
+    title: "A calmer camera and a shorter options screen",
+    items: [
+      "The screen shake calmed: in Endless a burst of hits can no longer keep the camera ringing, and the worst single shove is about half of what it was.",
+      "Five options nobody used are gone — camera distance, warning contrast, the screen-shake switch, the run timer and the FPS counter — so the settings screen is shorter.",
+      "Every biome keeps exactly one boss again: the Glass Flats no longer falls back to a boss that belongs to another place.",
+    ],
+  },
+  {
     version: "3.56.0",
     title: "The Glasswyrm takes the desert",
     items: [
@@ -50,18 +59,6 @@ export const WHATS_NEW = [
       "The aurora itself: curtains with a bright waving foot and drifting rays stand past the far wall, and their green-pink sheen sweeps the ice all run long.",
       "Great seracs and ice cliffs rise on the horizon with green rim light on their crests, and the snow catches the aurora's light.",
       "Every change is visual only — saves, records and the run's rng are untouched.",
-    ],
-  },
-  {
-    version: "3.53.0",
-    title: "The sixth place: the Glass Flats",
-    items: [
-      "A new biome joins the route: THE GLASS FLATS — an ancient heat fused the sand into sheet glass under a platinum noon. The rift's first daylight place.",
-      "Dust devils wander the glass — the first hazard that moves. The wind shoves and bites; the enemies walk through untouched.",
-      "The DUST DEVILS event: three more devils rise and roam with you.",
-      "THE CRUCIBLE is back: the foundry's boss takes the Flats as its new post, hammer and all.",
-      "The Quenched milestone returns, and World Walker now wants wave 26 — all six biomes in one run.",
-      "The flats' own music: a glassine calm theme at noon, and the Crucible's hammer track when it wakes.",
     ],
   },
 ];
