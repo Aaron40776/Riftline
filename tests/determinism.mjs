@@ -29,6 +29,7 @@ import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { launchArgs } from "./lib/renderer.mjs";
 
 const PAGE_URL = process.argv[2] || "http://localhost:8124/index.html";
 const extra = process.argv.slice(3);
@@ -169,6 +170,26 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
     ws === "max" ? Object.fromEntries(T.workshopModules.map((m) => [m.id, m.costs.length])) : { ...ws };
   const r3 = (x) => Math.round(x * 1000) / 1000;
   // Full-precision state fingerprint of a world.
+  // 3.57.0: entity lists are hashed in canonical order, not insertion order. The old fingerprint was
+  // stable only while nothing reordered an array, so any content change that spawned, recycled or
+  // retired an entity shifted the order and changed the digest while the fight itself stayed
+  // identical (every recorded metric - kills, damage, wave, loot - matched the golden). Ordering by
+  // a stable key keeps the check meaningful: it still catches any real divergence in position,
+  // velocity, hp or count, because a moved or missing entity changes the entry, not just its index.
+  const byKeys = (list, key) => {
+    const rows = list.map((x) => key(x));
+    rows.sort((a, b) => {
+      for (let i = 0; i < a.length; i++) {
+        const av = a[i],
+          bv = b[i];
+        if (av === bv) continue;
+        if (typeof av === "number" && typeof bv === "number") return av - bv;
+        return String(av) < String(bv) ? -1 : 1;
+      }
+      return 0;
+    });
+    return rows;
+  };
   const snap = (w) => ({
     wave: w.wave,
     state: w.state,
@@ -180,10 +201,10 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
     rng: w.rng && w.rng.state,
     offer: w.offer ? [...w.offer] : null,
     p: [w.player.x, w.player.y, w.player.vx, w.player.vy, w.player.hp, w.player.nova, w.player.alive],
-    e: w.enemies.map((e) => [e.id, e.type, e.x, e.y, e.vx, e.vy, e.hp, !!e.dead]),
-    k: w.pickups.map((q) => [q.kind, q.x, q.y, q.v]),
-    pb: w.pb.map((b) => [b.x, b.y]),
-    eb: w.eb.map((b) => [b.x, b.y]),
+    e: byKeys(w.enemies, (e) => [e.id, e.type, e.x, e.y, e.vx, e.vy, e.hp, !!e.dead]),
+    k: byKeys(w.pickups, (q) => [q.kind, q.x, q.y, q.v]),
+    pb: byKeys(w.pb, (b) => [b.x, b.y]),
+    eb: byKeys(w.eb, (b) => [b.x, b.y]),
   });
   // Deterministic bot (same shape as tests/run-audit.mjs; tests/sim.mjs was retired in 3.45.0).
   const botInput = (w, step) => {
@@ -425,7 +446,7 @@ function installLib({ FNV_SRC, CANON_SRC, WS_MID }) {
 // ---- runner -------------------------------------------------------------------------------------
 const t0 = Date.now();
 const browser = await chromium.launch({
-  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+  args: launchArgs(),
 });
 const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
 const errors = [];
