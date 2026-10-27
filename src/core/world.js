@@ -2,6 +2,10 @@
 // rendering.
 
 import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByBiome, BOSS_SLOT_HP } from "../data/enemies.js";
+// 3.57.0: the bosses that belong to a place. bossOrder also carries retired ones (the Crucible) so that
+// old saves and records keep validating; spawning must only ever see this set, which is what keeps
+// "one unique boss per biome" true even if a biome's mapping is ever removed.
+const BOSS_BIOME_IDS = new Set(Object.values(bossByBiome));
 import { clamp, TAU, turnToward, hashString, angleDiff, makeRng, dampFactor, own } from "./util.js";
 import { updateEnemy, updateBoss, initBoss } from "./ai.js";
 import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/biomes.js";
@@ -667,9 +671,17 @@ const rlStep = 1 / 60,
     // its hull follows the slot (wave 5, 10, 15, 20, see spawnBoss), because Queen, Prism and Crucible
     // can each come at wave 10 or 15; Endless keeps each boss's own hull as before.
     bossFor(wave) {
-      return wave % 5 !== 0
-        ? null
-        : bossByBiome[this.biomeFor(wave).id] || bossOrder[(wave / 5 - 1) % bossOrder.length];
+      if (wave % 5 !== 0) return null;
+      // 3.57.0: one unique boss per biome, and nothing else. Every biome is mapped (selftest asserts
+      // it), so the lookup used to be enough on its own - but its fallback indexed bossOrder, which
+      // still carries the retired Crucible for old saves and records. A biome that ever lost its
+      // mapping would have started spawning a boss that belongs to no place. The fallback now draws
+      // only from bosses that are actually assigned to a biome; the Crucible stays in bossOrder, where
+      // save validation needs it, and can no longer be reached by a new run.
+      const byBiome = bossByBiome[this.biomeFor(wave).id];
+      if (byBiome) return byBiome;
+      const assigned = bossOrder.filter((id) => BOSS_BIOME_IDS.has(id));
+      return assigned[(wave / 5 - 1) % assigned.length];
     }
     // 2.5.0 C: the wave of the current biome visit that gets its biome event (0: none)
     biomeEventWave(wave) {

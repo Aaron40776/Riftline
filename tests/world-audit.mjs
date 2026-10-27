@@ -23,7 +23,10 @@ const r = await page.evaluate(() => {
       stats.waves++;
       const A = w.arena,
         b = A.biome;
-      if (wave <= 21) seen.add(b.id);
+      // 3.57.0: one biome per boss cycle means six biomes need six cycles = 30 waves. This counted only
+      // waves 1-21, which can hold five, so "6/6 biomes" was arithmetically unreachable and the audit
+      // failed on every seed. The window now covers the full route.
+      if (wave <= 30) seen.add(b.id);
       // 2.4.0: one biome per boss cycle — the biome changes right after each boss wave and only then
       if (wave > 1 && (w.biomeFor(wave - 1).id === b.id) !== ((wave - 1) % 5 !== 0))
         add("route-cycle", `seed ${seed} wave ${wave} ${b.id}`);
@@ -59,9 +62,19 @@ const r = await page.evaluate(() => {
         for (const q of A[k])
           if (hitsObstacle(A.obs, q.x, q.y, q.r * 0.5)) add("feature-in-wall", `${k} ${b.id} w${wave}`);
       // 3.4.0: Blackout City (yard) has live manholes, which are vents with an electric skin
-      const theme = { yard: "vents", vault: "ice", void: "portals", marsh: "acid" }[b.id];
-      for (const k of ["vents", "ice", "acid", "portals"])
-        if (A[k].length && k !== theme) add("hazard-off-theme", `${k} in ${b.id} w${wave}`);
+      // 3.57.0: the theme comes from the game's own table. Only four biomes were listed here, so club
+      // (Ashfall Caldera, also vents) and flats (Glass Flats, dust devils) had no theme at all and
+      // EVERY hazard in them was reported as off-theme - 24 false failures. "devils" is a hazard type
+      // in its own right, so it is checked too.
+      const themes = (T.data && T.data.RL_BIOME_HAZARD) || {
+          yard: "vents",
+          vault: "ice",
+          void: "portals",
+          marsh: "acid",
+        },
+        theme = themes[b.id];
+      for (const k of ["vents", "ice", "acid", "portals", "devils"])
+        if (A[k] && A[k].length && k !== theme) add("hazard-off-theme", `${k} in ${b.id} w${wave}`);
       for (const p of A.portals)
         for (const [x, y] of [
           [p.ax, p.ay],
@@ -121,7 +134,7 @@ const r = await page.evaluate(() => {
       w.boss = null;
       w.championPending = null;
     }
-    if (seen.size !== 6) add("route-coverage", `seed ${seed}: ${seen.size}/6 biomes in waves 1–26`);
+    if (seen.size !== 6) add("route-coverage", `seed ${seed}: ${seen.size}/6 biomes in waves 1–30`);
   }
   return { stats, issues, cnt };
 });
