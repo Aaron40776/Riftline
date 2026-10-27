@@ -5,13 +5,14 @@
 import { chromium } from "playwright";
 import fs from "fs";
 import { waitScreenGame } from "./lib/wait.mjs";
+import { launchArgs } from "./lib/renderer.mjs";
 const BASE = (process.argv[2] || "http://localhost:8124/").replace(/index\.html$/, "");
 const ONLY = process.argv[3] || "";
 const FIX = new URL("./fixtures/", import.meta.url).pathname;
 fs.mkdirSync(new URL("./shots/", import.meta.url).pathname, { recursive: true });
 const KEY = "riftline.save.v1";
 const browser = await chromium.launch({
-  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+  args: launchArgs(),
 });
 const PROFILES = {
   desktop: { viewport: { width: 1440, height: 900 }, touch: false },

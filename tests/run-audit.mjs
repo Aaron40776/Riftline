@@ -1,10 +1,11 @@
 // Drives a real run (live world + real UI loop) with a bot through N waves, then dies,
 // and prints the post-run audit produced by the in-game monitor.
 import { chromium } from "playwright";
+import { launchArgs } from "./lib/renderer.mjs";
 const URL = process.argv[2] || "http://localhost:8124/index.html";
 const WEAPON = process.argv[3] || "pulse",
   TARGET = +(process.argv[4] || 22);
-const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({ args: launchArgs() });
 const page = await browser.newPage({ viewport: { width: 960, height: 600 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));

@@ -6,6 +6,7 @@
 // page script runs and plays like a player: boot, run, health, resume after a reload, and the crash path.
 // If the frame loop dies, the frame counter flatlines and the suite fails.
 import { chromium } from "playwright";
+import { launchArgs } from "./lib/renderer.mjs";
 const URL = process.argv[2] || "http://localhost:8124/index.html";
 const results = [];
 let totalFail = 0;
@@ -15,7 +16,7 @@ const ok = (name, cond, detail = "") => {
 };
 
 const browser = await chromium.launch({
-  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+  args: launchArgs(),
 });
 const ctx = await browser.newContext({ viewport: { width: 852, height: 393 }, hasTouch: true, isMobile: true });
 await ctx.addInitScript(() => {
@@ -86,8 +87,14 @@ ok("run starts (HUD visible)", await vis("hud"), String(await page.evaluate(() =
 await skipTutorial();
 await page.waitForTimeout(800);
 const run1 = await measureLoop(2000);
-ok("frame loop runs", run1.f1 > 3, `${run1.f1} frames in the first window`);
-ok("frame loop keeps running", run1.f2 > run1.f1 + 10, `${run1.f1} -> ${run1.f2} frames`);
+// 3.57.0: these used to demand +10 frames per 2 s, i.e. 5.5 fps minimum. That measured the host's
+// rasteriser rather than the game: on a GPU-less box (CI, or a workstation forced onto SwiftShader)
+// the same healthy build renders at ~4 fps and failed here, while a dead frame loop - the thing these
+// assertions exist for, see 3.45.3 - shows as a flat counter at any speed. So the contract is now
+// liveness: the counter and the simulation must both keep advancing, with a floor of two frames so a
+// loop that ticks once and dies is still caught. Throughput is not asserted anywhere on purpose.
+ok("frame loop runs", run1.f1 > 1, `${run1.f1} frames in the first window`);
+ok("frame loop keeps running", run1.f2 > run1.f1 + 1, `${run1.f1} -> ${run1.f2} frames`);
 ok("simulation advances", run1.t2 > run1.t1, `world time ${run1.t1.toFixed(2)} -> ${run1.t2.toFixed(2)}`);
 const wave1 = await page.evaluate(() => window.__riftTest?.game?.world?.wave);
 ok("wave 1 is playing", wave1 === 1, "wave " + wave1);
@@ -101,7 +108,8 @@ await tap("#continueBtn");
 await page.waitForTimeout(900);
 ok("run resumed (HUD visible)", await vis("hud"), String(await page.evaluate(() => window.__riftTest?.game?.mode)));
 const run2 = await measureLoop(2000);
-ok("resumed frame loop keeps running", run2.f2 > run2.f1 + 10, `${run2.f1} -> ${run2.f2} frames`);
+// same liveness contract as run1 above: advancing, not a fixed frame rate
+ok("resumed frame loop keeps running", run2.f2 > run2.f1 + 1, `${run2.f1} -> ${run2.f2} frames`);
 ok("resumed simulation advances", run2.t2 > run2.t1, `world time ${run2.t1.toFixed(2)} -> ${run2.t2.toFixed(2)}`);
 
 // --- the buff row: 3.45.3's crash was hud()'s local `cache` alias read from buffs() - the first timed

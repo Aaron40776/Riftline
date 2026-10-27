@@ -12,12 +12,13 @@
 import { chromium } from "playwright";
 import { serve } from "../tools/serve.js";
 import { writeFileSync } from "node:fs";
+import { launchArgs } from "../tests/lib/renderer.mjs";
 
 const PORT = 8131;
 const { server } = await serve(process.argv[3] || "dist", PORT, { quiet: true });
 const BASE = `http://localhost:${PORT}/index.html`;
 
-const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({ args: launchArgs() });
 const page = await browser.newPage();
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
 await page.goto(BASE, { timeout: 90000 });

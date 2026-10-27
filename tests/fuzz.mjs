@@ -3,6 +3,7 @@
 // to press), a broken save, a layout that does not fit. A seed makes a failure repeatable.
 // Usage: node tools/qa.js fuzz [seed] [steps per size] (default seed 1, 220 steps).
 import { chromium } from "playwright";
+import { launchArgs } from "./lib/renderer.mjs";
 const URL = process.argv[2] || "http://localhost:8124/index.html";
 const SEED = +(process.argv[3] || 1),
   STEPS = +(process.argv[4] || 220);
@@ -21,7 +22,7 @@ const rnd = () => {
 };
 const pick = (list) => list[Math.floor(rnd() * list.length)];
 
-const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({ args: launchArgs() });
 const fail = [];
 let total = 0;
 for (const size of SIZES) {

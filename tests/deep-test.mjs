@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 import { soundCache } from "./lib/sound-cache.mjs";
-const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+import { launchArgs } from "./lib/renderer.mjs";
+const browser = await chromium.launch({ args: launchArgs() });
 // 3.37.0: every part logs to stderr as it finishes (the run used to be silent until the very end, so a slow
 // or stuck run could not be located). The per-part times still land in res.timing at the end.
 const timing = {};

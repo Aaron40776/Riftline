@@ -1,6 +1,7 @@
 // Captures every screen/state for manual visual review. Usage: node screens.mjs [url] pc|land
 import { chromium } from "playwright";
 import fs from "fs";
+import { launchArgs } from "./lib/renderer.mjs";
 const URL = /^https?:/.test(process.argv[2] || "") ? process.argv[2] : "http://localhost:8124/index.html";
 const NAME = /^https?:/.test(process.argv[2] || "") ? process.argv[3] : process.argv[2];
 const prof = {
@@ -14,7 +15,7 @@ if (!prof) {
 const OUT = `tests/shots/screens-${NAME}`;
 fs.mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({
-  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+  args: launchArgs(),
 });
 const ctx = await b.newContext(prof);
 const p = await ctx.newPage();

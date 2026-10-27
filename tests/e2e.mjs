@@ -5,6 +5,7 @@ const only = process.argv[3] || "";
 const SHOTS = "tests/shots";
 import fs from "fs";
 import { waitGameTime, waitScreenGame } from "./lib/wait.mjs";
+import { launchArgs } from "./lib/renderer.mjs";
 fs.mkdirSync(SHOTS, { recursive: true });
 const PROFILES = [
   { name: "desktop-1440", viewport: { width: 1440, height: 900 }, touch: false },
@@ -13,7 +14,7 @@ const PROFILES = [
   { name: "phone-844x390", viewport: { width: 844, height: 390 }, touch: true, mobile: true },
 ].filter((p) => !only || p.name.includes(only));
 const browser = await chromium.launch({
-  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+  args: launchArgs(),
 });
 let totalFail = 0;
 for (const prof of PROFILES) {

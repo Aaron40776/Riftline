@@ -6,6 +6,7 @@
 import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
+import { launchArgs } from "./lib/renderer.mjs";
 
 const URL = /^https?:/.test(process.argv[2] || "") ? process.argv[2] : "http://localhost:8124/index.html";
 const TAG = (/^https?:/.test(process.argv[2] || "") ? process.argv[3] : process.argv[2]) || "x";
@@ -13,7 +14,7 @@ const OUT = `tests/shots/look-${TAG}`;
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({
-  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+  args: launchArgs(),
 });
 const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
 const p = await ctx.newPage();

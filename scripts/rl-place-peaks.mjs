@@ -8,10 +8,11 @@
 
 import { chromium } from "playwright";
 import { serve } from "../tools/serve.js";
+import { launchArgs } from "../tests/lib/renderer.mjs";
 
 const PORT = 8133;
 const { server } = await serve("dist", PORT, { quiet: true });
-const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({ args: launchArgs() });
 const page = await browser.newPage();
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
 await page.goto(`http://localhost:${PORT}/index.html`, { timeout: 90000 });

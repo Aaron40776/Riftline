@@ -4,16 +4,12 @@
 // growing with the number of waves. Usage: node tools/qa.js soak [weapon] [target wave] (default pulse, 120; the floors of
 // the scene are judged from wave 75 on, when every Endless mutator is in play).
 import { chromium } from "playwright";
+import { launchArgs } from "./lib/renderer.mjs";
 const URL = process.argv[2] || "http://localhost:8124/index.html";
 const WEAPON = process.argv[3] || "pulse",
   TARGET = +(process.argv[4] || 120);
 const browser = await chromium.launch({
-  args: [
-    "--use-angle=swiftshader",
-    "--enable-unsafe-swiftshader",
-    "--enable-precise-memory-info",
-    "--js-flags=--expose-gc",
-  ],
+  args: [...launchArgs(), "--enable-precise-memory-info", "--js-flags=--expose-gc"],
 });
 const page = await browser.newPage({ viewport: { width: 960, height: 600 } });
 const cdp = await page.context().newCDPSession(page);

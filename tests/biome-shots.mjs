@@ -2,6 +2,7 @@
 // them side by side. Usage: node tools/qa.js biome-shots [pc|land]  -> tests/shots/biomes-<profile>/
 import { chromium } from "playwright";
 import fs from "fs";
+import { launchArgs } from "./lib/renderer.mjs";
 const URL = /^https?:/.test(process.argv[2] || "") ? process.argv[2] : "http://localhost:8124/index.html";
 const NAME = (/^https?:/.test(process.argv[2] || "") ? process.argv[3] : process.argv[2]) || "pc";
 const prof = {
@@ -20,7 +21,7 @@ const OUT = `tests/shots/biomes-${NAME}${TAG ? "-" + TAG : ""}`;
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({
-  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+  args: launchArgs(),
 });
 const ctx = await b.newContext(prof);
 const p = await ctx.newPage();

@@ -5,12 +5,13 @@
 import { chromium } from "playwright";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { launchArgs } from "./lib/renderer.mjs";
 
 const URL = process.argv[2] || "http://localhost:8124/index.html",
   ONLY = process.argv[3] || "",
   OUT = "tests/shots/scapes";
 fs.mkdirSync(OUT, { recursive: true });
-const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({ args: launchArgs() });
 const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
 await page.goto(URL);
 await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });

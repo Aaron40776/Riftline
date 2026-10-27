@@ -19,6 +19,7 @@
 import { chromium } from "playwright";
 import { serve } from "../tools/serve.js";
 import { writeFileSync } from "node:fs";
+import { launchArgs } from "../tests/lib/renderer.mjs";
 
 const PORT = 8132;
 const { server } = await serve("dist", PORT, { quiet: true });
@@ -27,14 +28,7 @@ const { server } = await serve("dist", PORT, { quiet: true });
 // memory (the OOM killer took chrome while the JS heap still showed 15 MB). One boot is about 10 s.
 const withPage = async (fn) => {
   const browser = await chromium.launch({
-    executablePath: "/home/z/.cache/ms-playwright/chromium-1194/chrome-linux/chrome",
-    args: [
-      "--use-angle=swiftshader",
-      "--enable-unsafe-swiftshader",
-      "--disable-dev-shm-usage",
-      "--no-sandbox",
-      "--js-flags=--expose-gc",
-    ],
+    args: [...launchArgs(), "--disable-dev-shm-usage", "--no-sandbox", "--js-flags=--expose-gc"],
   });
   const page = await browser.newPage();
   page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));

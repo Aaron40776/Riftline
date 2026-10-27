@@ -1,5 +1,6 @@
 import { chromium } from "playwright";
-const browser = await chromium.launch({ args: ["--use-angle=swiftshader"] });
+import { launchArgs } from "./lib/renderer.mjs";
+const browser = await chromium.launch({ args: launchArgs() });
 const page = await browser.newPage();
 await page.goto(process.argv[2] || "http://localhost:8124/index.html");
 await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 60000 });
