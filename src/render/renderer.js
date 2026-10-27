@@ -1769,8 +1769,8 @@ const MAX_PARTICLES = 1400,
       drone.base.rotation.set(0, this.time * 0.3, 0);
       this.corpses.length = 0;
       for (let mat of drone.mats) mat.emissive.setScalar(0);
-      let shadow = this.shadows.y(0, 0.02, 0, 0, 2.2),
-        glow = this.sprites.bb(0, 0.15, 0, 2.2, this.B);
+      this.shadows.y(0, 0.02, 0, 0, 2.2);
+      let glow = this.sprites.bb(0, 0.15, 0, 2.2, this.B);
       this.sprites.colC(glow, hexColor(weaponDefs[this.playerWeapon].color), 0.35);
       if (Math.random() < dt * 30) {
         let angle = Math.random() * TAU,

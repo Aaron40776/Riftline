@@ -25,7 +25,7 @@ import {
   AMB_PREVIEW,
 } from "../audio/sound.js";
 import { lookOf, ATTACK_LOOK } from "../render/attacks-view.js";
-import { PLACE, PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, PROP_HEAR } from "../audio/place.js";
+import { PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, PROP_HEAR } from "../audio/place.js";
 import { STEP_LEN, FLOOR } from "./walk.js";
 import { buildPlayerModel } from "../render/models.js";
 import {
@@ -57,7 +57,7 @@ import {
   cleanSave,
 } from "./save.js";
 import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByWave, bossByBiome } from "../data/enemies.js";
-import { ui, renderer } from "../main.js";
+import { renderer } from "../main.js";
 import { hashString, GAME_VERSION, makeRng } from "./util.js";
 import { updateEnemy, findOpenSpot, updateBoss, OVERDRIVE } from "./ai.js";
 import { MUTATORS, MUTATOR_IDS, MUTATOR_MAX_LEVEL, rlMutatorsFor } from "./mutators.js";

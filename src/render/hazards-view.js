@@ -38,7 +38,6 @@ import { clamp, TAU, makeRng } from "../core/util.js";
 
 const WHITE = new Color(0xffffff),
   SAND = new Color(0xd8c8a8), // 3.53.0: the Flats' dust
-  SAND_HOT = new Color(0xffe9c4),
   SAND_DEEP = new Color(0x9a8a5e),
   LAVA = new Color(0xff6a1f),
   LAVA_HOT = new Color(0xffd27a),
