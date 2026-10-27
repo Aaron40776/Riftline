@@ -1,0 +1,45 @@
+# Riftline
+
+This repository is **Riftline**, the 3D arena roguelite shooter (three.js). **Riftdeck**, the
+deckbuilder set in the same universe, is a different game in its own repository
+(`Aaron40776/Riftdeck`). Do not mix the two up, and do not change Riftdeck from here.
+
+README.md explains build, commands, project structure and hosting; `docs/DEVELOPMENT.md` the code history, working
+rules and release steps. Read them first. In short:
+
+- The game code is split into ES modules under `src/` (`main.js`, `core/`, `data/`, `render/`,
+  `audio/`, `ui/`; see README). three.js comes from npm (`three`, pinned to 0.186.0) and
+  `build.js` bundles everything from `src/main.js`. Top-level names are readable (`World`,
+  `game`, `ui`, `store` …); new ones follow the same style. Since 2.5.1 nothing is patched from
+  outside any more: change classes and functions directly, in the module that owns them. A
+  version comment (`// 2.5.1: …`) is kept only where it explains why code looks the way it does.
+- Design principle (from the owner): everything fits together organically and dynamically. Mechanics,
+  looks and sounds belong to each other (a trap family gets a skin, a model and a sound per biome; music
+  and ambience belong to the place), the game keeps getting harder as it scales (waves, Endless), and it
+  still looks and sounds good and detailed. New features come with their model, sound, telegraph and
+  tests, not as a bare mechanic.
+- `docs/ROADMAP.de.md` holds the owner's wishes, decisions (for example the Cloudflare plan), open doubts and ideas. Read
+  it at the start of a session and update it in the same PR when a plan changes or an item is done.
+- Format with Prettier (`npm run format`, width 120, `.prettierrc`); CI runs `npm run format:check`.
+- `npm test` includes `tests/determinism.mjs`. A refactor must pass it unchanged; update
+  `tests/fixtures/determinism.json` (`--update`) only for changes meant to alter game behaviour.
+- The version and build id exist only in `package.json` (`version`, `riftline.build`) and must move together: the
+  build id is `r<version-digits>a<MMDD><letter>-r1` (digits without the dots, then the release day). After a bump run
+  `npm install` so `package-lock.json` follows.
+- A release also adds a short player-facing entry at the top of `src/data/whatsnew.js` (the What's new tab; the
+  first entry must match the version, `tests/data-audit.mjs` checks it and that the list stays at `NEWS_KEEP`).
+  `src/build-info.json` is the identity the game fetches at start-up; since 3.57.0 the build writes only the version
+  and the build id of it to `dist/`, so there is no changelog to keep there any more.
+- Run `npm test` before every commit (`npm run check` runs the same steps plus the format check, quicker with its
+  sound cache). Before a release also run `npm run qa`, `npm run e2e`, `npm run audit` and `npm run screens`
+  (`npm run release-check` runs all of it in order), and look at the screenshots.
+- All changes go through pull requests: work on a branch, open a PR against `main`, and let the
+  owner merge it. Never push to `main` directly.
+- A push to `main` deploys the game to GitHub Pages. Other branches and pull requests only run
+  the tests (`.github/workflows/test.yml`); the long checks run every night
+  (`.github/workflows/nightly.yml`).
+- Saves use the `localStorage` keys `riftline.*`. Riftdeck shares the GitHub Pages origin and uses
+  `riftdeck.*`; never read or write those.
+- Everything is written in English (the owner's wish since 03.10.2026): player-facing texts, commit messages, README
+  and the roadmap. The earlier German sections of `docs/ROADMAP.de.md` stay as they are; new sections are English.
+  Replies to the owner are English too. The owner lives in Germany: give dates and times in German time (CET/CEST).
