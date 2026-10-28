@@ -81,6 +81,8 @@ first (the npm aliases already do).
 
 One caveat on `deep-test`: the music section renders all six biomes inside a single `page.evaluate`, so on a machine with a modest browser heap it can exceed Chrome's memory and die with `Target crashed` during the music part (after the sound catalog has already reported its count). It reproduces with software rendering too, so it is not the renderer. `scripts/rl-music-probe.mjs` solves the same problem by building one browser per biome; doing that here is a separate change, left verifiable rather than folded in.
 
+The determinism golden (`tests/fixtures/determinism.json`) pins the browser as well as the game: it records floating-point results, so a Chromium/V8 upgrade — or a deliberate gameplay change — moves every digest at once (the sim is chaotic, so one differently-rounded `Math.sin` reseeds the whole run). CI keeps the browser fixed through `package-lock.json`, which is why the file is stable there. Regenerate it with `node tools/qa.js determinism --update`, and say in the commit which of the two moved it.
+
 ### Why a linter with one rule
 
 `no-undef` exists because of 3.45.0: the HUD's buff row read a local variable from a neighbouring function as a bare identifier — legal at parse time, invisible to esbuild and to every test (no test had a buff on screen), and it killed a real player's run the first time they dashed. A static undefined-name check fails that class before it ships. That's the whole config.
