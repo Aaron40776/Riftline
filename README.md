@@ -9,7 +9,8 @@
 - **7 weapons**, each with its own projectile behaviour, plus one evolution path per weapon
 - **25 enemy types** with late-run role diversity, champions, elites and **6 bosses** (one per biome cycle), each with phases, enrage and a boss card reward
 - **6 biomes** — Blackout City, the Glowmarsh, the Aurora Shelf, the Shattered Core, the Ashfall Caldera and the Glass Flats — each with its own floor, props, hazards (live vents, ice, acid, portals, magma vents, dust devils that move), light, music theme and soundscape
-- **61 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
+- A 20-wave run crosses Blackout City, two of the other four places, and the Shattered Core; Endless walks all six
+- **62 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
 - **19 persistent workshop modules**, milestones through wave 200, threat levels, medals
 - **Endless** mode with mutators, and a **daily run** with a fixed seed
 - A dynamic wave director that mixes 12+ encounter modes instead of a fixed spawn table

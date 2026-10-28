@@ -28,6 +28,7 @@ import { lookOf, ATTACK_LOOK } from "../render/attacks-view.js";
 import { PLACE, PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, PROP_HEAR } from "../audio/place.js";
 import { STEP_LEN, FLOOR } from "./walk.js";
 import { buildPlayerModel } from "../render/models.js";
+import { BOSS_PORTAL } from "../render/renderer.js";
 import {
   BOSS_CARD,
   BOSS_CARD_CHANCE,
@@ -71,7 +72,7 @@ import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
 import { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount, rlUpdateTraps } from "./traps.js";
 import { hitsObstacle, buildLayout, isConnected, RL_HAZARD_SIZE_250, rlSpawnZone } from "./arena.js";
 import { computeStats, buildStatRows } from "./stats.js";
-import { bossMedal } from "./medals.js";
+import { bossMedal, PAR } from "./medals.js";
 import { PACTS, PACT_MAX, cleanPacts, pactBonus, applyPactsToThreat } from "../data/pacts.js";
 import { dailyKey, dayBefore, dailySpec, recordDaily, liveStreak } from "./daily.js";
 import { RL_EVENT_KINDS, RL_BOSS_EVENTS, rlEventPayloadError, rlUiButtonGuardSelfTest } from "./diagnostics.js";
@@ -1136,6 +1137,13 @@ function selfTestV246(result) {
     if (!bossDefs[id]) fail.push("boss-def:" + id);
   }
   if (Object.keys(bossByBiome).length !== biomeList.length) fail.push("boss-per-biome");
+  // 3.58.0: every place's boss carries its own presentation data. The Glasswyrm was missing from the medal
+  // par table (it fell back to the 70 s default, so its thresholds were never chosen) and from the portal
+  // colours; no test looked. The tables are checked against the biome map, which is the run's real roster.
+  for (const id of Object.values(bossByBiome)) {
+    if (!PAR[id]) fail.push("boss-par:" + id);
+    if (!BOSS_PORTAL[id]) fail.push("boss-portal-colours:" + id);
+  }
   for (const seed of [11, 222, 3333, 44444, 0x246]) {
     const world = new World({ seed, weapon: "pulse", threat: 0, ws: {} }),
       mid = new Set([world.biomeFor(6).id, world.biomeFor(11).id]);

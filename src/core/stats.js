@@ -128,7 +128,9 @@ function computeStats(weaponId, run, workshop) {
   stats.tribute = has("tribute");
   // 3.56.0: the Glasswyrm's fang
   stats.fang = has("fang");
-  stats.speed *= 1 + 0.04 * stats.skates;
+  // 3.58.0: +9% a level (was +4%). The card only paid off on ice / the Aurora Shelf, where the extra 15% a
+  // level applies, so everywhere else it was a strictly worse Servo Thrusters (Common, +10% a level, 6 levels).
+  stats.speed *= 1 + 0.09 * stats.skates;
   stats.acidCoat = level("acidcoat");
   stats.heatSink = level("heatsink");
   stats.slip = level("slipstream");

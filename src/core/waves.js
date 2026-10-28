@@ -147,9 +147,11 @@ function planWave(rng, wave, tm, boss, plan = {}) {
   try {
     const start = rlBiomeStart(wave);
     for (const id of early) enemyDefs[id].from = start;
-    // 3.3.0: a later boss brings a bigger escort (0.22 of a wave's budget at wave 5, up to 0.34)
+    // 3.3.0: a later boss brings a bigger escort. 3.58.0: 0.18 at wave 5 up to 0.33 (was 0.22-0.34) - the
+    // balance bench lost four of six seeds in the first boss fight, and the escort is the chip damage the
+    // player eats while learning the Warden's three attacks.
     let budget =
-        waveBudget(wave, tm) * (boss ? 0.22 + 0.02 * Math.min(6, Math.floor(wave / 5) - 1) : 1) * (plan.budget || 1),
+        waveBudget(wave, tm) * (boss ? 0.18 + 0.025 * Math.min(6, Math.floor(wave / 5) - 1) : 1) * (plan.budget || 1),
       types = enemyOrder.filter((type) => enemyDefs[type].from <= wave && (!boss || !heavyEnemies[type])),
       caps = {
         hive: 1 + Math.floor(wave / 8),

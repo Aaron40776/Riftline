@@ -215,7 +215,10 @@ const RL_BIOME_INFO = {
     tag: "Bloom tide",
     grip: 24,
     mud: 0.92,
-    mix: { swarmer: 1.6, splitter: 2.4, hive: 2.2, mender: 1.8, sapper: 1.8, carrier: 1.5, gunner: 0.6 },
+    // 3.58.0: the Repair Beacon lives here (a mix weight pulls a type in before its `from` wave). It was
+    // Endless-only - `from: 26`, in no mix - so its Codex entry, its first-timer tip and the "kill it first"
+    // idea reached nobody. The marsh is the place that already heals itself (menders, carriers).
+    mix: { swarmer: 1.6, splitter: 2.4, hive: 2.2, mender: 1.8, sapper: 1.8, carrier: 1.5, gunner: 0.6, beacon: 1.2 },
   },
   void: {
     tag: "Portals",
