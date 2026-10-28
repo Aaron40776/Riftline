@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "3.58.0",
+    title: "The Weekly Rift",
+    items: [
+      "THE WEEKLY RIFT joins the Daily: one run a week, the same for every pilot, with a twist — two mutators are pinned for the whole week and are on from wave 1.",
+      "Seed, weapon, threat and both mutators come from the ISO week; a new Rift opens every Monday 00:00 UTC.",
+      "Like the Daily it ignores your workshop and pacts, so everyone flies the same drone, and it keeps its own best-of-week and a count of the weeks you played.",
+      "You reach it on the Rifts page, under the Daily; the home-screen dot now lights up for an unplayed week too.",
+      "The Daily Rift and its streak are unchanged.",
+    ],
+  },
+  {
     version: "3.57.0",
     title: "A calmer camera and a shorter options screen",
     items: [
@@ -46,19 +57,6 @@ export const WHATS_NEW = [
       "The Glass Flats reads as fused glass: every sheet took the melt differently, a sun-glare band slides across the plain, and the loose sand keeps the wind's ripples.",
       "The Flats' props went pale: sunlit dunes, brighter glass ridges with hot fused edges, and glass blisters where the melt bubbled.",
       "Dust devils and sunspikes now throw dust and sand, not dark boxes — the brown clutter is gone.",
-      "Every change is visual only — saves, records and the run's rng are untouched.",
-    ],
-  },
-  {
-    version: "3.54.0",
-    title: "The caldera wakes, the shelf glows",
-    items: [
-      "The Ashfall Caldera is a volcano now: its cones stand past the far wall, crater rims burning, lava veins down the flanks, ash plumes leaning off the mouths.",
-      "The crater floor cracked open — a web of molten fissures breathes around two hot hearts, with lava ponds, charred rubble and basalt pipes over the whole field.",
-      "The fumaroles read as fumaroles: dark crust over dull seams while they idle, a blaze when they jet.",
-      "The Aurora Shelf found its night: the indigo sits deeper and the thin ice's cracks glow glacier blue, breathing with the storm.",
-      "The aurora itself: curtains with a bright waving foot and drifting rays stand past the far wall, and their green-pink sheen sweeps the ice all run long.",
-      "Great seracs and ice cliffs rise on the horizon with green rim light on their crests, and the snow catches the aurora's light.",
       "Every change is visual only — saves, records and the run's rng are untouched.",
     ],
   },
