@@ -6,7 +6,7 @@ import { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices } from "../audio/sou
 import { SAVE_KEY, cleanRun } from "./save.js";
 import { RL_MESH_TYPES } from "../render/models.js";
 import { enemyDefs, RL_ENEMY_TIPS, bossDefs } from "../data/enemies.js";
-import { ui, store, game, safeAreaInsets, input, renderer } from "../main.js";
+import { store, game, safeAreaInsets, input, renderer } from "../main.js";
 import { runHooks, setLogHook } from "./run-hooks.js";
 import { BUILD_ID, GAME_VERSION, formatTime } from "./util.js";
 import { biomesById, biomeList } from "../data/biomes.js";
@@ -847,8 +847,7 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
     base = fresh0 ? RL_LAST_RUN_AUDIT : rlRunAudit(world, win, abandoned);
   const checks = [],
     addCheck = (status, id, msg) => checks.push({ st: status, id, msg });
-  const issues = mon ? [...mon.issues.values()] : [],
-    byId = (id) => issues.filter((issue) => issue.id === id);
+  const issues = mon ? [...mon.issues.values()] : [];
   const fmt = (issue) => `${issue.msg}${issue.n > 1 ? ` (×${issue.n})` : ""}`;
   const group = (id, okMsg, ids = [id]) => {
     const matching = issues.filter((issue) => ids.includes(issue.id)),
@@ -1313,7 +1312,7 @@ function rlUiButtonGuardSelfTest() {
       );
     if (count !== 10) pass = false;
     steps++;
-  } catch (err) {
+  } catch {
     pass = false;
   }
   RL_TOUCH_CLICK_GUARD.until = 0;
@@ -1601,7 +1600,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
     if (old !== null) {
       localStorage.setItem(key, old);
     }
-  } catch (err) {
+  } catch {
     warn("storage", "localStorage unavailable or restricted");
   }
   try {
@@ -1694,7 +1693,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
         ? `network build ${info.version} · ${info.build_id || "?"}${okBuild ? "" : ` (this page runs ${GAME_VERSION} · ${BUILD_ID})`}`
         : `HTTP ${res.status}`,
     );
-  } catch (err) {
+  } catch {
     warn("build-info-network", "offline or build-info fetch blocked");
   }
   try {

@@ -677,7 +677,6 @@ function marshDetail(biome, W, H, obs, rng) {
    blisters, glare patches and shard tufts on the ground. ---- */
 function flatsDetail(biome, W, H, obs, rng) {
   const out = list(),
-    gold = biome.grid,
     hot = biome.accent,
     // 3.55.0: the dunes and the berm read as pale sand (they used to be dark brown boxes against
     // the near-white floor - clutter, not detail), the glass reads brighter than the floor

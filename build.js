@@ -120,8 +120,9 @@ async function build() {
   // release). The build writes the small identity file the game needs. src/build-info.json stays the one place the
   // release notes are written. 3.37.0: dist/changes.json (which nothing ever fetched) is no longer written.
   const info = JSON.parse(fs.readFileSync(path.join(DIST, "build-info.json"), "utf8")); // must stay valid JSON
-  const { features, changes, ...identity } = info;
-  fs.writeFileSync(path.join(DIST, "build-info.json"), JSON.stringify(identity, null, 1) + "\n");
+  delete info.features;
+  delete info.changes;
+  fs.writeFileSync(path.join(DIST, "build-info.json"), JSON.stringify(info, null, 1) + "\n");
 
   // Offline contract: every file the service worker precaches must exist in dist/.
   const sw = fs.readFileSync(path.join(DIST, "sw.js"), "utf8");
