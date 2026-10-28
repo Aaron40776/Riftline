@@ -415,7 +415,7 @@ upgradeList.push(
     max: 2,
     icon: "snow",
     desc: (level, count = level + 1) =>
-      `+${4 * count}% speed. On ice or on the Aurora Shelf: +${15 * count}% more, and dash recharges ${35 * count}% faster`,
+      `+${9 * count}% speed. On ice or on the Aurora Shelf: +${15 * count}% more, and dash recharges ${35 * count}% faster`,
   },
   {
     id: "acidcoat",

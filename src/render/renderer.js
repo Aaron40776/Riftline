@@ -417,6 +417,10 @@ const MAX_PARTICLES = 1400,
     core: [hexColor(0xa56bff), hexColor(0xff4de0)],
     // 3.49.0: the Ash Tyrant's burning dead come through ember and ash
     kingpin: [hexColor(0xff9c3a), hexColor(0xffe19a)],
+    // 3.58.0: the Glasswyrm hunts alone, so it opens no gates today - the entry is here so the table covers
+    // every place's boss (core/selftest.js checks the per-boss tables against bossByBiome), in the wyrm's
+    // hot fused edge and the Flats' pale glass
+    wyrm: [hexColor(0xffc24d), hexColor(0xfff3d6)],
   },
   healColor = hexColor(7208842),
   whiteColor = hexColor(16777215),
@@ -470,6 +474,9 @@ const MAX_PARTICLES = 1400,
       this.arena = new ArenaView(this.scene);
       this.time = 0;
       this.shake = 0;
+      // 3.58.0: how much the camera may move (1: as tuned, 0: still). main.js sets it from the OS motion
+      // preference, so "reduce motion" now reaches the shake and the recoil kick instead of only the CSS.
+      this.motion = 1;
       // 3.57.0: the shake is no longer the player's switch (it is always on, see addShake). Endless mode fires
       // so many events that the accumulator sat at its cap for whole waves, and a capped shake is a shake that
       // never rests. A lower cap, a flatter amplitude curve and a faster decay keep the punch of a single hit
@@ -813,7 +820,7 @@ const MAX_PARTICLES = 1400,
       // than the decay retired them, so the accumulator sat at the cap and the camera never settled. The
       // amplitude curve is flatter (see the camera block) and the decay faster, so a single hit still reads
       // as an impact while a busy wave no longer turns into a permanent wobble.
-      this.shake = Math.min(0.75, this.shake + amount);
+      this.shake = Math.min(0.75, this.shake + amount * this.motion);
     }
     flash(x, z, radius, intensity, color, decay = 6) {
       if (this.flashes.length > 24) {
@@ -994,7 +1001,7 @@ const MAX_PARTICLES = 1400,
     consume(events, world, opts) {
       // 3.45.5: the Settings toggles gate the floating numbers and the shake on top of the per-event opts
       let showNumbers = opts.numbers !== false && this.numbers !== false,
-        shakeK = opts.shake === false ? 0 : 1;
+        shakeK = (opts.shake === false ? 0 : 1) * this.motion;
       for (let ev of events) {
         // 3.15.0: the events of the boss cards (and the blasts of the hammer and the larvae) are drawn by their view
         if (this.bossCardView.event(ev, world, shakeK)) continue;
@@ -1025,7 +1032,7 @@ const MAX_PARTICLES = 1400,
               this.flashes.push(muzzleFlash);
             }
             if (def.shake > 0.04 && shakeK) {
-              this.kick = Math.min(0.6, this.kick + def.shake * 2.2);
+              this.kick = Math.min(0.6, this.kick + def.shake * 2.2 * this.motion);
               this.kickA = ev.a;
             }
             if (def.rail) {
@@ -2730,4 +2737,4 @@ const RL_WHITEOUT_FOG = [0.7, 1.12],
   RL_WHITEOUT_TINT = new Color(0xe6f0f6),
   RL_WHITEOUT_SNOW = new Color(0xffffff);
 
-export { Renderer, hexColor, additiveMaterial, markHomeViewDirty };
+export { Renderer, BOSS_PORTAL, hexColor, additiveMaterial, markHomeViewDirty };

@@ -9,6 +9,8 @@ import * as mattacks_view from "../render/attacks-view.js";
 import * as mplace from "../audio/place.js";
 import * as mwalk from "./walk.js";
 import * as mmodels from "../render/models.js";
+// 3.58.0: the per-boss portal colours sit with the renderer, so the self-test reads them from it
+import * as mrenderer from "../render/renderer.js";
 import * as mboss_cards from "./boss-cards.js";
 import * as msave from "./save.js";
 import * as menemies from "../data/enemies.js";
@@ -39,6 +41,7 @@ export const SELFTEST_MODULES = {
   "../audio/place.js": mplace,
   "./walk.js": mwalk,
   "../render/models.js": mmodels,
+  "../render/renderer.js": mrenderer,
   "./boss-cards.js": mboss_cards,
   "./save.js": msave,
   "../data/enemies.js": menemies,

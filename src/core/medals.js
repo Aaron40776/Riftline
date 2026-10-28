@@ -8,7 +8,10 @@
 
 const MEDAL_NAMES = ["", "Bronze", "Silver", "Gold"],
   // 3.49.0: the Ash Tyrant runs a tighter crater than the factory (par 65 s)
-  PAR = { warden: 60, forge: 70, prism: 70, queen: 75, core: 85, kingpin: 65 };
+  // 3.58.0: the Glasswyrm hunts alone (no escorts, so the fight is the wyrm and nothing else), which puts
+  // it just under the Prism's 70 s. It had no entry and fell back to the 70 s default silently, so its
+  // silver and gold thresholds were never actually chosen.
+  PAR = { warden: 60, forge: 70, prism: 70, queen: 75, core: 85, kingpin: 65, wyrm: 68 };
 
 /* 3.39.0: the par time of a boss at the current threat (the end screen shows it with the medal) */
 function bossPar(id, hpMul = 1) {
@@ -26,4 +29,4 @@ function bossMedal(id, secs, damage, maxHp = 100, hpMul = 1) {
   return 1;
 }
 
-export { bossMedal, bossPar, MEDAL_NAMES };
+export { bossMedal, bossPar, MEDAL_NAMES, PAR };
