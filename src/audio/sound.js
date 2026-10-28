@@ -641,12 +641,6 @@ const musicChords = {
     [3, 2, 1, 0],
     [0, 2, 3, 1],
   ],
-  leadPatterns = [
-    [0, null, null, 2, null, null, 3, null, 4, null, 3, null, 2, null, null, null],
-    [1, null, 2, null, null, null, 3, null, null, 2, null, 1, null, null, 0, null],
-    [2, null, null, 3, null, 4, null, null, 5, null, 4, null, 3, null, null, null],
-    [3, null, 2, null, 1, null, null, 0, null, null, 1, null, 2, null, 3, null],
-  ],
   SoundEngine = class {
     constructor() {
       this.ctx = null;
@@ -3476,8 +3470,7 @@ const musicChords = {
      Now the sounding notes fade out over QUIET_FADE, the echo line is emptied and the room is swapped for a fresh one
      (the old one fades out and goes). */
     quietOld(now) {
-      let ctx = this.ctx,
-        end = now + QUIET_FADE,
+      let end = now + QUIET_FADE,
         list = this.musicVoiceList;
       for (let voice of list) {
         if (!voice.node || voice.start > now + 0.005 || voice.end <= now + 0.01) continue;
@@ -4480,8 +4473,7 @@ function tremoloEnv(rate, depth, dur, fade) {
 }
 /* a swell that is faded in and out by `fade` seconds with a sin^2 window: voices that start every `span` seconds
    and last span + fade seconds cross-fade without a dip (pads and drones) */
-const padEnv = (dur, fade) => tremoloEnv(0, 0, dur, fade),
-  FLICKER = new Float32Array([0.9, 0.2, 1, 0.1, 0.8, 0.3, 1, 0.4, 0.2, 0]);
+const padEnv = (dur, fade) => tremoloEnv(0, 0, dur, fade);
 /* one scheduling kit per step: the buses (see above), each with t(one) for an oscillator and n(oise) */
 function kit(e, c) {
   const base = c.at,

@@ -417,6 +417,10 @@ const MAX_PARTICLES = 1400,
     core: [hexColor(0xa56bff), hexColor(0xff4de0)],
     // 3.49.0: the Ash Tyrant's burning dead come through ember and ash
     kingpin: [hexColor(0xff9c3a), hexColor(0xffe19a)],
+    // 3.58.0: the Glasswyrm hunts alone, so it opens no gates today - the entry is here so the table covers
+    // every place's boss (core/selftest.js checks the per-boss tables against bossByBiome), in the wyrm's
+    // hot fused edge and the Flats' pale glass
+    wyrm: [hexColor(0xffc24d), hexColor(0xfff3d6)],
   },
   healColor = hexColor(7208842),
   whiteColor = hexColor(16777215),
@@ -470,6 +474,9 @@ const MAX_PARTICLES = 1400,
       this.arena = new ArenaView(this.scene);
       this.time = 0;
       this.shake = 0;
+      // 3.58.0: how much the camera may move (1: as tuned, 0: still). main.js sets it from the OS motion
+      // preference, so "reduce motion" now reaches the shake and the recoil kick instead of only the CSS.
+      this.motion = 1;
       // 3.57.0: the shake is no longer the player's switch (it is always on, see addShake). Endless mode fires
       // so many events that the accumulator sat at its cap for whole waves, and a capped shake is a shake that
       // never rests. A lower cap, a flatter amplitude curve and a faster decay keep the punch of a single hit
@@ -490,7 +497,6 @@ const MAX_PARTICLES = 1400,
       this.bossView = null;
       this.flashT = 0;
       this.menuA = 0;
-      this.contrast = false;
       this.resize();
     }
     initPools() {
@@ -503,7 +509,7 @@ const MAX_PARTICLES = 1400,
       this.attackView = new AttackView(this, InstancePool);
       // 3.15.0: the boss cards (cages, slag, splinters, larvae, the implosion of Event Collapse)
       this.bossCardView = new BossCardView(this, InstancePool);
-      // the colour of the warnings (setAccess turns it yellow for Clear warnings)
+      // the colour of the warnings
       this.warnColor = warnColor;
       this.texGlow = makeGlowTexture();
       this.texShadow = makeShadowTexture();
@@ -813,7 +819,7 @@ const MAX_PARTICLES = 1400,
       // than the decay retired them, so the accumulator sat at the cap and the camera never settled. The
       // amplitude curve is flatter (see the camera block) and the decay faster, so a single hit still reads
       // as an impact while a busy wave no longer turns into a permanent wobble.
-      this.shake = Math.min(0.75, this.shake + amount);
+      this.shake = Math.min(0.75, this.shake + amount * this.motion);
     }
     flash(x, z, radius, intensity, color, decay = 6) {
       if (this.flashes.length > 24) {
@@ -994,7 +1000,7 @@ const MAX_PARTICLES = 1400,
     consume(events, world, opts) {
       // 3.45.5: the Settings toggles gate the floating numbers and the shake on top of the per-event opts
       let showNumbers = opts.numbers !== false && this.numbers !== false,
-        shakeK = opts.shake === false ? 0 : 1;
+        shakeK = (opts.shake === false ? 0 : 1) * this.motion;
       for (let ev of events) {
         // 3.15.0: the events of the boss cards (and the blasts of the hammer and the larvae) are drawn by their view
         if (this.bossCardView.event(ev, world, shakeK)) continue;
@@ -1025,7 +1031,7 @@ const MAX_PARTICLES = 1400,
               this.flashes.push(muzzleFlash);
             }
             if (def.shake > 0.04 && shakeK) {
-              this.kick = Math.min(0.6, this.kick + def.shake * 2.2);
+              this.kick = Math.min(0.6, this.kick + def.shake * 2.2 * this.motion);
               this.kickA = ev.a;
             }
             if (def.rail) {
@@ -1769,8 +1775,8 @@ const MAX_PARTICLES = 1400,
       drone.base.rotation.set(0, this.time * 0.3, 0);
       this.corpses.length = 0;
       for (let mat of drone.mats) mat.emissive.setScalar(0);
-      let shadow = this.shadows.y(0, 0.02, 0, 0, 2.2),
-        glow = this.sprites.bb(0, 0.15, 0, 2.2, this.B);
+      this.shadows.y(0, 0.02, 0, 0, 2.2);
+      let glow = this.sprites.bb(0, 0.15, 0, 2.2, this.B);
       this.sprites.colC(glow, hexColor(weaponDefs[this.playerWeapon].color), 0.35);
       if (Math.random() < dt * 30) {
         let angle = Math.random() * TAU,
@@ -2338,12 +2344,12 @@ const MAX_PARTICLES = 1400,
           ex = beam.x + Math.cos(beam.a) * len,
           ez = beam.y + Math.sin(beam.a) * len;
         // 3.0.0: trap beams wear the colours of their skin (the warning phase below stays red for every beam)
-        if (beam.live && beam.skin && !this.contrast && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
+        if (beam.live && beam.skin && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
         if (beam.live) {
-          // 2.4.6: a beam can bring its own colour (Frost Prism: ice); Clear warnings keeps yellow
+          // 2.4.6: a beam can bring its own colour (Frost Prism: ice)
           let flicker = 0.85 + Math.random() * 0.3,
             outer = this.beams.seg(beam.x, beam.y, ex, ez, 1, beam.w * flicker, beam.w * 0.6),
-            beamCol = beam.color && !this.contrast ? hexColor(beam.color) : beamColor;
+            beamCol = beam.color ? hexColor(beam.color) : beamColor;
           this.beams.colC(outer, beamCol, 0.8);
           let inner = this.beams.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.35, beam.w * 0.3);
           this.beams.colC(inner, whiteColor, 1);
@@ -2664,11 +2670,6 @@ const MAX_PARTICLES = 1400,
       let dist = (0.75 - origin.y) / dir.y;
       return { x: origin.x + dir.x * dist, y: origin.z + dir.z * dist };
     }
-    setAccess(contrast) {
-      this.contrast = !!contrast;
-      warnColor.setHex(contrast ? 16773226 : 16728160);
-      beamColor.setHex(contrast ? 16765498 : 16732064);
-    }
     resetCamera() {
       this.camInit = false;
       this.shake = 0;
@@ -2730,4 +2731,4 @@ const RL_WHITEOUT_FOG = [0.7, 1.12],
   RL_WHITEOUT_TINT = new Color(0xe6f0f6),
   RL_WHITEOUT_SNOW = new Color(0xffffff);
 
-export { Renderer, hexColor, additiveMaterial, markHomeViewDirty };
+export { Renderer, BOSS_PORTAL, hexColor, additiveMaterial, markHomeViewDirty };

@@ -3,14 +3,6 @@
 import { biomeList } from "./biomes.js";
 import { weaponOrder } from "./weapons.js";
 
-const threatLevels = [
-  { lvl: 0, name: "Standard", desc: "The rift as it is." },
-  { lvl: 1, name: "Threat I", desc: "Enemies +25% health, +12% damage." },
-  { lvl: 2, name: "Threat II", desc: "More elites, denser waves." },
-  { lvl: 3, name: "Threat III", desc: "Bosses hit harder and faster." },
-  { lvl: 4, name: "Threat IV", desc: "Only for tuned builds." },
-  { lvl: 5, name: "Threat V", desc: "The breach at full strength." },
-];
 const threatMods = (threat) => ({
   hp: 1 + 0.25 * threat,
   dmg: 1 + 0.12 * threat,
@@ -18,6 +10,22 @@ const threatMods = (threat) => ({
   elite: 0.05 * threat,
   shards: 1 + 0.25 * threat,
   boss: 1 + 0.3 * threat,
+});
+/* 3.58.0: the text is computed from threatMods, the same numbers the run uses. Before, only Threat I said
+   what it did ("+25% health, +12% damage") and II-V described themselves ("Only for tuned builds"), so the
+   player chose a difficulty without knowing its size. */
+const THREAT_NAMES = ["Standard", "Threat I", "Threat II", "Threat III", "Threat IV", "Threat V"],
+  pct = (mul) => Math.round((mul - 1) * 100);
+const threatLevels = THREAT_NAMES.map((name, lvl) => {
+  const m = threatMods(lvl);
+  return {
+    lvl,
+    name,
+    desc:
+      lvl === 0
+        ? "The rift as it is."
+        : `Enemies +${pct(m.hp)}% hull \xB7 +${pct(m.dmg)}% damage \xB7 +${pct(m.budget)}% wave size \xB7 +${Math.round(m.elite * 100)}% elite chance \xB7 bosses +${pct(m.boss)}% hull \xB7 shards +${pct(m.shards)}%`,
+  };
 });
 const workshopModules = [
   {

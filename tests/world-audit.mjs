@@ -45,7 +45,6 @@ const r = await page.evaluate(() => {
       if (!A.key.startsWith(b.id + ":")) add("layout-key", `${A.key} vs ${b.id}`);
       // walls
       for (const o of A.obs) {
-        const ex = o.t === "c" ? o.r : Math.max(o.w, o.h);
         if (Math.abs(o.x) + (o.t === "c" ? o.r : o.w) > A.W - 1 || Math.abs(o.y) + (o.t === "c" ? o.r : o.h) > A.H - 1)
           add("wall-outside", `${b.id} w${wave}`);
         if (hitsObstacle([o], 0, 2, 1.5)) add("wall-on-start", `${b.id} w${wave} ${JSON.stringify(o)}`);
@@ -95,7 +94,6 @@ const r = await page.evaluate(() => {
       w.god = true;
       let t = 0;
       while (t < 90 && (w.planIdx < w.plan.length || w.markers.length || w.bossPending)) {
-        const before = w.markers.length;
         w.step(1 / 30, { mx: Math.sin(t), my: Math.cos(t * 0.7), fire: false, auto: false });
         t += 1 / 30;
         for (const mk of w.markers)

@@ -1737,7 +1737,6 @@ function updateEnemy(game, enemy, dt) {
     const player = game.player,
       dx = player.x - enemy.x,
       dy = player.y - enemy.y,
-      dist = Math.hypot(dx, dy) || 0.001,
       ang = Math.atan2(dy, dx),
       side = Math.sin(enemy.age * 2.8 + enemy.phase);
     enemy.vx = Math.cos(ang + Math.PI / 2) * side * enemy.speed;

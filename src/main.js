@@ -895,6 +895,14 @@ input.onPause = () => {
 };
 let qualityPreset = qualityPresets.auto,
   autoDpr = 1.5;
+/* 3.58.0: the motion preference of the device. index.html already stops the CSS animations; the camera shake
+   and the weapon recoil are three.js, so they read the flag here. 3.57.0's note promised this and the code
+   never asked, so a reduced-motion player still got a shaking camera. */
+const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (typeof matchMedia === "function") {
+  const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
+  if (motionQuery.addEventListener) motionQuery.addEventListener("change", () => applySettings());
+}
 function applySettings() {
   let settings = store.data.settings;
   sound.setVolumes(settings.sfx, settings.music, settings.ambience);
@@ -909,6 +917,7 @@ function applySettings() {
     // needed: the camera now sits at its tuned distance, warnings draw in their own colours, and the shake
     // is a fixed, gentler amount (endless mode used to stack it into something unpleasant).
     renderer.numbers = settings.numbers !== false;
+    renderer.motion = reducedMotion() ? 0 : 1;
     let dpr = settings.quality === "auto" ? autoDpr : qualityPreset.dpr;
     renderer.setQuality(dpr, qualityPreset.particles);
   }

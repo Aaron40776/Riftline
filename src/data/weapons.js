@@ -7,7 +7,10 @@ const weaponDefs = {
     cost: 0,
     color: 4846335,
     blurb: "Reliable rapid fire. Scales with everything.",
-    dmg: 12,
+    // 3.58.0: 13 (was 12). The bench (npm run balance) cleared a wave in 39.9 s with the free Pulse against
+    // 25.2 s with the Ember Jet, and it is the one weapon every new player owns - the same gap the Arc Caster
+    // was raised for in 3.40.0.
+    dmg: 13,
     rate: 6,
     speed: 27,
     life: 0.72,

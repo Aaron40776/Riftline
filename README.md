@@ -9,7 +9,8 @@
 - **7 weapons**, each with its own projectile behaviour, plus one evolution path per weapon
 - **25 enemy types** with late-run role diversity, champions, elites and **6 bosses** (one per biome cycle), each with phases, enrage and a boss card reward
 - **6 biomes** — Blackout City, the Glowmarsh, the Aurora Shelf, the Shattered Core, the Ashfall Caldera and the Glass Flats — each with its own floor, props, hazards (live vents, ice, acid, portals, magma vents, dust devils that move), light, music theme and soundscape
-- **61 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
+- A 20-wave run crosses Blackout City, two of the other four places, and the Shattered Core; Endless walks all six
+- **62 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
 - **19 persistent workshop modules**, milestones through wave 200, threat levels, medals
 - **Endless** mode with mutators, a **daily run** with a fixed seed and a **weekly run** that pins two mutators for the whole ISO week
 - A dynamic wave director that mixes 12+ encounter modes instead of a fixed spawn table
@@ -38,6 +39,14 @@ npm test             # full suite: sim, save, build, deep sound test, full-qa, d
 npm run lint         # eslint, one rule on purpose: no-undef (see "Why a linter" below)
 npm run format       # prettier
 ```
+
+### Project docs
+
+- `CLAUDE.md` — the short working rules for an agent session
+- `docs/DEVELOPMENT.md` — the code history, the working rules and the release steps
+- `docs/ROADMAP.de.md` — the owner's wishes and decisions (read at the start of a session)
+- `docs/STRATEGY-AUDIT.md` — the strategy audit the roadmap's direction comes from
+- `docs/GITHUB.md` — the repository settings only the owner can change
 
 ### Which renderer the browser suites use
 

@@ -342,7 +342,6 @@ await section("files", async (L) => {
     news.shown && news.first.startsWith(meta.v) && news.rows >= 3 && badge0 && !badge1,
     JSON.stringify({ news, badge0, badge1, v: meta.v }),
   );
-  const inGame = await P.ev(() => (window.__riftTest.data && document.getElementById("verText")?.textContent) || "");
   check(L, "no failed requests while booting", !P.bad.length, P.bad.join(" | "));
   check(L, "no page errors while booting", !P.errors.length, P.errors.join(" | "));
   await P.close();
@@ -1414,7 +1413,7 @@ for (const profName of ["desktop", "phone"])
       if (g.tut) g.tut.step = 4;
     });
     // restart from pause
-    const w0 = await P.ev(() => (window.__riftTest.game.world.__qa = 1));
+    await P.ev(() => (window.__riftTest.game.world.__qa = 1));
     await pause();
     await P.tap("#restartBtn");
     await P.dlg("Restart");

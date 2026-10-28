@@ -655,10 +655,6 @@ class AttackView {
       r.ringPool.colC(ring, warn, 0.55 + Math.sin(time * 25) * 0.25 * k);
       const fill = r.ringPool.y(x, 0.048, z, 0, Math.max(0.05, rr * k));
       r.ringPool.colC(fill, warn, 0.3);
-      if (r.contrast) {
-        const inner = r.ringPool.y(x, 0.05, z, 0, rr * 0.55);
-        r.ringPool.colC(inner, warn, 0.7);
-      }
       this.zoneDetail(hazard, look, k, seed, dt, time, biome);
     }
   }

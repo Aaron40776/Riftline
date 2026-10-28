@@ -478,7 +478,6 @@ function classicLayout(biome) {
 function mapScore(obs, W, H, template) {
   let area = 0,
     cover = 0,
-    unused = 0,
     sectors = new Array(8).fill(0),
     radii = [];
   for (let ob of obs) {
@@ -759,8 +758,7 @@ function placeObstacles(rng, biomeId, template, W, H) {
           if (obstacleDistance(group[j], group[k]) < OBSTACLE_GAP) return false;
       placed.push(...group);
       return true;
-    },
-    unused;
+    };
   if (template === "scatter") {
     let count = rng.int(5, 8),
       turn = rng.next() * TAU,
@@ -946,7 +944,6 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         bestScore = -1e9,
         wallPad = Math.max(3.6, rad + 2.7),
         spawnPad = Math.max(5.6, spawnZone.r + rad + 4.1),
-        room = Math.max(0.1, Math.min(W, H) - wallPad),
         reach = Math.min(10.5, Math.hypot(Math.max(0, W - wallPad), Math.max(0, H - wallPad))),
         maxR = Math.min(opt.maxRadius ?? 9.2, Math.max(spawnPad + 1, reach * 0.72)),
         minR = Math.min(opt.minRadius ?? 7.1, maxR - 1);
