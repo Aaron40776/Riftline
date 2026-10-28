@@ -196,9 +196,7 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
           ax = cx + dx * edge,
           ay = cy + dy * edge,
           color = windingUp
-            ? this.contrast
-              ? "#fff06a"
-              : "#ff3a4e"
+            ? "#ff3a4e"
             : enemy.boss
               ? cssColor(bossDefs[enemy.type].color)
               : enemy.elite

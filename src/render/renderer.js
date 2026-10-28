@@ -497,7 +497,6 @@ const MAX_PARTICLES = 1400,
       this.bossView = null;
       this.flashT = 0;
       this.menuA = 0;
-      this.contrast = false;
       this.resize();
     }
     initPools() {
@@ -510,7 +509,7 @@ const MAX_PARTICLES = 1400,
       this.attackView = new AttackView(this, InstancePool);
       // 3.15.0: the boss cards (cages, slag, splinters, larvae, the implosion of Event Collapse)
       this.bossCardView = new BossCardView(this, InstancePool);
-      // the colour of the warnings (setAccess turns it yellow for Clear warnings)
+      // the colour of the warnings
       this.warnColor = warnColor;
       this.texGlow = makeGlowTexture();
       this.texShadow = makeShadowTexture();
@@ -2345,12 +2344,12 @@ const MAX_PARTICLES = 1400,
           ex = beam.x + Math.cos(beam.a) * len,
           ez = beam.y + Math.sin(beam.a) * len;
         // 3.0.0: trap beams wear the colours of their skin (the warning phase below stays red for every beam)
-        if (beam.live && beam.skin && !this.contrast && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
+        if (beam.live && beam.skin && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
         if (beam.live) {
-          // 2.4.6: a beam can bring its own colour (Frost Prism: ice); Clear warnings keeps yellow
+          // 2.4.6: a beam can bring its own colour (Frost Prism: ice)
           let flicker = 0.85 + Math.random() * 0.3,
             outer = this.beams.seg(beam.x, beam.y, ex, ez, 1, beam.w * flicker, beam.w * 0.6),
-            beamCol = beam.color && !this.contrast ? hexColor(beam.color) : beamColor;
+            beamCol = beam.color ? hexColor(beam.color) : beamColor;
           this.beams.colC(outer, beamCol, 0.8);
           let inner = this.beams.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.35, beam.w * 0.3);
           this.beams.colC(inner, whiteColor, 1);
@@ -2670,11 +2669,6 @@ const MAX_PARTICLES = 1400,
       if (Math.abs(dir.y) < 1e-4) return null;
       let dist = (0.75 - origin.y) / dir.y;
       return { x: origin.x + dir.x * dist, y: origin.z + dir.z * dist };
-    }
-    setAccess(contrast) {
-      this.contrast = !!contrast;
-      warnColor.setHex(contrast ? 16773226 : 16728160);
-      beamColor.setHex(contrast ? 16765498 : 16732064);
     }
     resetCamera() {
       this.camInit = false;
