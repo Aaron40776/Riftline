@@ -30,6 +30,10 @@ rules and release steps. Read them first. In short:
   first entry must match the version, `tests/data-audit.mjs` checks it and that the list stays at `NEWS_KEEP`).
   `src/build-info.json` is the identity the game fetches at start-up; since 3.57.0 the build writes only the version
   and the build id of it to `dist/`, so there is no changelog to keep there any more.
+- `npm test` runs the steps in `tests/run-all.mjs`: the build first, then the deep sound test with the node-only
+  checks (sim, save, data-audit, determinism) beside it - they share no port and no dist, and the deep test alone
+  is 18 of the 20 minutes. `npm run test:fast` skips the deep test for the inner loop; `--only=sim,save` and
+  `--skip=deep` pick steps.
 - Run `npm test` before every commit (`npm run check` runs the same steps plus the format check, quicker with its
   sound cache). Before a release also run `npm run qa`, `npm run e2e`, `npm run audit` and `npm run screens`
   (`npm run release-check` runs all of it in order), and look at the screenshots.
