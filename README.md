@@ -40,6 +40,14 @@ npm run lint         # eslint, one rule on purpose: no-undef (see "Why a linter"
 npm run format       # prettier
 ```
 
+### Project docs
+
+- `CLAUDE.md` — the short working rules for an agent session
+- `docs/DEVELOPMENT.md` — the code history, the working rules and the release steps
+- `docs/ROADMAP.de.md` — the owner's wishes and decisions (read at the start of a session)
+- `docs/STRATEGY-AUDIT.md` — the strategy audit the roadmap's direction comes from
+- `docs/GITHUB.md` — the repository settings only the owner can change
+
 ### Which renderer the browser suites use
 
 Every browser-driven suite launches Chromium through `tests/lib/renderer.mjs`, so the backend is chosen
