@@ -9,6 +9,8 @@ import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rl
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
 import { BOSS_CARD_CHANCE } from "./boss-cards.js";
 import { DAILY_KEY } from "./daily.js";
+import { WEEKLY_KEY } from "./weekly.js";
+import { MUTATOR_IDS, MUTATOR_MAX_LEVEL } from "./mutators.js";
 import { cleanPacts } from "../data/pacts.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
@@ -229,6 +231,8 @@ function newSave() {
       medals: {},
       // 3.26.0: the Daily Rift: the last day played, its best wave and kills, the streak of days, the days played, the best wave ever
       daily: { key: "", wave: 0, kills: 0, streak: 0, days: 0, bestWave: 0 },
+      // 3.58.0: the Weekly Rift: the last week played, its best wave and kills, the weeks played, the best wave ever
+      weekly: { key: "", wave: 0, kills: 0, weeks: 0, bestWave: 0 },
       clearsBy: {},
       bestBy: {},
       legendaries: 0,
@@ -252,6 +256,15 @@ const cleanNumber = (value, fallback, min = -1 / 0, max = 1 / 0) =>
     typeof value == "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback,
   cleanBool = (value, fallback) => (typeof value == "boolean" ? value : fallback),
   asObject = (value) => (value && typeof value == "object" && !Array.isArray(value) ? value : {});
+
+/* 3.58.0: the mutators a Weekly Rift pins for the run ({ id: level }), kept to the known ids and the legal levels, or null */
+const cleanStartMods = (raw) => {
+  const src = asObject(raw),
+    out = {};
+  for (const id of MUTATOR_IDS)
+    if (src[id] != null) out[id] = Math.floor(cleanNumber(src[id], 1, 1, MUTATOR_MAX_LEVEL));
+  return Object.keys(out).length ? out : null;
+};
 function cleanRun(raw) {
   raw = rlMigrateUpgrades(raw); // 2.5.0 A: retired upgrades of a saved run
   if (
@@ -347,6 +360,11 @@ function cleanRun(raw) {
       run.offerBoss = !!raw.offerBoss;
     }
   }
+  // 3.58.0: a Weekly Rift carries its week and the mutators it pins. A normal or Daily run carries neither, and
+  // the keys stay absent rather than empty so the stored shape of every older run is byte-for-byte unchanged.
+  if (typeof raw.weekly === "string" && WEEKLY_KEY.test(raw.weekly)) run.weekly = raw.weekly;
+  const startMods = cleanStartMods(raw.startMods);
+  if (startMods) run.startMods = startMods;
   return run;
 }
 function cleanSave(input) {
@@ -427,6 +445,18 @@ function cleanSave(input) {
       bestWave: Math.floor(cleanNumber(d.bestWave, 0, 0, 999)),
     };
     if (!stats.daily.key) Object.assign(stats.daily, { wave: 0, kills: 0, streak: 0 });
+  }
+  // 3.58.0: the Weekly Rift record
+  {
+    const wk = asObject(rawStats.weekly);
+    stats.weekly = {
+      key: typeof wk.key === "string" && WEEKLY_KEY.test(wk.key) ? wk.key : "",
+      wave: Math.floor(cleanNumber(wk.wave, 0, 0, 999)),
+      kills: Math.floor(cleanNumber(wk.kills, 0, 0, 1e9)),
+      weeks: Math.floor(cleanNumber(wk.weeks, 0, 0, 9999)),
+      bestWave: Math.floor(cleanNumber(wk.bestWave, 0, 0, 999)),
+    };
+    if (!stats.weekly.key) Object.assign(stats.weekly, { wave: 0, kills: 0 });
   }
   // 2.8.1: per-weapon records of retired weapons count for the weapon that took them over (clears are
   // added, the best wave is the higher one), so "clear with every weapon" sees an old Ion Repeater clear

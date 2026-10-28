@@ -37,7 +37,7 @@ import {
   updateBossCards,
   BOSS_CARD_CHANCE,
 } from "./boss-cards.js";
-import { rlMutatorsFor } from "./mutators.js";
+import { rlMutatorsFor, MUTATOR_MAX_LEVEL } from "./mutators.js";
 // 2.2.3: the run monitor observes the live run's world (3.30.0: through runHooks, so World needs no DOM)
 import { runHooks } from "./run-hooks.js";
 
@@ -267,6 +267,15 @@ const rlStep = 1 / 60,
       this.banishes = snap && snap.banishes != null ? snap.banishes | 0 : this.ws.banish || 0;
       // 3.26.0: the day of a Daily Rift run, or ""
       this.daily = (snap ? snap.daily : opts.daily) || "";
+      // 3.58.0: the week of a Weekly Rift run, or "" (kept in the snapshot so a resumed run is the same Rift)
+      this.weekly = (snap ? snap.weekly : opts.weekly) || "";
+      // 3.58.0: the mutators a Weekly Rift pins from wave 1 ({ id: level }), or null for the normal Endless schedule
+      this.startMods =
+        snap && snap.startMods
+          ? { ...snap.startMods }
+          : opts.startMods && typeof opts.startMods === "object"
+            ? { ...opts.startMods }
+            : null;
       this.revived = snap ? !!snap.revived : false;
       this.bossKills = snap ? [...(snap.bossKills || [])] : [];
       this.flawless = (snap && snap.flawless) || 0;
@@ -472,7 +481,12 @@ const rlStep = 1 / 60,
         this.waveDmg = 0;
         // 3.3.0: the Endless mutators of this wave (see mutators.js): Armored adds hull, Barrage damage and shot speed
         const mutators = rlMutatorsFor(this.seed, wave);
+        // 3.58.0: a Weekly Rift's pinned mutators belong to the run, not the wave, so they are in play from wave 1;
+        // the Endless schedule still stacks its own on top (levels add, up to MUTATOR_MAX_LEVEL)
         this.mods = mutators.mods;
+        if (this.startMods)
+          for (const id in this.startMods)
+            this.mods[id] = Math.min(MUTATOR_MAX_LEVEL, (this.mods[id] || 0) + this.startMods[id]);
         this.hpMul =
           (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) *
           this.tm.hp *
@@ -502,6 +516,10 @@ const rlStep = 1 / 60,
         this.emit("wave", { n: wave, boss: boss, biome: biome.id, event: this.event });
         if (mutators.gained && !resumed)
           this.emit("mutator", { id: mutators.gained, level: this.mods[mutators.gained], x: player.x, y: player.y });
+        // 3.58.0: a Weekly Rift's pinned mutators are announced at wave 1, so the twist is seen and heard
+        if (wave === 1 && !resumed && this.startMods)
+          for (const id of Object.keys(this.startMods))
+            this.emit("mutator", { id, level: this.mods[id] || 1, x: player.x, y: player.y });
         // Nova start charge, the arena director's wave mode, supply caches and the director's bonus
         // group (kept additive to the wave set up above)
         if (nova == null && this.stats.novaStart > 0) player.nova = Math.min(100, player.nova + this.stats.novaStart);
@@ -721,6 +739,8 @@ const rlStep = 1 / 60,
         banished: [...this.banished],
         banishes: this.banishes,
         daily: this.daily,
+        weekly: this.weekly,
+        startMods: this.startMods ? { ...this.startMods } : null,
         pacts: [...this.pacts],
         revived: this.revived,
         nova: Math.round(this.player.nova),
