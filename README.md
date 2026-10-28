@@ -11,7 +11,7 @@
 - **6 biomes** — Blackout City, the Glowmarsh, the Aurora Shelf, the Shattered Core, the Ashfall Caldera and the Glass Flats — each with its own floor, props, hazards (live vents, ice, acid, portals, magma vents, dust devils that move), light, music theme and soundscape
 - **61 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
 - **19 persistent workshop modules**, milestones through wave 200, threat levels, medals
-- **Endless** mode with mutators, and a **daily run** with a fixed seed
+- **Endless** mode with mutators, a **daily run** with a fixed seed and a **weekly run** that pins two mutators for the whole ISO week
 - A dynamic wave director that mixes 12+ encounter modes instead of a fixed spawn table
 
 ## Controls
@@ -74,7 +74,7 @@ first (the npm aliases already do).
 | `tests/data-audit.mjs` | weapons/enemies/upgrades/biomes data consistency in a real browser boot |
 | `tests/determinism.mjs` | same seed → same fight, 15 cases identical |
 | `tests/deep-test.mjs` | renders **every** synthesized sound offline and diffs it; CI caches the result |
-| `tests/full-qa.mjs` | boots the real game headless: `files` (boot over network), `offline` (PWA), `run-desktop` (plays a wave) |
+| `tests/full-qa.mjs` | boots the real game headless: `files` (boot over network), `offline` (PWA), `daily` and `weekly` (both Rifts end to end, on desktop and phone), `run-desktop` (plays a wave) |
 | `tests/player-mode.mjs` | plays a whole run with `navigator.webdriver` patched **off** — like a real player: boot, health suite, wave, reload-and-continue, every timed buff chip, a real dash through the DASH button, death, payout, and a deliberate crash to prove the crash report |
 
 `tools/qa.js` runs any suite by name, e.g. `node tools/qa.js player-mode`. CI (`.github/workflows/test.yml`) runs formatting, lint, the full suite and both wave-playing suites on every PR.
