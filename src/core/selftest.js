@@ -75,6 +75,7 @@ import { computeStats, buildStatRows } from "./stats.js";
 import { bossMedal, PAR } from "./medals.js";
 import { PACTS, PACT_MAX, cleanPacts, pactBonus, applyPactsToThreat } from "../data/pacts.js";
 import { dailyKey, dayBefore, dailySpec, recordDaily, liveStreak } from "./daily.js";
+import { weekKey, weeklySpec, recordWeekly } from "./weekly.js";
 import { RL_EVENT_KINDS, RL_BOSS_EVENTS, rlEventPayloadError, rlUiButtonGuardSelfTest } from "./diagnostics.js";
 
 let RL_SELFTEST = null;
@@ -487,7 +488,95 @@ function rlSelfTest() {
   result = selfTestV3270(result);
   result = selfTestV3280(result);
   result = selfTestV3470(result);
+  result = selfTestV3580(result);
   return result;
+}
+/* ---- 3.58.0: the Weekly Rift: the same Rift for everyone in an ISO week, its two pinned mutators and the record ---- */
+function selfTestV3580(result) {
+  const fail = [];
+  try {
+    // the ISO week of a moment: Monday..Sunday share it, and the year turns over on the Monday of week 1
+    const k = weekKey(Date.UTC(2026, 9, 27)); // a Tuesday
+    if (!/^\d{4}-W\d{2}$/.test(k)) fail.push("key-format:" + k);
+    if (k !== weekKey(Date.UTC(2026, 9, 26)) || k !== weekKey(Date.UTC(2026, 10, 1)))
+      fail.push("week-span:" + k + "/" + weekKey(Date.UTC(2026, 9, 26)) + "/" + weekKey(Date.UTC(2026, 10, 1)));
+    if (weekKey(Date.UTC(2027, 0, 3)) !== "2026-W53" || weekKey(Date.UTC(2027, 0, 4)) !== "2027-W01")
+      fail.push("year-boundary:" + weekKey(Date.UTC(2027, 0, 3)) + "/" + weekKey(Date.UTC(2027, 0, 4)));
+    if (weekKey(Date.UTC(2026, 0, 1)) !== "2026-W01") fail.push("new-year:" + weekKey(Date.UTC(2026, 0, 1)));
+    // the Rift of a week is always the same, pins two distinct known mutators and varies from week to week
+    const a = weeklySpec("2026-W44"),
+      b = weeklySpec("2026-W44");
+    if (JSON.stringify(a) !== JSON.stringify(b)) fail.push("not-deterministic");
+    if (
+      a.mutators.length !== 2 ||
+      a.mutators[0] === a.mutators[1] ||
+      a.mutators.some((id) => !MUTATOR_IDS.includes(id))
+    )
+      fail.push("mutators:" + JSON.stringify(a.mutators));
+    const weapons = new Set(),
+      pairs = new Set(),
+      threats = [0, 0];
+    for (let i = 0; i < 40; i++) {
+      const spec = weeklySpec("2026-W" + String(i + 1).padStart(2, "0"));
+      if (!weaponDefs[spec.weapon] || (spec.threat !== 0 && spec.threat !== 1) || !Number.isFinite(spec.seed))
+        fail.push("spec:" + JSON.stringify(spec));
+      weapons.add(spec.weapon);
+      pairs.add(spec.mutators.join("+"));
+      threats[spec.threat]++;
+    }
+    if (weapons.size < 4) fail.push("weapons-vary:" + weapons.size);
+    if (pairs.size < 10) fail.push("pairs-vary:" + pairs.size);
+    if (threats[1] < 3 || threats[1] > 20) fail.push("threats:" + threats);
+    if (weeklySpec("junk").key !== weekKey()) fail.push("junk-key");
+    // the record: the first week, a worse and a better run in it, then the next week
+    const wk = { key: "", wave: 0, kills: 0, weeks: 0, bestWave: 0 };
+    if (!recordWeekly(wk, "2026-W44", 5, 100) || wk.weeks !== 1 || wk.wave !== 5) fail.push("first");
+    if (recordWeekly(wk, "2026-W44", 4, 300) || wk.wave !== 5) fail.push("worse-replaces");
+    if (!recordWeekly(wk, "2026-W44", 5, 150) || wk.kills !== 150) fail.push("more-kills");
+    if (!recordWeekly(wk, "2026-W45", 3, 40) || wk.weeks !== 2 || wk.wave !== 3 || wk.bestWave !== 5)
+      fail.push("next-week:" + JSON.stringify(wk));
+    // a run of the week: the pinned mutators are in play from wave 1, the same seed gives the same run, and both
+    // the week and the pinned mutators survive the snapshot
+    const mods = Object.fromEntries(a.mutators.map((id) => [id, 1]));
+    const run = () => {
+      const w = new World({ seed: a.seed, weapon: a.weapon, threat: a.threat, ws: {}, weekly: a.key, startMods: mods });
+      w.startWave(1);
+      return w;
+    };
+    const w1 = run(),
+      w2 = run();
+    if (w1.weekly !== a.key || JSON.stringify(w1.mods) !== JSON.stringify(w2.mods)) fail.push("same-rift");
+    if (a.mutators.some((id) => (w1.mods[id] || 0) < 1)) fail.push("run-mods:" + JSON.stringify(w1.mods));
+    const snap = JSON.parse(JSON.stringify(w1.snapshot()));
+    const r2 = new World({ seed: 1, weapon: a.weapon, threat: 0, ws: {}, snap });
+    if (r2.weekly !== a.key || !r2.startMods || a.mutators.some((id) => !r2.startMods[id])) fail.push("snapshot");
+    // a normal run's cleaned snapshot carries no weekly keys at all; a Weekly one carries both
+    if (
+      cleanRun({ ...snap, weekly: "<script>" }).weekly !== undefined ||
+      cleanRun({ ...snap, weekly: 42 }).weekly !== undefined
+    )
+      fail.push("clean-run");
+    if (cleanRun({ ...snap, startMods: { hack: 9 } }).startMods !== undefined) fail.push("clean-mods");
+    const wkSnap = cleanRun({ ...snap, weekly: a.key, startMods: mods });
+    if (wkSnap.weekly !== a.key || JSON.stringify(wkSnap.startMods) !== JSON.stringify(mods))
+      fail.push("clean-run-keeps");
+    // the save cleans the record
+    const hostile = cleanSave({
+      ...newSave(),
+      stats: { ...newSave().stats, weekly: { key: "bad", wave: 5, kills: 9, weeks: -3, bestWave: 1e9 } },
+    });
+    if (hostile.stats.weekly.key !== "" || hostile.stats.weekly.wave !== 0 || hostile.stats.weekly.weeks !== 0)
+      fail.push("clean-bad-key:" + JSON.stringify(hostile.stats.weekly));
+    if (hostile.stats.weekly.bestWave !== 999) fail.push("clean-clamp");
+    const good = cleanSave({
+      ...newSave(),
+      stats: { ...newSave().stats, weekly: { key: "2026-W44", wave: 5, kills: 9, weeks: 4, bestWave: 12 } },
+    });
+    if (good.stats.weekly.weeks !== 4 || good.stats.weekly.key !== "2026-W44") fail.push("clean-keeps");
+  } catch (err) {
+    fail.push("exception:" + (err && err.message));
+  }
+  return { ...result, ok: result.ok && fail.length === 0, v3580: { ok: fail.length === 0, fail } };
 }
 /* ---- 3.49.0 (was 3.47.0): the Ashfall Caldera: the biome, its boss and its reward behave. The live
    parts of the Ash Tyrant (its attacks, its Overdrive, its sounds) are covered by the generic loops over

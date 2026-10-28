@@ -4242,6 +4242,158 @@ for (const profName of ["desktop", "phone"]) {
   });
 }
 
+// 3.58.0: the Weekly Rift: one Rift a week, the same for every pilot, with two mutators pinned from wave 1
+for (const profName of ["desktop", "phone"]) {
+  await section(`weekly-${profName}`, async (L) => {
+    const P = await open(profName, {
+      save: JSON.stringify({ v: 1, game: "riftline", seen: { tutorial: true }, workshop: { hull: 3, banish: 2 } }),
+    });
+    await P.boot();
+    await P.nav("daily");
+    await P.page.waitForTimeout(400);
+    const card = await P.ev(() => ({
+      screen: window.__riftTest.ui.screen,
+      week: (document.querySelector("#weeklyCard .dc-day")?.textContent || "").trim(),
+      weapon: document.querySelector("#weeklyCard .dc-weapon")?.textContent,
+      mods: [...document.querySelectorAll("#weeklyCard .dc-mod")].map((el) => el.textContent.trim()),
+      fits: (() => {
+        const r = document.getElementById("weeklyStart").getBoundingClientRect();
+        return r.right <= innerWidth + 1 && r.left >= -1;
+      })(),
+    }));
+    check(
+      L,
+      "the Rifts page shows the Weekly card: the week, the weapon and two mutators",
+      card.screen === "daily" &&
+        /^\d{4}-W\d{2}/.test(card.week) &&
+        !!card.weapon &&
+        card.mods.length === 2 &&
+        card.mods.every((t) => /[A-Za-z]/.test(t)) &&
+        card.fits,
+      JSON.stringify(card),
+    );
+    await P.shot({ path: fileURLToPath(new URL(`./shots/qa-weekly-${profName}.png`, import.meta.url)) });
+    await P.tap("#weeklyStart");
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const run = await P.ev(() => {
+      const w = window.__riftTest.game.world,
+        ids = Object.keys(w.startMods || {});
+      return {
+        weekly: w.weekly,
+        week: (document.querySelector("#weeklyCard .dc-day")?.textContent || "").trim(),
+        ws: JSON.stringify(w.ws),
+        banishes: w.banishes,
+        ids: ids.slice().sort(),
+        levels: ids.map((id) => w.mods[id] || 0),
+      };
+    });
+    check(
+      L,
+      "the run is this week's Rift: two mutators pinned from wave 1, workshop not counted",
+      !!run.weekly &&
+        run.week.startsWith(run.weekly) &&
+        run.ws === "{}" &&
+        run.banishes === 0 &&
+        run.ids.length === 2 &&
+        run.levels.every((n) => n >= 1),
+      JSON.stringify(run),
+    );
+    // a saved Weekly run resumes with its week and its mutators
+    await P.ev(() => {
+      const T = window.__riftTest;
+      T.game.world.god = true;
+      T.game.paused = false;
+      T.store.data.run = T.game.world.snapshot();
+      T.store.save("qa");
+      T.game.goHome();
+    });
+    await P.ev(() => window.__riftTest.game.startRun({ resume: true }));
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const resumed = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return { weekly: w.weekly, ids: Object.keys(w.startMods || {}).sort(), ws: JSON.stringify(w.ws) };
+    });
+    check(
+      L,
+      "a saved Weekly run resumes as the same Rift with its mutators",
+      resumed.weekly === run.weekly && resumed.ids.join("+") === run.ids.join("+") && resumed.ws === "{}",
+      JSON.stringify(resumed),
+    );
+    // dying at wave 1 still counts the week; the end screen names the Weekly Rift
+    await P.ev(() => {
+      const w = window.__riftTest.game.world,
+        p = w.player;
+      w.god = false;
+      p.hp = 1;
+      p.iT = 0;
+      p.dashT = 0;
+      p.shield = false;
+      w.hurtPlayer(500, null, null, "turret");
+    });
+    await P.page.waitForFunction(() => !document.getElementById("over").hidden, null, { timeout: 60000 });
+    await P.page.waitForTimeout(400);
+    const over = await P.ev(() => ({
+      text: document.getElementById("overDaily").textContent,
+      hidden: document.getElementById("overDaily").hidden,
+      weekly: window.__riftTest.store.data.stats.weekly,
+    }));
+    check(
+      L,
+      "the end screen names the Weekly Rift; the record of the week is kept",
+      !over.hidden &&
+        over.text.includes("Weekly Rift") &&
+        over.weekly.key === run.weekly &&
+        over.weekly.weeks === 1 &&
+        over.weekly.wave >= 1,
+      JSON.stringify(over),
+    );
+    // Run Again plays the same week
+    await P.ev(() => window.__riftTest.game.retry());
+    await P.page.waitForFunction(
+      () => window.__riftTest.game.world && window.__riftTest.game.world.state === "fight",
+      null,
+      { timeout: 30000 },
+    );
+    const again = await P.ev(() => {
+      const w = window.__riftTest.game.world;
+      return { weekly: w.weekly, ids: Object.keys(w.startMods || {}).sort() };
+    });
+    check(
+      L,
+      "Run Again after a Weekly run is the same Rift",
+      again.weekly === run.weekly && again.ids.join("+") === run.ids.join("+"),
+      JSON.stringify(again),
+    );
+    await P.ev(() => {
+      window.__riftTest.game.abandon();
+      window.__riftTest.game.goHome();
+    });
+    await P.page.waitForTimeout(400);
+    check(
+      L,
+      "back on the Rifts page the week's glow is gone and its best is shown",
+      await P.ev(() => {
+        window.__riftTest.ui.show("daily");
+        return (
+          document.getElementById("weeklyGlow").hidden &&
+          /Wave/.test(document.getElementById("weeklyStats").textContent) &&
+          !/Not played/.test(document.getElementById("weeklyStats").textContent)
+        );
+      }),
+    );
+    check(L, "no page errors", !P.errors.length, P.errors.slice(0, 2).join(" | "));
+    await P.close();
+  });
+}
+
 // 3.27.0: pacts: up to two, a harder run for a share of shards
 for (const profName of ["desktop", "phone"]) {
   await section(`pacts-${profName}`, async (L) => {

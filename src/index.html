@@ -286,6 +286,11 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .daily-card .dc-day { font: 600 11px/1 var(--display); letter-spacing: 0.2em; color: var(--mute); text-transform: uppercase; }
 .daily-card .dc-weapon { font: 700 22px/1.1 var(--display); }
 .daily-card .dc-sub { color: var(--dim); font-size: 13px; }
+.rift-sub { display: flex; align-items: center; gap: 8px; margin: 10px 2px -2px; font: 700 13px/1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+.rift-sub .glow { width: 8px; height: 8px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 8px var(--pink); }
+.daily-card .dc-mods { display: flex; flex-wrap: wrap; gap: 6px; }
+.daily-card .dc-mod { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 9px; border-radius: 999px; border: 1px solid currentColor; font-size: 12px; }
+.daily-card .dc-mod i { font-style: normal; opacity: 0.72; }
 .best-line { margin: 8px 0 0; font: 600 13px/1 var(--display); letter-spacing: 0.14em; color: var(--amber); text-transform: uppercase; }
 .tagline { margin: 12px 0 0; color: var(--dim); font: 600 13px/1.3 var(--display); letter-spacing: 0.18em; text-transform: uppercase; }
 .home-panel { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 460px; justify-self: center; }
@@ -1545,7 +1550,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div class="shard-chip big"><span class="shard-ico"></span><span id="bank" class="num">0</span></div>
       <div class="spacer"></div>
       <button id="pactsBtn" class="btn small ghost daily-link" data-go="pacts"><span data-icon="skull"></span><span id="pactsLabel">Pacts</span></button>
-      <button id="dailyBtn" class="btn small ghost daily-link" data-go="daily"><span data-icon="calendar"></span>Daily Rift<i id="dailyBadge" class="badge" hidden></i></button>
+      <button id="dailyBtn" class="btn small ghost daily-link" data-go="daily"><span data-icon="calendar"></span>Rifts<i id="dailyBadge" class="badge" hidden></i></button>
     </header>
     <div class="home-grid">
       <div class="brand">
@@ -1625,19 +1630,23 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     </div>
   </section>
 
-  <!-- ====================================================== DAILY RIFT (3.26.0) -->
+  <!-- ====================================================== DAILY + WEEKLY RIFT (3.26.0, 3.58.0) -->
   <section id="daily" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Daily Rift</h2>
+      <h2>Rifts</h2>
       <div class="spacer"></div>
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
     <div class="scroll settings-body daily-body">
-      <p class="page-intro">One Rift a day, the same for every pilot: the waves, the offers and the hazards come from the date. Your workshop modules and pacts do not count, so everyone flies the same drone and earns the same shards. A new Rift opens at midnight UTC.</p>
+      <p class="page-intro">A Daily Rift is the same for every pilot every day; a Weekly Rift is the same every week and adds a fixed twist. In both, your workshop modules and pacts do not count, so everyone flies the same drone and earns the same shards. A new Daily Rift opens at midnight UTC, a new Weekly Rift on Monday.</p>
       <div id="dailyCard" class="panel daily-card"></div>
       <button id="dailyStart" class="btn primary">START TODAY'S RIFT</button>
       <div id="dailyStats" class="stat-grid"></div>
+      <h3 class="rift-sub">Weekly Rift<i id="weeklyGlow" class="glow" hidden></i></h3>
+      <div id="weeklyCard" class="panel daily-card"></div>
+      <button id="weeklyStart" class="btn primary">START THIS WEEK'S RIFT</button>
+      <div id="weeklyStats" class="stat-grid"></div>
     </div>
   </section>
 

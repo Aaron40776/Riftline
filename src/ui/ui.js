@@ -16,6 +16,7 @@ import { clamp, GAME_VERSION, formatCount, rlAgo, formatTime } from "../core/uti
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
 import { MEDAL_NAMES } from "../core/medals.js";
 import { dailyKey, dailySpec, liveStreak } from "../core/daily.js";
+import { weekKey, weeklySpec } from "../core/weekly.js";
 import { PACTS, PACT_MAX, pactBonus } from "../data/pacts.js";
 import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, rlRetired, threatLevels } from "../data/progression.js";
@@ -323,6 +324,7 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("wBuy"), () => this.buyWeapon());
       this.click(getById("playBtn"), () => this.play());
       this.click(getById("dailyStart"), () => this.playDaily());
+      this.click(getById("weeklyStart"), () => this.playWeekly());
       this.click(getById("continueBtn"), () => this.g.startRun({ resume: true }));
       let onPress = (el, action) =>
         el.addEventListener("pointerdown", (ev) => {
@@ -480,6 +482,7 @@ const getById = (id) => document.getElementById(id),
       }
       if (screen === "daily") {
         this.renderDaily();
+        this.renderWeekly();
       }
       if (screen === "pacts") {
         this.renderPacts();
@@ -532,8 +535,8 @@ const getById = (id) => document.getElementById(id),
       this.updatePlayState();
       getById("recBadge").hidden = !this.g.claimable().length;
       getById("newsBadge").hidden = !!save.seen["news_" + GAME_VERSION];
-      // 3.26.0: a dot on the Daily Rift until today's Rift has been played
-      getById("dailyBadge").hidden = save.stats.daily.key === dailyKey();
+      // 3.26.0: a dot on the Rifts page until today's Rift has been played (3.58.0: and this week's)
+      getById("dailyBadge").hidden = save.stats.daily.key === dailyKey() && save.stats.weekly.key === weekKey();
       getById("pactsLabel").textContent = save.pacts.length ? `Pacts \xB7 ${save.pacts.length}` : "Pacts";
       let stats = save.stats;
       getById("bestLine").hidden = !stats.runs;
@@ -827,6 +830,47 @@ const getById = (id) => document.getElementById(id),
         return;
       if (save.run) this.g.discardRun();
       this.g.startRun({ daily: true });
+    }
+    /* 3.58.0: the Weekly Rift block: this week's weapon, threat and the two pinned mutators, the best of the week */
+    renderWeekly() {
+      const save = this.save,
+        w = save.stats.weekly,
+        spec = weeklySpec(),
+        played = w.key === spec.key,
+        weapon = weaponDefs[spec.weapon];
+      getById("weeklyGlow").hidden = played;
+      getById("weeklyCard").innerHTML =
+        `<div class="dc-day">${escapeHtml(spec.key)} \xB7 UTC</div>` +
+        `<div class="dc-weapon">${escapeHtml(weapon.name)}</div>` +
+        `<div class="dc-sub">${escapeHtml(threatLevels[spec.threat].name)} threat \xB7 no workshop modules \xB7 ${escapeHtml(weapon.blurb)}</div>` +
+        `<div class="dc-mods">${spec.mutators
+          .map((id) => {
+            const m = MUTATORS[id];
+            return `<span class="dc-mod" style="color:${m.color}" title="${escapeHtml(m.desc)}">${escapeHtml(m.name)} <i>${escapeHtml(m.desc)}</i></span>`;
+          })
+          .join("")}</div>`;
+      getById("weeklyStart").textContent = played ? "PLAY THIS WEEK'S RIFT AGAIN" : "START THIS WEEK'S RIFT";
+      getById("weeklyStats").innerHTML = [
+        ["This week's best", played ? `Wave ${w.wave} \xB7 ${formatCount(w.kills)} kills` : "Not played yet"],
+        ["Weeks played", w.weeks],
+        ["Best wave ever", w.bestWave || "-"],
+      ]
+        .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
+        .join("");
+    }
+    async playWeekly() {
+      const save = this.save;
+      if (
+        save.run &&
+        !(await this.confirm(
+          "Start the Weekly Rift?",
+          `Your run at wave ${save.run.wave} ends here. You keep the shards collected in it.`,
+          "Start",
+        ))
+      )
+        return;
+      if (save.run) this.g.discardRun();
+      this.g.startRun({ weekly: true });
     }
     renderNews() {
       getById("newsList").innerHTML = WHATS_NEW.map(
@@ -1567,14 +1611,19 @@ const getById = (id) => document.getElementById(id),
           }
         }
       }
-      // 3.26.0: a Daily Rift run says so, and what the day's best is
+      // 3.26.0: a Daily Rift run says so, and what the day's best is (3.58.0: the Weekly Rift the same for its week)
       const over = getById("overDaily");
-      over.hidden = !result.daily;
+      over.hidden = !result.daily && !result.weekly;
       if (result.daily) {
         const ds = result.dailyStats;
         over.textContent = ds
           ? `Daily Rift ${result.daily} \xB7 best today wave ${ds.wave}${result.dailyBest ? " (new)" : ""} \xB7 streak ${ds.streak}`
           : `Daily Rift ${result.daily} \xB7 not counted (ended before wave 2)`;
+      } else if (result.weekly) {
+        const ws = result.weeklyStats;
+        over.textContent = ws
+          ? `Weekly Rift ${result.weekly} \xB7 best this week wave ${ws.wave}${result.weeklyBest ? " (new)" : ""}`
+          : `Weekly Rift ${result.weekly} \xB7 not counted (ended before wave 2)`;
       }
       this.renderRecap(result);
       getById("overStats").innerHTML = [

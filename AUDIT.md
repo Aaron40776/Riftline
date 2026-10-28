@@ -174,7 +174,7 @@ Ordered by leverage given existing infrastructure:
 1. **Boss Rush mode** (M) — `boss-cards.js` + wave/arena cycling already exist; a mode flag chaining the five bosses with escalating mutators.
 2. **Input-recording ghosts** (M–L) — the determinism infra (seeded sim, `restartClock`, fixtures) makes recorded-input replays feasible: race your previous run, or share ghosts.
 3. **Save-in-URL run sharing** (S–M) — `save.js` hardened serializer can encode seed + mutators + progress into a compact URL for click-to-load challenge runs; natural companion to `daily.js` seeds.
-4. **Weekly mutator challenge** (S) — `mutators.js` + `daily.js` exist; add a weekly fixed seed + mutator set + local best tracking.
+4. **Weekly mutator challenge** (S) — `mutators.js` + `daily.js` exist; add a weekly fixed seed + mutator set + local best tracking. ✅ **shipped in 3.58.0** (`src/core/weekly.js`: ISO week key, seed/weapon/threat, two pinned mutators in play from wave 1, best-of-week and weeks-played record; see the Rifts page).
 5. **Shader LOD tiers** (M) — octave/branch counts by quality tier for floor + zone shaders (pairs with perf items M4/M6).
 6. **Death-recap persistence** (S) — fixes LOW #20 and upgrades the end screen: "what killed you" survives resume.
 7. **Prop-merge utility as content enabler** (M) — H3's fix also makes richer, denser biomes essentially free.
@@ -215,7 +215,9 @@ All HIGH and MEDIUM findings carry file:line references verified in this pass; t
 
 ## Appendix C — Implementation Status (branch `audit-fixes`)
 
-All findings fixed except one deferred item. Commits, in order:
+All findings fixed except M7 (`src/render/models.js` still builds 17–31 per-part meshes per boss and never
+calls `rlMerger`, the utility H3's fix added for biome props; merge the parts per material before chasing it —
+it is a visual change and wants `npm run screens` as its gate). Commits, in order:
 
 | Commit | Contents |
 |---|---|

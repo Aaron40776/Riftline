@@ -31,6 +31,7 @@ import * as mstats from "./stats.js";
 import * as mmedals from "./medals.js";
 import * as mpacts from "../data/pacts.js";
 import * as mdaily from "./daily.js";
+import * as mweekly from "./weekly.js";
 import * as mdiagnostics from "./diagnostics.js";
 
 export const SELFTEST_MODULES = {
@@ -62,5 +63,6 @@ export const SELFTEST_MODULES = {
   "./medals.js": mmedals,
   "../data/pacts.js": mpacts,
   "./daily.js": mdaily,
+  "./weekly.js": mweekly,
   "./diagnostics.js": mdiagnostics,
 };

@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "3.59.0",
+    title: "The Weekly Rift",
+    items: [
+      "THE WEEKLY RIFT joins the Daily: one run a week, the same for every pilot, with a twist — two mutators are pinned for the whole week and are on from wave 1.",
+      "Seed, weapon, threat and both mutators come from the ISO week; a new Rift opens every Monday 00:00 UTC.",
+      "Like the Daily it ignores your workshop and pacts, so everyone flies the same drone, and it keeps its own best-of-week and a count of the weeks you played.",
+      "You reach it on the Rifts page, under the Daily; the home-screen dot now lights up for an unplayed week too.",
+      "The Daily Rift and its streak are unchanged.",
+    ],
+  },
+  {
     version: "3.58.0",
     title: "A fairer first run, and no more silent defaults",
     items: [
@@ -47,19 +58,6 @@ export const WHATS_NEW = [
       "The event list reads complete: Spore Tide, Whiteout, Dust Devils, Ashfall, Rift Storm and Blackout.",
       "The Crucible is named the Glass Flats' boss wherever it is introduced.",
       "No gameplay, save or record changes — words only.",
-    ],
-  },
-  {
-    version: "3.55.0",
-    title: "Every place gets its detail pass",
-    items: [
-      "The Aurora Shelf sells its name: a curtain of green rays now hangs at the top of the sky, and the aurora's reflection sweeps the night ice in bright bands.",
-      "The Shelf's frozen rinks read as night glass — deep blue with bright cracks — instead of white discs.",
-      "The snow catches the aurora's green and pink as it falls.",
-      "The Glass Flats reads as fused glass: every sheet took the melt differently, a sun-glare band slides across the plain, and the loose sand keeps the wind's ripples.",
-      "The Flats' props went pale: sunlit dunes, brighter glass ridges with hot fused edges, and glass blisters where the melt bubbled.",
-      "Dust devils and sunspikes now throw dust and sand, not dark boxes — the brown clutter is gone.",
-      "Every change is visual only — saves, records and the run's rng are untouched.",
     ],
   },
 ];

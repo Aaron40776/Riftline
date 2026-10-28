@@ -5,6 +5,7 @@
 
 import { rumble } from "./ui/gamepad.js";
 import { dailySpec, recordDaily } from "./core/daily.js";
+import { weeklySpec, recordWeekly } from "./core/weekly.js";
 import { pactsById } from "./data/pacts.js";
 import { bossMedal, bossPar, MEDAL_NAMES } from "./core/medals.js";
 import {
@@ -370,17 +371,21 @@ const overlay = new Overlay(elementById("ov")),
       let started = true;
       try {
         // 3.26.0: the Daily Rift: seed, weapon and threat come from the date and the workshop does not count; a saved
-        // daily run is resumed the same way
-        const spec = !snap && options.daily ? dailySpec(options.dailyKey) : null;
+        // daily run is resumed the same way. 3.58.0: the Weekly Rift does the same for the week, and pins two mutators
+        const daily = !snap && options.daily ? dailySpec(options.dailyKey) : null,
+          weekly = !snap && options.weekly ? weeklySpec(options.weeklyKey) : null,
+          spec = daily || weekly;
         this.world = new World({
           seed: spec ? spec.seed : (Math.random() * 4294967296) >>> 0,
           // 2.8.1: Restart / Run Again keep the weapon and threat of the run that just ended (a resumed run
           // may differ from what the home carousel shows)
           weapon: spec ? spec.weapon : options.weapon || save.weapon,
           threat: spec ? spec.threat : (options.threat ?? save.threat),
-          ws: spec || (snap && snap.daily) ? {} : save.workshop,
-          daily: spec ? spec.key : "",
-          // 3.27.0: the pacts signed on the home screen (not in the Daily Rift: the same drone for everyone)
+          ws: spec || (snap && (snap.daily || snap.weekly)) ? {} : save.workshop,
+          daily: daily ? daily.key : "",
+          weekly: weekly ? weekly.key : "",
+          startMods: weekly ? Object.fromEntries(weekly.mutators.map((id) => [id, 1])) : null,
+          // 3.27.0: the pacts signed on the home screen (not in the Rift of the day or week: the same drone for everyone)
           pacts: spec ? [] : save.pacts,
           snap: snap,
         });
@@ -519,7 +524,15 @@ const overlay = new Overlay(elementById("ov")),
     // a new run with the weapon and threat of the current (ended) run
     retry() {
       const world = this.world;
-      this.startRun(world ? (world.daily ? { daily: true } : { weapon: world.weapon, threat: world.threat }) : {});
+      this.startRun(
+        world
+          ? world.weekly
+            ? { weekly: true }
+            : world.daily
+              ? { daily: true }
+              : { weapon: world.weapon, threat: world.threat }
+          : {},
+      );
     },
     abandon() {
       ui.hidePause();
@@ -573,7 +586,7 @@ const overlay = new Overlay(elementById("ov")),
             seed: 1,
             weapon: snap.weapon,
             threat: snap.threat,
-            ws: snap.daily ? {} : store.data.workshop,
+            ws: snap.daily || snap.weekly ? {} : store.data.workshop,
             snap,
           });
           this.overShown = false;
@@ -616,7 +629,8 @@ const overlay = new Overlay(elementById("ov")),
       rlRunAudit(world, win, abandoned);
       let mods = threatMods(world.threat),
         // 3.28.1: the Daily Rift is the same for everyone: the Shard Refinery does not multiply it either
-        salvage = world.daily ? 1 : 1 + 0.1 * (save.workshop.salvage || 0),
+        // 3.58.0: the Weekly Rift is the same kind of official run
+        salvage = world.daily || world.weekly ? 1 : 1 + 0.1 * (save.workshop.salvage || 0),
         collected = world.shards,
         bonus = win ? Math.round(collected * 0.25) : 0,
         pacts = world.pactBonus(),
@@ -647,6 +661,10 @@ const overlay = new Overlay(elementById("ov")),
       // 3.26.0: the Daily Rift: the best of the day and the streak (an abandoned run before wave 2 does not count)
       let dailyBest = false;
       if (world.daily && !(abandoned && wave < 2)) dailyBest = recordDaily(stats.daily, world.daily, wave, world.kills);
+      // 3.58.0: the Weekly Rift: the best of the week (the same early-abandon rule)
+      let weeklyBest = false;
+      if (world.weekly && !(abandoned && wave < 2))
+        weeklyBest = recordWeekly(stats.weekly, world.weekly, wave, world.kills);
       stats.kills += world.kills;
       stats.playTime += world.time;
       stats.shardsEarned += total;
@@ -659,9 +677,11 @@ const overlay = new Overlay(elementById("ov")),
         stats.clears++;
         // 3.28.1: a Daily Rift sets the weapon and the threat: its clear counts as a clear, but unlocks no threat level and
         // does not count as a clear with that weapon (it may not even be owned)
-        if (!world.daily) stats.clearsBy[world.weapon] = (stats.clearsBy[world.weapon] || 0) + 1;
+        // 3.58.0: an official run (Daily or Weekly) is the same drone for everyone: it counts as a clear but
+        // unlocks no threat level and no per-weapon clear
+        if (!world.daily && !world.weekly) stats.clearsBy[world.weapon] = (stats.clearsBy[world.weapon] || 0) + 1;
         stats.bestClearThreat = Math.max(stats.bestClearThreat, world.threat);
-        if (!world.daily && world.threat >= save.threatMax && save.threatMax < 5) {
+        if (!world.daily && !world.weekly && world.threat >= save.threatMax && save.threatMax < 5) {
           save.threatMax = world.threat + 1;
           unlocks.push(`${threatLevels[save.threatMax].name} unlocked`);
         }
@@ -712,6 +732,10 @@ const overlay = new Overlay(elementById("ov")),
           dailyBest: dailyBest,
           // 3.28.1: the record only when this run was counted (an abandoned Daily before wave 2 is not)
           dailyStats: world.daily && stats.daily.key === world.daily ? { ...stats.daily } : null,
+          // 3.58.0: the Weekly Rift result, shown on the end screen like the Daily one
+          weekly: world.weekly,
+          weeklyBest: weeklyBest,
+          weeklyStats: world.weekly && stats.weekly.key === world.weekly ? { ...stats.weekly } : null,
         });
         sound.setMusic("menu");
         setWakeLock(false);
