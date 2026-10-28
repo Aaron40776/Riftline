@@ -2,6 +2,50 @@
 
 As of 27.10.2026, with 3.57.0. New entries are written in English (the owner's wish since 03.10.2026).
 
+## 28.10.2026 — biomes, enemies and effects: the overhaul, scoped (after 3.59.0)
+
+The owner asked for a biome, enemy and effect overhaul. This is the plan, grounded in what is actually
+asymmetric today, in the order it should be done. Each phase has a gate; nothing here is "make it prettier".
+
+**What is measured, not guessed**
+
+- **Ambient particles are per-place hand code.** `rlAmbient` in `src/render/biome-visuals.js` is a `switch` on
+  `biome.id` with the numbers written inline: the vault emits 34 flakes/s (was 42, cut in 3.44.0), the marsh
+  9 spores plus 4 fireflies plus the reed wind, the club 22 ash plus 11 embers (raised in 3.54.0). Every one of
+  those was tuned by eye, one release at a time, and nothing in the file states the intent — so the next change
+  is another guess. That is the real defect: not the densities, the fact that they are incomparable.
+- **Enemies arrive identically.** All 25 types have their own silhouette, animation, family death voice
+  (`RL_DEATH_FAMILY`, 25/25 mapped) and a kill burst tinted by `enemyDefs[type].color` — but `spawn` drew one
+  ring and one burst of one size for every type (`renderer.js`, `case "spawn"`): the colour was the type's own,
+  the shape was the same for all 25. Phase 1 fixes that; the rest of the phase is the family flourish.
+- **Bosses are 20–33 meshes each** (AUDIT.md M7), the largest single draw-call cluster left after 3.59.0.
+
+**Phase 1 (S) — a spawn that says what arrived.** Tint the spawn ring by the enemy's own colour and give the
+family a shape: fast types land with a streak, armoured ones with a heavy ring, flyers with a small vertical
+puff. Reuses `emit`/`ring` only, so no new per-frame draw calls. Gate: `npm run screens` per place, and a
+`selftest` assertion that every type in `enemyOrder` has an arrival shape.
+
+**Phase 2 (M) — the ambient table.** Move the per-place numbers out of the `switch` into a data table
+(rate, colour, vertical drift, size, drag per place) so a reader can compare two places at a glance and a
+reviewer can see a density change in the diff. Gate: the 3.58.0 screenshots matched within 10 % particle
+count per place.
+
+**Phase 3 (M) — wind-ups.** The field guide promises "chargers telegraph, then ram"; check every damaging
+attack for a wind-up of at least 0.25 s with a family sound, and give the ones without one a tell. Gate:
+`selftest` walks the enemy table and asserts each damaging attack has a wind-up field.
+
+**Phase 4 (L) — boss meshes.** Merge non-spinning parts per material (AUDIT.md M7: 20–33 → 7–10 draw calls).
+Gate: `npm run screens`, one image per boss per phase.
+
+**Phase 5 (L) — the prop merge left in AUDIT.md H3.** Same treatment for the marsh and the club, which still
+carry the most per-prop meshes.
+
+**Tooling, done here (3.60.0, no gameplay change):** `tests/balance.mjs` now draws its seeds from a fixed list
+and prints every seed's death wave, marking a row `noisy` when the spread reaches four waves. Before this, a
+run's rng was consumed by the spawn plan, so 3.58.0's one-enemy escort cut reseeded everything after wave 5 and
+moved the Rocket from wave 9 to wave 5 with no balance change behind it. A median of four chaotic runs was
+being read as a ranking; the spread says which rows can be read at all.
+
 ## 27.10.2026 — project process back on `main` (3.57.0)
 
 `main` had lost its own process documents: they only existed on unrelated, re-rooted `claude/*` branches. They
@@ -38,6 +82,7 @@ investigation, decisions and a plan, not for changes. The full report, with the 
 in `docs/STRATEGY-AUDIT.md`.
 
 **How it was judged.**
+
 - Screenshots and `renderer.info` of every biome (wave and boss) on PC and on a phone held sideways, taken from the live site
   in software WebGL.
 - Offline renders of all 15 music tracks and 17 sound effects, measured for loudness, spectrum and stereo.
@@ -45,6 +90,7 @@ in `docs/STRATEGY-AUDIT.md`.
 - **Not done:** no listening, no real devices, no play-testing.
 
 **Recommended direction.** Stay on three.js and the web, and change how the content is made:
+
 - **Made in Blender** (or licensed CC0) and imported as glTF: arena surroundings, landmarks and floors with **baked
   lighting**. The arena is static and the camera nearly fixed, so baked light gives the better look at almost no runtime
   cost (unlike Ultra).
@@ -54,6 +100,7 @@ in `docs/STRATEGY-AUDIT.md`.
   engine switch or a backend bring no gain now.
 
 **Main findings.**
+
 1. **No sense of place.** Each arena is a flat patterned floor from above with box obstacles and nothing around the edge;
    Blackout City does not read as a city.
 2. **Readability.** The biome skins paint the floor's pattern on enemies (`render/biome-visuals.js` `rlSkinMaterial`), so in
@@ -72,6 +119,7 @@ in `docs/STRATEGY-AUDIT.md`.
    simulation step with 56 enemies.
 
 **First batch of work** (each a small PR):
+
 1. 60 fps cap by default on phones and tablets, Auto quality working to a pixel budget, and a `?perf` readout built on the run
    monitor in `core/diagnostics.js`.
 2. A device baseline: the owner and 2–3 friends run `?perf` on their phones (a low-end and a 120 Hz Android, an older and a
@@ -79,17 +127,12 @@ in `docs/STRATEGY-AUDIT.md`.
 3. A readability pass: skins as an accent only, calmer floors, bigger bosses that spawn away from the HUD bar, tips off the
    play area on phones.
 
-**After that:**
-4. Audio mix pass, procedural only: the bass reserved for impacts and the boss kick, one bright signature voice per biome,
-   transient layers on impacts, wide but mono-safe beds, loudness targets in tests. The owner listens on a phone speaker and on
-   headphones.
-5. glTF asset pipeline (lazy load per biome, service-worker cache, size check in `build.js`).
-6. **Blackout City pilot**: Blender kit, baked light, border and backdrop. Go or no-go judged on phones.
-7. Recorded impact and ambience layers (1.5 MB at most, AAC or MP3).
-8. A fullscreen button for Android and desktop, an iOS "Add to Home Screen" hint, a visible save export and import.
-9. The rest of the biomes, one per PR; later perhaps authored boss models.
+**After that:** 4. Audio mix pass, procedural only: the bass reserved for impacts and the boss kick, one bright signature voice per biome,
+transient layers on impacts, wide but mono-safe beds, loudness targets in tests. The owner listens on a phone speaker and on
+headphones. 5. glTF asset pipeline (lazy load per biome, service-worker cache, size check in `build.js`). 6. **Blackout City pilot**: Blender kit, baked light, border and backdrop. Go or no-go judged on phones. 7. Recorded impact and ambience layers (1.5 MB at most, AAC or MP3). 8. A fullscreen button for Android and desktop, an iOS "Add to Home Screen" hint, a visible save export and import. 9. The rest of the biomes, one per PR; later perhaps authored boss models.
 
 **Decisions for the owner:**
+
 - The frame-cap default (also on desktop?).
 - Approve an art direction and send a reference picture.
 - iPhone silent switch: `audioSession.type = "ambient"` lets the switch mute the game; `playback` would ignore it.
@@ -105,6 +148,7 @@ in `docs/STRATEGY-AUDIT.md`.
 
 Reihenfolge vom Eigentümer bestätigt: erst die schnellen Sachen und Fixes, dann die größeren Dinge. Jeder Punkt ein
 eigener PR mit Release.
+
 1. **3.6.0 Steuerung anpassbar + Checkup-Fixes** (erledigt): Editor „Button layout“ in den Einstellungen (DASH, NOVA,
    GADGET und Pause frei verschieben und skalieren, Deckkraft, Stickgröße, fester Bewegungs-Stick; Hoch- und
    Querformat getrennt; Linkshänder spiegelt), Dash-Untergrenze, Orbital Blades, Combo Surge, Säurepfützen,
@@ -142,6 +186,7 @@ The biomes differ in sound almost only by their music: since 3.7.0 the sounds of
 themes, and the hazards are silent until a vent erupts.
 
 Order (one PR with a release each, to be merged one after another):
+
 1. **3.7.1 Fixes** (done): Endless with Cryo Skates locked the dash for minutes (the clock was reset, the time of the
    last dash was not); with a high hazard resistance acid ticks below one point counted as hits (sound, shake, red
    flash, Heat Sink), now the fraction is kept; a dodged trap strike (dash, shield) still slowed; electric traps
@@ -176,6 +221,7 @@ one template (motif rhythm, heartbeat, sub); the place is only in the instrument
 ambience against music and effects.
 
 Decisions of the owner (04.10.2026):
+
 - Order as proposed, each its own PR with a release: visuals first, then the soundscapes, then the music.
 - Calm themes: keep melody and key, rebuild rhythm and instruments per place (option a).
 - Rain in Blackout City: yes, but no constant "white noise" kind of rain (soft patter and single drops).
@@ -183,6 +229,7 @@ Decisions of the owner (04.10.2026):
   passing siren on the skyline).
 
 Plan:
+
 1. **3.10.0 Attacks with a look and sound of their own** (done, `render/attacks-view.js`): surfaces per attack (cracks,
    lava cracks, molten pools, frost from the rim, acid, rifts, turning targets with a countdown, smouldering ground);
    mines, charges and mortar shells with models; blasts of their kind (ice spikes, pillars of fire, bolts of light,
@@ -258,6 +305,7 @@ attack shots (`tests/attack-shots.mjs`).
 
 Planned with the owner on 04.10.2026 (the order and the designs are in the HANDOFF above; faster tests done in
 3.10.0):
+
 - **Replace the grenade**: "the current grenades just aren't useful, you gotta get so close until they actually fly
   into the enemies that you'll basically always have defeated them already". Make it another, cooler mechanic that
   fits the game (with model, sound, telegraph and tests, like everything else).
@@ -265,7 +313,6 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   that way; PC keeps working as it does. (The portrait layouts, the portrait button layout of the editor and the
   portrait tests would go.)
 - **Faster tests**: the release checks take about 45 minutes; optimize the steps for this project.
-
 
 ## Requested on 05.10.2026: always landscape, and the sound of Osmos
 
@@ -291,7 +338,7 @@ Planned with the owner on 04.10.2026 (the order and the designs are in the HANDO
   Lessons: judge a look on the real device, not by pictures from a software renderer; a better look must come from the
   lights, colours and models of the normal setting (cheap, for everyone), not from extra passes. Still wanted, with a
   reference picture from the owner.
-- **Sound direction** (the owner likes the mobile game *Osmos*): high quality stereo ambience, a nice subtle melody and
+- **Sound direction** (the owner likes the mobile game _Osmos_): high quality stereo ambience, a nice subtle melody and
   ambient effect sounds, noticeable and pleasant, distinct for each biome. To plan (not built yet): wider stereo (slow
   auto-panned pads, ping-pong echoes, per-voice width), a soft evolving melody per biome in its own scale and timbre
   (glassy bells, felt piano, warm pads), long reverb tails; the current themes are the starting point.
@@ -321,21 +368,21 @@ thorough checks in between. Never merge, never push to main. Everything below is
 each is based on the one before, so merge them in this order and, after each merge, switch the base of the next one to `main`
 (GitHub shows the diff against its base):
 
-| PR | Version | What |
-|---|---|---|
-| #43 | 3.18.1 | the old track fades out when the music changes; the deep test no longer flips (seeded noise): this is also why the deploy of #41 was red |
-| #44 | 3.18.2 | the checkups as tools (soak, fuzz, balance) and a 24992 Hz tone removed |
-| #45 | 3.19.0 | the ambient bloom (stereo, a voice per biome, ping-pong echo): the Osmos direction, first step |
-| #46 | 3.20.0 | the Ultra look (tone curve, real shadows, grade pass): REMOVED again in 3.28.2, see the note under "A more professional look" |
-| #47 | 3.21.0 | the death recap ("What hit you"), docs/GITHUB.md |
-| #48 | 3.22.0 | build stats in the pause menu, a look at the next wave |
-| #49 | 3.23.0 | gamepad, vibration (determinism fixture updated for the new setting) |
-| #50 | 3.24.0 | boss medals |
-| #51 | 3.25.0 | Banish Protocol (workshop module; banish a card in the upgrade choice) |
-| #52 | 3.26.0 | Daily Rift (date seed, weapon and threat; best of the day, streak) |
-| #53 | 3.27.0 | Pacts (up to two optional risks for more shards) |
-| #54 | 3.28.0 | Codex part Rift events (mutators, Overdrive attacks) (#54 carried the whole stack and was merged on 06.10.2026) |
-| next | 3.28.1 | checkup fixes; the rotate screen is back instead of the turning shell (owner, 06.10.2026: "the always landscape thing is kinda weird, maybe just keep the turn phone thing") |
+| PR   | Version | What                                                                                                                                                                         |
+| ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #43  | 3.18.1  | the old track fades out when the music changes; the deep test no longer flips (seeded noise): this is also why the deploy of #41 was red                                     |
+| #44  | 3.18.2  | the checkups as tools (soak, fuzz, balance) and a 24992 Hz tone removed                                                                                                      |
+| #45  | 3.19.0  | the ambient bloom (stereo, a voice per biome, ping-pong echo): the Osmos direction, first step                                                                               |
+| #46  | 3.20.0  | the Ultra look (tone curve, real shadows, grade pass): REMOVED again in 3.28.2, see the note under "A more professional look"                                                |
+| #47  | 3.21.0  | the death recap ("What hit you"), docs/GITHUB.md                                                                                                                             |
+| #48  | 3.22.0  | build stats in the pause menu, a look at the next wave                                                                                                                       |
+| #49  | 3.23.0  | gamepad, vibration (determinism fixture updated for the new setting)                                                                                                         |
+| #50  | 3.24.0  | boss medals                                                                                                                                                                  |
+| #51  | 3.25.0  | Banish Protocol (workshop module; banish a card in the upgrade choice)                                                                                                       |
+| #52  | 3.26.0  | Daily Rift (date seed, weapon and threat; best of the day, streak)                                                                                                           |
+| #53  | 3.27.0  | Pacts (up to two optional risks for more shards)                                                                                                                             |
+| #54  | 3.28.0  | Codex part Rift events (mutators, Overdrive attacks) (#54 carried the whole stack and was merged on 06.10.2026)                                                              |
+| next | 3.28.1  | checkup fixes; the rotate screen is back instead of the turning shell (owner, 06.10.2026: "the always landscape thing is kinda weird, maybe just keep the turn phone thing") |
 
 State of the tests: the complete release check ran on 3.18.1, 3.18.2, 3.19.0 (all ok), 3.20.0 (ok after one test fix), 3.23.0
 (covers 3.21 to 3.23; ok after the determinism fixture update). 3.24.0 had `npm test` and its own sections.
@@ -360,8 +407,10 @@ game's heap is flat), and GitHub Actions sometimes does not start a job for 15 m
 ## Vorgemerkt, vom Eigentümer gewünscht (Reihenfolge nach Empfehlung)
 
 ### 1. Boss-Belohnungen
+
 Done in 3.15.0 (05.10.2026, decisions in the HANDOFF above): Lockdown Grid (Warden), Crucible Hammer (Crucible),
 Shard Field (Frost Prism), Brood (Hive Queen), Event Collapse (Rift Core). The notes below are the original plan.
+
 - Nach dem Besiegen **jedes Bosses** gibt es nur **besonders starke Upgrades** (Angebot nur aus hohen Seltenheiten).
 - Jeder der fünf Bosse (Warden, Crucible, Frost Prism, Hive Queen, Rift Core) hat eine **Chance auf ein exklusives
   Upgrade**, das man nur von diesem einen Boss bekommen kann.
@@ -375,6 +424,7 @@ Shard Field (Frost Prism), Brood (Hive Queen), Event Collapse (Rift Core). The n
   Rift Core „Singularität" (Sog-Nova).
 
 ### 2. Läufer statt Drohne (3.6.0) und Umgebungssounds
+
 - Die Drohne wird ein **laufender Roboter mit zwei Beinen** (entschieden: zwei, nicht vier); Beine animiert beim
   Laufen, Steuerung unverändert, Dash als Schub oder Sprung, auch in der Startbildschirm-Vorschau.
 - **Schritt-Sounds je Untergrund**: nasser Asphalt (Platschen), Eis (Knirschen und Rutschen), Metallgitter, Schlamm,
@@ -385,7 +435,9 @@ Shard Field (Frost Prism), Brood (Hive Queen), Event Collapse (Rift Core). The n
   Biom bekannt (`arena.ice`, `acid`, `vents`, `portals`).
 
 ### 3. Cloudflare (Hosting und Bestenliste)
+
 Entscheidungen des Eigentümers (alles auf Cloudflare, GitHub Pages danach abschalten):
+
 - Hosting als **Cloudflare Worker mit Static Assets** (`dist`) plus **D1-Bestenliste**. Voreingestellte Adresse
   `workers.dev` (eigene Domain optional; **die Adresse ändert sich, `localStorage`-Spielstände gehen verloren**, der
   Eigentümer muss vorher den Spielstand exportieren).
@@ -404,6 +456,7 @@ Entscheidungen des Eigentümers (alles auf Cloudflare, GitHub Pages danach absch
 - Der Eigentümer sagt Bescheid, wenn es losgehen soll. Voraussichtlich Release 3.7.0 oder höher.
 
 ### 4. Aus dem Checkup
+
 - Erledigt in 3.6.0: Dash-Untergrenze 0,8 s, eigener Cooldown je Klinge bei Orbital Blades, Saver-Modus ohne
   Kantenglättung (ab dem nächsten Start) und Overlay in einfacher Auflösung, kleinere und gedämpftere Säurepfützen,
   Upgrade-Bildschirm auf dem Handy (kein Loch über REROLL, Werte und Einheiten brechen nicht mehr um), Combo Surge mit
@@ -419,6 +472,7 @@ Gewünscht: sinnvolle Verbesserungen (Komfort usw.), die Spieler gern hätten, o
 Punkt mit seiner Wirkung auf die Schwierigkeit.
 
 **A. Lernen und Überblick (neutral: erklärt, was passiert, nimmt nichts ab)**
+
 1. (Done in 3.21.0: "What hit you" on the end screen of a lost run.) Tod-Rückblick am Run-Ende: die letzten Treffer (wer, welcher Angriff, wie viel), der tödliche Treffer hervorgehoben,
    dazu Schaden je eigener Quelle (Waffe, Klingen, Granate, Surge, Fallen) und je Gegnertyp. Lernt man am meisten,
    wenn das Spiel schwer ist.
@@ -428,31 +482,23 @@ Punkt mit seiner Wirkung auf die Schwierigkeit.
    passend, statt blind.
 4. Kurze Einführung für Granate und Fallen in den Wellen 1–6, Codex-Einträge für Mutatoren und Overdrive-Angriffe.
 
-**B. Bedienung (neutral)**
-5. (Done in 3.23.0, tested with a faked controller only.) Gamepad (Sticks, Schultertasten, Start für Pause; Menüs zuerst weiter mit Maus/Touch) und Tastenbelegung am PC.
-6. (Done in 3.23.0.) Vibration am Handy bei Treffern, Dash und Boss-Schlägen (nur Android, abschaltbar).
-7. Getrennte Regler für Musik, Effekte und Atmosphäre (die Atmosphären sind seit 3.7.0 ein eigener Teil).
-   Done in 3.9.0: the "Ambience" volume (atmospheres, event beds and the sounds of the place).
-8. Kompakte Schadenszahlen (pro Gegner zusammengezählt) gegen das Gewimmel im Endless; Farbenblind-Paletten für
-   Gegnerschüsse und Warnungen (zusätzlich zu „Clear warnings").
+**B. Bedienung (neutral)** 5. (Done in 3.23.0, tested with a faked controller only.) Gamepad (Sticks, Schultertasten, Start für Pause; Menüs zuerst weiter mit Maus/Touch) und Tastenbelegung am PC. 6. (Done in 3.23.0.) Vibration am Handy bei Treffern, Dash und Boss-Schlägen (nur Android, abschaltbar). 7. Getrennte Regler für Musik, Effekte und Atmosphäre (die Atmosphären sind seit 3.7.0 ein eigener Teil).
+Done in 3.9.0: the "Ambience" volume (atmospheres, event beds and the sounds of the place). 8. Kompakte Schadenszahlen (pro Gegner zusammengezählt) gegen das Gewimmel im Endless; Farbenblind-Paletten für
+Gegnerschüsse und Warnungen (zusätzlich zu „Clear warnings").
 
-**C. Herausforderung (macht es freiwillig schwerer, belohnt Können)**
-9. Pakte vor dem Run: bis zu zwei Nachteile wählen (zum Beispiel halbe Hülle, schnellere Gegner, keine Nova, Nebel)
-   für mehr Shards und ein Abzeichen in der Run-Historie; Meilensteine für Siege mit Pakten.
-10. Tägliche Herausforderung: fester Seed, feste Waffe und feste Mutatoren für alle; eigener Bestwert (später die
-    Cloudflare-Bestenliste).
-11. (Done in 3.24.0.) Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex.
-12. Training gegen bereits besiegte Bosse (keine Belohnung): üben, ohne den Run leichter zu machen.
+**C. Herausforderung (macht es freiwillig schwerer, belohnt Können)** 9. Pakte vor dem Run: bis zu zwei Nachteile wählen (zum Beispiel halbe Hülle, schnellere Gegner, keine Nova, Nebel)
+für mehr Shards und ein Abzeichen in der Run-Historie; Meilensteine für Siege mit Pakten. 10. Tägliche Herausforderung: fester Seed, feste Waffe und feste Mutatoren für alle; eigener Bestwert (später die
+Cloudflare-Bestenliste). 11. (Done in 3.24.0.) Boss-Medaillen: ohne Treffer und auf Zeit, je Boss Bronze, Silber, Gold im Codex. 12. Training gegen bereits besiegte Bosse (keine Belohnung): üben, ohne den Run leichter zu machen.
 
-**D. Mit Vorsicht (macht es etwas leichter, nur begrenzt)**
-13. „Verbannen" in der Upgrade-Wahl: eine Karte für den Run aus dem Pool nehmen, höchstens ein- bis zweimal pro Run
-    über ein Werkstatt-Modul freigeschaltet.
+**D. Mit Vorsicht (macht es etwas leichter, nur begrenzt)** 13. „Verbannen" in der Upgrade-Wahl: eine Karte für den Run aus dem Pool nehmen, höchstens ein- bis zweimal pro Run
+über ein Werkstatt-Modul freigeschaltet.
 
 Empfehlung zur Reihenfolge: 3.8.0 Boss-Belohnungen (wie geplant), dann ein Paket „Lernen und Überblick" (1–3, klein bis
 mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad und Vibration passen zu jedem Release.
 (03.10.2026: the checkup releases 3.7.1–3.9.0 above come first, so the boss rewards move to 3.10.0.)
 
 ## Offene Zweifel (nur der Eigentümer kann sie prüfen)
+
 - Musik 3.7.0: ob der neue Boss-Stil (Cinematic Synth) gefällt oder ein anderer probiert werden soll (Alternativen:
   durchgehend Synthwave/Darksynth oder Drum & Bass); ob die Atmosphären jetzt angenehm leise sind und der Chor nach
   Chor klingt (Formant-Filter, nur gemessen).
@@ -466,6 +512,7 @@ mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad 
 ## Weitere gute Ideen (ungeprüft, nach Gewinn für „skalierendes, schwerer werdendes Spiel mit schönem Look und Klang")
 
 **Endless und Herausforderung**
+
 - Mutatoren vertiefen (3.3.0 hat sechs): Gegner-Elite-Eigenschaften stapeln, Herausforderungswellen (z. B. nur
   Schwarmgegner, nur Fernkämpfer), Welle mit Zeitlimit, Abyss-Gegner jenseits von Welle 100, Gravitationsquellen.
 - **Pakte und Relikte** (Vor- und Nachteil wählen, gelten für den Run), Gadget-Wahl vor dem Run, weitere Gadgets
@@ -474,18 +521,21 @@ mittel, hoher Nutzen), dann Herausforderung (9–11), dann der Läufer. Gamepad 
 - Boss-Variationen pro Run (zufälliger Overdrive-Zusatz), Mini-Bosse in Endless alle 25 Wellen.
 
 **Look**
+
 - Biom-Wetter und Tageszeit pro Besuch (Regen verstärkt sich, Nebel zieht auf), bewegliche Hintergrund-Elemente
   (Hubschrauber über der Stadt, Züge im Void).
 - Boss-Tod-Zeitlupe mit Kamerafahrt, Biom-Übergänge (Portal-Effekt zwischen den Bioms), Gegner-Skins pro Elite-Eigenschaft.
 - Zusammenfassung am Run-Ende mit Schaden je Quelle, Zeitleiste, gesammelten Upgrades und der Punktzahl (Cloudflare).
 
 **Klang**
+
 - Musik reagiert auf Zustand: tiefer Hüllen-Herzschlag und Dämpfung bei wenig Hülle, Aufhellen nach einer Welle ohne Treffer.
 - Getrennte Regler für Musik, Effekte und Ambient in den Einstellungen; Vorschau-Knopf für Ambient je Biom.
   (The Ambience volume came in 3.9.0.)
 - Boss-Phasen mit eigenem Musik-Abschnitt (statt nur Enrage-Schicht), Sprach-Schnipsel im Hubschrauber/Funk.
 
 **Qualität und Zugang**
+
 - Farbenblind-Modus für Warnungen, Haptik am Handy bei Treffer und Dash. (03.10.2026: no option to reduce flashes and
   no left-handed mode; the owner had both removed in 3.8.0.)
 - Gamepad-Unterstützung, Tastenbelegung.

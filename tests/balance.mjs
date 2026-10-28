@@ -13,6 +13,12 @@ const { weaponOrder } = await import("../src/data/weapons.js");
 const SEEDS = +(process.argv[2] || 4),
   THREATS = (process.argv[3] || "0,2").split(",").map(Number),
   CAP = +(process.argv[4] || 60);
+/* 3.60.0: the seed of a run comes from this fixed list, not from 1..SEEDS, so "before" and "after" a balance
+   change are the same fights. They were not: the run's own rng is consumed by the spawn plan, so one extra enemy
+   at wave 5 reseeds everything after it and the bot's death wave moves by four for no reason (3.58.0's smaller
+   boss escort moved the Rocket from wave 9 to 5 that way). The spread is printed next to the median for the same
+   reason: a median of four chaotic runs hides the range it came from. */
+const SEED_LIST = [13, 29, 47, 61, 83, 101, 113, 149];
 const weapons = weaponOrder;
 const median = (list) => {
   const s = [...list].sort((a, b) => a - b);
@@ -62,13 +68,15 @@ function play(w, { cap, until, onChoose }) {
 
 const table = {},
   warn = [],
-  fail = [];
+  fail = [],
+  noise = [];
 const t0 = performance.now();
 for (const threat of THREATS) {
   for (const wpn of weapons) {
     const runs = [];
-    for (let seed = 1; seed <= SEEDS; seed++) {
-      const w = new World({ seed: seed * 7919 + wpn.length, weapon: wpn, threat, ws: {}, pacts: [] });
+    for (let i = 0; i < SEEDS; i++) {
+      const seed = SEED_LIST[i % SEED_LIST.length],
+        w = new World({ seed: seed * 7919 + wpn.length, weapon: wpn, threat, ws: {}, pacts: [] });
       play(w, { cap: 60 * 60 * 40, until: (w) => w.wave >= CAP });
       runs.push({ wave: w.wave, secs: Math.round(w.time), dmg: w.runStats.dmgTaken, dead: w.state === "dead" });
     }
@@ -79,9 +87,13 @@ for (const threat of THREATS) {
       secs: median(runs.map((r) => r.secs)),
       dmgPerWave: +(median(runs.map((r) => r.dmg / Math.max(1, r.wave))) || 0).toFixed(1),
       died: runs.filter((r) => r.dead).length,
+      waves: runs.map((r) => r.wave),
     });
+    // 3.60.0: four waves of spread or more and the median is not a rank, it is a coin toss - say so on the row
+    t.noisy = t.max - t.min >= 4;
+    if (t.noisy) noise.push({ wpn, threat, waves: t.waves });
     console.log(
-      `threat ${threat} ${wpn.padEnd(8)} wave ${String(t.wave).padStart(3)} (${t.min}-${t.max})  ${String(t.secs).padStart(5)} s  damage/wave ${String(t.dmgPerWave).padStart(6)}  died ${t.died}/${SEEDS}`,
+      `threat ${threat} ${wpn.padEnd(8)} wave ${String(t.wave).padStart(3)} (${t.min}-${t.max})${t.noisy ? " noisy" : "      "}  ${String(t.secs).padStart(5)} s  damage/wave ${String(t.dmgPerWave).padStart(6)}  died ${t.died}/${SEEDS}  waves ${t.waves.join(",")}`,
     );
   }
 }
@@ -91,8 +103,9 @@ const speed = {};
 console.log("\nclear speed (god mode, waves 1-19, median over the seeds)");
 for (const wpn of weapons) {
   const times = [];
-  for (let seed = 1; seed <= SEEDS; seed++) {
-    const w = new World({ seed: seed * 104729 + wpn.length, weapon: wpn, threat: 0, ws: {}, pacts: [] });
+  for (let i = 0; i < SEEDS; i++) {
+    const seed = SEED_LIST[i % SEED_LIST.length],
+      w = new World({ seed: seed * 104729 + wpn.length, weapon: wpn, threat: 0, ws: {}, pacts: [] });
     w.god = true;
     let start = 0;
     play(w, {
@@ -137,6 +150,12 @@ for (const threat of THREATS) {
       warn.push(`${wpn} at threat ${threat}: wave ${t.wave} against ${best} for the best weapon (under 40 %)`);
   }
 }
-console.log(JSON.stringify({ seeds: SEEDS, threats: THREATS, cap: CAP, warn, fail }, null, 1));
+console.log(
+  JSON.stringify(
+    { seeds: SEEDS, seedsUsed: SEED_LIST.slice(0, SEEDS), threats: THREATS, cap: CAP, warn, fail, noisy: noise },
+    null,
+    1,
+  ),
+);
 console.log(`BALANCE (node): ${((performance.now() - t0) / 1000).toFixed(1)} s`);
 process.exitCode = fail.length ? 1 : 0;
