@@ -4,6 +4,15 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "3.60.0",
+    title: "An arrival that says what is coming",
+    items: [
+      "Enemies now land with a shape that matches their weight: the light ones arrive in a quick streak, the heavy ones under a slow wide ring and a puff of dust.",
+      "Before, all 25 types arrived the same way \u2014 same ring, same burst, same size \u2014 so the first thing you saw of a Brute looked like the first thing you saw of a Swarmer.",
+      "The colour was already each type's own (and gold for an elite); it is unchanged. No damage, speed or spawn-time change.",
+    ],
+  },
+  {
     version: "3.59.0",
     title: "The Weekly Rift",
     items: [
@@ -48,16 +57,6 @@ export const WHATS_NEW = [
       "Its card, the Glasswyrm Fang: every 14 kills the last kill bursts into piercing glass lances.",
       "The wyrm sings its own boss track at 134, and the Vitrified milestone replaces Quenched (earned saves keep it).",
       "The Crucible, its hammer card and its music stay in the game for the saves that own them — just not in the desert.",
-    ],
-  },
-  {
-    version: "3.55.1",
-    title: "Everything called by its right name",
-    items: [
-      "A naming sweep: the build notes and the field guide now use the six places' current names everywhere.",
-      "The event list reads complete: Spore Tide, Whiteout, Dust Devils, Ashfall, Rift Storm and Blackout.",
-      "The Crucible is named the Glass Flats' boss wherever it is introduced.",
-      "No gameplay, save or record changes — words only.",
     ],
   },
 ];

@@ -1409,9 +1409,22 @@ const MAX_PARTICLES = 1400,
             this.addShake(0.8 * shakeK);
             break;
           case "spawn": {
-            let color = ev.elite ? goldColor : hexColor(enemyDefs[ev.type] ? enemyDefs[ev.type].color : 16777215);
-            this.ring(ev.x, ev.y, 0.2, 1.4, color, 0.3);
-            this.burst(ev.x, ev.y, 0.3, 8, 4, color, 0.4, 0.3, { up: 5 });
+            // 3.60.0: an arrival says how heavy the thing is before its silhouette can be read - light types
+            // land in a quick streak, heavy ones under a slow wide ring and a dust puff (the colour was already
+            // the type's own; the shape was the same for all 25)
+            let def = enemyDefs[ev.type],
+              color = ev.elite ? goldColor : hexColor(def ? def.color : 16777215),
+              size = def ? def.r : 0.6;
+            if (size < 0.6) {
+              this.ring(ev.x, ev.y, 0.14, 1.05, color, 0.22);
+              this.burst(ev.x, ev.y, 0.25, 6, 9, color, 0.45, 0.22, { up: 1 });
+            } else if (size >= 0.85) {
+              this.ring(ev.x, ev.y, 0.3, 2.4, color, 0.55);
+              this.burst(ev.x, ev.y, 0.5, 10, 3, color, 0.35, 0.45, { up: 2.5 });
+            } else {
+              this.ring(ev.x, ev.y, 0.2, 1.4, color, 0.3);
+              this.burst(ev.x, ev.y, 0.3, 8, 4, color, 0.4, 0.3, { up: 5 });
+            }
             break;
           }
           case "thud":
